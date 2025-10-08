@@ -1,0 +1,5 @@
+{
+  "name": "InkSpace",
+  "description": "A dual-platform application for the tattoo industry. The B2B side allows tattoo artists to find and book booths at shops, like an Airbnb for tattoo spaces. The B2C side enables clients to discover and book sessions with artists who are available in their city.",
+  "requestFramePermissions": []
+}
