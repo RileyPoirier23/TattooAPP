@@ -3,7 +3,7 @@
 // --- DATA MODELS ---
 
 export interface Artist {
-  id: string;
+  id: string; // This will be the user's auth id
   name: string;
   specialty: string;
   portfolio: string[];
@@ -11,9 +11,20 @@ export interface Artist {
   bio: string;
 }
 
+export interface Client {
+    id: string; // User's auth id
+    name: string;
+}
+
+export interface ShopOwner {
+    id: string; // User's auth id
+    name: string;
+    shopId: string | null;
+}
+
 export interface Review {
   author: string;
-  rating: number; // e.g., 4.5
+  rating: number; 
   text: string;
 }
 
@@ -52,6 +63,7 @@ export interface Booking {
   city: string;
   startDate: string;
   endDate: string;
+  paymentStatus: 'paid' | 'unpaid';
 }
 
 export interface ClientBookingRequest {
@@ -62,6 +74,11 @@ export interface ClientBookingRequest {
     endDate: string;
     message: string;
     status: 'pending' | 'approved' | 'declined';
+    // New detailed fields
+    tattooSize: string;
+    bodyPlacement: string;
+    estimatedHours: number;
+    paymentStatus: 'paid' | 'unpaid';
 }
 
 export interface Notification {
@@ -92,17 +109,17 @@ export interface GroundingChunk {
 // --- APP STATE & NAVIGATION ---
 
 export type ViewMode = 'artist' | 'client';
-export type Page = 'search' | 'profile' | 'dashboard';
+export type Page = 'search' | 'profile' | 'dashboard' | 'bookings' | 'settings' | 'messages';
 
 
 // --- USER & AUTHENTICATION ---
 
-export type UserRole = 'artist' | 'client' | 'shop-owner';
+export type UserRole = 'artist' | 'client' | 'shop-owner' | 'dual'; // Added 'dual' role
 
 interface BaseUser {
     id: string;
     username: string;
-    password; // In a real app, this would not be stored on the user object client-side
+    password?: string; // Should not exist on client-side after login
     type: UserRole;
 }
 export interface ArtistUser extends BaseUser {
@@ -111,22 +128,26 @@ export interface ArtistUser extends BaseUser {
 }
 export interface ClientUser extends BaseUser {
     type: 'client';
-    data: { id: string; name: string };
+    data: Client;
 }
 export interface ShopOwnerUser extends BaseUser {
     type: 'shop-owner';
-    data: { id: string; name: string; shopId: string | null };
+    data: ShopOwner;
+}
+export interface DualUser extends BaseUser {
+    type: 'dual';
+    data: Artist; // A dual user's primary data is their artist profile
 }
 
-export type User = ArtistUser | ClientUser | ShopOwnerUser;
+export type User = ArtistUser | ClientUser | ShopOwnerUser | DualUser;
 
 export interface AuthCredentials {
     username: string;
-    password:
+    password?: string; // Password is optional here
 }
 
 export interface RegisterDetails extends AuthCredentials {
     type: UserRole;
     name: string;
-    city: string; // Only for artists
+    city?: string; // Only for artists/dual
 }

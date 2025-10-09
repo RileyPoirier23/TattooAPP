@@ -1,114 +1,127 @@
 // @/services/authService.ts
+import { supabase } from './supabaseClient';
+import type { User, AuthCredentials, RegisterDetails, Artist, Client, ShopOwner, UserRole } from '../types';
 
-import { users as seedUsers } from '../data/seed';
-import type { User, AuthCredentials, RegisterDetails } from '../types';
-
-const USER_STORAGE_KEY = 'inkspace_user';
+const USER_STORAGE_KEY = 'inkspace_user_session';
 
 class AuthService {
-    private users: User[];
-
-    constructor() {
-        // In a real app, this would be an API call. Here we load from our seed file.
-        this.users = [...seedUsers];
-    }
-
-    getCurrentUser(): User | null {
+    
+    async getCurrentUser(): Promise<User | null> {
         try {
-            const storedUser = localStorage.getItem(USER_STORAGE_KEY);
-            return storedUser ? JSON.parse(storedUser) : null;
+            const { data: { session } } = await supabase.auth.getSession();
+            if (!session) {
+                localStorage.removeItem(USER_STORAGE_KEY);
+                return null;
+            }
+            // Check cache first
+            const cachedUser = localStorage.getItem(USER_STORAGE_KEY);
+            if(cachedUser) {
+                const parsed = JSON.parse(cachedUser);
+                if (parsed.id === session.user.id) return parsed;
+            }
+
+            const user = await this.getUserProfile(session.user.id);
+            if(user) localStorage.setItem(USER_STORAGE_KEY, JSON.stringify(user));
+            return user;
+
         } catch (error) {
-            console.error("Failed to parse user from localStorage", error);
+            console.error("Error getting current user:", error);
+            localStorage.removeItem(USER_STORAGE_KEY);
             return null;
         }
     }
-    
-    // FIX: Add method to find a shop owner by shop ID.
-    getShopOwnerId(shopId: string): string | null {
-        const owner = this.users.find(u => u.type === 'shop-owner' && u.data.shopId === shopId);
-        return owner ? owner.id : null;
-    }
 
-    // FIX: Add method to find a user by their ID.
-    getUserById(userId: string): User | null {
-        return this.users.find(u => u.id === userId) || null;
-    }
-
-    login(credentials: AuthCredentials): Promise<User> {
-        return new Promise((resolve, reject) => {
-            setTimeout(() => { // Simulate network delay
-                const user = this.users.find(u => u.username === credentials.username);
-
-                if (user && user.password === credentials.password) {
-                    localStorage.setItem(USER_STORAGE_KEY, JSON.stringify(user));
-                    resolve(user);
-                } else {
-                    reject(new Error("Invalid username or password."));
-                }
-            }, 500);
+    async login(credentials: AuthCredentials): Promise<User> {
+        const { error } = await supabase.auth.signInWithPassword({
+            email: credentials.username, // Supabase uses email for username
+            password: credentials.password!,
         });
+        if (error) throw error;
+        const { data: { user } } = await supabase.auth.getUser();
+        if (!user) throw new Error("Could not retrieve user after login.");
+        
+        const profile = await this.getUserProfile(user.id);
+        if (!profile) throw new Error("User profile not found.");
+
+        localStorage.setItem(USER_STORAGE_KEY, JSON.stringify(profile));
+        return profile;
     }
 
-    register(details: RegisterDetails): Promise<User> {
-        return new Promise((resolve, reject) => {
-            setTimeout(() => { // Simulate network delay
-                const userExists = this.users.some(u => u.username === details.username);
-                if (userExists) {
-                    return reject(new Error("Username already exists."));
+    async register(details: RegisterDetails): Promise<User> {
+        const { data: authData, error: authError } = await supabase.auth.signUp({
+            email: details.username,
+            password: details.password!,
+            options: {
+                data: {
+                    full_name: details.name,
                 }
-
-                let newUser: User;
-                const newId = `user-${Date.now()}`;
-
-                if (details.type === 'artist') {
-                    newUser = {
-                        id: newId,
-                        username: details.username,
-                        password: details.password,
-                        type: 'artist',
-                        data: {
-                            id: newId,
-                            name: details.name,
-                            city: details.city,
-                            specialty: 'New Artist',
-                            bio: 'Just getting started, excited to create!',
-                            portfolio: ['https://images.pexels.com/photos/1269968/pexels-photo-1269968.jpeg?auto=compress&cs=tinysrgb&w=1260&h=750&dpr=2'],
-                        },
-                    };
-                } else if (details.type === 'client') {
-                     newUser = {
-                        id: newId,
-                        username: details.username,
-                        password: details.password,
-                        type: 'client',
-                        data: { id: newId, name: details.name },
-                    };
-                } else { // shop-owner
-                     newUser = {
-                        id: newId,
-                        username: details.username,
-                        password: details.password,
-                        type: 'shop-owner',
-                        data: {
-                            id: newId,
-                            name: details.name,
-                            shopId: null, // They would create/link a shop after registration
-                        },
-                    };
-                }
-                
-                this.users.push(newUser); // Add to our in-memory user list
-                localStorage.setItem(USER_STORAGE_KEY, JSON.stringify(newUser));
-                resolve(newUser);
-            }, 500);
+            }
         });
+
+        if (authError) throw authError;
+        if (!authData.user) throw new Error("Registration succeeded but no user returned.");
+
+        const profileData = {
+            id: authData.user.id,
+            username: details.username,
+            full_name: details.name,
+            role: details.type,
+            city: details.city || null,
+            specialty: 'New Artist',
+            bio: `An artist based in ${details.city || 'a new city'}.`,
+            portfolio: [],
+        };
+
+        const { error: profileError } = await supabase.from('profiles').insert(profileData);
+        if (profileError) {
+            // Attempt to clean up the auth user if profile creation fails
+            // This is an advanced operation and might require admin privileges.
+            console.error("Failed to create user profile:", profileError);
+            throw new Error(`User created, but profile setup failed. Please contact support. Error: ${profileError.message}`);
+        }
+        
+        const newUser = await this.getUserProfile(authData.user.id);
+        if (!newUser) throw new Error("Could not retrieve new user profile after registration.");
+        localStorage.setItem(USER_STORAGE_KEY, JSON.stringify(newUser));
+        return newUser;
     }
 
-    logout(): Promise<void> {
-        return new Promise((resolve) => {
-             localStorage.removeItem(USER_STORAGE_KEY);
-             resolve();
-        });
+    async logout(): Promise<void> {
+        const { error } = await supabase.auth.signOut();
+        localStorage.removeItem(USER_STORAGE_KEY);
+        if (error) throw error;
+    }
+
+    async getUserProfile(userId: string): Promise<User | null> {
+        const { data: profile, error } = await supabase
+            .from('profiles')
+            .select('*')
+            .eq('id', userId)
+            .single();
+
+        if (error || !profile) {
+            console.error("Error fetching profile:", error);
+            return null;
+        }
+
+        const baseUser = {
+            id: profile.id,
+            username: profile.username,
+            type: profile.role as UserRole,
+        };
+        
+        switch (profile.role) {
+            case 'artist':
+            case 'dual':
+                return { ...baseUser, type: profile.role, data: { id: profile.id, name: profile.full_name, city: profile.city, specialty: profile.specialty, bio: profile.bio, portfolio: profile.portfolio } as Artist };
+            case 'client':
+                return { ...baseUser, type: 'client', data: { id: profile.id, name: profile.full_name } as Client };
+            case 'shop-owner':
+                 // This assumes shopId is managed elsewhere, e.g., on the shops table
+                return { ...baseUser, type: 'shop-owner', data: { id: profile.id, name: profile.full_name, shopId: null } as ShopOwner };
+            default:
+                return null;
+        }
     }
 }
 

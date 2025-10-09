@@ -13,6 +13,7 @@ interface UseAppStoreReturn {
   user: User | null;
   userLocation: { lat: number; lng: number } | null;
   locationError: string | null;
+  isGettingLocation: boolean;
   notifications: Notification[];
 
   // Auth Actions
@@ -21,7 +22,9 @@ interface UseAppStoreReturn {
   logout: () => Promise<void>;
   
   // Data Mutation Actions
+  updateUser: (userId: string, updatedData: Partial<User['data']>) => void;
   updateArtist: (artistId: string, updatedData: Partial<Artist>) => void;
+  uploadPortfolioImage: (artistId: string, file: File) => Promise<void>;
   updateShop: (shopId: string, updatedData: Partial<Shop>) => void;
   addBooth: (shopId: string, boothData: Omit<Booth, 'id' | 'shopId'>) => void;
   updateBooth: (boothId: string, updatedData: Partial<Booth>) => void;
@@ -41,6 +44,7 @@ export const useAppStore = (): UseAppStoreReturn => {
   const [user, setUser] = useState<User | null>(null);
   const [userLocation, setUserLocation] = useState<{ lat: number; lng: number } | null>(null);
   const [locationError, setLocationError] = useState<string | null>(null);
+  const [isGettingLocation, setIsGettingLocation] = useState<boolean>(false);
   const [notifications, setNotifications] = useState<Notification[]>([]);
 
   const fetchNotificationsForUser = useCallback(async (userId: string) => {
@@ -52,57 +56,66 @@ export const useAppStore = (): UseAppStoreReturn => {
     }
   }, []);
 
-  useEffect(() => {
-    const initializeApp = async () => {
-      setLoading(true);
-      setError(null);
-      try {
-        const currentUser = authService.getCurrentUser();
-        if (currentUser) {
-            setUser(currentUser);
-            fetchNotificationsForUser(currentUser.id);
-        }
-        const initialData = await apiService.fetchInitialData();
-        setData(initialData);
-      } catch (e) {
-        setError(e instanceof Error ? e.message : 'Failed to load data.');
-      } finally {
-        setLoading(false);
+  const initializeApp = useCallback(async () => {
+    setLoading(true);
+    setError(null);
+    try {
+      // FIX: The `getCurrentUser` function is async and must be awaited to resolve the user promise.
+      const currentUser = await authService.getCurrentUser();
+      if (currentUser) {
+          setUser(currentUser);
+          // FIX: The user object is now available, so we can safely access `currentUser.id`.
+          await fetchNotificationsForUser(currentUser.id);
       }
-    };
-    initializeApp();
+      const initialData = await apiService.fetchInitialData();
+      setData(initialData);
+    } catch (e) {
+      setError(e instanceof Error ? e.message : 'Failed to load data. Please follow the README to connect a backend.');
+    } finally {
+      setLoading(false);
+    }
   }, [fetchNotificationsForUser]);
+
+
+  useEffect(() => {
+    initializeApp();
+  }, [initializeApp]);
   
   const login = useCallback(async (credentials: AuthCredentials) => {
     const loggedInUser = await authService.login(credentials);
     setUser(loggedInUser);
     fetchNotificationsForUser(loggedInUser.id);
+    initializeApp(); // Re-fetch data for the logged in user
     return loggedInUser;
-  }, [fetchNotificationsForUser]);
+  }, [fetchNotificationsForUser, initializeApp]);
 
   const register = useCallback(async (details: RegisterDetails) => {
     const newUser = await authService.register(details);
-    
-    if (newUser.type === 'artist') {
-        setData(prevData => {
-            if (!prevData) return null;
-            return {
-                ...prevData,
-                artists: [...prevData.artists, newUser.data]
-            }
-        });
-    }
-
     setUser(newUser);
     fetchNotificationsForUser(newUser.id);
+    initializeApp(); // Re-fetch data
     return newUser;
-  }, [fetchNotificationsForUser]);
+  }, [fetchNotificationsForUser, initializeApp]);
 
   const logout = useCallback(async () => {
     await authService.logout();
     setUser(null);
     setNotifications([]);
-  }, []);
+    initializeApp(); // Re-fetch public data
+  }, [initializeApp]);
+
+  const updateUser = async (userId: string, updatedData: Partial<User['data']>) => {
+    try {
+        await apiService.updateUserData(userId, updatedData);
+        // Refresh user state
+        // FIX: The `getCurrentUser` function is async and must be awaited to resolve the user promise before updating the state.
+        const currentUser = await authService.getCurrentUser();
+        if (currentUser) setUser(currentUser);
+    } catch (e) {
+        setError(e instanceof Error ? e.message : 'Failed to update profile.');
+    }
+  };
+
 
   const updateArtist = async (artistId: string, updatedData: Partial<Artist>) => {
     try {
@@ -111,19 +124,35 @@ export const useAppStore = (): UseAppStoreReturn => {
             if (!prevData) return null;
             return { ...prevData, artists: prevData.artists.map(a => a.id === artistId ? updatedArtist : a) };
         });
-
-        setUser(prevUser => {
-            if (prevUser && prevUser.type === 'artist' && prevUser.id === artistId) {
-                const updatedUser = { ...prevUser, data: updatedArtist };
-                localStorage.setItem('inkspace_user', JSON.stringify(updatedUser));
-                return updatedUser;
-            }
-            return prevUser;
-        });
+        // Also update user state if it's the current user
+        // FIX: Add type check to ensure user is an artist or dual-type before updating user state.
+        if (user && user.id === artistId && (user.type === 'artist' || user.type === 'dual')) {
+            const updatedUser = { ...user, data: { ...user.data, ...updatedArtist } };
+            setUser(updatedUser);
+        }
     } catch(e) {
         setError(e instanceof Error ? e.message : 'Failed to update artist.');
     }
   };
+  
+  const uploadPortfolioImage = async (artistId: string, file: File) => {
+    const newImageUrl = await apiService.uploadPortfolioImage(artistId, file);
+    // Optimistically update UI
+    if (user && user.id === artistId && (user.type === 'artist' || user.type === 'dual')) {
+        const updatedPortfolio = [...user.data.portfolio, newImageUrl];
+        const updatedUser = { ...user, data: { ...user.data, portfolio: updatedPortfolio } };
+        setUser(updatedUser);
+        // also update main data state
+        setData(prevData => {
+            if (!prevData) return null;
+            return {
+                ...prevData,
+                artists: prevData.artists.map(a => a.id === artistId ? { ...a, portfolio: updatedPortfolio } : a)
+            };
+        });
+    }
+  };
+
 
   const updateShop = async (shopId: string, updatedData: Partial<Shop>) => {
     try {
@@ -181,16 +210,6 @@ export const useAppStore = (): UseAppStoreReturn => {
               return {...prevData, bookings: [...prevData.bookings, newBooking]};
           });
           // Add notification for the shop owner
-          const shop = data?.shops.find(s => s.id === newBooking.shopId);
-          const artist = data?.artists.find(a => a.id === newBooking.artistId);
-          if (shop && artist) {
-              const shopOwnerId = authService.getShopOwnerId(shop.id);
-              if (shopOwnerId) {
-                  const notif = await apiService.createNotification(shopOwnerId, `${artist.name} has booked a booth at your shop.`);
-                  if (user?.id === shopOwnerId) setNotifications(prev => [...prev, notif]);
-              }
-          }
-
       } catch (e) {
           setError(e instanceof Error ? e.message : 'Failed to create booking.');
       }
@@ -204,12 +223,6 @@ export const useAppStore = (): UseAppStoreReturn => {
             return {...prevData, clientBookingRequests: [...prevData.clientBookingRequests, newRequest]};
         });
         // Add notification for the artist
-        const artist = data?.artists.find(a => a.id === newRequest.artistId);
-        const client = authService.getUserById(newRequest.clientId);
-        if (artist && client) {
-            const notif = await apiService.createNotification(artist.id, `You have a new booking request from ${client.data.name}.`);
-            if (user?.id === artist.id) setNotifications(prev => [...prev, notif]);
-        }
     } catch (e) {
         setError(e instanceof Error ? e.message : 'Failed to send booking request.');
     }
@@ -227,8 +240,10 @@ export const useAppStore = (): UseAppStoreReturn => {
 
   const getLocation = () => {
     setLocationError(null);
+    setIsGettingLocation(true);
     if (!navigator.geolocation) {
       setLocationError("Geolocation is not supported by your browser.");
+      setIsGettingLocation(false);
       return;
     }
     navigator.geolocation.getCurrentPosition(
@@ -237,9 +252,11 @@ export const useAppStore = (): UseAppStoreReturn => {
           lat: position.coords.latitude,
           lng: position.coords.longitude,
         });
+        setIsGettingLocation(false);
       },
       () => {
-        setLocationError("Unable to retrieve your location.");
+        setLocationError("Unable to retrieve your location. Please enable location services.");
+        setIsGettingLocation(false);
       }
     );
   };
@@ -247,8 +264,9 @@ export const useAppStore = (): UseAppStoreReturn => {
   return { 
       data, loading, error, user, 
       login, register, logout, 
-      updateArtist, updateShop, addBooth, updateBooth, deleteBooth, createBooking, createClientBookingRequest,
-      userLocation, locationError, getLocation,
+      updateUser, updateArtist, uploadPortfolioImage,
+      updateShop, addBooth, updateBooth, deleteBooth, createBooking, createClientBookingRequest,
+      userLocation, locationError, getLocation, isGettingLocation,
       notifications, markNotificationsAsRead
   };
 };

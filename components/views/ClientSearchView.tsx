@@ -8,6 +8,7 @@ interface ClientSearchViewProps {
   shops: Shop[];
   userLocation: { lat: number; lng: number } | null;
   getLocation: () => void;
+  isGettingLocation: boolean;
   onSelectArtist: (artist: Artist) => void;
 }
 
@@ -38,7 +39,7 @@ type ArtistViewModel = Artist & {
     } | null;
 };
 
-export const ClientSearchView: React.FC<ClientSearchViewProps> = ({ artists, bookings, shops, userLocation, getLocation, onSelectArtist }) => {
+export const ClientSearchView: React.FC<ClientSearchViewProps> = ({ artists, bookings, shops, userLocation, getLocation, isGettingLocation, onSelectArtist }) => {
     const [city, setCity] = useState('');
     const [specialty, setSpecialty] = useState('');
 
@@ -50,7 +51,7 @@ export const ClientSearchView: React.FC<ClientSearchViewProps> = ({ artists, boo
             const shop = shops.find(s => s.id === latestBooking.shopId);
             return {
                 shopName: shop?.name || "Private Studio",
-                city: latestBooking.city,
+                city: shop?.location || "Unknown City",
                 dates: `${new Date(latestBooking.startDate).toLocaleDateString()} to ${new Date(latestBooking.endDate).toLocaleDateString()}`,
                 shop: shop,
             };
@@ -117,9 +118,9 @@ export const ClientSearchView: React.FC<ClientSearchViewProps> = ({ artists, boo
                             className="w-full bg-gray-800 border border-gray-700 rounded-lg py-3 pl-10 pr-4 text-white placeholder-brand-gray focus:ring-2 focus:ring-brand-primary focus:outline-none transition-shadow"
                         />
                     </div>
-                     <button onClick={getLocation} className="w-full bg-brand-secondary text-white font-bold py-2 px-4 rounded-lg hover:bg-opacity-80 transition-colors flex items-center justify-center space-x-2">
-                        <LocationIcon className="w-5 h-5" />
-                        <span>Find Near Me</span>
+                     <button onClick={getLocation} disabled={isGettingLocation} className="w-full bg-brand-secondary text-white font-bold py-2 px-4 rounded-lg hover:bg-opacity-80 transition-colors flex items-center justify-center space-x-2 disabled:bg-gray-600">
+                        <LocationIcon className={`w-5 h-5 ${isGettingLocation ? 'animate-pulse' : ''}`} />
+                        <span>{isGettingLocation ? 'Finding...' : 'Find Near Me'}</span>
                     </button>
                 </div>
             </div>
@@ -131,7 +132,7 @@ export const ClientSearchView: React.FC<ClientSearchViewProps> = ({ artists, boo
                     return (
                         <div key={artist.id} className="bg-gray-900 rounded-lg border border-gray-800 flex flex-col overflow-hidden group transform transition-transform duration-300 hover:-translate-y-1">
                             <div className="relative h-56 cursor-pointer" onClick={() => onSelectArtist(artist)}>
-                                <img src={`${artist.portfolio[0]}?random=${artist.id}`} alt={`${artist.name}'s work`} className="w-full h-full object-cover"/>
+                                <img src={artist.portfolio.length > 0 ? `${artist.portfolio[0]}?random=${artist.id}` : ''} alt={`${artist.name}'s work`} className="w-full h-full object-cover bg-gray-800"/>
                                 <div className="absolute inset-0 bg-gradient-to-t from-black/80 to-transparent"></div>
                                  {bookingInfo.distance !== null && (
                                     <div className="absolute top-2 right-2 bg-brand-dark/80 text-white text-xs font-bold py-1 px-2 rounded-full">
@@ -150,8 +151,8 @@ export const ClientSearchView: React.FC<ClientSearchViewProps> = ({ artists, boo
                                 </p>
                             </div>
                             <div className="grid grid-cols-2 gap-1 px-1 pb-1">
-                                <img src={`${artist.portfolio[1]}?random=${artist.id}-2`} alt="" className="h-24 w-full object-cover rounded"/>
-                                <img src={`${artist.portfolio[2]}?random=${artist.id}-3`} alt="" className="h-24 w-full object-cover rounded"/>
+                                <img src={artist.portfolio.length > 1 ? `${artist.portfolio[1]}?random=${artist.id}-2` : ''} alt="" className="h-24 w-full object-cover rounded bg-gray-800"/>
+                                <img src={artist.portfolio.length > 2 ? `${artist.portfolio[2]}?random=${artist.id}-3` : ''} alt="" className="h-24 w-full object-cover rounded bg-gray-800"/>
                             </div>
                              <div className="p-4 bg-gray-800/50 grid grid-cols-2 gap-2">
                                 <button onClick={() => onSelectArtist(artist)} className="w-full bg-brand-secondary text-white font-bold py-2 px-4 rounded-lg hover:bg-opacity-80 transition-colors">

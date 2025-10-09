@@ -1,142 +1,294 @@
 // @/services/apiService.ts
+import { supabase } from './supabaseClient';
+import type { Artist, Shop, Booth, Booking, ClientBookingRequest, Notification, User } from '../types';
 
-import { seedData } from '../data/seed';
-import type { MockData, Artist, Shop, Booth, Booking, ClientBookingRequest, Notification } from '../types';
+export const fetchInitialData = async (): Promise<any> => {
+    const { data: profiles, error: artistsError } = await supabase.from('profiles').select('*').in('role', ['artist', 'dual']);
+    const { data: shops, error: shopsError } = await supabase.from('shops').select('*');
+    const { data: booths, error: boothsError } = await supabase.from('booths').select('*');
+    const { data: bookings, error: bookingsError } = await supabase.from('bookings').select('*');
+    const { data: clientBookings, error: clientBookingsError } = await supabase.from('client_booking_requests').select('*');
 
-// Simulate a database
-let db: MockData = JSON.parse(JSON.stringify(seedData));
-
-const simulateDelay = (ms: number) => new Promise(res => setTimeout(res, ms));
-
-/**
- * Fetches all initial data for the app.
- */
-export const fetchInitialData = async (): Promise<MockData> => {
-    await simulateDelay(500);
-    return JSON.parse(JSON.stringify(db));
-};
-
-/**
- * Updates an artist's data.
- */
-export const updateArtistData = async (artistId: string, updatedData: Partial<Artist>): Promise<Artist> => {
-    await simulateDelay(300);
-    const artistIndex = db.artists.findIndex(a => a.id === artistId);
-    if (artistIndex === -1) throw new Error("Artist not found.");
+    if (artistsError || shopsError || boothsError || bookingsError || clientBookingsError) {
+        console.error({ artistsError, shopsError, boothsError, bookingsError, clientBookingsError });
+        throw new Error('Failed to fetch initial data from Supabase.');
+    }
     
-    db.artists[artistIndex] = { ...db.artists[artistIndex], ...updatedData };
-    return { ...db.artists[artistIndex] };
+    const adaptedArtists: Artist[] = profiles.map(profile => ({
+        id: profile.id,
+        name: profile.full_name,
+        specialty: profile.specialty,
+        portfolio: profile.portfolio || [],
+        city: profile.city,
+        bio: profile.bio,
+    }));
+    
+    const adaptedBookings: Booking[] = bookings.map(b => ({
+      id: b.id,
+      artistId: b.artist_id,
+      boothId: b.booth_id,
+      shopId: b.shop_id,
+      city: shops.find(s => s.id === b.shop_id)?.location || '',
+      startDate: b.start_date,
+      endDate: b.end_date,
+      paymentStatus: b.payment_status,
+    }));
+
+     const adaptedClientBookings: ClientBookingRequest[] = clientBookings.map(b => ({
+      id: b.id,
+      clientId: b.client_id,
+      artistId: b.artist_id,
+      startDate: b.start_date,
+      endDate: b.end_date,
+      message: b.message,
+      status: b.status,
+      tattooSize: b.tattoo_size,
+      bodyPlacement: b.body_placement,
+      estimatedHours: b.estimated_hours,
+      paymentStatus: b.payment_status,
+    }));
+
+    return { 
+        artists: adaptedArtists, 
+        shops, 
+        booths, 
+        bookings: adaptedBookings,
+        clientBookingRequests: adaptedClientBookings,
+        notifications: []
+    };
 };
 
-/**
- * Updates a shop's data.
- */
+export const updateUserData = async (userId: string, updatedData: Partial<User['data']>) => {
+    const profileUpdate: { [key: string]: any } = {};
+    if ('name' in updatedData) profileUpdate.full_name = updatedData.name;
+    if ('city' in updatedData) profileUpdate.city = updatedData.city;
+
+    const { error } = await supabase
+        .from('profiles')
+        .update(profileUpdate)
+        .eq('id', userId);
+
+    if (error) throw error;
+    return { success: true };
+}
+
+export const updateArtistData = async (artistId: string, updatedData: Partial<Artist>): Promise<Artist> => {
+    const profileUpdate: { [key: string]: any } = {};
+    if (updatedData.name) profileUpdate.full_name = updatedData.name;
+    if (updatedData.specialty) profileUpdate.specialty = updatedData.specialty;
+    if (updatedData.bio) profileUpdate.bio = updatedData.bio;
+    if (updatedData.city) profileUpdate.city = updatedData.city;
+    if (updatedData.portfolio) profileUpdate.portfolio = updatedData.portfolio;
+
+    const { data, error } = await supabase
+        .from('profiles')
+        .update(profileUpdate)
+        .eq('id', artistId)
+        .select()
+        .single();
+
+    if (error) throw error;
+    
+    return {
+        id: data.id,
+        name: data.full_name,
+        specialty: data.specialty,
+        portfolio: data.portfolio || [],
+        city: data.city,
+        bio: data.bio,
+    };
+};
+
+export const uploadPortfolioImage = async (userId: string, file: File): Promise<string> => {
+    const fileExt = file.name.split('.').pop();
+    const fileName = `${userId}/${Date.now()}.${fileExt}`;
+
+    const { error: uploadError } = await supabase.storage
+        .from('portfolios')
+        .upload(fileName, file);
+    
+    if (uploadError) throw uploadError;
+
+    const { data } = supabase.storage.from('portfolios').getPublicUrl(fileName);
+    
+    // Now, update the profile with the new URL
+    const { data: profile, error: profileError } = await supabase.from('profiles').select('portfolio').eq('id', userId).single();
+    if (profileError) throw profileError;
+    
+    const newPortfolio = [...(profile.portfolio || []), data.publicUrl];
+    
+    const { error: updateError } = await supabase.from('profiles').update({ portfolio: newPortfolio }).eq('id', userId);
+    if (updateError) throw updateError;
+    
+    return data.publicUrl;
+};
+
 export const updateShopData = async (shopId: string, updatedData: Partial<Shop>): Promise<Shop> => {
-    await simulateDelay(300);
-    const shopIndex = db.shops.findIndex(s => s.id === shopId);
-    if (shopIndex === -1) throw new Error("Shop not found.");
-
-    db.shops[shopIndex] = { ...db.shops[shopIndex], ...updatedData };
-    return { ...db.shops[shopIndex] };
+    const { data, error } = await supabase
+        .from('shops')
+        .update(updatedData)
+        .eq('id', shopId)
+        .select()
+        .single();
+    if (error) throw error;
+    return data;
 };
 
-/**
- * Adds a new booth to a shop.
- */
 export const addBoothToShop = async (shopId: string, boothData: Omit<Booth, 'id' | 'shopId'>): Promise<Booth> => {
-    await simulateDelay(300);
-    const newBooth: Booth = {
-        id: `booth-${Date.now()}`,
-        shopId,
-        ...boothData
-    };
-    db.booths.push(newBooth);
-    return { ...newBooth };
+    const { data, error } = await supabase
+        .from('booths')
+        .insert({ ...boothData, shop_id: shopId })
+        .select()
+        .single();
+    if (error) throw error;
+    return { ...data, shopId: data.shop_id, dailyRate: data.daily_rate };
 };
 
-/**
- * Updates a booth's data.
- */
-export const updateBoothData = async (boothId: string, updatedData: Partial<Booth>): Promise<Booth> => {
-    await simulateDelay(300);
-    const boothIndex = db.booths.findIndex(b => b.id === boothId);
-    if (boothIndex === -1) throw new Error("Booth not found.");
-
-    db.booths[boothIndex] = { ...db.booths[boothIndex], ...updatedData };
-    return { ...db.booths[boothIndex] };
-};
-
-/**
- * Deletes a booth.
- */
 export const deleteBoothFromShop = async (boothId: string): Promise<{ success: true }> => {
-    await simulateDelay(300);
-    const initialLength = db.booths.length;
-    db.booths = db.booths.filter(b => b.id !== boothId);
-    if (db.booths.length === initialLength) throw new Error("Booth not found.");
+    const { error } = await supabase.from('booths').delete().eq('id', boothId);
+    if (error) throw error;
     return { success: true };
 };
 
-/**
- * Creates a new booking.
- */
-export const createBookingForArtist = async (bookingData: Omit<Booking, 'id'>): Promise<Booking> => {
-    await simulateDelay(300);
-    const newBooking: Booking = {
-        id: `booking-${Date.now()}`,
-        ...bookingData
+export const createBookingForArtist = async (bookingData: Omit<Booking, 'id'| 'city'>): Promise<Booking> => {
+    const { data, error } = await supabase
+        .from('bookings')
+        .insert({
+            artist_id: bookingData.artistId,
+            booth_id: bookingData.boothId,
+            shop_id: bookingData.shopId,
+            start_date: bookingData.startDate,
+            end_date: bookingData.endDate,
+            payment_status: bookingData.paymentStatus
+        })
+        .select()
+        .single();
+        
+    if (error) throw error;
+
+    return {
+        id: data.id,
+        artistId: data.artist_id,
+        boothId: data.booth_id,
+        shopId: data.shop_id,
+        startDate: data.start_date,
+        endDate: data.end_date,
+        paymentStatus: data.payment_status,
+        city: '',
     };
-    db.bookings.push(newBooking);
-    return { ...newBooking };
 };
 
-/**
- * Creates a new client booking request.
- */
-export const createClientBookingRequest = async (requestData: Omit<ClientBookingRequest, 'id' | 'status'>): Promise<ClientBookingRequest> => {
-    await simulateDelay(300);
-    const newRequest: ClientBookingRequest = {
-        id: `request-${Date.now()}`,
-        status: 'pending',
-        ...requestData,
+export const createClientBookingRequest = async (requestData: Omit<ClientBookingRequest, 'id' | 'status'|'paymentStatus'>): Promise<ClientBookingRequest> => {
+    const { data, error } = await supabase
+        .from('client_booking_requests')
+        .insert({
+            client_id: requestData.clientId,
+            artist_id: requestData.artistId,
+            start_date: requestData.startDate,
+            end_date: requestData.endDate,
+            message: requestData.message,
+            tattoo_size: requestData.tattooSize,
+            body_placement: requestData.bodyPlacement,
+            estimated_hours: requestData.estimatedHours,
+        })
+        .select()
+        .single();
+
+    if (error) throw error;
+    return {
+        id: data.id,
+        clientId: data.client_id,
+        artistId: data.artist_id,
+        startDate: data.start_date,
+        endDate: data.end_date,
+        message: data.message,
+        status: data.status,
+        tattooSize: data.tattoo_size,
+        bodyPlacement: data.body_placement,
+        estimatedHours: data.estimated_hours,
+        paymentStatus: data.payment_status,
     };
-    db.clientBookingRequests.push(newRequest);
-    return { ...newRequest };
 };
 
-/**
- * Fetches notifications for a specific user.
- */
+
 export const fetchNotificationsForUser = async (userId: string): Promise<Notification[]> => {
-    await simulateDelay(200);
-    return db.notifications.filter(n => n.userId === userId);
+    const { data, error } = await supabase
+        .from('notifications')
+        .select('*')
+        .eq('user_id', userId)
+        .order('created_at', { ascending: false });
+        
+    if (error) {
+        console.error("Failed to fetch notifications:", error);
+        return [];
+    }
+    return data.map(n => ({
+        id: n.id,
+        userId: n.user_id,
+        message: n.message,
+        read: n.read,
+        createdAt: n.created_at,
+    }));
 };
 
-/**
- * Marks all notifications for a user as read.
- */
 export const markUserNotificationsAsRead = async (userId: string): Promise<{ success: true }> => {
-    await simulateDelay(200);
-    db.notifications.forEach(n => {
-        if (n.userId === userId) {
-            n.read = true;
-        }
-    });
+    const { error } = await supabase
+        .from('notifications')
+        .update({ read: true })
+        .eq('user_id', userId)
+        .eq('read', false);
+    
+    if (error) throw error;
     return { success: true };
 };
 
-/**
- * Creates a new notification for a user.
- */
 export const createNotification = async (userId: string, message: string): Promise<Notification> => {
-    await simulateDelay(50);
-    const newNotification: Notification = {
-        id: `notif-${Date.now()}`,
-        userId,
-        message,
-        read: false,
-        createdAt: new Date().toISOString(),
+    const { data, error } = await supabase
+        .from('notifications')
+        .insert({ user_id: userId, message: message })
+        .select()
+        .single();
+
+    if (error) throw error;
+    return {
+        id: data.id,
+        userId: data.user_id,
+        message: data.message,
+        read: data.read,
+        createdAt: data.created_at,
     };
-    db.notifications.push(newNotification);
-    return newNotification;
+};
+
+
+// --- The following are not in the placeholder but are useful ---
+
+export const updateBoothData = async (boothId: string, updatedData: Partial<Booth>): Promise<Booth> => {
+    const { data, error } = await supabase
+        .from('booths')
+        .update(updatedData)
+        .eq('id', boothId)
+        .select()
+        .single();
+    if (error) throw error;
+    return { ...data, shopId: data.shop_id, dailyRate: data.daily_rate };
+};
+
+
+export const fetchUserBookings = async (userId: string, userType: 'artist' | 'client' | 'dual'): Promise<{ artistBookings: Booking[], clientBookings: ClientBookingRequest[] }> => {
+    let artistBookings: Booking[] = [];
+    let clientBookings: ClientBookingRequest[] = [];
+    
+    if (userType === 'artist' || userType === 'dual') {
+        const { data, error } = await supabase.from('bookings').select('*').eq('artist_id', userId);
+        if (error) throw error;
+        artistBookings = data.map(b => ({...b, artistId: b.artist_id, boothId: b.booth_id, shopId: b.shop_id, startDate: b.start_date, endDate: b.end_date, paymentStatus: b.payment_status, city: ''}));
+    }
+    
+    if (userType === 'client' || userType === 'dual') {
+        const { data, error } = await supabase.from('client_booking_requests').select('*').eq('client_id', userId);
+        if (error) throw error;
+        clientBookings = data.map(b => ({...b, clientId: b.client_id, artistId: b.artist_id, startDate: b.start_date, endDate: b.end_date, tattooSize: b.tattoo_size, bodyPlacement: b.body_placement, estimatedHours: b.estimated_hours, paymentStatus: b.payment_status}));
+    }
+
+    return { artistBookings, clientBookings };
 };

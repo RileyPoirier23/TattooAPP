@@ -5,10 +5,12 @@ import { Header } from './components/Header';
 import { ArtistSearchView } from './components/views/ArtistSearchView';
 import { ClientSearchView } from './components/views/ClientSearchView';
 import { ShopOwnerDashboard } from './components/views/ShopOwnerDashboard';
+import { MyBookingsView } from './components/views/MyBookingsView';
+import { SettingsView } from './components/views/SettingsView';
 import { useAppStore } from './hooks/useAppStore';
 import { Loader } from './components/shared/Loader';
 import { ErrorDisplay } from './components/shared/ErrorDisplay';
-import { AuthModal, ArtistDetailModal, ShopDetailModal, BookingModal, ArtistProfileView, ClientBookingRequestModal } from './components/ModalsAndProfile';
+import { AuthModal, ArtistDetailModal, ShopDetailModal, BookingModal, ArtistProfileView, ClientProfileView, ClientBookingRequestModal, UploadPortfolioModal } from './components/ModalsAndProfile';
 import { Toast } from './components/shared/Toast';
 import type { ViewMode, Page, Artist, Shop, AuthCredentials, RegisterDetails, Booking, ClientBookingRequest } from './types';
 
@@ -19,11 +21,24 @@ const App: React.FC = () => {
   const store = useAppStore();
   
   const [isAuthModalOpen, setAuthModalOpen] = useState(false);
+  const [isUploadModalOpen, setUploadModalOpen] = useState(false);
   const [selectedArtist, setSelectedArtist] = useState<Artist | null>(null);
   const [selectedShop, setSelectedShop] = useState<Shop | null>(null);
   const [bookingShop, setBookingShop] = useState<Shop | null>(null);
   const [requestingBookingWithArtist, setRequestingBookingWithArtist] = useState<Artist | null>(null);
   const [toast, setToast] = useState<{ message: string; type: 'success' | 'error' } | null>(null);
+
+  useEffect(() => {
+    // If user logs in, default their view mode
+    if (store.user) {
+      if (store.user.type === 'artist' || store.user.type === 'dual') {
+        setViewMode('artist');
+      } else if (store.user.type === 'client') {
+        setViewMode('client');
+      }
+    }
+  }, [store.user]);
+
 
   const showToast = (message: string, type: 'success' | 'error' = 'success') => {
     setToast({ message, type });
@@ -34,7 +49,7 @@ const App: React.FC = () => {
       const user = await store.login(credentials);
       setAuthModalOpen(false);
       showToast('Login successful!');
-      if (user.type === 'artist') setPage('profile');
+      if (user.type === 'artist' || user.type === 'dual') setPage('profile');
       if (user.type === 'shop-owner') setPage('dashboard');
       if (user.type === 'client') showToast(`Welcome back, ${user.data.name}!`);
     } catch (error) {
@@ -48,7 +63,7 @@ const App: React.FC = () => {
         const user = await store.register(details);
         setAuthModalOpen(false);
         showToast('Registration successful!');
-        if (user.type === 'artist') setPage('profile');
+        if (user.type === 'artist' || user.type === 'dual') setPage('profile');
         if (user.type === 'shop-owner') setPage('dashboard');
     } catch (error) {
         const message = error instanceof Error ? error.message : 'Registration failed';
@@ -63,7 +78,7 @@ const App: React.FC = () => {
   };
 
   const handleCreateBooking = (bookingData: Omit<Booking, 'id'>) => {
-    if (!store.user || store.user.type !== 'artist') {
+    if (!store.user || (store.user.type !== 'artist' && store.user.type !== 'dual')) {
         showToast('You must be logged in as an artist to book.', 'error');
         return;
     }
@@ -73,13 +88,28 @@ const App: React.FC = () => {
   };
 
   const handleClientBookingRequest = (requestData: Omit<ClientBookingRequest, 'id' | 'clientId' | 'status'>) => {
-    if (!store.user || store.user.type !== 'client') {
+    if (!store.user || (store.user.type !== 'client' && store.user.type !== 'dual')) {
         showToast('You must be logged in as a client to request a booking.', 'error');
         return;
     }
     store.createClientBookingRequest({ ...requestData, clientId: store.user.id });
     setRequestingBookingWithArtist(null);
     showToast('Your booking request has been sent!', 'success');
+  };
+
+  const handleUploadPortfolio = async (file: File) => {
+    if (!store.user || (store.user.type !== 'artist' && store.user.type !== 'dual')) {
+        showToast('You must be logged in as an artist.', 'error');
+        return;
+    }
+    try {
+      await store.uploadPortfolioImage(store.user.id, file);
+      setUploadModalOpen(false);
+      showToast('Portfolio updated successfully!');
+    } catch (error) {
+      const message = error instanceof Error ? error.message : 'Upload failed.';
+      showToast(message, 'error');
+    }
   };
 
   const renderContent = () => {
@@ -95,27 +125,54 @@ const App: React.FC = () => {
     if (store.error) {
       return <ErrorDisplay message={store.error} />;
     }
+    
+    const user = store.user;
 
-    if (store.data) {
-      const user = store.user;
+    // Page-based routing
+    if (user) {
+        switch(page) {
+            case 'profile':
+                if (user.type === 'artist' || user.type === 'dual') {
+                    return <ArtistProfileView artist={user.data} updateArtist={store.updateArtist} showToast={showToast} onUploadClick={() => setUploadModalOpen(true)} />;
+                }
+                if (user.type === 'client') {
+                    return <ClientProfileView client={user.data} bookings={store.data?.clientBookingRequests.filter(b => b.clientId === user.id) || []} />;
+                }
+                break;
+            case 'dashboard':
+                if (user.type === 'shop-owner' && store.data) {
+                    const shop = store.data.shops.find(s => s.id === user.data.shopId);
+                    return <ShopOwnerDashboard 
+                        shop={shop}
+                        booths={store.data.booths.filter(b => b.shopId === shop?.id)}
+                        updateShop={store.updateShop}
+                        addBooth={store.addBooth}
+                        updateBooth={store.updateBooth}
+                        deleteBooth={store.deleteBooth}
+                    />
+                }
+                break;
+            case 'bookings':
+                 if (store.data) {
+                    return <MyBookingsView 
+                                user={user} 
+                                artistBookings={store.data.bookings.filter(b => b.artistId === user.id)}
+                                clientBookings={store.data.clientBookingRequests.filter(b => b.clientId === user.id)}
+                                shops={store.data.shops}
+                                artists={store.data.artists}
+                           />;
+                 }
+                 break;
+            case 'settings':
+                return <SettingsView user={user} onUpdateUser={store.updateUser} showToast={showToast}/>;
+            case 'search':
+                 // Fall through to the search views below
+                 break;
+        }
+    }
 
-      if (page === 'profile' && user && user.type === 'artist') {
-        return <ArtistProfileView artist={user.data} updateArtist={store.updateArtist} showToast={showToast} />;
-      }
-      
-      if (page === 'dashboard' && user && user.type === 'shop-owner') {
-          const shop = store.data.shops.find(s => s.id === user.data.shopId);
-          return <ShopOwnerDashboard 
-            shop={shop}
-            booths={store.data.booths.filter(b => b.shopId === shop?.id)}
-            updateShop={store.updateShop}
-            addBooth={store.addBooth}
-            updateBooth={store.updateBooth}
-            deleteBooth={store.deleteBooth}
-          />
-      }
 
-      // Default to search view
+    if (page === 'search' && store.data) {
       switch (viewMode) {
         case 'artist':
           return <ArtistSearchView 
@@ -123,6 +180,7 @@ const App: React.FC = () => {
             booths={store.data.booths} 
             userLocation={store.userLocation}
             getLocation={store.getLocation}
+            isGettingLocation={store.isGettingLocation}
             onSelectShop={setSelectedShop}
           />;
         case 'client':
@@ -132,6 +190,7 @@ const App: React.FC = () => {
             shops={store.data.shops} 
             userLocation={store.userLocation}
             getLocation={store.getLocation}
+            isGettingLocation={store.isGettingLocation}
             onSelectArtist={setSelectedArtist}
           />;
         default:
@@ -152,9 +211,7 @@ const App: React.FC = () => {
         markNotificationsAsRead={store.markNotificationsAsRead}
         onLoginClick={() => setAuthModalOpen(true)}
         onLogoutClick={handleLogout}
-        onProfileClick={() => setPage('profile')}
-        onDashboardClick={() => setPage('dashboard')}
-        onHomeClick={() => setPage('search')}
+        onNavigate={setPage}
       />
       <main className="container mx-auto px-4 py-8">
         {renderContent()}
@@ -165,13 +222,15 @@ const App: React.FC = () => {
 
       {isAuthModalOpen && <AuthModal onLogin={handleLogin} onRegister={handleRegister} onClose={() => setAuthModalOpen(false)} />}
       
+      {isUploadModalOpen && <UploadPortfolioModal onClose={() => setUploadModalOpen(false)} onUpload={handleUploadPortfolio} />}
+
       {selectedArtist && store.data && <ArtistDetailModal 
         artist={selectedArtist} 
         bookings={store.data.bookings}
         shops={store.data.shops}
         onClose={() => setSelectedArtist(null)} 
         onBookRequest={() => {
-            if (store.user?.type === 'client') {
+            if (store.user?.type === 'client' || store.user?.type === 'dual') {
                 setRequestingBookingWithArtist(selectedArtist);
             } else {
                 showToast('Please log in as a client to book an artist.', 'error');
@@ -185,7 +244,7 @@ const App: React.FC = () => {
         booths={store.data.booths.filter(b => b.shopId === selectedShop.id)}
         onClose={() => setSelectedShop(null)}
         onBookClick={(shop) => {
-            if (store.user?.type === 'artist') {
+            if (store.user?.type === 'artist' || store.user?.type === 'dual') {
                 setBookingShop(shop)
             } else {
                 showToast('Please log in as an artist to book a booth.', 'error')

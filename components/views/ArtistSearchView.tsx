@@ -7,6 +7,7 @@ interface ArtistSearchViewProps {
   booths: Booth[];
   userLocation: { lat: number; lng: number } | null;
   getLocation: () => void;
+  isGettingLocation: boolean;
   onSelectShop: (shop: Shop) => void;
 }
 
@@ -27,7 +28,7 @@ const getDistance = (
   return R * c; // Distance in km
 };
 
-export const ArtistSearchView: React.FC<ArtistSearchViewProps> = ({ shops, booths, userLocation, getLocation, onSelectShop }) => {
+export const ArtistSearchView: React.FC<ArtistSearchViewProps> = ({ shops, booths, userLocation, getLocation, isGettingLocation, onSelectShop }) => {
     const [searchTerm, setSearchTerm] = useState('');
     const [maxPrice, setMaxPrice] = useState(300);
 
@@ -92,9 +93,9 @@ export const ArtistSearchView: React.FC<ArtistSearchViewProps> = ({ shops, booth
                             Up to ${maxPrice}
                         </span>
                     </div>
-                     <button onClick={getLocation} className="w-full bg-brand-secondary text-white font-bold py-2 px-4 rounded-lg hover:bg-opacity-80 transition-colors flex items-center justify-center space-x-2">
-                        <LocationIcon className="w-5 h-5" />
-                        <span>Find Near Me</span>
+                     <button onClick={getLocation} disabled={isGettingLocation} className="w-full bg-brand-secondary text-white font-bold py-2 px-4 rounded-lg hover:bg-opacity-80 transition-colors flex items-center justify-center space-x-2 disabled:bg-gray-600">
+                        <LocationIcon className={`w-5 h-5 ${isGettingLocation ? 'animate-pulse' : ''}`} />
+                        <span>{isGettingLocation ? 'Finding...' : 'Find Near Me'}</span>
                     </button>
                 </div>
             </div>
@@ -108,7 +109,7 @@ export const ArtistSearchView: React.FC<ArtistSearchViewProps> = ({ shops, booth
                     return (
                         <div key={booth.id} className="bg-gray-900 rounded-lg border border-gray-800 flex flex-col overflow-hidden group transform transition-transform duration-300 hover:-translate-y-1">
                             <div className="relative">
-                                <img src={`${shop.imageUrl}?random=${booth.id}`} alt={shop.name} className="w-full h-48 object-cover" />
+                                <img src={`${shop.imageUrl}?random=${booth.id}`} alt={shop.name} className="w-full h-48 object-cover bg-gray-800" />
                                 {distance !== null && (
                                     <div className="absolute top-2 right-2 bg-brand-dark/80 text-white text-xs font-bold py-1 px-2 rounded-full">
                                         {distance.toFixed(1)} km away

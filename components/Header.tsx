@@ -1,8 +1,8 @@
 // @/components/Header.tsx
 
 import React, { useState, useEffect, useRef } from 'react';
-import type { ViewMode, User, Notification } from '../types';
-import { NeedleIcon, UserCircleIcon, BellIcon } from './shared/Icons';
+import type { ViewMode, User, Notification, Page } from '../types';
+import { NeedleIcon, UserCircleIcon, BellIcon, ChevronDownIcon } from './shared/Icons';
 
 interface HeaderProps {
   viewMode: ViewMode;
@@ -12,9 +12,7 @@ interface HeaderProps {
   markNotificationsAsRead: () => void;
   onLoginClick: () => void;
   onLogoutClick: () => void;
-  onProfileClick: () => void;
-  onDashboardClick: () => void;
-  onHomeClick: () => void;
+  onNavigate: (page: Page) => void;
 }
 
 export const Header: React.FC<HeaderProps> = ({ 
@@ -25,20 +23,24 @@ export const Header: React.FC<HeaderProps> = ({
   markNotificationsAsRead,
   onLoginClick, 
   onLogoutClick,
-  onProfileClick,
-  onDashboardClick,
-  onHomeClick
+  onNavigate
 }) => {
   const [isNotificationsOpen, setNotificationsOpen] = useState(false);
+  const [isUserMenuOpen, setUserMenuOpen] = useState(false);
   const unreadCount = notifications.filter(n => !n.read).length;
   const notificationsRef = useRef<HTMLDivElement>(null);
+  const userMenuRef = useRef<HTMLDivElement>(null);
+
+  const handleClickOutside = (event: MouseEvent) => {
+    if (notificationsRef.current && !notificationsRef.current.contains(event.target as Node)) {
+      setNotificationsOpen(false);
+    }
+    if (userMenuRef.current && !userMenuRef.current.contains(event.target as Node)) {
+      setUserMenuOpen(false);
+    }
+  };
 
   useEffect(() => {
-    const handleClickOutside = (event: MouseEvent) => {
-      if (notificationsRef.current && !notificationsRef.current.contains(event.target as Node)) {
-        setNotificationsOpen(false);
-      }
-    };
     document.addEventListener('mousedown', handleClickOutside);
     return () => document.removeEventListener('mousedown', handleClickOutside);
   }, []);
@@ -46,23 +48,59 @@ export const Header: React.FC<HeaderProps> = ({
   const handleBellClick = () => {
     setNotificationsOpen(prev => !prev);
     if (!isNotificationsOpen && unreadCount > 0) {
-      // Mark as read when opening, with a slight delay for smoother UX
       setTimeout(() => markNotificationsAsRead(), 1000);
     }
   };
 
   const getButtonClasses = (mode: ViewMode) => {
-    return viewMode === mode
-      ? 'bg-brand-primary text-white'
-      : 'bg-gray-800 text-brand-gray hover:bg-gray-700';
+    const isActive = viewMode === mode;
+    let baseClasses = 'px-4 py-2 text-sm font-semibold rounded-full transition-colors duration-300';
+    if (user) {
+        return `${baseClasses} ${isActive ? 'bg-brand-primary text-white' : 'bg-gray-800 text-brand-gray'} cursor-default`;
+    }
+    return `${baseClasses} ${isActive ? 'bg-brand-primary text-white' : 'bg-gray-800 text-brand-gray hover:bg-gray-700'}`;
   };
+  
+  const handleViewModeClick = (mode: ViewMode) => {
+    if (!user) {
+        setViewMode(mode);
+        onNavigate('search');
+    }
+  };
+
+  const UserMenu = () => (
+    <div className="relative" ref={userMenuRef}>
+      <button onClick={() => setUserMenuOpen(prev => !prev)} className="flex items-center space-x-2 bg-gray-800 hover:bg-gray-700 px-3 py-2 rounded-full">
+        <UserCircleIcon className="w-6 h-6 text-brand-light" />
+        <span className="text-sm font-semibold text-white hidden md:block">{user?.data.name}</span>
+        <ChevronDownIcon className="w-4 h-4 text-brand-gray" />
+      </button>
+
+      {isUserMenuOpen && (
+        <div className="absolute right-0 mt-2 w-48 bg-gray-900 border border-gray-700 rounded-lg shadow-lg z-50 py-1">
+          {(user?.type === 'artist' || user?.type === 'client' || user?.type === 'dual') && (
+            <button onClick={() => { onNavigate('profile'); setUserMenuOpen(false); }} className="w-full text-left px-4 py-2 text-sm text-gray-300 hover:bg-gray-800">My Profile</button>
+          )}
+          {user?.type === 'shop-owner' && (
+            <button onClick={() => { onNavigate('dashboard'); setUserMenuOpen(false); }} className="w-full text-left px-4 py-2 text-sm text-gray-300 hover:bg-gray-800">My Dashboard</button>
+          )}
+           {(user?.type === 'artist' || user?.type === 'client' || user?.type === 'dual') && (
+            <button onClick={() => { onNavigate('bookings'); setUserMenuOpen(false); }} className="w-full text-left px-4 py-2 text-sm text-gray-300 hover:bg-gray-800">My Bookings</button>
+          )}
+          <button onClick={() => { onNavigate('settings'); setUserMenuOpen(false); }} className="w-full text-left px-4 py-2 text-sm text-gray-300 hover:bg-gray-800">Settings</button>
+          <div className="border-t border-gray-700 my-1"></div>
+          <button onClick={onLogoutClick} className="w-full text-left px-4 py-2 text-sm text-red-400 hover:bg-gray-800">Logout</button>
+        </div>
+      )}
+    </div>
+  );
 
   return (
     <header className="bg-brand-dark/80 backdrop-blur-sm sticky top-0 z-50 border-b border-gray-800">
       <div className="container mx-auto px-4 py-4 flex justify-between items-center">
         <div 
           className="flex items-center space-x-3 cursor-pointer"
-          onClick={onHomeClick}
+          onClick={() => onNavigate('search')}
           aria-label="Go to homepage"
         >
           <NeedleIcon className="w-8 h-8 text-brand-primary" />
@@ -71,16 +109,18 @@ export const Header: React.FC<HeaderProps> = ({
         <div className="flex items-center space-x-4">
             <div className="flex items-center bg-gray-900 rounded-full p-1">
                 <button
-                    onClick={() => { setViewMode('artist'); onHomeClick(); }}
-                    className={`px-4 py-2 text-sm font-semibold rounded-full transition-colors duration-300 ${getButtonClasses('artist')}`}
+                    onClick={() => handleViewModeClick('artist')}
+                    disabled={user && user.type === 'client'}
+                    className={`${getButtonClasses('artist')} disabled:opacity-50 disabled:cursor-not-allowed`}
                 >
-                    I'm an Artist
+                    For Artists
                 </button>
                 <button
-                    onClick={() => { setViewMode('client'); onHomeClick(); }}
-                    className={`px-4 py-2 text-sm font-semibold rounded-full transition-colors duration-300 ${getButtonClasses('client')}`}
+                    onClick={() => handleViewModeClick('client')}
+                    disabled={user && user.type === 'artist'}
+                    className={`${getButtonClasses('client')} disabled:opacity-50 disabled:cursor-not-allowed`}
                 >
-                    I'm a Client
+                    For Clients
                 </button>
             </div>
             {user ? (
@@ -115,13 +155,7 @@ export const Header: React.FC<HeaderProps> = ({
                         </div>
                       )}
                     </div>
-                    {user.type === 'artist' && (
-                       <button onClick={onProfileClick} className="text-sm font-semibold text-brand-gray hover:text-white transition-colors">My Profile</button>
-                    )}
-                    {user.type === 'shop-owner' && (
-                       <button onClick={onDashboardClick} className="text-sm font-semibold text-brand-gray hover:text-white transition-colors">My Dashboard</button>
-                    )}
-                    <button onClick={onLogoutClick} className="text-sm font-semibold bg-gray-700 hover:bg-gray-600 text-white py-2 px-4 rounded-full transition-colors">Logout</button>
+                    <UserMenu />
                  </div>
             ) : (
                 <button 
