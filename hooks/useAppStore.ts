@@ -1,8 +1,8 @@
 // @/hooks/useAppStore.ts
 
 import { useState, useEffect, useCallback } from 'react';
-import { seedData } from '../data/seed';
 import { authService } from '../services/authService';
+import * as apiService from '../services/apiService';
 import type { MockData, User, Artist, Shop, Booth, Booking, AuthCredentials, RegisterDetails } from '../types';
 
 interface UseAppStoreReturn {
@@ -40,15 +40,23 @@ export const useAppStore = (): UseAppStoreReturn => {
   const [locationError, setLocationError] = useState<string | null>(null);
 
   useEffect(() => {
-    setLoading(true);
-    // Initialize user from localStorage
-    const currentUser = authService.getCurrentUser();
-    if (currentUser) {
-        setUser(currentUser);
-    }
-    // Load static seed data
-    setData(seedData);
-    setLoading(false);
+    const initializeApp = async () => {
+      setLoading(true);
+      setError(null);
+      try {
+        const currentUser = authService.getCurrentUser();
+        if (currentUser) {
+            setUser(currentUser);
+        }
+        const initialData = await apiService.fetchInitialData();
+        setData(initialData);
+      } catch (e) {
+        setError(e instanceof Error ? e.message : 'Failed to load data.');
+      } finally {
+        setLoading(false);
+      }
+    };
+    initializeApp();
   }, []);
   
   const login = useCallback(async (credentials: AuthCredentials) => {
@@ -60,7 +68,6 @@ export const useAppStore = (): UseAppStoreReturn => {
   const register = useCallback(async (details: RegisterDetails) => {
     const newUser = await authService.register(details);
     
-    // If a new artist was created, add them to the main data state
     if (newUser.type === 'artist') {
         setData(prevData => {
             if (!prevData) return null;
@@ -80,78 +87,85 @@ export const useAppStore = (): UseAppStoreReturn => {
     setUser(null);
   }, []);
 
-  const updateArtist = (artistId: string, updatedData: Partial<Artist>) => {
-    setData(prevData => {
-      if (!prevData) return null;
-      const newArtists = prevData.artists.map(artist =>
-        artist.id === artistId ? { ...artist, ...updatedData } : artist
-      );
-      return { ...prevData, artists: newArtists };
-    });
+  const updateArtist = async (artistId: string, updatedData: Partial<Artist>) => {
+    try {
+        const updatedArtist = await apiService.updateArtistData(artistId, updatedData);
+        setData(prevData => {
+            if (!prevData) return null;
+            return { ...prevData, artists: prevData.artists.map(a => a.id === artistId ? updatedArtist : a) };
+        });
 
-    setUser(prevUser => {
-        if (prevUser && prevUser.type === 'artist' && prevUser.id === artistId) {
-            const updatedUserData = { ...prevUser.data, ...updatedData } as Artist;
-            const updatedUser = { ...prevUser, data: updatedUserData };
-            // Also update localStorage
-            localStorage.setItem('inkspace_user', JSON.stringify(updatedUser));
-            return updatedUser;
-        }
-        return prevUser;
-    });
+        setUser(prevUser => {
+            if (prevUser && prevUser.type === 'artist' && prevUser.id === artistId) {
+                const updatedUser = { ...prevUser, data: updatedArtist };
+                localStorage.setItem('inkspace_user', JSON.stringify(updatedUser));
+                return updatedUser;
+            }
+            return prevUser;
+        });
+    } catch(e) {
+        setError(e instanceof Error ? e.message : 'Failed to update artist.');
+    }
   };
 
-  const updateShop = (shopId: string, updatedData: Partial<Shop>) => {
-    setData(prevData => {
-        if (!prevData) return null;
-        return {
-            ...prevData,
-            shops: prevData.shops.map(s => s.id === shopId ? {...s, ...updatedData} : s)
-        };
-    });
+  const updateShop = async (shopId: string, updatedData: Partial<Shop>) => {
+    try {
+        const updatedShop = await apiService.updateShopData(shopId, updatedData);
+        setData(prevData => {
+            if (!prevData) return null;
+            return { ...prevData, shops: prevData.shops.map(s => s.id === shopId ? updatedShop : s) };
+        });
+    } catch(e) {
+        setError(e instanceof Error ? e.message : 'Failed to update shop.');
+    }
   };
 
-  const addBooth = (shopId: string, boothData: Omit<Booth, 'id' | 'shopId'>) => {
-    setData(prevData => {
-        if (!prevData) return null;
-        const newBooth: Booth = {
-            id: `booth-${Date.now()}`,
-            shopId,
-            ...boothData
-        };
-        return {...prevData, booths: [...prevData.booths, newBooth]};
-    });
+  const addBooth = async (shopId: string, boothData: Omit<Booth, 'id' | 'shopId'>) => {
+    try {
+        const newBooth = await apiService.addBoothToShop(shopId, boothData);
+        setData(prevData => {
+            if (!prevData) return null;
+            return {...prevData, booths: [...prevData.booths, newBooth]};
+        });
+    } catch (e) {
+        setError(e instanceof Error ? e.message : 'Failed to add booth.');
+    }
   };
 
-  const updateBooth = (boothId: string, updatedData: Partial<Booth>) => {
-    setData(prevData => {
-        if (!prevData) return null;
-        return {
-            ...prevData,
-            booths: prevData.booths.map(b => b.id === boothId ? {...b, ...updatedData} : b)
-        };
-    });
+  const updateBooth = async (boothId: string, updatedData: Partial<Booth>) => {
+     try {
+        const updatedBooth = await apiService.updateBoothData(boothId, updatedData);
+        setData(prevData => {
+            if (!prevData) return null;
+            return { ...prevData, booths: prevData.booths.map(b => b.id === boothId ? updatedBooth : b) };
+        });
+     } catch (e) {
+         setError(e instanceof Error ? e.message : 'Failed to update booth.');
+     }
   };
   
-  const deleteBooth = (boothId: string) => {
-    setData(prevData => {
-        if (!prevData) return null;
-        return {
-            ...prevData,
-            booths: prevData.booths.filter(b => b.id !== boothId)
-        };
-    });
+  const deleteBooth = async (boothId: string) => {
+    try {
+        await apiService.deleteBoothFromShop(boothId);
+        setData(prevData => {
+            if (!prevData) return null;
+            return { ...prevData, booths: prevData.booths.filter(b => b.id !== boothId) };
+        });
+    } catch (e) {
+        setError(e instanceof Error ? e.message : 'Failed to delete booth.');
+    }
   };
 
-  const createBooking = (bookingData: Omit<Booking, 'id'>) => {
-      setData(prevData => {
-          if (!prevData) return null;
-          const newBooking: Booking = {
-              id: `booking-${Date.now()}`,
-              ...bookingData
-          };
-          return {...prevData, bookings: [...prevData.bookings, newBooking]};
-      });
+  const createBooking = async (bookingData: Omit<Booking, 'id'>) => {
+      try {
+          const newBooking = await apiService.createBookingForArtist(bookingData);
+          setData(prevData => {
+              if (!prevData) return null;
+              return {...prevData, bookings: [...prevData.bookings, newBooking]};
+          });
+      } catch (e) {
+          setError(e instanceof Error ? e.message : 'Failed to create booking.');
+      }
   };
 
   const getLocation = () => {

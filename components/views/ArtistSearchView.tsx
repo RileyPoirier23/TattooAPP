@@ -74,7 +74,7 @@ export const ArtistSearchView: React.FC<ArtistSearchViewProps> = ({ shops, booth
                             placeholder="Search by city or shop name..."
                             value={searchTerm}
                             onChange={(e) => setSearchTerm(e.target.value)}
-                            className="w-full bg-gray-800 border border-gray-700 rounded-lg py-3 pl-10 pr-4 text-white placeholder-brand-gray focus:ring-2 focus:ring-brand-primary focus:outline-none"
+                            className="w-full bg-gray-800 border border-gray-700 rounded-lg py-3 pl-10 pr-4 text-white placeholder-brand-gray focus:ring-2 focus:ring-brand-primary focus:outline-none transition-shadow"
                         />
                     </div>
                     <div className="relative">
@@ -150,7 +150,8 @@ export const ArtistSearchView: React.FC<ArtistSearchViewProps> = ({ shops, booth
             </div>
              {filteredBooths.length === 0 && (
                 <div className="text-center py-16 col-span-full">
-                    <p className="text-brand-gray">No booths match your criteria. Try a different search.</p>
+                    <p className="text-xl font-semibold text-white">No Booths Found</p>
+                    <p className="text-brand-gray mt-2">Try adjusting your search term or increasing the price range to find available spots.</p>
                 </div>
             )}
         </div>

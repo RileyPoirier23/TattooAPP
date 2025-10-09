@@ -86,8 +86,6 @@ const App: React.FC = () => {
     }
 
     if (store.data) {
-      // FIX: Use proper type guarding by assigning store.user to a local const.
-      // This helps TypeScript's control-flow analysis correctly narrow the user type.
       const { user } = store;
 
       if (page === 'profile' && user && user.type === 'artist') {
@@ -159,6 +157,7 @@ const App: React.FC = () => {
         bookings={store.data.bookings}
         shops={store.data.shops}
         onClose={() => setSelectedArtist(null)} 
+        showToast={showToast}
       />}
       
       {selectedShop && store.data && <ShopDetailModal 

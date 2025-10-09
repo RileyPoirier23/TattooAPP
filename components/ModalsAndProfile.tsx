@@ -113,8 +113,11 @@ export const AuthModal: React.FC<{onLogin: (credentials: AuthCredentials) => voi
 
 // --- DETAIL & ACTION MODALS ---
 
-export const ArtistDetailModal: React.FC<{ artist: Artist; bookings: Booking[]; shops: Shop[]; onClose: () => void; }> = ({ artist, bookings, shops, onClose }) => {
-    const artistBookings = bookings.filter(b => b.artistId === artist.id);
+export const ArtistDetailModal: React.FC<{ artist: Artist; bookings: Booking[]; shops: Shop[]; onClose: () => void; showToast: (message: string, type?: 'success' | 'error') => void; }> = ({ artist, bookings, shops, onClose, showToast }) => {
+    const futureBookings = bookings.filter(b => 
+        b.artistId === artist.id && new Date(b.endDate) >= new Date()
+    );
+
     return (
         <Modal onClose={onClose} title={artist.name}>
             <div className="space-y-6">
@@ -130,7 +133,7 @@ export const ArtistDetailModal: React.FC<{ artist: Artist; bookings: Booking[]; 
                 <div>
                     <h4 className="font-bold text-white mb-2">Upcoming Availability</h4>
                     <ul className="space-y-2">
-                        {artistBookings.length > 0 ? artistBookings.map(booking => {
+                        {futureBookings.length > 0 ? futureBookings.map(booking => {
                             const shop = shops.find(s => s.id === booking.shopId);
                             return (
                                 <li key={booking.id} className="bg-gray-800 p-3 rounded-lg text-sm">
@@ -142,7 +145,9 @@ export const ArtistDetailModal: React.FC<{ artist: Artist; bookings: Booking[]; 
                         }) : <p className="text-brand-gray text-sm">No upcoming guest spots scheduled.</p>}
                     </ul>
                 </div>
-                <button className="w-full bg-brand-secondary text-white font-bold py-3 px-4 rounded-lg hover:bg-opacity-80 transition-colors">
+                <button 
+                    onClick={() => showToast('Client booking requests coming soon!')}
+                    className="w-full bg-brand-secondary text-white font-bold py-3 px-4 rounded-lg hover:bg-opacity-80 transition-colors">
                     Request Booking with {artist.name}
                 </button>
             </div>
@@ -408,13 +413,13 @@ export const ArtistProfileView: React.FC<{ artist: Artist; updateArtist: (artist
                              <div key={i} className="relative group">
                                 <img src={`${url}?random=${artist.id}-${i}`} alt={`Portfolio piece ${i}`} className="w-full h-32 object-cover rounded-lg" />
                                 <div className="absolute inset-0 bg-black/60 opacity-0 group-hover:opacity-100 flex items-center justify-center transition-opacity">
-                                    <button className="text-white" title="Edit image">
+                                    <button onClick={() => showToast('Portfolio editing coming soon!')} className="text-white" title="Edit image">
                                         <EditIcon className="w-6 h-6" />
                                     </button>
                                 </div>
                             </div>
                         ))}
-                        <button className="w-full h-32 rounded-lg border-2 border-dashed border-gray-700 flex items-center justify-center text-brand-gray hover:bg-gray-800 hover:border-gray-600 transition-colors">
+                        <button onClick={() => showToast('Portfolio editing coming soon!')} className="w-full h-32 rounded-lg border-2 border-dashed border-gray-700 flex items-center justify-center text-brand-gray hover:bg-gray-800 hover:border-gray-600 transition-colors">
                             + Add
                         </button>
                      </div>
