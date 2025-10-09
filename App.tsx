@@ -86,13 +86,16 @@ const App: React.FC = () => {
     }
 
     if (store.data) {
-      // FIX: Use proper type guarding to narrow down user type and avoid `as` cast.
-      if (page === 'profile' && store.user && store.user.type === 'artist') {
-        return <ArtistProfileView artist={store.user.data} updateArtist={store.updateArtist} showToast={showToast} />;
+      // FIX: Use proper type guarding by assigning store.user to a local const.
+      // This helps TypeScript's control-flow analysis correctly narrow the user type.
+      const { user } = store;
+
+      if (page === 'profile' && user && user.type === 'artist') {
+        return <ArtistProfileView artist={user.data} updateArtist={store.updateArtist} showToast={showToast} />;
       }
-      // FIX: Use proper type guarding to narrow down the user type, which resolves the incorrect type error for `store.user.data.shopId`.
-      if (page === 'dashboard' && store.user && store.user.type === 'shop-owner') {
-          const shop = store.data.shops.find(s => s.id === store.user.data.shopId);
+      
+      if (page === 'dashboard' && user && user.type === 'shop-owner') {
+          const shop = store.data.shops.find(s => s.id === user.data.shopId);
           return <ShopOwnerDashboard 
             shop={shop}
             booths={store.data.booths.filter(b => b.shopId === shop?.id)}

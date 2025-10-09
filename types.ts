@@ -61,6 +61,13 @@ export interface MockData {
   bookings: Booking[];
 }
 
+export interface GroundingChunk {
+  web: {
+    uri: string;
+    title: string;
+  };
+}
+
 
 // --- APP STATE & NAVIGATION ---
 
@@ -95,7 +102,7 @@ export type User = ArtistUser | ClientUser | ShopOwnerUser;
 
 export interface AuthCredentials {
     username: string;
-    password;
+    password:
 }
 
 export interface RegisterDetails extends AuthCredentials {
