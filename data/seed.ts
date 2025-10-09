@@ -53,7 +53,7 @@ export const users: User[] = [
     username: 'alex',
     password: 'password123',
     type: 'client',
-    data: { name: 'Alex Client' },
+    data: { id: 'client-1', name: 'Alex Client' },
   }
 ];
 
@@ -211,5 +211,22 @@ export const seedData: MockData = {
       startDate: '2024-10-05',
       endDate: '2024-10-12',
     },
+  ],
+  clientBookingRequests: [],
+  notifications: [
+      {
+          id: 'notif-1',
+          userId: 'artist-1',
+          message: 'Welcome to InkSpace, Jess! Complete your profile to start getting noticed.',
+          read: false,
+          createdAt: new Date(Date.now() - 1000 * 60 * 60 * 24).toISOString(), // 1 day ago
+      },
+      {
+          id: 'notif-2',
+          userId: 'owner-1',
+          message: 'Your shop A-Cross Tattoos is now live. Add some booths to start accepting artists.',
+          read: true,
+          createdAt: new Date(Date.now() - 1000 * 60 * 60 * 48).toISOString(), // 2 days ago
+      }
   ],
 };

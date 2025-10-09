@@ -1,7 +1,7 @@
 // @/services/apiService.ts
 
 import { seedData } from '../data/seed';
-import type { MockData, Artist, Shop, Booth, Booking } from '../types';
+import type { MockData, Artist, Shop, Booth, Booking, ClientBookingRequest, Notification } from '../types';
 
 // Simulate a database
 let db: MockData = JSON.parse(JSON.stringify(seedData));
@@ -88,4 +88,55 @@ export const createBookingForArtist = async (bookingData: Omit<Booking, 'id'>): 
     };
     db.bookings.push(newBooking);
     return { ...newBooking };
+};
+
+/**
+ * Creates a new client booking request.
+ */
+export const createClientBookingRequest = async (requestData: Omit<ClientBookingRequest, 'id' | 'status'>): Promise<ClientBookingRequest> => {
+    await simulateDelay(300);
+    const newRequest: ClientBookingRequest = {
+        id: `request-${Date.now()}`,
+        status: 'pending',
+        ...requestData,
+    };
+    db.clientBookingRequests.push(newRequest);
+    return { ...newRequest };
+};
+
+/**
+ * Fetches notifications for a specific user.
+ */
+export const fetchNotificationsForUser = async (userId: string): Promise<Notification[]> => {
+    await simulateDelay(200);
+    return db.notifications.filter(n => n.userId === userId);
+};
+
+/**
+ * Marks all notifications for a user as read.
+ */
+export const markUserNotificationsAsRead = async (userId: string): Promise<{ success: true }> => {
+    await simulateDelay(200);
+    db.notifications.forEach(n => {
+        if (n.userId === userId) {
+            n.read = true;
+        }
+    });
+    return { success: true };
+};
+
+/**
+ * Creates a new notification for a user.
+ */
+export const createNotification = async (userId: string, message: string): Promise<Notification> => {
+    await simulateDelay(50);
+    const newNotification: Notification = {
+        id: `notif-${Date.now()}`,
+        userId,
+        message,
+        read: false,
+        createdAt: new Date().toISOString(),
+    };
+    db.notifications.push(newNotification);
+    return newNotification;
 };

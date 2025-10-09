@@ -8,9 +8,9 @@ import { ShopOwnerDashboard } from './components/views/ShopOwnerDashboard';
 import { useAppStore } from './hooks/useAppStore';
 import { Loader } from './components/shared/Loader';
 import { ErrorDisplay } from './components/shared/ErrorDisplay';
-import { AuthModal, ArtistDetailModal, ShopDetailModal, BookingModal, ArtistProfileView } from './components/ModalsAndProfile';
+import { AuthModal, ArtistDetailModal, ShopDetailModal, BookingModal, ArtistProfileView, ClientBookingRequestModal } from './components/ModalsAndProfile';
 import { Toast } from './components/shared/Toast';
-import type { ViewMode, Page, Artist, Shop, AuthCredentials, RegisterDetails, Booking, Booth } from './types';
+import type { ViewMode, Page, Artist, Shop, AuthCredentials, RegisterDetails, Booking, ClientBookingRequest } from './types';
 
 const App: React.FC = () => {
   const [viewMode, setViewMode] = useState<ViewMode>('artist');
@@ -22,6 +22,7 @@ const App: React.FC = () => {
   const [selectedArtist, setSelectedArtist] = useState<Artist | null>(null);
   const [selectedShop, setSelectedShop] = useState<Shop | null>(null);
   const [bookingShop, setBookingShop] = useState<Shop | null>(null);
+  const [requestingBookingWithArtist, setRequestingBookingWithArtist] = useState<Artist | null>(null);
   const [toast, setToast] = useState<{ message: string; type: 'success' | 'error' } | null>(null);
 
   const showToast = (message: string, type: 'success' | 'error' = 'success') => {
@@ -33,9 +34,9 @@ const App: React.FC = () => {
       const user = await store.login(credentials);
       setAuthModalOpen(false);
       showToast('Login successful!');
-      // Redirect based on user type
       if (user.type === 'artist') setPage('profile');
       if (user.type === 'shop-owner') setPage('dashboard');
+      if (user.type === 'client') showToast(`Welcome back, ${user.data.name}!`);
     } catch (error) {
       const message = error instanceof Error ? error.message : 'Login failed';
       showToast(message, 'error');
@@ -71,6 +72,16 @@ const App: React.FC = () => {
     showToast('Booking initiated! Please follow payment instructions.', 'success');
   };
 
+  const handleClientBookingRequest = (requestData: Omit<ClientBookingRequest, 'id' | 'clientId' | 'status'>) => {
+    if (!store.user || store.user.type !== 'client') {
+        showToast('You must be logged in as a client to request a booking.', 'error');
+        return;
+    }
+    store.createClientBookingRequest({ ...requestData, clientId: store.user.id });
+    setRequestingBookingWithArtist(null);
+    showToast('Your booking request has been sent!', 'success');
+  };
+
   const renderContent = () => {
     if (store.loading) {
       return (
@@ -86,7 +97,7 @@ const App: React.FC = () => {
     }
 
     if (store.data) {
-      const { user } = store;
+      const user = store.user;
 
       if (page === 'profile' && user && user.type === 'artist') {
         return <ArtistProfileView artist={user.data} updateArtist={store.updateArtist} showToast={showToast} />;
@@ -137,6 +148,8 @@ const App: React.FC = () => {
         viewMode={viewMode} 
         setViewMode={setViewMode} 
         user={store.user}
+        notifications={store.notifications}
+        markNotificationsAsRead={store.markNotificationsAsRead}
         onLoginClick={() => setAuthModalOpen(true)}
         onLogoutClick={handleLogout}
         onProfileClick={() => setPage('profile')}
@@ -157,6 +170,13 @@ const App: React.FC = () => {
         bookings={store.data.bookings}
         shops={store.data.shops}
         onClose={() => setSelectedArtist(null)} 
+        onBookRequest={() => {
+            if (store.user?.type === 'client') {
+                setRequestingBookingWithArtist(selectedArtist);
+            } else {
+                showToast('Please log in as a client to book an artist.', 'error');
+            }
+        }}
         showToast={showToast}
       />}
       
@@ -177,8 +197,17 @@ const App: React.FC = () => {
           <BookingModal
             shop={bookingShop}
             booths={store.data.booths.filter(b => b.shopId === bookingShop.id)}
+            bookings={store.data.bookings}
             onClose={() => setBookingShop(null)}
             onConfirmBooking={handleCreateBooking}
+          />
+      )}
+
+      {requestingBookingWithArtist && (
+          <ClientBookingRequestModal
+              artist={requestingBookingWithArtist}
+              onClose={() => setRequestingBookingWithArtist(null)}
+              onSendRequest={handleClientBookingRequest}
           />
       )}
 

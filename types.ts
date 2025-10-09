@@ -54,11 +54,31 @@ export interface Booking {
   endDate: string;
 }
 
+export interface ClientBookingRequest {
+    id: string;
+    clientId: string;
+    artistId: string;
+    startDate: string;
+    endDate: string;
+    message: string;
+    status: 'pending' | 'approved' | 'declined';
+}
+
+export interface Notification {
+    id: string;
+    userId: string;
+    message: string;
+    read: boolean;
+    createdAt: string;
+}
+
 export interface MockData {
   artists: Artist[];
   shops: Shop[];
   booths: Booth[];
   bookings: Booking[];
+  clientBookingRequests: ClientBookingRequest[];
+  notifications: Notification[];
 }
 
 export interface GroundingChunk {
@@ -91,7 +111,7 @@ export interface ArtistUser extends BaseUser {
 }
 export interface ClientUser extends BaseUser {
     type: 'client';
-    data: { name: string };
+    data: { id: string; name: string };
 }
 export interface ShopOwnerUser extends BaseUser {
     type: 'shop-owner';

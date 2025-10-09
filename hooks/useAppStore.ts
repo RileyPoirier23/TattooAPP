@@ -3,7 +3,7 @@
 import { useState, useEffect, useCallback } from 'react';
 import { authService } from '../services/authService';
 import * as apiService from '../services/apiService';
-import type { MockData, User, Artist, Shop, Booth, Booking, AuthCredentials, RegisterDetails } from '../types';
+import type { MockData, User, Artist, Shop, Booth, Booking, AuthCredentials, RegisterDetails, ClientBookingRequest, Notification } from '../types';
 
 interface UseAppStoreReturn {
   // State
@@ -13,6 +13,7 @@ interface UseAppStoreReturn {
   user: User | null;
   userLocation: { lat: number; lng: number } | null;
   locationError: string | null;
+  notifications: Notification[];
 
   // Auth Actions
   login: (credentials: AuthCredentials) => Promise<User>;
@@ -26,9 +27,11 @@ interface UseAppStoreReturn {
   updateBooth: (boothId: string, updatedData: Partial<Booth>) => void;
   deleteBooth: (boothId: string) => void;
   createBooking: (bookingData: Omit<Booking, 'id'>) => void;
+  createClientBookingRequest: (requestData: Omit<ClientBookingRequest, 'id' | 'status'>) => void;
   
   // UI Actions
   getLocation: () => void;
+  markNotificationsAsRead: () => void;
 }
 
 export const useAppStore = (): UseAppStoreReturn => {
@@ -38,6 +41,16 @@ export const useAppStore = (): UseAppStoreReturn => {
   const [user, setUser] = useState<User | null>(null);
   const [userLocation, setUserLocation] = useState<{ lat: number; lng: number } | null>(null);
   const [locationError, setLocationError] = useState<string | null>(null);
+  const [notifications, setNotifications] = useState<Notification[]>([]);
+
+  const fetchNotificationsForUser = useCallback(async (userId: string) => {
+    try {
+        const userNotifications = await apiService.fetchNotificationsForUser(userId);
+        setNotifications(userNotifications);
+    } catch(e) {
+        console.error("Could not fetch notifications");
+    }
+  }, []);
 
   useEffect(() => {
     const initializeApp = async () => {
@@ -47,6 +60,7 @@ export const useAppStore = (): UseAppStoreReturn => {
         const currentUser = authService.getCurrentUser();
         if (currentUser) {
             setUser(currentUser);
+            fetchNotificationsForUser(currentUser.id);
         }
         const initialData = await apiService.fetchInitialData();
         setData(initialData);
@@ -57,13 +71,14 @@ export const useAppStore = (): UseAppStoreReturn => {
       }
     };
     initializeApp();
-  }, []);
+  }, [fetchNotificationsForUser]);
   
   const login = useCallback(async (credentials: AuthCredentials) => {
     const loggedInUser = await authService.login(credentials);
     setUser(loggedInUser);
+    fetchNotificationsForUser(loggedInUser.id);
     return loggedInUser;
-  }, []);
+  }, [fetchNotificationsForUser]);
 
   const register = useCallback(async (details: RegisterDetails) => {
     const newUser = await authService.register(details);
@@ -79,12 +94,14 @@ export const useAppStore = (): UseAppStoreReturn => {
     }
 
     setUser(newUser);
+    fetchNotificationsForUser(newUser.id);
     return newUser;
-  }, []);
+  }, [fetchNotificationsForUser]);
 
   const logout = useCallback(async () => {
     await authService.logout();
     setUser(null);
+    setNotifications([]);
   }, []);
 
   const updateArtist = async (artistId: string, updatedData: Partial<Artist>) => {
@@ -163,9 +180,49 @@ export const useAppStore = (): UseAppStoreReturn => {
               if (!prevData) return null;
               return {...prevData, bookings: [...prevData.bookings, newBooking]};
           });
+          // Add notification for the shop owner
+          const shop = data?.shops.find(s => s.id === newBooking.shopId);
+          const artist = data?.artists.find(a => a.id === newBooking.artistId);
+          if (shop && artist) {
+              const shopOwnerId = authService.getShopOwnerId(shop.id);
+              if (shopOwnerId) {
+                  const notif = await apiService.createNotification(shopOwnerId, `${artist.name} has booked a booth at your shop.`);
+                  if (user?.id === shopOwnerId) setNotifications(prev => [...prev, notif]);
+              }
+          }
+
       } catch (e) {
           setError(e instanceof Error ? e.message : 'Failed to create booking.');
       }
+  };
+  
+  const createClientBookingRequest = async (requestData: Omit<ClientBookingRequest, 'id' | 'status'>) => {
+    try {
+        const newRequest = await apiService.createClientBookingRequest(requestData);
+        setData(prevData => {
+            if (!prevData) return null;
+            return {...prevData, clientBookingRequests: [...prevData.clientBookingRequests, newRequest]};
+        });
+        // Add notification for the artist
+        const artist = data?.artists.find(a => a.id === newRequest.artistId);
+        const client = authService.getUserById(newRequest.clientId);
+        if (artist && client) {
+            const notif = await apiService.createNotification(artist.id, `You have a new booking request from ${client.data.name}.`);
+            if (user?.id === artist.id) setNotifications(prev => [...prev, notif]);
+        }
+    } catch (e) {
+        setError(e instanceof Error ? e.message : 'Failed to send booking request.');
+    }
+  };
+
+  const markNotificationsAsRead = async () => {
+    if (!user) return;
+    try {
+        await apiService.markUserNotificationsAsRead(user.id);
+        setNotifications(prev => prev.map(n => ({...n, read: true})));
+    } catch (e) {
+        console.error("Failed to mark notifications as read.");
+    }
   };
 
   const getLocation = () => {
@@ -190,7 +247,8 @@ export const useAppStore = (): UseAppStoreReturn => {
   return { 
       data, loading, error, user, 
       login, register, logout, 
-      updateArtist, updateShop, addBooth, updateBooth, deleteBooth, createBooking,
-      userLocation, locationError, getLocation 
+      updateArtist, updateShop, addBooth, updateBooth, deleteBooth, createBooking, createClientBookingRequest,
+      userLocation, locationError, getLocation,
+      notifications, markNotificationsAsRead
   };
 };

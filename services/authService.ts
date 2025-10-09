@@ -23,6 +23,17 @@ class AuthService {
         }
     }
     
+    // FIX: Add method to find a shop owner by shop ID.
+    getShopOwnerId(shopId: string): string | null {
+        const owner = this.users.find(u => u.type === 'shop-owner' && u.data.shopId === shopId);
+        return owner ? owner.id : null;
+    }
+
+    // FIX: Add method to find a user by their ID.
+    getUserById(userId: string): User | null {
+        return this.users.find(u => u.id === userId) || null;
+    }
+
     login(credentials: AuthCredentials): Promise<User> {
         return new Promise((resolve, reject) => {
             setTimeout(() => { // Simulate network delay
@@ -70,7 +81,7 @@ class AuthService {
                         username: details.username,
                         password: details.password,
                         type: 'client',
-                        data: { name: details.name },
+                        data: { id: newId, name: details.name },
                     };
                 } else { // shop-owner
                      newUser = {

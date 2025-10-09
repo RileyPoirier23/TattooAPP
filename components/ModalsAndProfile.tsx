@@ -1,8 +1,8 @@
 // @/components/ModalsAndProfile.tsx
 
-import React, { useState } from 'react';
-import type { Artist, Shop, Booking, Booth, Review, AuthCredentials, RegisterDetails, UserRole, GroundingChunk } from '../types';
-import { LocationIcon, StarIcon, PriceIcon, XIcon, EditIcon } from './shared/Icons';
+import React, { useState, useMemo } from 'react';
+import type { Artist, Shop, Booking, Booth, Review, AuthCredentials, RegisterDetails, UserRole, GroundingChunk, ClientBookingRequest } from '../types';
+import { LocationIcon, StarIcon, PriceIcon, XIcon, EditIcon, PaperAirplaneIcon, CalendarIcon, UploadIcon } from './shared/Icons';
 import { generateArtistBio, getShopInfo } from '../services/geminiService';
 import { MapEmbed } from './shared/MapEmbed';
 import { Loader } from './shared/Loader';
@@ -113,7 +113,7 @@ export const AuthModal: React.FC<{onLogin: (credentials: AuthCredentials) => voi
 
 // --- DETAIL & ACTION MODALS ---
 
-export const ArtistDetailModal: React.FC<{ artist: Artist; bookings: Booking[]; shops: Shop[]; onClose: () => void; showToast: (message: string, type?: 'success' | 'error') => void; }> = ({ artist, bookings, shops, onClose, showToast }) => {
+export const ArtistDetailModal: React.FC<{ artist: Artist; bookings: Booking[]; shops: Shop[]; onClose: () => void; onBookRequest: () => void; showToast: (message: string, type?: 'success' | 'error') => void; }> = ({ artist, bookings, shops, onClose, onBookRequest, showToast }) => {
     const futureBookings = bookings.filter(b => 
         b.artistId === artist.id && new Date(b.endDate) >= new Date()
     );
@@ -145,11 +145,20 @@ export const ArtistDetailModal: React.FC<{ artist: Artist; bookings: Booking[]; 
                         }) : <p className="text-brand-gray text-sm">No upcoming guest spots scheduled.</p>}
                     </ul>
                 </div>
-                <button 
-                    onClick={() => showToast('Client booking requests coming soon!')}
-                    className="w-full bg-brand-secondary text-white font-bold py-3 px-4 rounded-lg hover:bg-opacity-80 transition-colors">
-                    Request Booking with {artist.name}
-                </button>
+                <div className="grid grid-cols-2 gap-4">
+                     <button 
+                        onClick={() => showToast('Direct messaging is coming soon!')}
+                        className="w-full bg-gray-700 text-white font-bold py-3 px-4 rounded-lg hover:bg-gray-600 transition-colors flex items-center justify-center space-x-2">
+                        <PaperAirplaneIcon className="w-5 h-5" />
+                        <span>Message Artist</span>
+                    </button>
+                    <button 
+                        onClick={onBookRequest}
+                        className="w-full bg-brand-secondary text-white font-bold py-3 px-4 rounded-lg hover:bg-opacity-80 transition-colors flex items-center justify-center space-x-2">
+                        <CalendarIcon className="w-5 h-5" />
+                        <span>Request Booking</span>
+                    </button>
+                </div>
             </div>
         </Modal>
     );
@@ -267,45 +276,128 @@ export const ShopDetailModal: React.FC<{ shop: Shop; booths: Booth[]; onClose: (
     </Modal>
 )};
 
-export const BookingModal: React.FC<{shop: Shop, booths: Booth[], onClose: () => void, onConfirmBooking: (bookingData: Omit<Booking, 'id' | 'artistId'>) => void}> = ({ shop, booths, onClose, onConfirmBooking }) => {
+const Calendar: React.FC<{ bookedDates: Date[], onDateSelect: (date: Date) => void, selectedDate: Date | null }> = ({ bookedDates, onDateSelect, selectedDate }) => {
+    const [currentDate, setCurrentDate] = useState(new Date());
+  
+    const startOfMonth = new Date(currentDate.getFullYear(), currentDate.getMonth(), 1);
+    const endOfMonth = new Date(currentDate.getFullYear(), currentDate.getMonth() + 1, 0);
+    const startDay = startOfMonth.getDay();
+    const daysInMonth = endOfMonth.getDate();
+  
+    const bookedDateStrings = useMemo(() => bookedDates.map(d => d.toDateString()), [bookedDates]);
+  
+    const renderDays = () => {
+      const days = [];
+      for (let i = 0; i < startDay; i++) {
+        days.push(<div key={`empty-${i}`} className="w-full h-10"></div>);
+      }
+      for (let day = 1; day <= daysInMonth; day++) {
+        const date = new Date(currentDate.getFullYear(), currentDate.getMonth(), day);
+        const isBooked = bookedDateStrings.includes(date.toDateString());
+        const isPast = date < new Date(new Date().toDateString());
+        const isSelected = selectedDate?.toDateString() === date.toDateString();
+        const isDisabled = isBooked || isPast;
+
+        days.push(
+          <div key={day} className="p-1">
+            <button
+              onClick={() => !isDisabled && onDateSelect(date)}
+              disabled={isDisabled}
+              className={`w-full h-10 rounded-full text-sm font-semibold transition-colors
+                ${isSelected ? 'bg-brand-primary text-white' : ''}
+                ${!isSelected && !isDisabled ? 'hover:bg-gray-700 text-white' : ''}
+                ${isDisabled ? 'text-gray-600 cursor-not-allowed line-through' : ''}`}
+            >
+              {day}
+            </button>
+          </div>
+        );
+      }
+      return days;
+    };
+  
+    return (
+      <div className="bg-gray-800 p-4 rounded-lg">
+        <div className="flex justify-between items-center mb-4">
+          <button onClick={() => setCurrentDate(new Date(currentDate.getFullYear(), currentDate.getMonth() - 1, 1))}>&lt;</button>
+          <h4 className="font-bold text-white">{currentDate.toLocaleString('default', { month: 'long', year: 'numeric' })}</h4>
+          <button onClick={() => setCurrentDate(new Date(currentDate.getFullYear(), currentDate.getMonth() + 1, 1))}>&gt;</button>
+        </div>
+        <div className="grid grid-cols-7 gap-1 text-center text-xs text-brand-gray">
+            {['S', 'M', 'T', 'W', 'T', 'F', 'S'].map(day => <div key={day}>{day}</div>)}
+        </div>
+        <div className="grid grid-cols-7 gap-1 mt-2">{renderDays()}</div>
+      </div>
+    );
+};
+
+export const BookingModal: React.FC<{shop: Shop, booths: Booth[], bookings: Booking[], onClose: () => void, onConfirmBooking: (bookingData: Omit<Booking, 'id' | 'artistId'>) => void}> = ({ shop, booths, bookings, onClose, onConfirmBooking }) => {
     const [step, setStep] = useState(1);
     const [selectedBoothId, setSelectedBoothId] = useState<string | null>(booths.length > 0 ? booths[0].id : null);
-    const [startDate, setStartDate] = useState('');
-    const [endDate, setEndDate] = useState('');
+    const [startDate, setStartDate] = useState<Date | null>(null);
+    const [endDate, setEndDate] = useState<Date | null>(null);
 
+    const bookedDatesForSelectedBooth = useMemo(() => {
+        if (!selectedBoothId) return [];
+        const relevantBookings = bookings.filter(b => b.boothId === selectedBoothId);
+        const dates: Date[] = [];
+        relevantBookings.forEach(booking => {
+            let currentDate = new Date(booking.startDate);
+            const stopDate = new Date(booking.endDate);
+            while (currentDate <= stopDate) {
+                dates.push(new Date(currentDate));
+                currentDate.setDate(currentDate.getDate() + 1);
+            }
+        });
+        return dates;
+    }, [bookings, selectedBoothId]);
+
+    const handleDateSelect = (date: Date) => {
+        if (!startDate || (startDate && endDate)) {
+            setStartDate(date);
+            setEndDate(null);
+        } else if (date > startDate) {
+            setEndDate(date);
+        } else {
+            setStartDate(date);
+        }
+    };
+    
     const handleConfirm = () => {
         if (selectedBoothId && startDate && endDate) {
             onConfirmBooking({
                 shopId: shop.id,
                 boothId: selectedBoothId,
                 city: shop.location,
-                startDate,
-                endDate
+                startDate: startDate.toISOString().split('T')[0],
+                endDate: endDate.toISOString().split('T')[0],
             });
             setStep(2);
         }
     };
 
     return (
-        <Modal onClose={onClose} title={step === 1 ? `Book a Booth at ${shop.name}` : 'Booking Initiated'} size="md">
+        <Modal onClose={onClose} title={step === 1 ? `Book a Booth at ${shop.name}` : 'Booking Initiated'} size="lg">
             {step === 1 ? (
                  <div className="space-y-4">
                     <div>
                         <label className="text-sm font-medium text-brand-gray mb-1 block">Select Booth</label>
-                        <select value={selectedBoothId || ''} onChange={e => setSelectedBoothId(e.target.value)} className="w-full bg-gray-800 border-gray-700 rounded p-2">
+                        <select value={selectedBoothId || ''} onChange={e => { setSelectedBoothId(e.target.value); setStartDate(null); setEndDate(null); }} className="w-full bg-gray-800 border-gray-700 rounded p-2">
                            {booths.map(b => <option key={b.id} value={b.id}>{b.name} - ${b.dailyRate}/day</option>)}
                         </select>
                     </div>
+
                     <div className="grid grid-cols-2 gap-4">
-                        <div>
-                             <label className="text-sm font-medium text-brand-gray mb-1 block">Start Date</label>
-                             <input type="date" value={startDate} onChange={e => setStartDate(e.target.value)} className="w-full bg-gray-800 border-gray-700 rounded p-2"/>
-                        </div>
-                        <div>
-                             <label className="text-sm font-medium text-brand-gray mb-1 block">End Date</label>
-                             <input type="date" value={endDate} onChange={e => setEndDate(e.target.value)} className="w-full bg-gray-800 border-gray-700 rounded p-2"/>
-                        </div>
+                        <Calendar bookedDates={bookedDatesForSelectedBooth} onDateSelect={handleDateSelect} selectedDate={startDate} />
+                        <Calendar bookedDates={bookedDatesForSelectedBooth} onDateSelect={handleDateSelect} selectedDate={endDate} />
                     </div>
+
+                     <div className="text-center text-sm text-brand-gray p-2 bg-gray-800 rounded-md">
+                        {startDate && !endDate ? `Selected Start Date: ${startDate.toLocaleDateString()}` :
+                         startDate && endDate ? `Booking from ${startDate.toLocaleDateString()} to ${endDate.toLocaleDateString()}` :
+                         'Select a start and end date from the calendars.'}
+                     </div>
+
                     <button onClick={handleConfirm} disabled={!selectedBoothId || !startDate || !endDate} className="w-full bg-brand-primary text-white font-bold py-3 rounded-lg disabled:bg-gray-600">
                         Confirm Booking
                     </button>
@@ -325,6 +417,53 @@ export const BookingModal: React.FC<{shop: Shop, booths: Booth[], onClose: () =>
                     </button>
                 </div>
             )}
+        </Modal>
+    );
+};
+
+export const ClientBookingRequestModal: React.FC<{ artist: Artist; onClose: () => void; onSendRequest: (request: Omit<ClientBookingRequest, 'id' | 'clientId' | 'status'>) => void; }> = ({ artist, onClose, onSendRequest }) => {
+    const [startDate, setStartDate] = useState('');
+    const [endDate, setEndDate] = useState('');
+    const [message, setMessage] = useState('');
+
+    const handleSubmit = () => {
+        if (startDate && endDate && message) {
+            onSendRequest({
+                artistId: artist.id,
+                startDate,
+                endDate,
+                message,
+            });
+        }
+    };
+
+    return (
+        <Modal onClose={onClose} title={`Request Booking with ${artist.name}`} size="md">
+            <div className="space-y-4">
+                <p className="text-sm text-brand-gray">Select your desired dates and provide a brief description of your tattoo idea. {artist.name} will review your request and get back to you.</p>
+                <div className="grid grid-cols-2 gap-4">
+                    <div>
+                        <label className="text-sm font-medium text-brand-gray mb-1 block">Start Date</label>
+                        <input type="date" value={startDate} onChange={e => setStartDate(e.target.value)} className="w-full bg-gray-800 border-gray-700 rounded p-2" />
+                    </div>
+                    <div>
+                        <label className="text-sm font-medium text-brand-gray mb-1 block">End Date</label>
+                        <input type="date" value={endDate} onChange={e => setEndDate(e.target.value)} className="w-full bg-gray-800 border-gray-700 rounded p-2" />
+                    </div>
+                </div>
+                <div>
+                    <label className="text-sm font-medium text-brand-gray mb-1 block">Tattoo Idea / Message</label>
+                    <textarea value={message} onChange={e => setMessage(e.target.value)} rows={4} className="w-full bg-gray-800 border-gray-700 rounded p-2" placeholder={`Hi ${artist.name}, I'm interested in getting a...`}></textarea>
+                </div>
+                <button
+                    onClick={handleSubmit}
+                    disabled={!startDate || !endDate || !message}
+                    className="w-full bg-brand-secondary text-white font-bold py-3 rounded-lg disabled:bg-gray-600 flex items-center justify-center space-x-2"
+                >
+                    <PaperAirplaneIcon className="w-5 h-5" />
+                    <span>Send Request</span>
+                </button>
+            </div>
         </Modal>
     );
 };
@@ -413,14 +552,15 @@ export const ArtistProfileView: React.FC<{ artist: Artist; updateArtist: (artist
                              <div key={i} className="relative group">
                                 <img src={`${url}?random=${artist.id}-${i}`} alt={`Portfolio piece ${i}`} className="w-full h-32 object-cover rounded-lg" />
                                 <div className="absolute inset-0 bg-black/60 opacity-0 group-hover:opacity-100 flex items-center justify-center transition-opacity">
-                                    <button onClick={() => showToast('Portfolio editing coming soon!')} className="text-white" title="Edit image">
-                                        <EditIcon className="w-6 h-6" />
+                                    <button onClick={() => showToast('Feature coming soon!')} className="text-white p-2 bg-black/50 rounded-full" title="Edit image">
+                                        <EditIcon className="w-5 h-5" />
                                     </button>
                                 </div>
                             </div>
                         ))}
-                        <button onClick={() => showToast('Portfolio editing coming soon!')} className="w-full h-32 rounded-lg border-2 border-dashed border-gray-700 flex items-center justify-center text-brand-gray hover:bg-gray-800 hover:border-gray-600 transition-colors">
-                            + Add
+                        <button onClick={() => showToast('Uploading images is coming soon!')} className="w-full h-32 rounded-lg border-2 border-dashed border-gray-700 flex flex-col items-center justify-center text-brand-gray hover:bg-gray-800 hover:border-gray-600 transition-colors">
+                            <UploadIcon className="w-8 h-8 mb-2" />
+                            <span className="text-sm font-semibold">Add Image</span>
                         </button>
                      </div>
                 </div>
