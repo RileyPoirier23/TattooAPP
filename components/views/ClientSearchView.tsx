@@ -4,9 +4,12 @@
 import React, { useState, useMemo } from 'react';
 import { useAppStore } from '../../hooks/useAppStore';
 import type { Artist } from '../../types';
-import { SearchIcon, LocationIcon, PaletteIcon } from '../shared/Icons';
+import { SearchIcon, LocationIcon, PaletteIcon, CrosshairsIcon } from '../shared/Icons';
 import { Loader } from '../shared/Loader';
 import { ErrorDisplay } from '../shared/ErrorDisplay';
+import { useGoogleMaps } from '../../hooks/useGoogleMaps';
+import { getCityFromCoords } from '../../services/googlePlacesService';
+
 
 const ArtistCard: React.FC<{ artist: Artist; onSelect: (artist: Artist) => void }> = ({ artist, onSelect }) => (
     <div 
@@ -27,10 +30,44 @@ const ArtistCard: React.FC<{ artist: Artist; onSelect: (artist: Artist) => void 
 );
 
 export const ClientSearchView: React.FC = () => {
-    const { data: { artists }, isLoading, error, openModal } = useAppStore();
+    const { data: { artists }, isLoading, error, openModal, showToast } = useAppStore();
     const [searchTerm, setSearchTerm] = useState('');
     const [location, setLocation] = useState('');
     const [specialty, setSpecialty] = useState('');
+    const [isLocating, setIsLocating] = useState(false);
+    const { isLoaded: isMapsLoaded, error: mapsError } = useGoogleMaps();
+
+    const handleFindNearby = () => {
+        if (!navigator.geolocation) {
+            showToast("Geolocation is not supported by your browser.", 'error');
+            return;
+        }
+
+        if (!isMapsLoaded || mapsError) {
+            showToast("Location service is currently unavailable.", 'error');
+            return;
+        }
+
+        setIsLocating(true);
+        navigator.geolocation.getCurrentPosition(
+            async (position) => {
+                const { latitude, longitude } = position.coords;
+                try {
+                    const city = await getCityFromCoords({ lat: latitude, lng: longitude });
+                    setLocation(city);
+                    showToast(`Showing results for ${city}`);
+                } catch (error) {
+                    showToast(error instanceof Error ? error.message : "Could not determine your city.", 'error');
+                } finally {
+                    setIsLocating(false);
+                }
+            },
+            (error) => {
+                showToast("Unable to retrieve your location. Please check your browser permissions.", 'error');
+                setIsLocating(false);
+            }
+        );
+    };
 
     const filteredArtists = useMemo(() => {
         return artists.filter(artist => 
@@ -81,6 +118,14 @@ export const ClientSearchView: React.FC = () => {
                         className="w-full bg-gray-800 border-gray-700 rounded-lg py-3 pl-10 pr-4 text-white focus:ring-2 focus:ring-brand-primary focus:outline-none"
                     />
                 </div>
+                 <button 
+                    onClick={handleFindNearby}
+                    disabled={isLocating || !isMapsLoaded}
+                    className="flex items-center justify-center space-x-2 bg-brand-secondary hover:bg-opacity-80 text-white font-bold py-3 px-4 rounded-lg transition-colors disabled:bg-gray-600 disabled:cursor-not-allowed w-full md:w-auto"
+                >
+                    {isLocating ? <div className="w-5 h-5"><Loader /></div> : <CrosshairsIcon className="w-5 h-5" />}
+                    <span>Find Nearby</span>
+                </button>
             </div>
 
             <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-6">
