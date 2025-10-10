@@ -9,8 +9,8 @@ declare global {
   }
 }
 
-// FIX: Changed from import.meta.env to process.env to resolve TypeScript error. Assuming build process handles environment variables.
-const GOOGLE_MAPS_API_KEY = process.env.VITE_MAPS_API_KEY; 
+// FIX: Cast `import.meta` to `any` to resolve TypeScript error regarding the 'env' property.
+const GOOGLE_MAPS_API_KEY = (import.meta as any).env.VITE_MAPS_API_KEY; 
 const GOOGLE_MAPS_SCRIPT_ID = 'google-maps-script';
 
 export const useGoogleMaps = () => {

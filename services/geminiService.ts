@@ -3,8 +3,9 @@
 import { GoogleGenAI, GenerateContentResponse } from "@google/genai";
 
 // The API key is sourced from the environment and is assumed to be present.
-// FIX: Per @google/genai guidelines, use process.env.API_KEY for the Gemini API key.
-const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
+// For Vite projects, environment variables must be accessed via `import.meta.env`.
+// FIX: Cast `import.meta` to `any` to resolve TypeScript error regarding the 'env' property.
+const ai = new GoogleGenAI({ apiKey: (import.meta as any).env.VITE_API_KEY });
 
 /**
  * Generates a creative and professional biography for a tattoo artist.
