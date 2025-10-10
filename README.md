@@ -117,7 +117,7 @@ CREATE TABLE profiles (
   specialty TEXT, -- Primarily for artists
   bio TEXT, -- Primarily for artists
   portfolio TEXT[], -- Array of image URLs
-  is_verified BOOLEAN DEFAULT TRUE
+  is_verified BOOLEAN DEFAULT FALSE
 );
 
 -- Shops table
@@ -133,7 +133,7 @@ CREATE TABLE shops (
   rating FLOAT,
   image_url TEXT,
   payment_methods JSONB,
-  is_verified BOOLEAN DEFAULT TRUE
+  is_verified BOOLEAN DEFAULT FALSE
 );
 
 -- Booths table, linked to shops
@@ -190,6 +190,8 @@ ALTER TABLE notifications ENABLE ROW LEVEL SECURITY;
 -- RLS Policies (examples to get you started)
 -- Profiles are viewable by everyone
 CREATE POLICY "Public profiles are viewable by everyone." ON profiles FOR SELECT USING (true);
+-- Users can insert their own profile
+CREATE POLICY "Users can insert their own profile." ON profiles FOR INSERT WITH CHECK (auth.uid() = id);
 -- Users can only update their own profile
 CREATE POLICY "Users can update own profile." ON profiles FOR UPDATE USING (auth.uid() = id);
 

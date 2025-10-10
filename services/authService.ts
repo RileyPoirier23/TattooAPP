@@ -78,17 +78,20 @@ class AuthService {
         if (authError) throw authError;
         if (!authData.user) throw new Error("Registration succeeded but no user returned.");
 
-        const profileData = {
+        const profileData: { [key: string]: any } = {
             id: authData.user.id,
-            username: details.email, // Using email as username
+            username: details.email,
             full_name: details.name,
             role: details.type,
-            city: details.city || null,
-            specialty: 'New Artist',
-            bio: `An artist based in ${details.city || 'a new city'}.`,
-            portfolio: [],
-            is_verified: true,
+            is_verified: false, // New users are now unverified by default
         };
+
+        if (details.type === 'artist' || details.type === 'dual') {
+            profileData.city = details.city || null;
+            profileData.specialty = 'New Artist';
+            profileData.bio = `An artist based in ${details.city || 'a new city'}.`;
+            profileData.portfolio = [];
+        }
 
         const { error: profileError } = await supabase.from('profiles').insert(profileData);
         if (profileError) {

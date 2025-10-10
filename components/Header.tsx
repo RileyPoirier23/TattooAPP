@@ -52,22 +52,6 @@ export const Header: React.FC<HeaderProps> = ({
     }
   };
 
-  const getButtonClasses = (mode: ViewMode) => {
-    const isActive = viewMode === mode;
-    let baseClasses = 'px-4 py-2 text-sm font-semibold rounded-full transition-colors duration-300';
-    if (user) {
-        return `${baseClasses} ${isActive ? 'bg-brand-primary text-white' : 'bg-gray-800 text-brand-gray'} cursor-default`;
-    }
-    return `${baseClasses} ${isActive ? 'bg-brand-primary text-white' : 'bg-gray-800 text-brand-gray hover:bg-gray-700'}`;
-  };
-  
-  const handleViewModeClick = (mode: ViewMode) => {
-    if (!user) {
-        setViewMode(mode);
-        onNavigate('search');
-    }
-  };
-
   const UserMenu = () => (
     <div className="relative" ref={userMenuRef}>
       <button onClick={() => setUserMenuOpen(prev => !prev)} className="flex items-center space-x-2 bg-gray-800 hover:bg-gray-700 px-3 py-2 rounded-full">
@@ -94,6 +78,80 @@ export const Header: React.FC<HeaderProps> = ({
       )}
     </div>
   );
+  
+  const renderViewModeControls = () => {
+    // Logged out user sees both options to explore
+    if (!user) {
+        return (
+            <div className="flex items-center bg-gray-900 rounded-full p-1">
+                <button
+                    onClick={() => { setViewMode('artist'); onNavigate('search'); }}
+                    className={`px-4 py-2 text-sm font-semibold rounded-full transition-colors duration-300 ${viewMode === 'artist' ? 'bg-brand-primary text-white' : 'bg-gray-800 text-brand-gray hover:bg-gray-700'}`}
+                >
+                    For Artists
+                </button>
+                <button
+                    onClick={() => { setViewMode('client'); onNavigate('search'); }}
+                    className={`px-4 py-2 text-sm font-semibold rounded-full transition-colors duration-300 ${viewMode === 'client' ? 'bg-brand-primary text-white' : 'bg-gray-800 text-brand-gray hover:bg-gray-700'}`}
+                >
+                    For Clients
+                </button>
+            </div>
+        );
+    }
+
+    // Logged in user has specific views
+    switch (user.type) {
+        case 'artist':
+            return (
+                <div className="flex items-center bg-gray-900 rounded-full p-1">
+                    <span className="px-4 py-2 text-sm font-semibold rounded-full bg-brand-primary text-white cursor-default">
+                        Artist View
+                    </span>
+                </div>
+            );
+        case 'client':
+            return (
+                <div className="flex items-center bg-gray-900 rounded-full p-1">
+                    <span className="px-4 py-2 text-sm font-semibold rounded-full bg-brand-primary text-white cursor-default">
+                        Client View
+                    </span>
+                </div>
+            );
+        case 'shop-owner':
+            return (
+                <div className="flex items-center bg-gray-900 rounded-full p-1">
+                    <span className="px-4 py-2 text-sm font-semibold rounded-full bg-brand-secondary text-white cursor-default">
+                        Shop Owner View
+                    </span>
+                </div>
+            );
+        case 'dual':
+            // Dual user can switch between views
+            return (
+                <div className="flex items-center bg-gray-900 rounded-full p-1">
+                    <button
+                        onClick={() => { setViewMode('artist'); onNavigate('search'); }}
+                        className={`px-4 py-2 text-sm font-semibold rounded-full transition-colors duration-300 ${viewMode === 'artist' ? 'bg-brand-primary text-white' : 'bg-gray-800 text-brand-gray hover:bg-gray-700'}`}
+                    >
+                        Artist View
+                    </button>
+                    <button
+                        onClick={() => { setViewMode('client'); onNavigate('search'); }}
+                        className={`px-4 py-2 text-sm font-semibold rounded-full transition-colors duration-300 ${viewMode === 'client' ? 'bg-brand-primary text-white' : 'bg-gray-800 text-brand-gray hover:bg-gray-700'}`}
+                    >
+                        Client View
+                    </button>
+                </div>
+            );
+        case 'admin':
+            // No toggle for admin
+            return null;
+        default:
+            return null;
+    }
+  };
+
 
   return (
     <header className="bg-brand-dark/80 backdrop-blur-sm sticky top-0 z-50 border-b border-gray-800">
@@ -107,22 +165,7 @@ export const Header: React.FC<HeaderProps> = ({
           <h1 className="text-2xl font-bold text-white tracking-tighter">InkSpace</h1>
         </div>
         <div className="flex items-center space-x-4">
-            <div className="flex items-center bg-gray-900 rounded-full p-1">
-                <button
-                    onClick={() => handleViewModeClick('artist')}
-                    disabled={user && user.type === 'client'}
-                    className={`${getButtonClasses('artist')} disabled:opacity-50 disabled:cursor-not-allowed`}
-                >
-                    For Artists
-                </button>
-                <button
-                    onClick={() => handleViewModeClick('client')}
-                    disabled={user && user.type === 'artist'}
-                    className={`${getButtonClasses('client')} disabled:opacity-50 disabled:cursor-not-allowed`}
-                >
-                    For Clients
-                </button>
-            </div>
+            {renderViewModeControls()}
             {user ? (
                  <div className="flex items-center space-x-3">
                     <div className="relative" ref={notificationsRef}>

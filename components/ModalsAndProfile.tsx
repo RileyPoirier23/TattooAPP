@@ -85,6 +85,20 @@ export const AuthModal: React.FC<{onLogin: (credentials: AuthCredentials) => voi
         }
     };
     
+    const handleDevLogin = () => {
+        const user = prompt("Enter dev username:");
+        if (user === null) return; // User cancelled prompt
+
+        const pass = prompt("Enter dev password:");
+        if (pass === null) return; // User cancelled prompt
+
+        if (user === 'Inkspace' && pass === 'root') {
+            onLogin({ email: 'Inkspace', password: 'root' });
+        } else {
+            alert('Invalid dev credentials.');
+        }
+    };
+
     return (
         <Modal onClose={onClose} title={isRegistering ? "Create Account" : "Welcome Back"} size="md">
             <form onSubmit={handleSubmit} className="space-y-4">
@@ -136,7 +150,7 @@ export const AuthModal: React.FC<{onLogin: (credentials: AuthCredentials) => voi
                      <p className="text-center text-xs mt-2">
                         <button
                             type="button"
-                            onClick={() => onLogin({ email: 'Inkspace', password: 'root' })}
+                            onClick={handleDevLogin}
                             className="font-semibold text-brand-gray hover:text-brand-primary"
                         >
                             (DevLogin)

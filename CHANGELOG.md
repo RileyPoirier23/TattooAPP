@@ -5,6 +5,12 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.6.1] - 2024-07-27
+
+### Fixed
+- **Profile Creation on Signup:** Resolved a critical bug where new user profiles failed to be created in the database after successful authentication. This was caused by a missing Row Level Security (RLS) policy for `INSERT` operations on the `profiles` table.
+- **Improved Data Integrity:** Refined the registration process to only save role-specific data (e.g., `specialty`, `bio` for artists), preventing irrelevant data from being stored for other user types like clients or shop owners.
+
 ## [0.6.0] - 2024-07-27
 
 ### Added
