@@ -68,11 +68,13 @@ export const ArtistSearchView: React.FC = () => {
             return;
         }
         setIsSearching(true);
+        setUnverifiedShops([]); // Clear previous results before new search
         try {
             const placesResults = await findTattooShops(loc);
             setUnverifiedShops(placesResults);
         } catch (error) {
-            showToast('Could not search for local shops.', 'error');
+            const message = error instanceof Error ? error.message : 'Could not search for local shops.';
+            showToast(message, 'error');
         } finally {
             setIsSearching(false);
         }

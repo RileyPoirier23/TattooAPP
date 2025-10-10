@@ -134,7 +134,7 @@ export const findTattooShops = (query: string): Promise<Partial<Shop>[]> => {
         fields: ['name', 'formatted_address', 'geometry', 'rating', 'place_id', 'photos'],
     };
 
-    return new Promise((resolve) => {
+    return new Promise((resolve, reject) => {
         service.textSearch(request, (results: any[] | null, status: string) => {
             if (status === window.google.maps.places.PlacesServiceStatus.OK && results) {
                 const unverifiedShops: Partial<Shop>[] = results.map(place => ({
@@ -151,11 +151,23 @@ export const findTattooShops = (query: string): Promise<Partial<Shop>[]> => {
                     reviews: [], // Not available from basic search
                 }));
                 resolve(unverifiedShops);
+            } else if (status === window.google.maps.places.PlacesServiceStatus.ZERO_RESULTS) {
+                resolve([]); // No results is not an error
             } else {
-                 if (status !== window.google.maps.places.PlacesServiceStatus.ZERO_RESULTS) {
-                    console.error('Google Places search failed with status:', status);
-                 }
-                resolve([]);
+                let errorMessage = `Google Places search failed. Status: ${status}`;
+                switch (status) {
+                    case 'REQUEST_DENIED':
+                        errorMessage = 'Location search request denied. Check your Google Maps API key and permissions.';
+                        break;
+                    case 'OVER_QUERY_LIMIT':
+                        errorMessage = 'Location search limit exceeded. Please try again later.';
+                        break;
+                    case 'INVALID_REQUEST':
+                        errorMessage = 'Invalid location search request.';
+                        break;
+                }
+                console.error('Google Places search failed with status:', status);
+                reject(new Error(errorMessage));
             }
         });
     });
