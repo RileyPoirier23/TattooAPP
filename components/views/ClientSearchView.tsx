@@ -1,222 +1,128 @@
-import React, { useState, useMemo } from 'react';
-import type { Artist, Booking, Shop } from '../../types';
-import { LocationIcon, PaletteIcon, DirectionsIcon, StarIcon } from '../shared/Icons';
-import { AboutSection } from '../shared/AboutSection';
+// @/components/views/ClientSearchView.tsx
 
-interface ClientSearchViewProps {
-  artists: Artist[];
-  bookings: Booking[];
-  shops: Shop[];
-  userLocation: { lat: number; lng: number } | null;
-  getLocation: () => void;
-  isGettingLocation: boolean;
-  onSelectArtist: (artist: Artist) => void;
+import React, { useState, useMemo } from 'react';
+import type { Artist, Booking } from '../../types';
+import { LocationIcon, PaletteIcon, SearchIcon, StarIcon } from '../shared/Icons';
+
+interface ArtistCardProps {
+    artist: Artist & { bookings: Booking[] };
+    onArtistClick: (artist: Artist) => void;
 }
 
-const getDistance = (
-  loc1: { lat: number; lng: number },
-  loc2: { lat: number; lng: number }
-): number => {
-  const R = 6371; // Radius of the Earth in km
-  const dLat = (loc2.lat - loc1.lat) * (Math.PI / 180);
-  const dLon = (loc2.lng - loc1.lng) * (Math.PI / 180);
-  const a =
-    Math.sin(dLat / 2) * Math.sin(dLat / 2) +
-    Math.cos(loc1.lat * (Math.PI / 180)) *
-      Math.cos(loc2.lat * (Math.PI / 180)) *
-      Math.sin(dLon / 2) *
-      Math.sin(dLon / 2);
-  const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
-  return R * c; // Distance in km
+const ArtistCard: React.FC<ArtistCardProps> = ({ artist, onArtistClick }) => {
+    return (
+        <div 
+            onClick={() => onArtistClick(artist)}
+            className="bg-gray-900/50 rounded-2xl border border-gray-800 backdrop-blur-sm overflow-hidden flex flex-col group cursor-pointer transition-all duration-300 hover:border-brand-secondary/50 hover:shadow-lg hover:shadow-brand-secondary/10"
+        >
+            <div className="relative">
+                <img src={artist.portfolio.length > 0 ? `${artist.portfolio[0]}?random=${artist.id}` : `https://ui-avatars.com/api/?name=${artist.name.replace(' ', '+')}&background=1A1A1D&color=F04E98`} alt={artist.name} className="w-full h-56 object-cover transition-transform duration-300 group-hover:scale-105" />
+                <div className="absolute inset-0 bg-gradient-to-t from-black/80 to-transparent"></div>
+                 {artist.isVerified && (
+                    <div className="absolute top-2 right-2 flex items-center bg-blue-500/80 text-white text-xs font-bold px-2 py-1 rounded-full">
+                        <StarIcon className="w-3 h-3 mr-1" />
+                        Verified
+                    </div>
+                )}
+                <div className="absolute bottom-0 left-0 p-4">
+                    <h3 className="font-bold text-xl text-white">{artist.name}</h3>
+                    <p className="text-sm text-brand-gray">{artist.city}</p>
+                </div>
+            </div>
+            <div className="p-4 border-t border-gray-800">
+                <p className="flex items-center text-sm text-brand-primary">
+                    <PaletteIcon className="w-4 h-4 mr-2" />
+                    {artist.specialty}
+                </p>
+            </div>
+        </div>
+    );
 };
 
-type ArtistViewModel = Artist & {
-    bookingInfo: {
-        shopName: string;
-        city: string;
-        dates: string;
-        shop: Shop | undefined;
-        distance: number | null;
-    } | null;
-};
+interface ClientSearchViewProps {
+    artists: (Artist & { bookings: Booking[] })[];
+    bookings: Booking[];
+    onArtistClick: (artist: Artist) => void;
+}
 
-export const ClientSearchView: React.FC<ClientSearchViewProps> = ({ artists, bookings, shops, userLocation, getLocation, isGettingLocation, onSelectArtist }) => {
-    const [city, setCity] = useState('');
-    const [specialty, setSpecialty] = useState('');
+export const ClientSearchView: React.FC<ClientSearchViewProps> = ({ artists, onArtistClick }) => {
+    const [searchTerm, setSearchTerm] = useState('');
+    const [specialtyFilter, setSpecialtyFilter] = useState('');
+    const [locationFilter, setLocationFilter] = useState('');
+    
+    const uniqueSpecialties = useMemo(() => {
+        const specialties = new Set(artists.map(a => a.specialty));
+        return Array.from(specialties);
+    }, [artists]);
 
-    const verifiedArtists = useMemo(() => artists.filter(a => a.isVerified), [artists]);
-    const unverifiedArtists = useMemo(() => artists.filter(a => !a.isVerified), [artists]);
-
-    const availableArtists = useMemo(() => {
-        const getArtistBookingInfo = (artistId: string) => {
-            const artistBookings = bookings.filter(b => b.artistId === artistId && (city === '' || b.city.toLowerCase().includes(city.toLowerCase())));
-            if (artistBookings.length === 0) return null;
-            const latestBooking = artistBookings.sort((a,b) => new Date(b.startDate).getTime() - new Date(a.startDate).getTime())[0];
-            const shop = shops.find(s => s.id === latestBooking.shopId);
-            return {
-                shopName: shop?.name || "Private Studio",
-                city: shop?.location || "Unknown City",
-                dates: `${new Date(latestBooking.startDate).toLocaleDateString()} to ${new Date(latestBooking.endDate).toLocaleDateString()}`,
-                shop: shop,
-            };
-        };
-
-        const bookedArtistIdsInCity = new Set(
-            bookings
-                .filter(b => city === '' || b.city.toLowerCase().includes(city.toLowerCase()))
-                .map(b => b.artistId)
-        );
-
-        const artistsWithBookingInfo: ArtistViewModel[] = verifiedArtists
-            .filter(artist =>
-                bookedArtistIdsInCity.has(artist.id) &&
-                (specialty === '' || artist.specialty.toLowerCase().includes(specialty.toLowerCase()))
-            )
-            .map(artist => {
-                const bookingInfoData = getArtistBookingInfo(artist.id);
-                const distance = userLocation && bookingInfoData?.shop 
-                    ? getDistance(userLocation, { lat: bookingInfoData.shop.lat, lng: bookingInfoData.shop.lng }) 
-                    : null;
-                
-                return {
-                    ...artist,
-                    bookingInfo: bookingInfoData ? { ...bookingInfoData, distance } : null,
-                };
-            });
-
-        if (userLocation) {
-            artistsWithBookingInfo.sort((a, b) => {
-                const distA = a.bookingInfo?.distance ?? Infinity;
-                const distB = b.bookingInfo?.distance ?? Infinity;
-                return distA - distB;
-            });
-        }
-        
-        return artistsWithBookingInfo;
-
-    }, [verifiedArtists, bookings, shops, city, specialty, userLocation]);
-
-    const filteredUnverifiedArtists = useMemo(() => {
-        return unverifiedArtists.filter(artist =>
-            (city === '' || artist.city.toLowerCase().includes(city.toLowerCase())) &&
-            (specialty === '' || artist.specialty.toLowerCase().includes(specialty.toLowerCase()))
-        );
-    }, [unverifiedArtists, city, specialty]);
+    const filteredArtists = useMemo(() => {
+        return artists.filter(artist => {
+            const nameMatch = artist.name.toLowerCase().includes(searchTerm.toLowerCase());
+            const specialtyMatch = specialtyFilter ? artist.specialty === specialtyFilter : true;
+            const locationMatch = artist.city.toLowerCase().includes(locationFilter.toLowerCase());
+            return nameMatch && specialtyMatch && locationMatch;
+        });
+    }, [artists, searchTerm, specialtyFilter, locationFilter]);
 
     return (
-        <div>
-            <AboutSection />
-            <div className="bg-gray-900/50 rounded-2xl p-6 mb-8 border border-gray-800 backdrop-blur-sm">
-                <h2 className="text-3xl font-bold text-white mb-2">Discover Your Next Artist</h2>
-                <p className="text-brand-gray mb-6">Find talented tattoo artists available for booking in your city.</p>
-                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
-                    <div className="relative lg:col-span-2">
-                        <LocationIcon className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-brand-gray" />
-                        <input
-                            type="text"
-                            placeholder="Enter city..."
-                            value={city}
-                            onChange={(e) => setCity(e.target.value)}
-                            className="w-full bg-gray-800 border border-gray-700 rounded-lg py-3 pl-10 pr-4 text-white placeholder-brand-gray focus:ring-2 focus:ring-brand-primary focus:outline-none transition-shadow"
-                        />
+         <div className="space-y-8">
+            <div className="bg-gray-900/50 rounded-2xl p-4 md:p-6 border border-gray-800 backdrop-blur-sm">
+                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                    <div>
+                        <label htmlFor="artist-search" className="text-sm font-semibold text-brand-gray mb-2 block">Artist Name</label>
+                        <div className="relative">
+                            <SearchIcon className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-brand-gray" />
+                            <input
+                                id="artist-search"
+                                type="text"
+                                placeholder="Search by name..."
+                                value={searchTerm}
+                                onChange={(e) => setSearchTerm(e.target.value)}
+                                className="w-full bg-gray-800 border-gray-700 rounded-lg py-3 pl-10 pr-4 text-white focus:ring-2 focus:ring-brand-secondary focus:outline-none"
+                            />
+                        </div>
                     </div>
-                    <div className="relative">
-                        <PaletteIcon className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-brand-gray" />
-                        <input
-                            type="text"
-                            placeholder="Filter by specialty..."
-                            value={specialty}
-                            onChange={(e) => setSpecialty(e.target.value)}
-                            className="w-full bg-gray-800 border border-gray-700 rounded-lg py-3 pl-10 pr-4 text-white placeholder-brand-gray focus:ring-2 focus:ring-brand-primary focus:outline-none transition-shadow"
-                        />
+                     <div>
+                        <label htmlFor="specialty-filter" className="text-sm font-semibold text-brand-gray mb-2 block">Specialty</label>
+                        <div className="relative">
+                            <PaletteIcon className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-brand-gray" />
+                             <select
+                                id="specialty-filter"
+                                value={specialtyFilter}
+                                onChange={e => setSpecialtyFilter(e.target.value)}
+                                className="w-full bg-gray-800 border-gray-700 rounded-lg py-3 pl-10 pr-4 text-white appearance-none focus:ring-2 focus:ring-brand-secondary focus:outline-none"
+                            >
+                                <option value="">All Specialties</option>
+                                {uniqueSpecialties.map(spec => <option key={spec} value={spec}>{spec}</option>)}
+                            </select>
+                        </div>
                     </div>
-                     <button onClick={getLocation} disabled={isGettingLocation} className="w-full bg-brand-secondary text-white font-bold py-2 px-4 rounded-lg hover:bg-opacity-80 transition-colors flex items-center justify-center space-x-2 disabled:bg-gray-600">
-                        <LocationIcon className={`w-5 h-5 ${isGettingLocation ? 'animate-pulse' : ''}`} />
-                        <span>{isGettingLocation ? 'Finding...' : 'Find Near Me'}</span>
-                    </button>
+                    <div>
+                        <label htmlFor="location-search-client" className="text-sm font-semibold text-brand-gray mb-2 block">Location</label>
+                        <div className="relative">
+                            <LocationIcon className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-brand-gray" />
+                            <input
+                                id="location-search-client"
+                                type="text"
+                                placeholder="e.g. Moncton, NB"
+                                value={locationFilter}
+                                onChange={(e) => setLocationFilter(e.target.value)}
+                                className="w-full bg-gray-800 border-gray-700 rounded-lg py-3 pl-10 pr-4 text-white focus:ring-2 focus:ring-brand-secondary focus:outline-none"
+                            />
+                        </div>
+                    </div>
                 </div>
             </div>
 
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
-                {availableArtists.map(artist => {
-                    const { bookingInfo } = artist;
-                    if (!bookingInfo) return null;
-                    return (
-                        <div key={artist.id} className="bg-gray-900 rounded-lg border border-gray-800 flex flex-col overflow-hidden group transform transition-transform duration-300 hover:-translate-y-1">
-                            <div className="relative h-56 cursor-pointer" onClick={() => onSelectArtist(artist)}>
-                                <img src={artist.portfolio.length > 0 ? `${artist.portfolio[0]}?random=${artist.id}` : ''} alt={`${artist.name}'s work`} className="w-full h-full object-cover bg-gray-800"/>
-                                <div className="absolute inset-0 bg-gradient-to-t from-black/80 to-transparent"></div>
-                                 {bookingInfo.distance !== null && (
-                                    <div className="absolute top-2 right-2 bg-brand-dark/80 text-white text-xs font-bold py-1 px-2 rounded-full">
-                                        {bookingInfo.distance.toFixed(1)} km away
-                                    </div>
-                                )}
-                                <div className="absolute bottom-0 left-0 p-4">
-                                    <h3 className="text-2xl font-bold text-white">{artist.name}</h3>
-                                    <p className="text-brand-primary font-semibold">{artist.specialty}</p>
-                                </div>
-                            </div>
-                            <div className="p-4 flex-grow">
-                                <p className="text-sm font-bold text-gray-300 mb-2">Available in {bookingInfo.city}</p>
-                                <p className="text-sm text-brand-gray">
-                                    At <span className="font-semibold text-gray-300">{bookingInfo.shopName}</span> from {bookingInfo.dates}
-                                </p>
-                            </div>
-                            <div className="grid grid-cols-2 gap-1 px-1 pb-1">
-                                <img src={artist.portfolio.length > 1 ? `${artist.portfolio[1]}?random=${artist.id}-2` : ''} alt="" className="h-24 w-full object-cover rounded bg-gray-800"/>
-                                <img src={artist.portfolio.length > 2 ? `${artist.portfolio[2]}?random=${artist.id}-3` : ''} alt="" className="h-24 w-full object-cover rounded bg-gray-800"/>
-                            </div>
-                             <div className="p-4 bg-gray-800/50 grid grid-cols-2 gap-2">
-                                <button onClick={() => onSelectArtist(artist)} className="w-full bg-brand-secondary text-white font-bold py-2 px-4 rounded-lg hover:bg-opacity-80 transition-colors">
-                                    View Portfolio
-                                </button>
-                                {bookingInfo.shop && (
-                                <a 
-                                  href={`https://www.google.com/maps/dir/?api=1&destination=${bookingInfo.shop.lat},${bookingInfo.shop.lng}`}
-                                  target="_blank"
-                                  rel="noopener noreferrer"
-                                  className="w-full bg-gray-700 text-white font-bold py-2 px-4 rounded-lg hover:bg-gray-600 transition-colors flex items-center justify-center space-x-2 text-center"
-                                >
-                                    <DirectionsIcon className="w-5 h-5" />
-                                    <span>Directions</span>
-                                </a>
-                                )}
-                            </div>
-                        </div>
-                    );
-                })}
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
+                {filteredArtists.map(artist => (
+                    <ArtistCard key={artist.id} artist={artist} onArtistClick={onArtistClick} />
+                ))}
             </div>
-            {availableArtists.length === 0 && (
-                <div className="text-center py-16 col-span-full">
-                    <p className="text-xl font-semibold text-white">No Verified Artists Found</p>
-                    <p className="text-brand-gray mt-2">Try adjusting your city or specialty filters. Unverified local artists may be listed below.</p>
-                </div>
-            )}
-            
-            {filteredUnverifiedArtists.length > 0 && (
-                 <div className="mt-12">
-                    <h2 className="text-2xl font-bold text-white mb-4 border-b-2 border-brand-secondary pb-2">Unverified Artists in Area</h2>
-                    <p className="text-brand-gray mb-6 text-sm">These artists are not yet on InkSpace. Details are limited and booking is unavailable.</p>
-                     <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
-                        {filteredUnverifiedArtists.map(artist => (
-                             <div key={artist.id} className="bg-gray-900 rounded-lg border border-gray-800 flex flex-col overflow-hidden opacity-70">
-                                <div className="relative">
-                                    <img src={artist.portfolio.length > 0 ? `${artist.portfolio[0]}?random=${artist.id}` : ''} alt={artist.name} className="w-full h-48 object-cover bg-gray-800 filter grayscale" />
-                                     <div className="absolute top-2 left-2 bg-brand-dark/80 text-white text-xs font-bold py-1 px-2 rounded-full">
-                                        UNVERIFIED
-                                    </div>
-                                </div>
-                                <div className="p-5 flex-grow">
-                                    <h3 className="text-xl font-bold text-white truncate">{artist.name}</h3>
-                                    <p className="text-sm text-brand-primary font-semibold mb-2">{artist.specialty}</p>
-                                    <div className="flex items-center text-brand-gray text-sm my-2">
-                                        <LocationIcon className="w-4 h-4 mr-2" />
-                                        <span>{artist.city}</span>
-                                    </div>
-                                </div>
-                            </div>
-                        ))}
-                     </div>
+             {filteredArtists.length === 0 && (
+                <div className="text-center py-16 text-brand-gray">
+                    <p className="text-lg">No artists found matching your criteria.</p>
+                    <p>Try adjusting your search filters.</p>
                 </div>
             )}
         </div>

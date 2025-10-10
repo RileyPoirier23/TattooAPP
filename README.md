@@ -9,8 +9,9 @@ InkSpace is a dual-platform application for the tattoo industry. This version ha
 1.  [Prerequisites](#prerequisites)
 2.  [Local Setup Instructions](#local-setup-instructions)
 3.  [Backend Integration with Supabase (Crucial!)](#backend-integration-with-supabase-crucial)
-4.  [Deployment Guide](#deployment-guide)
-5.  [Project Structure](#project-structure)
+4.  [Troubleshooting](#troubleshooting)
+5.  [Deployment Guide](#deployment-guide)
+6.  [Project Structure](#project-structure)
 
 ---
 
@@ -378,6 +379,68 @@ export const createBookingForArtist = async (bookingData: Omit<Booking, 'id'>): 
 1.  Stop your development server (`Ctrl+C` in the terminal).
 2.  Restart it: `npm run dev`.
 3.  The application should now be fully functional, reading and writing data to your live Supabase backend. Try signing up, uploading a portfolio picture, and booking a booth.
+
+---
+
+## Troubleshooting
+
+This section covers common issues and their solutions. Before diving in, **always check your browser's Developer Console (F12)** for specific error messages.
+
+### 1. Signup & Profile Errors
+
+-   **Symptom:** You successfully create an account, but get an error like `"Could not find the 'is_verified' column..."` or `"Profile setup failed"`.
+-   **Cause:** The application code is trying to use a database column (e.g., `is_verified`) that doesn't exist in your live Supabase table. This usually happens if you set up your database before that column was added to the official schema.
+-   **Fix:** Run the following SQL commands in your Supabase SQL Editor to safely add the missing columns without deleting any data.
+
+    ```sql
+    -- Adds the required 'is_verified' column to your profiles table
+    ALTER TABLE public.profiles ADD COLUMN IF NOT EXISTS is_verified BOOLEAN DEFAULT FALSE;
+
+    -- Adds the required 'is_verified' column to your shops table
+    ALTER TABLE public.shops ADD COLUMN IF NOT EXISTS is_verified BOOLEAN DEFAULT FALSE;
+    ```
+
+### 2. Data Not Appearing or Actions Failing (e.g., Can't Create Booking)
+
+-   **Symptom:** You can view data, but you can't create, update, or delete anything. The browser console might show a `401 Unauthorized` or an RLS-related error.
+-   **Cause:** This is almost always a **Row Level Security (RLS)** issue. The SQL script in this guide enables RLS but only provides a few basic policies. You need policies that allow users to perform specific actions.
+-   **Fix:**
+    1.  Go to **Authentication -> Policies** in your Supabase dashboard.
+    2.  Select the table that's causing issues (e.g., `bookings`).
+    3.  Create a new policy. For example, to allow any logged-in user to create a booking, you would create an `INSERT` policy with the expression `auth.role() = 'authenticated'`.
+    4.  Review the official [Supabase RLS documentation](https://supabase.com/docs/guides/auth/row-level-security) for more complex examples.
+
+### 3. API Key & Services Issues
+
+-   **Symptom (Google Maps):** The map area shows an error like `"This page can't load Google Maps correctly"`.
+-   **Fix (Google Maps):**
+    1.  Verify that `VITE_MAPS_API_KEY` in your `.env` file is correct.
+    2.  Go to the [Google Cloud Console](https://console.cloud.google.com/).
+    3.  Make sure the **"Maps JavaScript API"** is **enabled** for your API key. This is a common oversight.
+    4.  Ensure you have billing enabled on your Google Cloud project.
+
+-   **Symptom (Gemini AI):** AI features (like generating a bio) fail with an API error.
+-   **Fix (Gemini AI):**
+    1.  Verify that `VITE_API_KEY` in your `.env` file is correct.
+    2.  Check your usage limits in your [Google AI Studio dashboard](https://aistudio.google.com/app/apikey).
+
+### 4. Portfolio Image Uploads Failing
+
+-   **Symptom:** When an artist tries to upload a portfolio image, it fails, often with a `403 Forbidden` error in the console.
+-   **Cause:** The Supabase Storage bucket (`portfolios`) is missing the correct access policies.
+-   **Fix:**
+    1.  In your Supabase dashboard, go to **Storage** and select the `portfolios` bucket.
+    2.  Click on **Bucket Settings -> Policies**.
+    3.  You need to create policies that allow authenticated users to upload files. A common policy allows a user to upload into a folder matching their user ID. Consult the [Supabase Storage documentation](https://supabase.com/docs/guides/storage/security/access-control) for examples.
+
+### 5. Deployment Issues (on Vercel/Netlify)
+
+-   **Symptom:** The deployed site is a blank screen or crashes immediately.
+-   **Cause 1:** Environment variables were not added to the deployment platform.
+-   **Fix 1:** Go to your Vercel/Netlify project's **Settings -> Environment Variables**. Add all the variables from your local `.env` file (`VITE_API_KEY`, `VITE_SUPABASE_URL`, etc.). Redeploy your project.
+
+-   **Cause 2:** Supabase is blocking requests from your deployed URL due to CORS.
+-   **Fix 2:** Go to your Supabase dashboard -> **Project Settings -> API**. Scroll down to **CORS Configuration** and add your Vercel/Netlify URL (e.g., `https://your-app-name.vercel.app`) to the list of allowed origins.
 
 ---
 
