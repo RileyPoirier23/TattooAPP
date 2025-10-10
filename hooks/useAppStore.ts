@@ -1,274 +1,262 @@
 // @/hooks/useAppStore.ts
+// FIX: Implement the useAppStore hook with Zustand for centralized state management.
 
-import { useState, useEffect, useCallback } from 'react';
+import create from 'zustand';
+import { persist } from 'zustand/middleware';
+import {
+  Artist, Shop, Booking, Booth, User, ViewMode, Page, AuthCredentials, RegisterDetails, MockData, ClientBookingRequest, Notification,
+} from '../types';
+import {
+  fetchInitialData, updateArtistData, uploadPortfolioImage, updateShopData, addBoothToShop, deleteBoothFromShop,
+  createBookingForArtist, createClientBookingRequest, fetchNotificationsForUser, markUserNotificationsAsRead, createNotification, fetchAllUsers, updateUserData, updateBoothData,
+} from '../services/apiService';
 import { authService } from '../services/authService';
-import * as apiService from '../services/apiService';
-import type { MockData, User, Artist, Shop, Booth, Booking, AuthCredentials, RegisterDetails, ClientBookingRequest, Notification } from '../types';
 
-interface UseAppStoreReturn {
-  // State
-  data: MockData | null;
-  loading: boolean;
-  error: string | null;
-  user: User | null;
-  allUsers: User[];
-  userLocation: { lat: number; lng: number } | null;
-  locationError: string | null;
-  isGettingLocation: boolean;
-  notifications: Notification[];
-
-  // Auth Actions
-  login: (credentials: AuthCredentials) => Promise<User>;
-  register: (details: RegisterDetails) => Promise<User>;
-  logout: () => Promise<void>;
-  
-  // Data Mutation Actions
-  updateUser: (userId: string, updatedData: Partial<User['data']>) => void;
-  updateArtist: (artistId: string, updatedData: Partial<Artist>) => void;
-  uploadPortfolioImage: (artistId: string, file: File) => Promise<void>;
-  updateShop: (shopId: string, updatedData: Partial<Shop>) => void;
-  addBooth: (shopId: string, boothData: Omit<Booth, 'id' | 'shopId'>) => void;
-  updateBooth: (boothId: string, updatedData: Partial<Booth>) => void;
-  deleteBooth: (boothId: string) => void;
-  createBooking: (bookingData: Omit<Booking, 'id'>) => void;
-  createClientBookingRequest: (requestData: Omit<ClientBookingRequest, 'id' | 'status'>) => void;
-  
-  // UI Actions
-  getLocation: () => void;
-  markNotificationsAsRead: () => void;
+interface ModalState {
+  type: 'auth' | 'artist-detail' | 'shop-detail' | 'booking' | 'client-booking-request' | 'upload-portfolio' | null;
+  data?: any;
 }
 
-export const useAppStore = (): UseAppStoreReturn => {
-  const [data, setData] = useState<MockData | null>(null);
-  const [loading, setLoading] = useState<boolean>(true);
-  const [error, setError] = useState<string | null>(null);
-  const [user, setUser] = useState<User | null>(null);
-  const [allUsers, setAllUsers] = useState<User[]>([]);
-  const [userLocation, setUserLocation] = useState<{ lat: number; lng: number } | null>(null);
-  const [locationError, setLocationError] = useState<string | null>(null);
-  const [isGettingLocation, setIsGettingLocation] = useState<boolean>(false);
-  const [notifications, setNotifications] = useState<Notification[]>([]);
+interface ToastState {
+  id: number;
+  message: string;
+  type: 'success' | 'error';
+}
 
-  const fetchNotificationsForUser = useCallback(async (userId: string) => {
-    try {
-        const userNotifications = await apiService.fetchNotificationsForUser(userId);
-        setNotifications(userNotifications);
-    } catch(e) {
-        console.error("Could not fetch notifications");
-    }
-  }, []);
+interface AppState {
+  // Data
+  data: MockData;
+  allUsers: User[];
+  
+  // App status
+  isInitialized: boolean;
+  isLoading: boolean;
+  error: string | null;
+  
+  // User & View
+  user: User | null;
+  viewMode: ViewMode;
+  page: Page;
+  
+  // UI State
+  modal: ModalState;
+  toast: ToastState | null;
 
-  const initializeApp = useCallback(async () => {
-    setLoading(true);
-    setError(null);
-    try {
-      const currentUser = await authService.getCurrentUser();
-      if (currentUser) {
-          setUser(currentUser);
-          if (currentUser.type === 'admin') {
-              const allUserData = await apiService.fetchAllUsers();
-              setAllUsers(allUserData);
-          } else {
-              await fetchNotificationsForUser(currentUser.id);
+  // Actions
+  initialize: () => Promise<void>;
+  setViewMode: (mode: ViewMode) => void;
+  navigateTo: (page: Page) => void;
+  openModal: (type: ModalState['type'], data?: any) => void;
+  closeModal: () => void;
+  showToast: (message: string, type?: 'success' | 'error') => void;
+  dismissToast: () => void;
+  login: (credentials: AuthCredentials) => Promise<void>;
+  register: (details: RegisterDetails) => Promise<void>;
+  logout: () => Promise<void>;
+  fetchNotifications: () => Promise<void>;
+  markNotificationsAsRead: () => Promise<void>;
+  confirmArtistBooking: (bookingData: Omit<Booking, 'id' | 'artistId'>) => Promise<void>;
+  sendClientBookingRequest: (requestData: Omit<ClientBookingRequest, 'id' | 'clientId' | 'status' | 'paymentStatus'>) => Promise<void>;
+  updateUser: (userId: string, data: Partial<User['data']>) => Promise<void>;
+  updateArtist: (artistId: string, data: Partial<Artist>) => Promise<void>;
+  uploadPortfolio: (file: File) => Promise<void>;
+  updateShop: (shopId: string, data: Partial<Shop>) => Promise<void>;
+  addBooth: (shopId: string, boothData: Omit<Booth, 'id' | 'shopId'>) => Promise<void>;
+  updateBooth: (boothId: string, data: Partial<Booth>) => Promise<void>;
+  deleteBooth: (boothId: string) => Promise<void>;
+}
+
+export const useAppStore = create<AppState>()(
+  persist(
+    (set, get) => ({
+      data: { artists: [], shops: [], booths: [], bookings: [], clientBookingRequests: [], notifications: [] },
+      allUsers: [],
+      isInitialized: false,
+      isLoading: true,
+      error: null,
+      user: null,
+      viewMode: 'client',
+      page: 'search',
+      modal: { type: null },
+      toast: null,
+
+      initialize: async () => {
+        try {
+          set({ isLoading: true });
+          const [initialData, currentUser] = await Promise.all([
+            fetchInitialData(),
+            authService.getCurrentUser(),
+          ]);
+          set({ data: initialData, user: currentUser, isInitialized: true, isLoading: false });
+          if (currentUser) {
+            if (currentUser.type === 'artist') set({ viewMode: 'artist' });
+            if (currentUser.type === 'admin') set({ page: 'dashboard' });
+            get().fetchNotifications();
           }
-      }
-      const initialData = await apiService.fetchInitialData();
-      setData(initialData);
-    } catch (e) {
-      setError(e instanceof Error ? e.message : 'Failed to load data. Please follow the README to connect a backend.');
-    } finally {
-      setLoading(false);
-    }
-  }, [fetchNotificationsForUser]);
-
-
-  useEffect(() => {
-    initializeApp();
-  }, [initializeApp]);
-  
-  const login = useCallback(async (credentials: AuthCredentials) => {
-    const loggedInUser = await authService.login(credentials);
-    setUser(loggedInUser);
-    if (loggedInUser.type !== 'admin') {
-      fetchNotificationsForUser(loggedInUser.id);
-    }
-    initializeApp(); 
-    return loggedInUser;
-  }, [fetchNotificationsForUser, initializeApp]);
-
-  const register = useCallback(async (details: RegisterDetails) => {
-    const newUser = await authService.register(details);
-    setUser(newUser);
-    fetchNotificationsForUser(newUser.id);
-    initializeApp(); 
-    return newUser;
-  }, [fetchNotificationsForUser, initializeApp]);
-
-  const logout = useCallback(async () => {
-    await authService.logout();
-    setUser(null);
-    setNotifications([]);
-    setAllUsers([]);
-    initializeApp(); 
-  }, [initializeApp]);
-
-  const updateUser = async (userId: string, updatedData: Partial<User['data']>) => {
-    try {
-        await apiService.updateUserData(userId, updatedData);
-        const currentUser = await authService.getCurrentUser();
-        if (currentUser) setUser(currentUser);
-    } catch (e) {
-        setError(e instanceof Error ? e.message : 'Failed to update profile.');
-    }
-  };
-
-
-  const updateArtist = async (artistId: string, updatedData: Partial<Artist>) => {
-    try {
-        const updatedArtist = await apiService.updateArtistData(artistId, updatedData);
-        setData(prevData => {
-            if (!prevData) return null;
-            return { ...prevData, artists: prevData.artists.map(a => a.id === artistId ? updatedArtist : a) };
-        });
-        if (user && user.id === artistId && (user.type === 'artist' || user.type === 'dual')) {
-            const updatedUser = { ...user, data: { ...user.data, ...updatedArtist } };
-            setUser(updatedUser);
+        } catch (error) {
+          const message = error instanceof Error ? error.message : "Failed to initialize app.";
+          set({ error: message, isLoading: false, isInitialized: true });
         }
-    } catch(e) {
-        setError(e instanceof Error ? e.message : 'Failed to update artist.');
-    }
-  };
-  
-  const uploadPortfolioImage = async (artistId: string, file: File) => {
-    const newImageUrl = await apiService.uploadPortfolioImage(artistId, file);
-    if (user && user.id === artistId && (user.type === 'artist' || user.type === 'dual')) {
-        const updatedPortfolio = [...user.data.portfolio, newImageUrl];
-        const updatedUser = { ...user, data: { ...user.data, portfolio: updatedPortfolio } };
-        setUser(updatedUser);
-        setData(prevData => {
-            if (!prevData) return null;
-            return {
-                ...prevData,
-                artists: prevData.artists.map(a => a.id === artistId ? { ...a, portfolio: updatedPortfolio } : a)
-            };
-        });
-    }
-  };
-
-
-  const updateShop = async (shopId: string, updatedData: Partial<Shop>) => {
-    try {
-        const updatedShop = await apiService.updateShopData(shopId, updatedData);
-        setData(prevData => {
-            if (!prevData) return null;
-            return { ...prevData, shops: prevData.shops.map(s => s.id === shopId ? updatedShop : s) };
-        });
-    } catch(e) {
-        setError(e instanceof Error ? e.message : 'Failed to update shop.');
-    }
-  };
-
-  const addBooth = async (shopId: string, boothData: Omit<Booth, 'id' | 'shopId'>) => {
-    try {
-        const newBooth = await apiService.addBoothToShop(shopId, boothData);
-        setData(prevData => {
-            if (!prevData) return null;
-            return {...prevData, booths: [...prevData.booths, newBooth]};
-        });
-    } catch (e) {
-        setError(e instanceof Error ? e.message : 'Failed to add booth.');
-    }
-  };
-
-  const updateBooth = async (boothId: string, updatedData: Partial<Booth>) => {
-     try {
-        const updatedBooth = await apiService.updateBoothData(boothId, updatedData);
-        setData(prevData => {
-            if (!prevData) return null;
-            return { ...prevData, booths: prevData.booths.map(b => b.id === boothId ? updatedBooth : b) };
-        });
-     } catch (e) {
-         setError(e instanceof Error ? e.message : 'Failed to update booth.');
-     }
-  };
-  
-  const deleteBooth = async (boothId: string) => {
-    try {
-        await apiService.deleteBoothFromShop(boothId);
-        setData(prevData => {
-            if (!prevData) return null;
-            return { ...prevData, booths: prevData.booths.filter(b => b.id !== boothId) };
-        });
-    } catch (e) {
-        setError(e instanceof Error ? e.message : 'Failed to delete booth.');
-    }
-  };
-
-  const createBooking = async (bookingData: Omit<Booking, 'id'>) => {
-      try {
-          const newBooking = await apiService.createBookingForArtist(bookingData);
-          setData(prevData => {
-              if (!prevData) return null;
-              return {...prevData, bookings: [...prevData.bookings, newBooking]};
-          });
-          // Add notification for the shop owner
-      } catch (e) {
-          setError(e instanceof Error ? e.message : 'Failed to create booking.');
-      }
-  };
-  
-  const createClientBookingRequest = async (requestData: Omit<ClientBookingRequest, 'id' | 'status'>) => {
-    try {
-        const newRequest = await apiService.createClientBookingRequest(requestData);
-        setData(prevData => {
-            if (!prevData) return null;
-            return {...prevData, clientBookingRequests: [...prevData.clientBookingRequests, newRequest]};
-        });
-        // Add notification for the artist
-    } catch (e) {
-        setError(e instanceof Error ? e.message : 'Failed to send booking request.');
-    }
-  };
-
-  const markNotificationsAsRead = async () => {
-    if (!user) return;
-    try {
-        await apiService.markUserNotificationsAsRead(user.id);
-        setNotifications(prev => prev.map(n => ({...n, read: true})));
-    } catch (e) {
-        console.error("Failed to mark notifications as read.");
-    }
-  };
-
-  const getLocation = () => {
-    setLocationError(null);
-    setIsGettingLocation(true);
-    if (!navigator.geolocation) {
-      setLocationError("Geolocation is not supported by your browser.");
-      setIsGettingLocation(false);
-      return;
-    }
-    navigator.geolocation.getCurrentPosition(
-      (position) => {
-        setUserLocation({
-          lat: position.coords.latitude,
-          lng: position.coords.longitude,
-        });
-        setIsGettingLocation(false);
       },
-      () => {
-        setLocationError("Unable to retrieve your location. Please enable location services.");
-        setIsGettingLocation(false);
-      }
-    );
-  };
+      
+      setViewMode: (mode) => set({ viewMode: mode }),
+      navigateTo: (page) => set({ page }),
+      openModal: (type, data) => set({ modal: { type, data } }),
+      closeModal: () => set({ modal: { type: null, data: undefined } }),
+      showToast: (message, type = 'success') => set({ toast: { id: Date.now(), message, type } }),
+      dismissToast: () => set({ toast: null }),
+      
+      login: async (credentials) => {
+        try {
+          const user = await authService.login(credentials);
+          set({ user, page: 'search' }); // Reset to search on login
+          if (user.type === 'artist') set({ viewMode: 'artist' });
+          if (user.type === 'admin') {
+            set({ page: 'dashboard' });
+            const users = await fetchAllUsers();
+            set({ allUsers: users });
+          }
+          get().closeModal();
+          get().fetchNotifications();
+          get().showToast('Login successful!');
+        } catch (error) {
+          const message = error instanceof Error ? error.message : "Login failed.";
+          get().showToast(message, 'error');
+        }
+      },
+      
+      register: async (details) => {
+        try {
+          const user = await authService.register(details);
+          set({ user });
+           if (user.type === 'artist' || user.type === 'dual') {
+            set({ viewMode: 'artist', page: 'profile' }); // Go to profile to set up
+          } else {
+            set({ page: 'search' });
+          }
+          get().closeModal();
+          get().showToast('Registration successful!');
+        } catch (error) {
+          const message = error instanceof Error ? error.message : "Registration failed.";
+          get().showToast(message, 'error');
+        }
+      },
+      
+      logout: async () => {
+        await authService.logout();
+        set({ user: null, page: 'search', viewMode: 'client', data: {...get().data, notifications: []} });
+        get().showToast('Logged out successfully.');
+      },
 
-  return { 
-      data, loading, error, user, allUsers,
-      login, register, logout, 
-      updateUser, updateArtist, uploadPortfolioImage,
-      updateShop, addBooth, updateBooth, deleteBooth, createBooking, createClientBookingRequest,
-      userLocation, locationError, getLocation, isGettingLocation,
-      notifications, markNotificationsAsRead
-  };
-};
+      fetchNotifications: async () => {
+        const user = get().user;
+        if (!user) return;
+        const notifications = await fetchNotificationsForUser(user.id);
+        set(state => ({ data: { ...state.data, notifications } }));
+      },
+
+      markNotificationsAsRead: async () => {
+        const user = get().user;
+        if (!user) return;
+        await markUserNotificationsAsRead(user.id);
+        set(state => ({
+          data: {
+            ...state.data,
+            notifications: state.data.notifications.map(n => ({ ...n, read: true })),
+          }
+        }));
+      },
+
+      confirmArtistBooking: async (bookingData) => {
+          const user = get().user;
+          if (!user || user.type !== 'artist' && user.type !== 'dual') {
+              get().showToast('You must be an artist to book a booth.', 'error');
+              return;
+          }
+          try {
+              const newBooking = await createBookingForArtist({ ...bookingData, artistId: user.id });
+              set(state => ({ data: { ...state.data, bookings: [...state.data.bookings, newBooking] } }));
+              get().showToast('Booking initiated! Please complete payment.');
+          } catch(e) {
+              get().showToast('Booking failed. Please try again.', 'error');
+          }
+      },
+
+      sendClientBookingRequest: async (requestData) => {
+        const user = get().user;
+        if (!user || user.type !== 'client' && user.type !== 'dual') {
+            get().showToast('You must be logged in as a client.', 'error');
+            return;
+        }
+        try {
+            const newRequest = await createClientBookingRequest({ ...requestData, clientId: user.id });
+            set(state => ({ data: { ...state.data, clientBookingRequests: [...state.data.clientBookingRequests, newRequest] } }));
+            get().closeModal();
+            get().showToast('Booking request sent!');
+        } catch(e) {
+            get().showToast('Failed to send request. Please try again.', 'error');
+        }
+      },
+      
+      updateUser: async (userId, data) => {
+          if (get().user?.id !== userId) return;
+          await updateUserData(userId, data);
+          const updatedUser = { ...get().user!, data: { ...get().user!.data, ...data }};
+          set({ user: updatedUser });
+      },
+      
+      updateArtist: async (artistId, data) => {
+        const updatedArtist = await updateArtistData(artistId, data);
+        set(state => ({
+            data: { ...state.data, artists: state.data.artists.map(a => a.id === artistId ? updatedArtist : a) },
+            user: state.user?.id === artistId ? { ...state.user, data: updatedArtist } : state.user
+        }));
+      },
+
+      uploadPortfolio: async (file) => {
+          const user = get().user;
+          if (!user || (user.type !== 'artist' && user.type !== 'dual')) return;
+          try {
+            const newUrl = await uploadPortfolioImage(user.id, file);
+            const updatedPortfolio = [...user.data.portfolio, newUrl];
+            get().updateArtist(user.id, { portfolio: updatedPortfolio });
+            get().closeModal();
+            get().showToast('Image uploaded successfully!');
+          } catch(e) {
+            get().showToast('Upload failed.', 'error');
+          }
+      },
+
+      updateShop: async (shopId, data) => {
+          const updatedShop = await updateShopData(shopId, data);
+          set(state => ({
+              data: { ...state.data, shops: state.data.shops.map(s => s.id === shopId ? updatedShop : s) }
+          }));
+          get().showToast('Shop details updated.');
+      },
+      addBooth: async (shopId, boothData) => {
+          const newBooth = await addBoothToShop(shopId, boothData);
+          set(state => ({
+              data: { ...state.data, booths: [...state.data.booths, newBooth] }
+          }));
+      },
+      updateBooth: async (boothId, data) => {
+          const updatedBooth = await updateBoothData(boothId, data);
+          set(state => ({
+              data: { ...state.data, booths: state.data.booths.map(b => b.id === boothId ? updatedBooth : b) }
+          }));
+      },
+      deleteBooth: async (boothId) => {
+          await deleteBoothFromShop(boothId);
+          set(state => ({
+              data: { ...state.data, booths: state.data.booths.filter(b => b.id !== boothId) }
+          }));
+      }
+
+    }),
+    {
+      name: 'inkspace-app-storage', 
+      partialize: (state) => ({ viewMode: state.viewMode }),
+    }
+  )
+);
