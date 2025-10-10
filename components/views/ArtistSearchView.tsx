@@ -51,6 +51,7 @@ export const ArtistSearchView: React.FC = () => {
     const { data: { shops }, isLoading, error, openModal, showToast } = useAppStore();
     const [searchTerm, setSearchTerm] = useState('');
     const [location, setLocation] = useState('');
+    const [searchedLocation, setSearchedLocation] = useState('');
     const [isLocating, setIsLocating] = useState(false);
     const [unverifiedShops, setUnverifiedShops] = useState<Partial<Shop>[]>([]);
     const [isSearching, setIsSearching] = useState(false);
@@ -61,6 +62,7 @@ export const ArtistSearchView: React.FC = () => {
     const handleLocationSearch = useCallback(async (loc: string) => {
         if (!loc.trim()) {
             setUnverifiedShops([]);
+            setSearchedLocation('');
             return;
         }
         if (!isMapsLoaded) {
@@ -68,6 +70,7 @@ export const ArtistSearchView: React.FC = () => {
             return;
         }
         setIsSearching(true);
+        setSearchedLocation(loc);
         setUnverifiedShops([]); // Clear previous results before new search
         try {
             const placesResults = await findTattooShops(loc);
@@ -136,6 +139,12 @@ export const ArtistSearchView: React.FC = () => {
     return (
         <div>
             <div className="bg-gray-900/50 rounded-lg p-4 mb-8 border border-gray-800 flex flex-col md:flex-row items-center gap-4">
+                {mapsError && (
+                    <div className="w-full bg-red-900/30 border border-red-500/50 rounded-lg p-3 text-center mb-4">
+                        <p className="text-red-300 font-semibold text-sm">Location Services Error</p>
+                        <p className="text-xs text-red-300/80 mt-1">{mapsError.message}</p>
+                    </div>
+                )}
                 <div className="relative flex-grow w-full md:w-auto">
                     <SearchIcon className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-brand-gray" />
                     <input
@@ -155,13 +164,14 @@ export const ArtistSearchView: React.FC = () => {
                             value={location}
                             onChange={(e) => setLocation(e.target.value)}
                             className="w-full bg-gray-800 border-gray-700 rounded-lg py-3 pl-10 pr-4 text-white focus:ring-2 focus:ring-brand-primary focus:outline-none"
+                            disabled={!!mapsError}
                         />
                     </div>
-                    <button type="submit" className="bg-brand-primary hover:bg-opacity-80 text-white font-bold py-3 px-6 rounded-lg transition-colors">Search</button>
+                    <button type="submit" disabled={!!mapsError} className="bg-brand-primary hover:bg-opacity-80 text-white font-bold py-3 px-6 rounded-lg transition-colors disabled:bg-gray-600">Search</button>
                 </form>
                  <button 
                     onClick={handleFindNearby}
-                    disabled={isLocating || !isMapsLoaded}
+                    disabled={isLocating || !isMapsLoaded || !!mapsError}
                     className="flex items-center justify-center space-x-2 bg-brand-secondary hover:bg-opacity-80 text-white font-bold py-3 px-4 rounded-lg transition-colors disabled:bg-gray-600 disabled:cursor-not-allowed w-full md:w-auto"
                 >
                     {isLocating ? <div className="w-5 h-5"><Loader /></div> : <CrosshairsIcon className="w-5 h-5" />}
@@ -188,7 +198,11 @@ export const ArtistSearchView: React.FC = () => {
             {!isSearching && combinedShops.length === 0 && (
                 <div className="text-center py-16">
                     <h3 className="text-xl font-semibold text-white">No Shops Found</h3>
-                    <p className="text-brand-gray mt-2">Try adjusting your search terms or filters.</p>
+                    {searchedLocation ? (
+                        <p className="text-brand-gray mt-2">Your search for shops in <span className="font-bold text-white">{searchedLocation}</span> did not return any results.</p>
+                    ) : (
+                        <p className="text-brand-gray mt-2">Enter a city to find local tattoo shops.</p>
+                    )}
                 </div>
             )}
         </div>

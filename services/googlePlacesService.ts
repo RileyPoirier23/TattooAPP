@@ -9,14 +9,12 @@ declare global {
   }
 }
 
-let placesService: any;
-
 const getPlacesService = () => {
-    if (!placesService && window.google?.maps?.places?.PlacesService) {
+    if (window.google?.maps?.places?.PlacesService) {
         // The service needs a DOM element to attach to, but it doesn't have to be visible.
-        placesService = new window.google.maps.places.PlacesService(document.createElement('div'));
+        return new window.google.maps.places.PlacesService(document.createElement('div'));
     }
-    return placesService;
+    return null;
 }
 
 /**
@@ -125,7 +123,10 @@ export const getCityFromCoords = (coords: { lat: number; lng: number }): Promise
  */
 export const findTattooShops = (query: string): Promise<Partial<Shop>[]> => {
     const service = getPlacesService();
-    if (!service || !query) {
+    if (!service) {
+        return Promise.reject(new Error("Location services are temporarily unavailable. Please check your API key and network connection."));
+    }
+    if (!query) {
         return Promise.resolve([]);
     }
 
