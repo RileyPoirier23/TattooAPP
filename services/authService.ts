@@ -1,6 +1,6 @@
 // @/services/authService.ts
 import { supabase } from './supabaseClient';
-import type { User, AuthCredentials, RegisterDetails, Artist, Client, ShopOwner, UserRole } from '../types';
+import type { User, AuthCredentials, RegisterDetails, Artist, Client, ShopOwner, UserRole, AdminUser, Admin } from '../types';
 
 const USER_STORAGE_KEY = 'inkspace_user_session';
 
@@ -8,13 +8,19 @@ class AuthService {
     
     async getCurrentUser(): Promise<User | null> {
         try {
+            // Dev admin session is local only
+            const cachedUser = localStorage.getItem(USER_STORAGE_KEY);
+            if(cachedUser) {
+                const parsed = JSON.parse(cachedUser);
+                if (parsed.type === 'admin') return parsed as AdminUser;
+            }
+            
             const { data: { session } } = await supabase.auth.getSession();
             if (!session) {
                 localStorage.removeItem(USER_STORAGE_KEY);
                 return null;
             }
-            // Check cache first
-            const cachedUser = localStorage.getItem(USER_STORAGE_KEY);
+
             if(cachedUser) {
                 const parsed = JSON.parse(cachedUser);
                 if (parsed.id === session.user.id) return parsed;
@@ -32,8 +38,19 @@ class AuthService {
     }
 
     async login(credentials: AuthCredentials): Promise<User> {
+        if (credentials.email === 'Inkspace' && credentials.password === 'root') {
+            const adminUser: AdminUser = {
+                id: 'admin-dev',
+                email: 'Inkspace',
+                type: 'admin',
+                data: { name: 'Admin' }
+            };
+            localStorage.setItem(USER_STORAGE_KEY, JSON.stringify(adminUser));
+            return adminUser;
+        }
+
         const { error } = await supabase.auth.signInWithPassword({
-            email: credentials.username, // Supabase uses email for username
+            email: credentials.email,
             password: credentials.password!,
         });
         if (error) throw error;
@@ -49,7 +66,7 @@ class AuthService {
 
     async register(details: RegisterDetails): Promise<User> {
         const { data: authData, error: authError } = await supabase.auth.signUp({
-            email: details.username,
+            email: details.email,
             password: details.password!,
             options: {
                 data: {
@@ -63,13 +80,14 @@ class AuthService {
 
         const profileData = {
             id: authData.user.id,
-            username: details.username,
+            username: details.email, // Using email as username
             full_name: details.name,
             role: details.type,
             city: details.city || null,
             specialty: 'New Artist',
             bio: `An artist based in ${details.city || 'a new city'}.`,
             portfolio: [],
+            is_verified: true,
         };
 
         const { error: profileError } = await supabase.from('profiles').insert(profileData);
@@ -106,14 +124,14 @@ class AuthService {
 
         const baseUser = {
             id: profile.id,
-            username: profile.username,
+            email: profile.username, // DB username is email
             type: profile.role as UserRole,
         };
         
         switch (profile.role) {
             case 'artist':
             case 'dual':
-                return { ...baseUser, type: profile.role, data: { id: profile.id, name: profile.full_name, city: profile.city, specialty: profile.specialty, bio: profile.bio, portfolio: profile.portfolio } as Artist };
+                return { ...baseUser, type: profile.role, data: { id: profile.id, name: profile.full_name, city: profile.city, specialty: profile.specialty, bio: profile.bio, portfolio: profile.portfolio, isVerified: profile.is_verified } as Artist };
             case 'client':
                 return { ...baseUser, type: 'client', data: { id: profile.id, name: profile.full_name } as Client };
             case 'shop-owner':

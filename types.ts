@@ -9,6 +9,7 @@ export interface Artist {
   portfolio: string[];
   city: string;
   bio: string;
+  isVerified: boolean;
 }
 
 export interface Client {
@@ -20,6 +21,10 @@ export interface ShopOwner {
     id: string; // User's auth id
     name: string;
     shopId: string | null;
+}
+
+export interface Admin {
+    name: string;
 }
 
 export interface Review {
@@ -46,6 +51,7 @@ export interface Shop {
   imageUrl: string;
   reviews: Review[];
   paymentMethods?: PaymentMethods;
+  isVerified: boolean;
 }
 
 export interface Booth {
@@ -109,16 +115,16 @@ export interface GroundingChunk {
 // --- APP STATE & NAVIGATION ---
 
 export type ViewMode = 'artist' | 'client';
-export type Page = 'search' | 'profile' | 'dashboard' | 'bookings' | 'settings' | 'messages';
+export type Page = 'search' | 'profile' | 'dashboard' | 'bookings' | 'settings' | 'messages' | 'admin';
 
 
 // --- USER & AUTHENTICATION ---
 
-export type UserRole = 'artist' | 'client' | 'shop-owner' | 'dual'; // Added 'dual' role
+export type UserRole = 'artist' | 'client' | 'shop-owner' | 'dual' | 'admin';
 
 interface BaseUser {
     id: string;
-    username: string;
+    email: string;
     password?: string; // Should not exist on client-side after login
     type: UserRole;
 }
@@ -138,12 +144,16 @@ export interface DualUser extends BaseUser {
     type: 'dual';
     data: Artist; // A dual user's primary data is their artist profile
 }
+export interface AdminUser extends BaseUser {
+    type: 'admin';
+    data: Admin;
+}
 
-export type User = ArtistUser | ClientUser | ShopOwnerUser | DualUser;
+export type User = ArtistUser | ClientUser | ShopOwnerUser | DualUser | AdminUser;
 
 export interface AuthCredentials {
-    username: string;
-    password?: string; // Password is optional here
+    email: string;
+    password?: string;
 }
 
 export interface RegisterDetails extends AuthCredentials {

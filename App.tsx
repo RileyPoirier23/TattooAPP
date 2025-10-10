@@ -7,6 +7,7 @@ import { ClientSearchView } from './components/views/ClientSearchView';
 import { ShopOwnerDashboard } from './components/views/ShopOwnerDashboard';
 import { MyBookingsView } from './components/views/MyBookingsView';
 import { SettingsView } from './components/views/SettingsView';
+import { AdminDashboard } from './components/views/AdminDashboard';
 import { useAppStore } from './hooks/useAppStore';
 import { Loader } from './components/shared/Loader';
 import { ErrorDisplay } from './components/shared/ErrorDisplay';
@@ -49,6 +50,10 @@ const App: React.FC = () => {
       const user = await store.login(credentials);
       setAuthModalOpen(false);
       showToast('Login successful!');
+      if (user.type === 'admin') {
+        setPage('admin');
+        return;
+      }
       if (user.type === 'artist' || user.type === 'dual') setPage('profile');
       if (user.type === 'shop-owner') setPage('dashboard');
       if (user.type === 'client') showToast(`Welcome back, ${user.data.name}!`);
@@ -165,6 +170,11 @@ const App: React.FC = () => {
                  break;
             case 'settings':
                 return <SettingsView user={user} onUpdateUser={store.updateUser} showToast={showToast}/>;
+            case 'admin':
+                if (user.type === 'admin' && store.data) {
+                    return <AdminDashboard data={store.data} allUsers={store.allUsers} />;
+                }
+                break;
             case 'search':
                  // Fall through to the search views below
                  break;
@@ -218,6 +228,7 @@ const App: React.FC = () => {
       </main>
       <footer className="text-center py-6 border-t border-gray-800">
         <p className="text-brand-gray text-sm">&copy; 2024 InkSpace. Real Artists. Real Spaces.</p>
+        <a href="https://www.instagram.com/myuser" target="_blank" rel="noopener noreferrer" className="text-sm text-brand-primary hover:underline mt-1 inline-block">Contact Us</a>
       </footer>
 
       {isAuthModalOpen && <AuthModal onLogin={handleLogin} onRegister={handleRegister} onClose={() => setAuthModalOpen(false)} />}

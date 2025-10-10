@@ -1,6 +1,7 @@
 import React, { useState, useMemo } from 'react';
 import type { Artist, Booking, Shop } from '../../types';
-import { LocationIcon, PaletteIcon, DirectionsIcon } from '../shared/Icons';
+import { LocationIcon, PaletteIcon, DirectionsIcon, StarIcon } from '../shared/Icons';
+import { AboutSection } from '../shared/AboutSection';
 
 interface ClientSearchViewProps {
   artists: Artist[];
@@ -43,6 +44,9 @@ export const ClientSearchView: React.FC<ClientSearchViewProps> = ({ artists, boo
     const [city, setCity] = useState('');
     const [specialty, setSpecialty] = useState('');
 
+    const verifiedArtists = useMemo(() => artists.filter(a => a.isVerified), [artists]);
+    const unverifiedArtists = useMemo(() => artists.filter(a => !a.isVerified), [artists]);
+
     const availableArtists = useMemo(() => {
         const getArtistBookingInfo = (artistId: string) => {
             const artistBookings = bookings.filter(b => b.artistId === artistId && (city === '' || b.city.toLowerCase().includes(city.toLowerCase())));
@@ -63,7 +67,7 @@ export const ClientSearchView: React.FC<ClientSearchViewProps> = ({ artists, boo
                 .map(b => b.artistId)
         );
 
-        const artistsWithBookingInfo: ArtistViewModel[] = artists
+        const artistsWithBookingInfo: ArtistViewModel[] = verifiedArtists
             .filter(artist =>
                 bookedArtistIdsInCity.has(artist.id) &&
                 (specialty === '' || artist.specialty.toLowerCase().includes(specialty.toLowerCase()))
@@ -90,10 +94,18 @@ export const ClientSearchView: React.FC<ClientSearchViewProps> = ({ artists, boo
         
         return artistsWithBookingInfo;
 
-    }, [artists, bookings, shops, city, specialty, userLocation]);
+    }, [verifiedArtists, bookings, shops, city, specialty, userLocation]);
+
+    const filteredUnverifiedArtists = useMemo(() => {
+        return unverifiedArtists.filter(artist =>
+            (city === '' || artist.city.toLowerCase().includes(city.toLowerCase())) &&
+            (specialty === '' || artist.specialty.toLowerCase().includes(specialty.toLowerCase()))
+        );
+    }, [unverifiedArtists, city, specialty]);
 
     return (
         <div>
+            <AboutSection />
             <div className="bg-gray-900/50 rounded-2xl p-6 mb-8 border border-gray-800 backdrop-blur-sm">
                 <h2 className="text-3xl font-bold text-white mb-2">Discover Your Next Artist</h2>
                 <p className="text-brand-gray mb-6">Find talented tattoo artists available for booking in your city.</p>
@@ -176,8 +188,35 @@ export const ClientSearchView: React.FC<ClientSearchViewProps> = ({ artists, boo
             </div>
             {availableArtists.length === 0 && (
                 <div className="text-center py-16 col-span-full">
-                    <p className="text-xl font-semibold text-white">No Artists Found</p>
-                    <p className="text-brand-gray mt-2">Try adjusting your city or specialty filters, or check back soon for new artist availability.</p>
+                    <p className="text-xl font-semibold text-white">No Verified Artists Found</p>
+                    <p className="text-brand-gray mt-2">Try adjusting your city or specialty filters. Unverified local artists may be listed below.</p>
+                </div>
+            )}
+            
+            {filteredUnverifiedArtists.length > 0 && (
+                 <div className="mt-12">
+                    <h2 className="text-2xl font-bold text-white mb-4 border-b-2 border-brand-secondary pb-2">Unverified Artists in Area</h2>
+                    <p className="text-brand-gray mb-6 text-sm">These artists are not yet on InkSpace. Details are limited and booking is unavailable.</p>
+                     <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
+                        {filteredUnverifiedArtists.map(artist => (
+                             <div key={artist.id} className="bg-gray-900 rounded-lg border border-gray-800 flex flex-col overflow-hidden opacity-70">
+                                <div className="relative">
+                                    <img src={artist.portfolio.length > 0 ? `${artist.portfolio[0]}?random=${artist.id}` : ''} alt={artist.name} className="w-full h-48 object-cover bg-gray-800 filter grayscale" />
+                                     <div className="absolute top-2 left-2 bg-brand-dark/80 text-white text-xs font-bold py-1 px-2 rounded-full">
+                                        UNVERIFIED
+                                    </div>
+                                </div>
+                                <div className="p-5 flex-grow">
+                                    <h3 className="text-xl font-bold text-white truncate">{artist.name}</h3>
+                                    <p className="text-sm text-brand-primary font-semibold mb-2">{artist.specialty}</p>
+                                    <div className="flex items-center text-brand-gray text-sm my-2">
+                                        <LocationIcon className="w-4 h-4 mr-2" />
+                                        <span>{artist.city}</span>
+                                    </div>
+                                </div>
+                            </div>
+                        ))}
+                     </div>
                 </div>
             )}
         </div>

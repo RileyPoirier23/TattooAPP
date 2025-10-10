@@ -5,6 +5,21 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.6.0] - 2024-07-27
+
+### Added
+- **Admin Panel:** A hidden "DevLogin" provides access to a new Admin Dashboard (`/components/views/AdminDashboard.tsx`) to view all platform data, including users, shops, and bookings.
+- **Unverified Listings:** Search pages now display "Unverified" shops and artists found in the area. These are non-interactive listings intended to showcase local presence and encourage sign-ups.
+- **About Section:** A new "About InkSpace" section has been added to the main search pages to clarify the platform's mission.
+- **Contact Link:** A "Contact Us" link pointing to an Instagram profile has been added to the footer.
+
+### Fixed
+- **Email-based Authentication:** The sign-up and login forms now correctly use email instead of a username, aligning with authentication standards and fixing validation errors. An email field and validation have been added to the registration process.
+
+### Changed
+- The database schema for `profiles` and `shops` has been updated to include an `is_verified` flag to distinguish between active and unverified listings.
+- User authentication and data models (`types.ts`) now consistently use `email` instead of `username`.
+
 ## [0.5.0] - 2024-07-26
 
 ### Added

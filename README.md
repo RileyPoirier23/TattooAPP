@@ -116,7 +116,8 @@ CREATE TABLE profiles (
   city TEXT, -- Primarily for artists
   specialty TEXT, -- Primarily for artists
   bio TEXT, -- Primarily for artists
-  portfolio TEXT[] -- Array of image URLs
+  portfolio TEXT[], -- Array of image URLs
+  is_verified BOOLEAN DEFAULT TRUE
 );
 
 -- Shops table
@@ -131,7 +132,8 @@ CREATE TABLE shops (
   amenities TEXT[],
   rating FLOAT,
   image_url TEXT,
-  payment_methods JSONB
+  payment_methods JSONB,
+  is_verified BOOLEAN DEFAULT TRUE
 );
 
 -- Booths table, linked to shops

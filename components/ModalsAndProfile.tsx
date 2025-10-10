@@ -58,23 +58,30 @@ const Dropdown: React.FC<{ label: string; value: string | number; onChange: (e: 
 
 export const AuthModal: React.FC<{onLogin: (credentials: AuthCredentials) => void; onRegister: (details: RegisterDetails) => void; onClose: () => void;}> = ({ onLogin, onRegister, onClose }) => {
     const [isRegistering, setIsRegistering] = useState(false);
-    const [username, setUsername] = useState('');
+    const [email, setEmail] = useState('');
     const [password, setPassword] = useState('');
     const [name, setName] = useState('');
     const [city, setCity] = useState('');
     const [role, setRole] = useState<UserRole>('artist');
+    const [error, setError] = useState('');
 
     const handleSubmit = (e: React.FormEvent) => {
         e.preventDefault();
-        const details: RegisterDetails = { username, password: password!, type: role, name };
-        if (role === 'artist' || role === 'dual') {
-            details.city = city;
-        }
-        
+        setError('');
+
         if (isRegistering) {
+            const isEmailValid = /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email);
+            if (!isEmailValid) {
+                setError('Please enter a valid email address.');
+                return;
+            }
+            const details: RegisterDetails = { email, password: password!, type: role, name };
+            if (role === 'artist' || role === 'dual') {
+                details.city = city;
+            }
             onRegister(details);
         } else {
-            onLogin({ username, password });
+            onLogin({ email, password });
         }
     };
     
@@ -106,22 +113,36 @@ export const AuthModal: React.FC<{onLogin: (credentials: AuthCredentials) => voi
                     </>
                 )}
                 <div>
-                   <label className="text-sm text-brand-gray" htmlFor="username">Username</label>
-                   <input id="username" type="text" value={username} onChange={e => setUsername(e.target.value)} required className="w-full bg-gray-800 border-gray-700 rounded p-2 mt-1"/>
+                   <label className="text-sm text-brand-gray" htmlFor="email">Email</label>
+                   <input id="email" type="email" value={email} onChange={e => setEmail(e.target.value)} required className="w-full bg-gray-800 border-gray-700 rounded p-2 mt-1"/>
                 </div>
                 <div>
                    <label className="text-sm text-brand-gray" htmlFor="password">Password</label>
                    <input id="password" type="password" value={password} onChange={e => setPassword(e.target.value)} required className="w-full bg-gray-800 border-gray-700 rounded p-2 mt-1"/>
                 </div>
+
+                {error && <p className="text-sm text-red-400 text-center">{error}</p>}
+
                 <button type="submit" className="w-full bg-brand-secondary text-white font-bold py-3 rounded-lg mt-2">
                     {isRegistering ? 'Sign Up' : 'Login'}
                 </button>
-                <p className="text-center text-sm">
-                    <span className="text-brand-gray">{isRegistering ? 'Already have an account?' : "Don't have an account?"}</span>
-                    <button type="button" onClick={() => setIsRegistering(!isRegistering)} className="font-semibold text-brand-primary ml-1">
-                        {isRegistering ? 'Login' : 'Sign Up'}
-                    </button>
-                </p>
+                <div className="text-center">
+                    <p className="text-sm">
+                        <span className="text-brand-gray">{isRegistering ? 'Already have an account?' : "Don't have an account?"}</span>
+                        <button type="button" onClick={() => setIsRegistering(!isRegistering)} className="font-semibold text-brand-primary ml-1">
+                            {isRegistering ? 'Login' : 'Sign Up'}
+                        </button>
+                    </p>
+                     <p className="text-center text-xs mt-2">
+                        <button
+                            type="button"
+                            onClick={() => onLogin({ email: 'Inkspace', password: 'root' })}
+                            className="font-semibold text-brand-gray hover:text-brand-primary"
+                        >
+                            (DevLogin)
+                        </button>
+                    </p>
+                </div>
             </form>
         </Modal>
     );

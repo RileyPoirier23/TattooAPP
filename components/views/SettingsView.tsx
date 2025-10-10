@@ -52,11 +52,12 @@ export const SettingsView: React.FC<SettingsViewProps> = ({ user, onUpdateUser, 
                 )}
                 
                 <div>
-                    <label htmlFor="username" className="block text-sm font-medium text-brand-gray mb-1">Username</label>
+                    <label htmlFor="email" className="block text-sm font-medium text-brand-gray mb-1">Email</label>
                     <input
                         type="text"
-                        id="username"
-                        value={user.username}
+                        id="email"
+// FIX: Property 'username' does not exist on type 'User'. The correct property is 'email'.
+                        value={user.email}
                         disabled
                         className="w-full bg-gray-800/50 border border-gray-700 rounded-lg py-2 px-3 text-gray-400 cursor-not-allowed"
                     />

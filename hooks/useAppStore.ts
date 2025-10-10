@@ -11,6 +11,7 @@ interface UseAppStoreReturn {
   loading: boolean;
   error: string | null;
   user: User | null;
+  allUsers: User[];
   userLocation: { lat: number; lng: number } | null;
   locationError: string | null;
   isGettingLocation: boolean;
@@ -42,6 +43,7 @@ export const useAppStore = (): UseAppStoreReturn => {
   const [loading, setLoading] = useState<boolean>(true);
   const [error, setError] = useState<string | null>(null);
   const [user, setUser] = useState<User | null>(null);
+  const [allUsers, setAllUsers] = useState<User[]>([]);
   const [userLocation, setUserLocation] = useState<{ lat: number; lng: number } | null>(null);
   const [locationError, setLocationError] = useState<string | null>(null);
   const [isGettingLocation, setIsGettingLocation] = useState<boolean>(false);
@@ -60,12 +62,15 @@ export const useAppStore = (): UseAppStoreReturn => {
     setLoading(true);
     setError(null);
     try {
-      // FIX: The `getCurrentUser` function is async and must be awaited to resolve the user promise.
       const currentUser = await authService.getCurrentUser();
       if (currentUser) {
           setUser(currentUser);
-          // FIX: The user object is now available, so we can safely access `currentUser.id`.
-          await fetchNotificationsForUser(currentUser.id);
+          if (currentUser.type === 'admin') {
+              const allUserData = await apiService.fetchAllUsers();
+              setAllUsers(allUserData);
+          } else {
+              await fetchNotificationsForUser(currentUser.id);
+          }
       }
       const initialData = await apiService.fetchInitialData();
       setData(initialData);
@@ -84,8 +89,10 @@ export const useAppStore = (): UseAppStoreReturn => {
   const login = useCallback(async (credentials: AuthCredentials) => {
     const loggedInUser = await authService.login(credentials);
     setUser(loggedInUser);
-    fetchNotificationsForUser(loggedInUser.id);
-    initializeApp(); // Re-fetch data for the logged in user
+    if (loggedInUser.type !== 'admin') {
+      fetchNotificationsForUser(loggedInUser.id);
+    }
+    initializeApp(); 
     return loggedInUser;
   }, [fetchNotificationsForUser, initializeApp]);
 
@@ -93,7 +100,7 @@ export const useAppStore = (): UseAppStoreReturn => {
     const newUser = await authService.register(details);
     setUser(newUser);
     fetchNotificationsForUser(newUser.id);
-    initializeApp(); // Re-fetch data
+    initializeApp(); 
     return newUser;
   }, [fetchNotificationsForUser, initializeApp]);
 
@@ -101,14 +108,13 @@ export const useAppStore = (): UseAppStoreReturn => {
     await authService.logout();
     setUser(null);
     setNotifications([]);
-    initializeApp(); // Re-fetch public data
+    setAllUsers([]);
+    initializeApp(); 
   }, [initializeApp]);
 
   const updateUser = async (userId: string, updatedData: Partial<User['data']>) => {
     try {
         await apiService.updateUserData(userId, updatedData);
-        // Refresh user state
-        // FIX: The `getCurrentUser` function is async and must be awaited to resolve the user promise before updating the state.
         const currentUser = await authService.getCurrentUser();
         if (currentUser) setUser(currentUser);
     } catch (e) {
@@ -124,8 +130,6 @@ export const useAppStore = (): UseAppStoreReturn => {
             if (!prevData) return null;
             return { ...prevData, artists: prevData.artists.map(a => a.id === artistId ? updatedArtist : a) };
         });
-        // Also update user state if it's the current user
-        // FIX: Add type check to ensure user is an artist or dual-type before updating user state.
         if (user && user.id === artistId && (user.type === 'artist' || user.type === 'dual')) {
             const updatedUser = { ...user, data: { ...user.data, ...updatedArtist } };
             setUser(updatedUser);
@@ -137,12 +141,10 @@ export const useAppStore = (): UseAppStoreReturn => {
   
   const uploadPortfolioImage = async (artistId: string, file: File) => {
     const newImageUrl = await apiService.uploadPortfolioImage(artistId, file);
-    // Optimistically update UI
     if (user && user.id === artistId && (user.type === 'artist' || user.type === 'dual')) {
         const updatedPortfolio = [...user.data.portfolio, newImageUrl];
         const updatedUser = { ...user, data: { ...user.data, portfolio: updatedPortfolio } };
         setUser(updatedUser);
-        // also update main data state
         setData(prevData => {
             if (!prevData) return null;
             return {
@@ -262,7 +264,7 @@ export const useAppStore = (): UseAppStoreReturn => {
   };
 
   return { 
-      data, loading, error, user, 
+      data, loading, error, user, allUsers,
       login, register, logout, 
       updateUser, updateArtist, uploadPortfolioImage,
       updateShop, addBooth, updateBooth, deleteBooth, createBooking, createClientBookingRequest,

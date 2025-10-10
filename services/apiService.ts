@@ -1,6 +1,38 @@
 // @/services/apiService.ts
 import { supabase } from './supabaseClient';
-import type { Artist, Shop, Booth, Booking, ClientBookingRequest, Notification, User } from '../types';
+import type { Artist, Shop, Booth, Booking, ClientBookingRequest, Notification, User, UserRole, Client, ShopOwner } from '../types';
+
+const adaptProfileToUser = (profile: any): User | null => {
+    if (!profile) return null;
+    const baseUser = {
+        id: profile.id,
+        email: profile.username, // DB username is email
+        type: profile.role as UserRole,
+    };
+    
+    switch (profile.role) {
+        case 'artist':
+        case 'dual':
+            return { ...baseUser, type: profile.role, data: { id: profile.id, name: profile.full_name, city: profile.city, specialty: profile.specialty, bio: profile.bio, portfolio: profile.portfolio || [], isVerified: profile.is_verified } as Artist };
+        case 'client':
+            return { ...baseUser, type: 'client', data: { id: profile.id, name: profile.full_name } as Client };
+        case 'shop-owner':
+             // This assumes shopId is managed elsewhere, e.g., on the shops table
+            return { ...baseUser, type: 'shop-owner', data: { id: profile.id, name: profile.full_name, shopId: null } as ShopOwner };
+        default:
+            return null;
+    }
+}
+
+export const fetchAllUsers = async(): Promise<User[]> => {
+    const { data: profiles, error } = await supabase.from('profiles').select('*');
+    if (error) {
+        console.error("Failed to fetch all users:", error);
+        throw error;
+    }
+    return profiles.map(adaptProfileToUser).filter(Boolean) as User[];
+};
+
 
 export const fetchInitialData = async (): Promise<any> => {
     const { data: profiles, error: artistsError } = await supabase.from('profiles').select('*').in('role', ['artist', 'dual']);
@@ -21,7 +53,10 @@ export const fetchInitialData = async (): Promise<any> => {
         portfolio: profile.portfolio || [],
         city: profile.city,
         bio: profile.bio,
+        isVerified: profile.is_verified,
     }));
+
+    const adaptedShops: Shop[] = shops.map(shop => ({ ...shop, isVerified: shop.is_verified }));
     
     const adaptedBookings: Booking[] = bookings.map(b => ({
       id: b.id,
@@ -50,7 +85,7 @@ export const fetchInitialData = async (): Promise<any> => {
 
     return { 
         artists: adaptedArtists, 
-        shops, 
+        shops: adaptedShops, 
         booths, 
         bookings: adaptedBookings,
         clientBookingRequests: adaptedClientBookings,
@@ -96,6 +131,7 @@ export const updateArtistData = async (artistId: string, updatedData: Partial<Ar
         portfolio: data.portfolio || [],
         city: data.city,
         bio: data.bio,
+        isVerified: data.is_verified,
     };
 };
 
@@ -131,7 +167,7 @@ export const updateShopData = async (shopId: string, updatedData: Partial<Shop>)
         .select()
         .single();
     if (error) throw error;
-    return data;
+    return { ...data, isVerified: data.is_verified };
 };
 
 export const addBoothToShop = async (shopId: string, boothData: Omit<Booth, 'id' | 'shopId'>): Promise<Booth> => {
