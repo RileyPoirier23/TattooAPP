@@ -1,10 +1,10 @@
 // @/hooks/useAppStore.ts
 // FIX: Implement the useAppStore hook with Zustand for centralized state management.
 
-import create from 'zustand';
+import { create } from 'zustand';
 import { persist } from 'zustand/middleware';
 import {
-  Artist, Shop, Booking, Booth, User, ViewMode, Page, AuthCredentials, RegisterDetails, MockData, ClientBookingRequest, Notification,
+  Artist, Shop, Booking, Booth, User, ViewMode, Page, AuthCredentials, RegisterDetails, MockData, ClientBookingRequest, Notification, Client, ShopOwner, Admin,
 } from '../types';
 import {
   fetchInitialData, updateArtistData, uploadPortfolioImage, updateShopData, addBoothToShop, deleteBoothFromShop,
@@ -201,15 +201,39 @@ export const useAppStore = create<AppState>()(
       updateUser: async (userId, data) => {
           if (get().user?.id !== userId) return;
           await updateUserData(userId, data);
-          const updatedUser = { ...get().user!, data: { ...get().user!.data, ...data }};
-          set({ user: updatedUser });
+          // FIX: The generic update was causing type errors with the discriminated union `User` type.
+          // This was because `data` is a broad `Partial<User['data']>`, which makes TS think
+          // required properties on specific user data types (e.g., `Artist['specialty']`) could become optional.
+          // Using a type-guarded update inside `set` ensures type safety.
+          set(state => {
+              const user = state.user;
+              if (!user) return {};
+
+              const newUserData = { ...user.data, ...data };
+              
+              if (user.type === 'artist' || user.type === 'dual') {
+                  return { user: { ...user, data: newUserData as Artist } };
+              } else if (user.type === 'client') {
+                  return { user: { ...user, data: newUserData as Client } };
+              } else if (user.type === 'shop-owner') {
+                  return { user: { ...user, data: newUserData as ShopOwner } };
+              } else if (user.type === 'admin') {
+                  return { user: { ...user, data: newUserData as Admin } };
+              }
+              return {};
+          });
       },
       
       updateArtist: async (artistId, data) => {
         const updatedArtist = await updateArtistData(artistId, data);
+        // FIX: The previous implementation didn't check the user's type, which could lead to
+        // incorrectly assigning `Artist` data to a non-artist user (e.g., a ShopOwner).
+        // Adding a type check for 'artist' or 'dual' ensures the user in state is updated correctly and safely.
         set(state => ({
             data: { ...state.data, artists: state.data.artists.map(a => a.id === artistId ? updatedArtist : a) },
-            user: state.user?.id === artistId ? { ...state.user, data: updatedArtist } : state.user
+            user: (state.user?.id === artistId && (state.user.type === 'artist' || state.user.type === 'dual')) 
+                ? { ...state.user, data: updatedArtist } 
+                : state.user
         }));
       },
 
