@@ -4,7 +4,7 @@
 import React, { useState, useMemo } from 'react';
 import { useAppStore } from '../../hooks/useAppStore';
 import type { Artist } from '../../types';
-import { SearchIcon, LocationIcon, PaletteIcon, CrosshairsIcon } from '../shared/Icons';
+import { SearchIcon, LocationIcon, PaletteIcon, CrosshairsIcon, CheckBadgeIcon } from '../shared/Icons';
 import { Loader } from '../shared/Loader';
 import { ErrorDisplay } from '../shared/ErrorDisplay';
 import { useGoogleMaps } from '../../hooks/useGoogleMaps';
@@ -13,9 +13,15 @@ import { getCityFromCoords } from '../../services/googlePlacesService';
 
 const ArtistCard: React.FC<{ artist: Artist; onSelect: (artist: Artist) => void }> = ({ artist, onSelect }) => (
     <div 
-        className="bg-gray-900/50 rounded-lg border border-gray-800 overflow-hidden cursor-pointer group transform hover:-translate-y-1 transition-transform duration-300"
+        className="relative bg-gray-900/50 rounded-lg border border-gray-800 overflow-hidden cursor-pointer group transform hover:-translate-y-1 transition-transform duration-300"
         onClick={() => onSelect(artist)}
     >
+        {artist.isVerified && (
+            <div className="absolute top-2 right-2 bg-brand-secondary text-white text-xs font-bold px-2 py-1 rounded-full flex items-center z-10 shadow-lg">
+                <CheckBadgeIcon className="w-4 h-4 mr-1" />
+                VERIFIED
+            </div>
+        )}
         <img 
             src={artist.portfolio.length > 0 ? `${artist.portfolio[0]}?random=${artist.id}` : `https://ui-avatars.com/api/?name=${artist.name.replace(' ', '+')}&background=1A1A1D&color=F04E98`}
             alt={artist.name} 
@@ -35,6 +41,7 @@ export const ClientSearchView: React.FC = () => {
     const [location, setLocation] = useState('');
     const [specialty, setSpecialty] = useState('');
     const [isLocating, setIsLocating] = useState(false);
+    const [showOnlyVerified, setShowOnlyVerified] = useState(false);
     const { isLoaded: isMapsLoaded, error: mapsError } = useGoogleMaps();
 
     const handleFindNearby = () => {
@@ -70,12 +77,14 @@ export const ClientSearchView: React.FC = () => {
     };
 
     const filteredArtists = useMemo(() => {
-        return artists.filter(artist => 
+        const artistsToFilter = showOnlyVerified ? artists.filter(a => a.isVerified) : artists;
+
+        return artistsToFilter.filter(artist => 
             artist.name.toLowerCase().includes(searchTerm.toLowerCase()) &&
             artist.city.toLowerCase().includes(location.toLowerCase()) &&
             artist.specialty.toLowerCase().includes(specialty.toLowerCase())
         );
-    }, [artists, searchTerm, location, specialty]);
+    }, [artists, searchTerm, location, specialty, showOnlyVerified]);
     
     if (isLoading) {
         return <div className="flex justify-center mt-16"><Loader /></div>;
@@ -87,7 +96,7 @@ export const ClientSearchView: React.FC = () => {
 
     return (
         <div>
-            <div className="bg-gray-900/50 rounded-lg p-4 mb-8 border border-gray-800 flex flex-col md:flex-row items-center gap-4">
+            <div className="bg-gray-900/50 rounded-lg p-4 mb-8 border border-gray-800 flex flex-col md:flex-row items-center flex-wrap gap-4">
                 <div className="relative flex-grow w-full md:w-auto">
                     <SearchIcon className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-brand-gray" />
                     <input
@@ -126,6 +135,14 @@ export const ClientSearchView: React.FC = () => {
                     {isLocating ? <div className="w-5 h-5"><Loader /></div> : <CrosshairsIcon className="w-5 h-5" />}
                     <span>Find Nearby</span>
                 </button>
+                <label htmlFor="verified-toggle-client" className="flex items-center cursor-pointer">
+                  <span className="mr-3 text-sm font-medium text-brand-gray">Verified Only</span>
+                  <div className="relative">
+                    <input type="checkbox" id="verified-toggle-client" className="sr-only peer" checked={showOnlyVerified} onChange={() => setShowOnlyVerified(!showOnlyVerified)} />
+                    <div className="w-12 h-7 rounded-full bg-gray-700 peer-checked:bg-brand-secondary transition-colors"></div>
+                    <div className="absolute top-1 left-1 h-5 w-5 rounded-full bg-white transition-transform peer-checked:translate-x-full"></div>
+                  </div>
+                </label>
             </div>
 
             <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-6">

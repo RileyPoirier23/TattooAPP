@@ -1,36 +1,49 @@
 // @/components/views/ArtistSearchView.tsx
 // FIX: Implement the ArtistSearchView component to display a searchable list of shops for artists.
 
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, useEffect, useCallback } from 'react';
 import { useAppStore } from '../../hooks/useAppStore';
 import type { Shop } from '../../types';
-import { SearchIcon, LocationIcon, StarIcon, CrosshairsIcon } from '../shared/Icons';
+import { SearchIcon, LocationIcon, StarIcon, CrosshairsIcon, CheckBadgeIcon } from '../shared/Icons';
 import { Loader } from '../shared/Loader';
 import { ErrorDisplay } from '../shared/ErrorDisplay';
 import { useGoogleMaps } from '../../hooks/useGoogleMaps';
-import { getCityFromCoords } from '../../services/googlePlacesService';
+import { getCityFromCoords, findTattooShops } from '../../services/googlePlacesService';
 
-const ShopCard: React.FC<{ shop: Shop; onSelect: (shop: Shop) => void }> = ({ shop, onSelect }) => (
+const ShopCard: React.FC<{ shop: Partial<Shop>; onSelect: (shop: Shop) => void }> = ({ shop, onSelect }) => (
     <div 
-        className="bg-gray-900/50 rounded-lg border border-gray-800 overflow-hidden cursor-pointer group transform hover:-translate-y-1 transition-transform duration-300"
-        onClick={() => onSelect(shop)}
+        className={`relative bg-gray-900/50 rounded-lg border ${shop.isVerified ? 'border-brand-secondary/50' : 'border-gray-800'} overflow-hidden group transform hover:-translate-y-1 transition-transform duration-300 ${shop.isVerified ? 'cursor-pointer' : 'cursor-default'}`}
+        onClick={() => shop.isVerified && onSelect(shop as Shop)}
     >
+        {shop.isVerified && (
+            <div className="absolute top-2 right-2 bg-brand-secondary text-white text-xs font-bold px-2 py-1 rounded-full flex items-center z-10 shadow-lg">
+                <CheckBadgeIcon className="w-4 h-4 mr-1" />
+                VERIFIED
+            </div>
+        )}
         <img src={`${shop.imageUrl}?random=${shop.id}`} alt={shop.name} className="w-full h-48 object-cover" />
         <div className="p-4">
             <div className="flex justify-between items-start">
-                <h3 className="text-lg font-bold text-white group-hover:text-brand-primary transition-colors">{shop.name}</h3>
+                <h3 className={`text-lg font-bold ${shop.isVerified ? 'text-white group-hover:text-brand-primary' : 'text-gray-400'} transition-colors`}>{shop.name}</h3>
                 <div className="flex items-center space-x-1">
                     <StarIcon className="w-4 h-4 text-yellow-400" />
-                    <span className="text-sm font-semibold text-brand-light">{shop.rating.toFixed(1)}</span>
+                    <span className="text-sm font-semibold text-brand-light">{shop.rating?.toFixed(1)}</span>
                 </div>
             </div>
-            <p className="text-sm text-brand-gray flex items-center mt-1"><LocationIcon className="w-4 h-4 mr-1.5" />{shop.location}</p>
-            <div className="mt-3 flex flex-wrap gap-2">
-                {shop.amenities.slice(0, 3).map(amenity => (
-                    <span key={amenity} className="text-xs bg-brand-primary/20 text-brand-primary font-semibold px-2 py-1 rounded-full">{amenity}</span>
-                ))}
-            </div>
+            <p className="text-sm text-brand-gray flex items-center mt-1"><LocationIcon className="w-4 h-4 mr-1.5" />{shop.address}</p>
+            {shop.isVerified && shop.amenities && (
+              <div className="mt-3 flex flex-wrap gap-2">
+                  {shop.amenities.slice(0, 3).map(amenity => (
+                      <span key={amenity} className="text-xs bg-brand-primary/20 text-brand-primary font-semibold px-2 py-1 rounded-full">{amenity}</span>
+                  ))}
+              </div>
+            )}
         </div>
+        {!shop.isVerified && (
+            <div className="absolute inset-0 bg-black/70 flex items-center justify-center p-4 text-center backdrop-blur-sm">
+                <p className="text-brand-gray text-sm">This is an unverified listing. <br /> Shop owners can sign up to claim this page.</p>
+            </div>
+        )}
     </div>
 );
 
@@ -39,19 +52,41 @@ export const ArtistSearchView: React.FC = () => {
     const [searchTerm, setSearchTerm] = useState('');
     const [location, setLocation] = useState('');
     const [isLocating, setIsLocating] = useState(false);
+    const [unverifiedShops, setUnverifiedShops] = useState<Partial<Shop>[]>([]);
+    const [isSearching, setIsSearching] = useState(false);
+    const [showOnlyVerified, setShowOnlyVerified] = useState(false);
+
     const { isLoaded: isMapsLoaded, error: mapsError } = useGoogleMaps();
+
+    const handleLocationSearch = useCallback(async (loc: string) => {
+        if (!loc.trim()) {
+            setUnverifiedShops([]);
+            return;
+        }
+        if (!isMapsLoaded) {
+            showToast('Location services are not available.', 'error');
+            return;
+        }
+        setIsSearching(true);
+        try {
+            const placesResults = await findTattooShops(loc);
+            setUnverifiedShops(placesResults);
+        } catch (error) {
+            showToast('Could not search for local shops.', 'error');
+        } finally {
+            setIsSearching(false);
+        }
+    }, [isMapsLoaded, showToast]);
 
     const handleFindNearby = () => {
         if (!navigator.geolocation) {
             showToast("Geolocation is not supported by your browser.", 'error');
             return;
         }
-
         if (!isMapsLoaded || mapsError) {
             showToast("Location service is currently unavailable.", 'error');
             return;
         }
-
         setIsLocating(true);
         navigator.geolocation.getCurrentPosition(
             async (position) => {
@@ -60,25 +95,33 @@ export const ArtistSearchView: React.FC = () => {
                     const city = await getCityFromCoords({ lat: latitude, lng: longitude });
                     setLocation(city);
                     showToast(`Showing results for ${city}`);
+                    await handleLocationSearch(city);
                 } catch (error) {
                     showToast(error instanceof Error ? error.message : "Could not determine your city.", 'error');
                 } finally {
                     setIsLocating(false);
                 }
             },
-            (error) => {
-                showToast("Unable to retrieve your location. Please check your browser permissions.", 'error');
+            () => {
+                showToast("Unable to retrieve your location. Please check browser permissions.", 'error');
                 setIsLocating(false);
             }
         );
     };
 
-    const filteredShops = useMemo(() => {
-        return shops.filter(shop => 
-            shop.name.toLowerCase().includes(searchTerm.toLowerCase()) &&
-            shop.location.toLowerCase().includes(location.toLowerCase())
+    const combinedShops = useMemo(() => {
+        const filteredUnverified = unverifiedShops.filter(us => !shops.some(vs => vs.name.toLowerCase() === us.name?.toLowerCase()));
+
+        let allShops: Partial<Shop>[] = shops.filter(s => s.location.toLowerCase().includes(location.toLowerCase()));
+        
+        if (!showOnlyVerified) {
+            allShops = [...allShops, ...filteredUnverified];
+        }
+
+        return allShops.filter(shop =>
+            shop.name?.toLowerCase().includes(searchTerm.toLowerCase())
         );
-    }, [shops, searchTerm, location]);
+    }, [shops, unverifiedShops, searchTerm, location, showOnlyVerified]);
     
     if (isLoading) {
         return <div className="flex justify-center mt-16"><Loader /></div>;
@@ -101,16 +144,19 @@ export const ArtistSearchView: React.FC = () => {
                         className="w-full bg-gray-800 border-gray-700 rounded-lg py-3 pl-10 pr-4 text-white focus:ring-2 focus:ring-brand-primary focus:outline-none"
                     />
                 </div>
-                 <div className="relative flex-grow w-full md:w-auto">
-                    <LocationIcon className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-brand-gray" />
-                    <input
-                        type="text"
-                        placeholder="Filter by city..."
-                        value={location}
-                        onChange={(e) => setLocation(e.target.value)}
-                        className="w-full bg-gray-800 border-gray-700 rounded-lg py-3 pl-10 pr-4 text-white focus:ring-2 focus:ring-brand-primary focus:outline-none"
-                    />
-                </div>
+                <form className="flex-grow w-full md:w-auto flex gap-2" onSubmit={(e) => { e.preventDefault(); handleLocationSearch(location); }}>
+                    <div className="relative flex-grow">
+                        <LocationIcon className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-brand-gray" />
+                        <input
+                            type="text"
+                            placeholder="Filter by city..."
+                            value={location}
+                            onChange={(e) => setLocation(e.target.value)}
+                            className="w-full bg-gray-800 border-gray-700 rounded-lg py-3 pl-10 pr-4 text-white focus:ring-2 focus:ring-brand-primary focus:outline-none"
+                        />
+                    </div>
+                    <button type="submit" className="bg-brand-primary hover:bg-opacity-80 text-white font-bold py-3 px-6 rounded-lg transition-colors">Search</button>
+                </form>
                  <button 
                     onClick={handleFindNearby}
                     disabled={isLocating || !isMapsLoaded}
@@ -119,15 +165,25 @@ export const ArtistSearchView: React.FC = () => {
                     {isLocating ? <div className="w-5 h-5"><Loader /></div> : <CrosshairsIcon className="w-5 h-5" />}
                     <span>Find Nearby</span>
                 </button>
+                <label htmlFor="verified-toggle" className="flex items-center cursor-pointer">
+                  <span className="mr-3 text-sm font-medium text-brand-gray">Verified Only</span>
+                  <div className="relative">
+                    <input type="checkbox" id="verified-toggle" className="sr-only peer" checked={showOnlyVerified} onChange={() => setShowOnlyVerified(!showOnlyVerified)} />
+                    <div className="w-12 h-7 rounded-full bg-gray-700 peer-checked:bg-brand-secondary transition-colors"></div>
+                    <div className="absolute top-1 left-1 h-5 w-5 rounded-full bg-white transition-transform peer-checked:translate-x-full"></div>
+                  </div>
+                </label>
             </div>
 
+            {(isSearching) && <div className="flex justify-center mt-16"><Loader /></div>}
+
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
-                {filteredShops.map(shop => (
-                    <ShopCard key={shop.id} shop={shop} onSelect={() => openModal('shop-detail', shop)} />
+                {combinedShops.map(shop => (
+                    <ShopCard key={shop.id} shop={shop} onSelect={(s) => openModal('shop-detail', s)} />
                 ))}
             </div>
 
-            {filteredShops.length === 0 && (
+            {!isSearching && combinedShops.length === 0 && (
                 <div className="text-center py-16">
                     <h3 className="text-xl font-semibold text-white">No Shops Found</h3>
                     <p className="text-brand-gray mt-2">Try adjusting your search terms or filters.</p>

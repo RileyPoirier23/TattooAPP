@@ -1,10 +1,22 @@
 // @/services/googlePlacesService.ts
 // FIX: Implement the googlePlacesService to provide location autocomplete functionality.
 
+import type { Shop } from '../types';
+
 declare global {
   interface Window {
     google: any;
   }
+}
+
+let placesService: any;
+
+const getPlacesService = () => {
+    if (!placesService && window.google?.maps?.places?.PlacesService) {
+        // The service needs a DOM element to attach to, but it doesn't have to be visible.
+        placesService = new window.google.maps.places.PlacesService(document.createElement('div'));
+    }
+    return placesService;
 }
 
 /**
@@ -100,6 +112,50 @@ export const getCityFromCoords = (coords: { lat: number; lng: number }): Promise
                 reject(new Error("Could not find a city for the provided coordinates."));
             } else {
                 reject(new Error(`Geocoding failed due to: ${status}`));
+            }
+        });
+    });
+};
+
+
+/**
+ * Finds tattoo shops in a given location using Google Places API.
+ * @param query The city or location to search in.
+ * @returns A promise that resolves to an array of Shop-like objects.
+ */
+export const findTattooShops = (query: string): Promise<Partial<Shop>[]> => {
+    const service = getPlacesService();
+    if (!service || !query) {
+        return Promise.resolve([]);
+    }
+
+    const request = {
+        query: `tattoo shop in ${query}`,
+        fields: ['name', 'formatted_address', 'geometry', 'rating', 'place_id', 'photos'],
+    };
+
+    return new Promise((resolve) => {
+        service.textSearch(request, (results: any[] | null, status: string) => {
+            if (status === window.google.maps.places.PlacesServiceStatus.OK && results) {
+                const unverifiedShops: Partial<Shop>[] = results.map(place => ({
+                    id: place.place_id,
+                    name: place.name,
+                    location: query, // Use the query as location for consistency
+                    address: place.formatted_address,
+                    lat: place.geometry.location.lat(),
+                    lng: place.geometry.location.lng(),
+                    rating: place.rating || 0,
+                    imageUrl: place.photos?.[0]?.getUrl() || `https://ui-avatars.com/api/?name=${place.name.replace(' ', '+')}&background=1A1A1D&color=F04E98`,
+                    isVerified: false,
+                    amenities: [], // Not available from basic search
+                    reviews: [], // Not available from basic search
+                }));
+                resolve(unverifiedShops);
+            } else {
+                 if (status !== window.google.maps.places.PlacesServiceStatus.ZERO_RESULTS) {
+                    console.error('Google Places search failed with status:', status);
+                 }
+                resolve([]);
             }
         });
     });
