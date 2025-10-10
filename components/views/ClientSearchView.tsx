@@ -37,12 +37,26 @@ const ArtistCard: React.FC<{ artist: Artist; onSelect: (artist: Artist) => void 
 
 export const ClientSearchView: React.FC = () => {
     const { data: { artists }, isLoading, error, openModal, showToast } = useAppStore();
+    
+    // Live input state
     const [searchTerm, setSearchTerm] = useState('');
     const [location, setLocation] = useState('');
     const [specialty, setSpecialty] = useState('');
+
+    // State for submitted search filters
+    const [searchedTerm, setSearchedTerm] = useState('');
+    const [searchedLocation, setSearchedLocation] = useState('');
+    const [searchedSpecialty, setSearchedSpecialty] = useState('');
+
     const [isLocating, setIsLocating] = useState(false);
     const [showOnlyVerified, setShowOnlyVerified] = useState(false);
     const { isLoaded: isMapsLoaded, error: mapsError } = useGoogleMaps();
+
+    const handleSearch = () => {
+        setSearchedTerm(searchTerm);
+        setSearchedLocation(location);
+        setSearchedSpecialty(specialty);
+    };
 
     const handleFindNearby = () => {
         if (!navigator.geolocation) {
@@ -61,7 +75,15 @@ export const ClientSearchView: React.FC = () => {
                 const { latitude, longitude } = position.coords;
                 try {
                     const city = await getCityFromCoords({ lat: latitude, lng: longitude });
+                    // Set the input field value
                     setLocation(city);
+                    // And immediately trigger a search for that city
+                    setSearchedLocation(city); 
+                    // Clear other filters for this search
+                    setSearchTerm('');
+                    setSearchedTerm('');
+                    setSpecialty('');
+                    setSearchedSpecialty('');
                     showToast(`Showing results for ${city}`);
                 } catch (error) {
                     showToast(error instanceof Error ? error.message : "Could not determine your city.", 'error');
@@ -69,7 +91,7 @@ export const ClientSearchView: React.FC = () => {
                     setIsLocating(false);
                 }
             },
-            (error) => {
+            () => {
                 showToast("Unable to retrieve your location. Please check your browser permissions.", 'error');
                 setIsLocating(false);
             }
@@ -79,13 +101,16 @@ export const ClientSearchView: React.FC = () => {
     const filteredArtists = useMemo(() => {
         const artistsToFilter = showOnlyVerified ? artists.filter(a => a.isVerified) : artists;
 
+        // Filter based on the submitted search terms
         return artistsToFilter.filter(artist => 
-            artist.name.toLowerCase().includes(searchTerm.toLowerCase()) &&
-            artist.city.toLowerCase().includes(location.toLowerCase()) &&
-            artist.specialty.toLowerCase().includes(specialty.toLowerCase())
+            artist.name.toLowerCase().includes(searchedTerm.toLowerCase()) &&
+            artist.city.toLowerCase().includes(searchedLocation.toLowerCase()) &&
+            artist.specialty.toLowerCase().includes(searchedSpecialty.toLowerCase())
         );
-    }, [artists, searchTerm, location, specialty, showOnlyVerified]);
+    }, [artists, searchedTerm, searchedLocation, searchedSpecialty, showOnlyVerified]);
     
+    const hasSearched = searchedTerm || searchedLocation || searchedSpecialty;
+
     if (isLoading) {
         return <div className="flex justify-center mt-16"><Loader /></div>;
     }
@@ -96,53 +121,57 @@ export const ClientSearchView: React.FC = () => {
 
     return (
         <div>
-            <div className="bg-gray-900/50 rounded-lg p-4 mb-8 border border-gray-800 flex flex-col md:flex-row items-center flex-wrap gap-4">
-                <div className="relative flex-grow w-full md:w-auto">
-                    <SearchIcon className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-brand-gray" />
-                    <input
-                        type="text"
-                        placeholder="Search by artist name..."
-                        value={searchTerm}
-                        onChange={(e) => setSearchTerm(e.target.value)}
-                        className="w-full bg-gray-800 border-gray-700 rounded-lg py-3 pl-10 pr-4 text-white focus:ring-2 focus:ring-brand-primary focus:outline-none"
-                    />
-                </div>
-                 <div className="relative flex-grow w-full md:w-auto">
-                    <LocationIcon className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-brand-gray" />
-                    <input
-                        type="text"
-                        placeholder="Filter by city..."
-                        value={location}
-                        onChange={(e) => setLocation(e.target.value)}
-                        className="w-full bg-gray-800 border-gray-700 rounded-lg py-3 pl-10 pr-4 text-white focus:ring-2 focus:ring-brand-primary focus:outline-none"
-                    />
-                </div>
-                <div className="relative flex-grow w-full md:w-auto">
-                    <PaletteIcon className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-brand-gray" />
-                    <input
-                        type="text"
-                        placeholder="Filter by specialty..."
-                        value={specialty}
-                        onChange={(e) => setSpecialty(e.target.value)}
-                        className="w-full bg-gray-800 border-gray-700 rounded-lg py-3 pl-10 pr-4 text-white focus:ring-2 focus:ring-brand-primary focus:outline-none"
-                    />
-                </div>
-                 <button 
-                    onClick={handleFindNearby}
-                    disabled={isLocating || !isMapsLoaded}
-                    className="flex items-center justify-center space-x-2 bg-brand-secondary hover:bg-opacity-80 text-white font-bold py-3 px-4 rounded-lg transition-colors disabled:bg-gray-600 disabled:cursor-not-allowed w-full md:w-auto"
-                >
-                    {isLocating ? <div className="w-5 h-5"><Loader /></div> : <CrosshairsIcon className="w-5 h-5" />}
-                    <span>Find Nearby</span>
-                </button>
-                <label htmlFor="verified-toggle-client" className="flex items-center cursor-pointer">
-                  <span className="mr-3 text-sm font-medium text-brand-gray">Verified Only</span>
-                  <div className="relative">
-                    <input type="checkbox" id="verified-toggle-client" className="sr-only peer" checked={showOnlyVerified} onChange={() => setShowOnlyVerified(!showOnlyVerified)} />
-                    <div className="w-12 h-7 rounded-full bg-gray-700 peer-checked:bg-brand-secondary transition-colors"></div>
-                    <div className="absolute top-1 left-1 h-5 w-5 rounded-full bg-white transition-transform peer-checked:translate-x-full"></div>
-                  </div>
-                </label>
+            <div className="bg-gray-900/50 rounded-lg p-4 mb-8 border border-gray-800">
+                <form onSubmit={(e) => { e.preventDefault(); handleSearch(); }} className="flex flex-col md:flex-row items-center flex-wrap gap-4">
+                    <div className="relative flex-grow w-full md:w-auto">
+                        <SearchIcon className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-brand-gray" />
+                        <input
+                            type="text"
+                            placeholder="Search by artist name..."
+                            value={searchTerm}
+                            onChange={(e) => setSearchTerm(e.target.value)}
+                            className="w-full bg-gray-800 border-gray-700 rounded-lg py-3 pl-10 pr-4 text-white focus:ring-2 focus:ring-brand-primary focus:outline-none"
+                        />
+                    </div>
+                    <div className="relative flex-grow w-full md:w-auto">
+                        <LocationIcon className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-brand-gray" />
+                        <input
+                            type="text"
+                            placeholder="Filter by city..."
+                            value={location}
+                            onChange={(e) => setLocation(e.target.value)}
+                            className="w-full bg-gray-800 border-gray-700 rounded-lg py-3 pl-10 pr-4 text-white focus:ring-2 focus:ring-brand-primary focus:outline-none"
+                        />
+                    </div>
+                    <div className="relative flex-grow w-full md:w-auto">
+                        <PaletteIcon className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-brand-gray" />
+                        <input
+                            type="text"
+                            placeholder="Filter by specialty..."
+                            value={specialty}
+                            onChange={(e) => setSpecialty(e.target.value)}
+                            className="w-full bg-gray-800 border-gray-700 rounded-lg py-3 pl-10 pr-4 text-white focus:ring-2 focus:ring-brand-primary focus:outline-none"
+                        />
+                    </div>
+                    <button type="submit" className="w-full md:w-auto bg-brand-primary hover:bg-opacity-80 text-white font-bold py-3 px-6 rounded-lg transition-colors">Search</button>
+                    <button 
+                        type="button"
+                        onClick={handleFindNearby}
+                        disabled={isLocating || !isMapsLoaded}
+                        className="flex items-center justify-center space-x-2 bg-brand-secondary hover:bg-opacity-80 text-white font-bold py-3 px-4 rounded-lg transition-colors disabled:bg-gray-600 disabled:cursor-not-allowed w-full md:w-auto"
+                    >
+                        {isLocating ? <div className="w-5 h-5"><Loader /></div> : <CrosshairsIcon className="w-5 h-5" />}
+                        <span>Find Nearby</span>
+                    </button>
+                    <label htmlFor="verified-toggle-client" className="flex items-center cursor-pointer">
+                      <span className="mr-3 text-sm font-medium text-brand-gray">Verified Only</span>
+                      <div className="relative">
+                        <input type="checkbox" id="verified-toggle-client" className="sr-only peer" checked={showOnlyVerified} onChange={() => setShowOnlyVerified(!showOnlyVerified)} />
+                        <div className="w-12 h-7 rounded-full bg-gray-700 peer-checked:bg-brand-secondary transition-colors"></div>
+                        <div className="absolute top-1 left-1 h-5 w-5 rounded-full bg-white transition-transform peer-checked:translate-x-full"></div>
+                      </div>
+                    </label>
+                </form>
             </div>
 
             <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-6">
@@ -152,8 +181,17 @@ export const ClientSearchView: React.FC = () => {
             </div>
              {filteredArtists.length === 0 && (
                 <div className="text-center py-16">
-                    <h3 className="text-xl font-semibold text-white">No Artists Found</h3>
-                    <p className="text-brand-gray mt-2">Try adjusting your search terms or filters.</p>
+                    {hasSearched ? (
+                        <>
+                            <h3 className="text-xl font-semibold text-white">No Artists Found</h3>
+                            <p className="text-brand-gray mt-2">Your search did not return any results. Try adjusting your filters.</p>
+                        </>
+                    ) : (
+                         <>
+                            <h3 className="text-xl font-semibold text-white">Find Your Artist</h3>
+                            <p className="text-brand-gray mt-2">Use the search filters above to discover artists near you.</p>
+                        </>
+                    )}
                 </div>
             )}
         </div>

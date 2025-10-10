@@ -124,7 +124,7 @@ export const getCityFromCoords = (coords: { lat: number; lng: number }): Promise
 export const findTattooShops = (query: string): Promise<Partial<Shop>[]> => {
     const service = getPlacesService();
     if (!service) {
-        return Promise.reject(new Error("Location services are temporarily unavailable. Please check your API key and network connection."));
+        return Promise.reject(new Error("Location services are not initialized. This can be caused by a missing or invalid Google Maps API key."));
     }
     if (!query) {
         return Promise.resolve([]);
@@ -158,13 +158,13 @@ export const findTattooShops = (query: string): Promise<Partial<Shop>[]> => {
                 let errorMessage = `Google Places search failed. Status: ${status}`;
                 switch (status) {
                     case 'REQUEST_DENIED':
-                        errorMessage = 'Location search request denied. Check your Google Maps API key and permissions.';
+                        errorMessage = 'Location search request denied. Please check your Google Maps API key and ensure the Places API is enabled.';
                         break;
                     case 'OVER_QUERY_LIMIT':
-                        errorMessage = 'Location search limit exceeded. Please try again later.';
+                        errorMessage = 'You have exceeded the location search limit. Please try again later.';
                         break;
                     case 'INVALID_REQUEST':
-                        errorMessage = 'Invalid location search request.';
+                        errorMessage = 'The location search request was invalid.';
                         break;
                 }
                 console.error('Google Places search failed with status:', status);

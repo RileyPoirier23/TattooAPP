@@ -1,7 +1,7 @@
 // @/components/views/ArtistSearchView.tsx
 // FIX: Implement the ArtistSearchView component to display a searchable list of shops for artists.
 
-import React, { useState, useMemo, useEffect, useCallback } from 'react';
+import React, { useState, useMemo, useCallback } from 'react';
 import { useAppStore } from '../../hooks/useAppStore';
 import type { Shop } from '../../types';
 import { SearchIcon, LocationIcon, StarIcon, CrosshairsIcon, CheckBadgeIcon } from '../shared/Icons';
@@ -55,17 +55,20 @@ export const ArtistSearchView: React.FC = () => {
     const [isLocating, setIsLocating] = useState(false);
     const [unverifiedShops, setUnverifiedShops] = useState<Partial<Shop>[]>([]);
     const [isSearching, setIsSearching] = useState(false);
+    const [searchError, setSearchError] = useState<string | null>(null);
     const [showOnlyVerified, setShowOnlyVerified] = useState(false);
 
     const { isLoaded: isMapsLoaded, error: mapsError } = useGoogleMaps();
 
     const handleLocationSearch = useCallback(async (loc: string) => {
+        setSearchError(null);
         if (!loc.trim()) {
             setUnverifiedShops([]);
             setSearchedLocation('');
             return;
         }
         if (!isMapsLoaded) {
+            // This case should be handled by the permanent error display, but as a fallback:
             showToast('Location services are not available.', 'error');
             return;
         }
@@ -75,9 +78,9 @@ export const ArtistSearchView: React.FC = () => {
         try {
             const placesResults = await findTattooShops(loc);
             setUnverifiedShops(placesResults);
-        } catch (error) {
-            const message = error instanceof Error ? error.message : 'Could not search for local shops.';
-            showToast(message, 'error');
+        } catch (err) {
+            const message = err instanceof Error ? err.message : 'Could not search for local shops.';
+            setSearchError(message);
         } finally {
             setIsSearching(false);
         }
@@ -101,8 +104,9 @@ export const ArtistSearchView: React.FC = () => {
                     setLocation(city);
                     showToast(`Showing results for ${city}`);
                     await handleLocationSearch(city);
-                } catch (error) {
-                    showToast(error instanceof Error ? error.message : "Could not determine your city.", 'error');
+                } catch (err) {
+                    const message = err instanceof Error ? err.message : "Could not determine your city.";
+                    setSearchError(message);
                 } finally {
                     setIsLocating(false);
                 }
@@ -115,18 +119,22 @@ export const ArtistSearchView: React.FC = () => {
     };
 
     const combinedShops = useMemo(() => {
-        const filteredUnverified = unverifiedShops.filter(us => !shops.some(vs => vs.name.toLowerCase() === us.name?.toLowerCase()));
+        // Filter out verified shops from the unverified list to avoid duplicates
+        const unverifiedOnly = unverifiedShops.filter(us => 
+            !shops.some(vs => vs.name.toLowerCase().trim() === us.name?.toLowerCase().trim())
+        );
 
-        let allShops: Partial<Shop>[] = shops.filter(s => s.location.toLowerCase().includes(location.toLowerCase()));
+        let allShops: Partial<Shop>[] = [...shops];
         
         if (!showOnlyVerified) {
-            allShops = [...allShops, ...filteredUnverified];
+            allShops = [...allShops, ...unverifiedOnly];
         }
 
         return allShops.filter(shop =>
-            shop.name?.toLowerCase().includes(searchTerm.toLowerCase())
+            shop.name?.toLowerCase().includes(searchTerm.toLowerCase()) &&
+            (searchedLocation ? shop.location?.toLowerCase().includes(searchedLocation.toLowerCase()) : true)
         );
-    }, [shops, unverifiedShops, searchTerm, location, showOnlyVerified]);
+    }, [shops, unverifiedShops, searchTerm, searchedLocation, showOnlyVerified]);
     
     if (isLoading) {
         return <div className="flex justify-center mt-16"><Loader /></div>;
@@ -138,72 +146,85 @@ export const ArtistSearchView: React.FC = () => {
 
     return (
         <div>
-            <div className="bg-gray-900/50 rounded-lg p-4 mb-8 border border-gray-800 flex flex-col md:flex-row items-center gap-4">
-                {mapsError && (
+            <div className="bg-gray-900/50 rounded-lg p-4 mb-8 border border-gray-800 flex flex-col items-center gap-4">
+                 {mapsError && (
                     <div className="w-full bg-red-900/30 border border-red-500/50 rounded-lg p-3 text-center mb-4">
                         <p className="text-red-300 font-semibold text-sm">Location Services Error</p>
                         <p className="text-xs text-red-300/80 mt-1">{mapsError.message}</p>
                     </div>
                 )}
-                <div className="relative flex-grow w-full md:w-auto">
-                    <SearchIcon className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-brand-gray" />
-                    <input
-                        type="text"
-                        placeholder="Search by shop name..."
-                        value={searchTerm}
-                        onChange={(e) => setSearchTerm(e.target.value)}
-                        className="w-full bg-gray-800 border-gray-700 rounded-lg py-3 pl-10 pr-4 text-white focus:ring-2 focus:ring-brand-primary focus:outline-none"
-                    />
-                </div>
-                <form className="flex-grow w-full md:w-auto flex gap-2" onSubmit={(e) => { e.preventDefault(); handleLocationSearch(location); }}>
-                    <div className="relative flex-grow">
-                        <LocationIcon className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-brand-gray" />
+                <div className="w-full flex flex-col md:flex-row items-center gap-4">
+                    <div className="relative flex-grow w-full md:w-auto">
+                        <SearchIcon className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-brand-gray" />
                         <input
                             type="text"
-                            placeholder="Filter by city..."
-                            value={location}
-                            onChange={(e) => setLocation(e.target.value)}
+                            placeholder="Search by shop name..."
+                            value={searchTerm}
+                            onChange={(e) => setSearchTerm(e.target.value)}
                             className="w-full bg-gray-800 border-gray-700 rounded-lg py-3 pl-10 pr-4 text-white focus:ring-2 focus:ring-brand-primary focus:outline-none"
-                            disabled={!!mapsError}
                         />
                     </div>
-                    <button type="submit" disabled={!!mapsError} className="bg-brand-primary hover:bg-opacity-80 text-white font-bold py-3 px-6 rounded-lg transition-colors disabled:bg-gray-600">Search</button>
-                </form>
-                 <button 
-                    onClick={handleFindNearby}
-                    disabled={isLocating || !isMapsLoaded || !!mapsError}
-                    className="flex items-center justify-center space-x-2 bg-brand-secondary hover:bg-opacity-80 text-white font-bold py-3 px-4 rounded-lg transition-colors disabled:bg-gray-600 disabled:cursor-not-allowed w-full md:w-auto"
-                >
-                    {isLocating ? <div className="w-5 h-5"><Loader /></div> : <CrosshairsIcon className="w-5 h-5" />}
-                    <span>Find Nearby</span>
-                </button>
-                <label htmlFor="verified-toggle" className="flex items-center cursor-pointer">
-                  <span className="mr-3 text-sm font-medium text-brand-gray">Verified Only</span>
-                  <div className="relative">
-                    <input type="checkbox" id="verified-toggle" className="sr-only peer" checked={showOnlyVerified} onChange={() => setShowOnlyVerified(!showOnlyVerified)} />
-                    <div className="w-12 h-7 rounded-full bg-gray-700 peer-checked:bg-brand-secondary transition-colors"></div>
-                    <div className="absolute top-1 left-1 h-5 w-5 rounded-full bg-white transition-transform peer-checked:translate-x-full"></div>
-                  </div>
-                </label>
-            </div>
-
-            {(isSearching) && <div className="flex justify-center mt-16"><Loader /></div>}
-
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
-                {combinedShops.map(shop => (
-                    <ShopCard key={shop.id} shop={shop} onSelect={(s) => openModal('shop-detail', s)} />
-                ))}
-            </div>
-
-            {!isSearching && combinedShops.length === 0 && (
-                <div className="text-center py-16">
-                    <h3 className="text-xl font-semibold text-white">No Shops Found</h3>
-                    {searchedLocation ? (
-                        <p className="text-brand-gray mt-2">Your search for shops in <span className="font-bold text-white">{searchedLocation}</span> did not return any results.</p>
-                    ) : (
-                        <p className="text-brand-gray mt-2">Enter a city to find local tattoo shops.</p>
-                    )}
+                    <form className="flex-grow w-full md:w-auto flex gap-2" onSubmit={(e) => { e.preventDefault(); handleLocationSearch(location); }}>
+                        <div className="relative flex-grow">
+                            <LocationIcon className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-brand-gray" />
+                            <input
+                                type="text"
+                                placeholder="Filter by city..."
+                                value={location}
+                                onChange={(e) => setLocation(e.target.value)}
+                                className="w-full bg-gray-800 border-gray-700 rounded-lg py-3 pl-10 pr-4 text-white focus:ring-2 focus:ring-brand-primary focus:outline-none"
+                                disabled={!!mapsError}
+                            />
+                        </div>
+                        <button type="submit" disabled={!!mapsError || !isMapsLoaded} className="bg-brand-primary hover:bg-opacity-80 text-white font-bold py-3 px-6 rounded-lg transition-colors disabled:bg-gray-600 disabled:cursor-not-allowed">Search</button>
+                    </form>
+                     <button 
+                        onClick={handleFindNearby}
+                        disabled={isLocating || !isMapsLoaded || !!mapsError}
+                        className="flex items-center justify-center space-x-2 bg-brand-secondary hover:bg-opacity-80 text-white font-bold py-3 px-4 rounded-lg transition-colors disabled:bg-gray-600 disabled:cursor-not-allowed w-full md:w-auto"
+                    >
+                        {isLocating ? <div className="w-5 h-5"><Loader /></div> : <CrosshairsIcon className="w-5 h-5" />}
+                        <span>Find Nearby</span>
+                    </button>
+                    <label htmlFor="verified-toggle" className="flex items-center cursor-pointer flex-shrink-0">
+                      <span className="mr-3 text-sm font-medium text-brand-gray">Verified Only</span>
+                      <div className="relative">
+                        <input type="checkbox" id="verified-toggle" className="sr-only peer" checked={showOnlyVerified} onChange={() => setShowOnlyVerified(!showOnlyVerified)} />
+                        <div className="w-12 h-7 rounded-full bg-gray-700 peer-checked:bg-brand-secondary transition-colors"></div>
+                        <div className="absolute top-1 left-1 h-5 w-5 rounded-full bg-white transition-transform peer-checked:translate-x-full"></div>
+                      </div>
+                    </label>
                 </div>
+            </div>
+
+            {isSearching && <div className="flex justify-center mt-16"><Loader /></div>}
+
+            {searchError && (
+                 <div className="text-center py-16">
+                    <h3 className="text-xl font-semibold text-red-400">Search Failed</h3>
+                    <p className="text-brand-gray mt-2">{searchError}</p>
+                </div>
+            )}
+
+            {!isSearching && !searchError && (
+                <>
+                    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
+                        {combinedShops.map(shop => (
+                            <ShopCard key={shop.id} shop={shop} onSelect={(s) => openModal('shop-detail', s)} />
+                        ))}
+                    </div>
+
+                    {combinedShops.length === 0 && (
+                        <div className="text-center py-16">
+                            <h3 className="text-xl font-semibold text-white">No Shops Found</h3>
+                            {searchedLocation ? (
+                                <p className="text-brand-gray mt-2">Your search for shops in <span className="font-bold text-white">{searchedLocation}</span> did not return any results.</p>
+                            ) : (
+                                <p className="text-brand-gray mt-2">Enter a city to find local tattoo shops.</p>
+                            )}
+                        </div>
+                    )}
+                </>
             )}
         </div>
     );
