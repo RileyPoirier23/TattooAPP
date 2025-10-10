@@ -3,6 +3,7 @@
 import { GoogleGenAI, GenerateContentResponse } from "@google/genai";
 
 // The API key is sourced from the environment and is assumed to be present.
+// FIX: Per @google/genai guidelines, use process.env.API_KEY for the Gemini API key.
 const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
 
 /**

@@ -55,23 +55,23 @@ The `package.json` file lists all the necessary libraries for this project. Inst
 This is the most critical step. The application needs several secret keys to connect to Google and Supabase services.
 
 1.  In the root of the project, create a new file named `.env`.
-2.  Open `.env` and paste the following content:
+2.  Open `.env` and paste the following content. **Note the `VITE_` prefix is required.**
 
     ```
     # Google Gemini API Key for AI features
-    API_KEY=YOUR_GEMINI_API_KEY_HERE
+    VITE_API_KEY=YOUR_GEMINI_API_KEY_HERE
 
     # Google Maps API Key for interactive maps
-    MAPS_API_KEY=YOUR_GOOGLE_MAPS_API_KEY_HERE
+    VITE_MAPS_API_KEY=YOUR_GOOGLE_MAPS_API_KEY_HERE
 
     # Supabase credentials (get these from your Supabase project dashboard)
-    SUPABASE_URL=YOUR_SUPABASE_PROJECT_URL_HERE
-    SUPABASE_ANON_KEY=YOUR_SUPABASE_ANON_KEY_HERE
+    VITE_SUPABASE_URL=YOUR_SUPABASE_PROJECT_URL_HERE
+    VITE_SUPABASE_ANON_KEY=YOUR_SUPABASE_ANON_KEY_HERE
     ```
 
 3.  **Get Your Google API Keys:**
-    *   **`API_KEY` (Gemini):** Go to [Google AI Studio](https://aistudio.google.com/app/apikey) to create and copy your key.
-    *   **`MAPS_API_KEY` (Google Maps):** Go to the [Google Cloud Console](https://console.cloud.google.com/), create a key, and **enable the "Maps JavaScript API"** for it.
+    *   **`VITE_API_KEY` (Gemini):** Go to [Google AI Studio](https://aistudio.google.com/app/apikey) to create and copy your key.
+    *   **`VITE_MAPS_API_KEY` (Google Maps):** Go to the [Google Cloud Console](https://console.cloud.google.com/), create a key, and **enable the "Maps JavaScript API"** for it.
 
 4.  **Get Your Supabase Keys:** You will get these in the next section when you set up the backend.
 
@@ -219,11 +219,11 @@ CREATE POLICY "Users can view their own bookings." ON bookings FOR SELECT USING 
 1.  In your Supabase dashboard, go to **Project Settings** (the gear icon).
 2.  Click on **API**.
 3.  Find your **Project URL** and **Project API Keys** (use the `anon` `public` key).
-4.  Copy these two values and paste them into your `.env` file from [Local Setup Step 3](#step-3-configure-environment-variables-crucial).
+4.  Copy these two values and paste them into your `.env` file from [Local Setup Step 3](#step-3-configure-environment-variables).
 
     ```
-    SUPABASE_URL=YOUR_SUPABASE_PROJECT_URL_HERE
-    SUPABASE_ANON_KEY=YOUR_SUPABASE_ANON_KEY_HERE
+    VITE_SUPABASE_URL=YOUR_SUPABASE_PROJECT_URL_HERE
+    VITE_SUPABASE_ANON_KEY=YOUR_SUPABASE_ANON_KEY_HERE
     ```
 
 ### Step 5: Implement the Backend Logic
@@ -238,8 +238,8 @@ The application's frontend is ready. You just need to replace the placeholder fu
     ```typescript
     import { createClient } from '@supabase/supabase-js';
 
-    const supabaseUrl = process.env.SUPABASE_URL;
-    const supabaseAnonKey = process.env.SUPABASE_ANON_KEY;
+    const supabaseUrl = import.meta.env.VITE_SUPABASE_URL;
+    const supabaseAnonKey = import.meta.env.VITE_SUPABASE_ANON_KEY;
 
     if (!supabaseUrl || !supabaseAnonKey) {
         throw new Error('Supabase URL and Anon Key must be provided in .env');
@@ -385,7 +385,7 @@ To deploy your app as a live website, you can use services like Vercel or Netlif
 2.  **Sign up for Vercel:** Go to [vercel.com](https://vercel.com/) and sign up with your Git provider account.
 3.  **Import Project:** Import your InkSpace repository.
 4.  **Configure Settings:** Vercel will auto-detect that it's a Vite project. You don't need to change the build commands.
-5.  **Add Environment Variables:** This is crucial. Go to your Vercel project's **Settings -> Environment Variables**. Add all the variables from your local `.env` file (`API_KEY`, `MAPS_API_KEY`, `SUPABASE_URL`, `SUPABASE_ANON_KEY`).
+5.  **Add Environment Variables:** This is crucial. Go to your Vercel project's **Settings -> Environment Variables**. Add all the variables from your local `.env` file (`VITE_API_KEY`, `VITE_MAPS_API_KEY`, `VITE_SUPABASE_URL`, `VITE_SUPABASE_ANON_KEY`).
 6.  **Deploy:** Click the "Deploy" button. Vercel will build and deploy your site, giving you a public URL.
 
 ---
