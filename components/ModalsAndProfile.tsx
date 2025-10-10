@@ -86,14 +86,15 @@ export const AuthModal: React.FC<{onLogin: (credentials: AuthCredentials) => voi
     };
     
     const handleDevLogin = () => {
-        const user = prompt("Enter dev username:");
+        // DEV ADMIN LOGIN: Use a non-email username to prevent collision with actual Supabase users.
+        const user = prompt("Enter dev username (hint: __admin__):");
         if (user === null) return; // User cancelled prompt
 
-        const pass = prompt("Enter dev password:");
+        const pass = prompt("Enter dev password (hint: root):");
         if (pass === null) return; // User cancelled prompt
 
-        if (user === 'Inkspace' && pass === 'root') {
-            onLogin({ email: 'Inkspace', password: 'root' });
+        if (user === '__admin__' && pass === 'root') {
+            onLogin({ email: '__admin__', password: 'root' });
         } else {
             alert('Invalid dev credentials.');
         }

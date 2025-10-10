@@ -38,10 +38,11 @@ class AuthService {
     }
 
     async login(credentials: AuthCredentials): Promise<User> {
-        if (credentials.email === 'Inkspace' && credentials.password === 'root') {
+        // DEV ADMIN LOGIN: Use a non-email username to prevent collision with actual Supabase users.
+        if (credentials.email === '__admin__' && credentials.password === 'root') {
             const adminUser: AdminUser = {
                 id: 'admin-dev',
-                email: 'Inkspace',
+                email: '__admin__', // This is just an identifier, not a real email
                 type: 'admin',
                 data: { name: 'Admin' }
             };

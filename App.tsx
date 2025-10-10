@@ -19,7 +19,8 @@ import { Toast } from './components/shared/Toast';
 import { AboutSection } from './components/shared/AboutSection';
 
 // --- Types ---
-import type { ViewMode, Page, Artist, Shop, AuthCredentials, RegisterDetails, ClientBookingRequest, Booking } from './types';
+// FIX: Import ShopOwner to allow for type assertion.
+import type { ViewMode, Page, Artist, Shop, AuthCredentials, RegisterDetails, ClientBookingRequest, Booking, User, ShopOwner } from './types';
 
 function App() {
   const store = useAppStore();
@@ -57,8 +58,10 @@ function App() {
   const userShop = useMemo(() => {
       // FIX: Correctly narrow user type before accessing properties specific to a user role.
       if(store.user && store.user.type === 'shop-owner') {
-          if (store.user.data.shopId && store.data) {
-              return store.data.shops.find(s => s.id === store.user.data.shopId);
+          // The type guard above ensures user is a ShopOwnerUser, so we can safely cast data to ShopOwner.
+          const shopOwnerData = store.user.data as ShopOwner;
+          if (shopOwnerData.shopId && store.data) {
+              return store.data.shops.find(s => s.id === shopOwnerData.shopId);
           }
       }
       return undefined;
@@ -189,8 +192,24 @@ function App() {
           <>
             <AboutSection />
             {viewMode === 'artist' 
-              ? <ArtistSearchView shops={shopsWithBooths} booths={store.data.booths} bookings={store.data.bookings} onShopClick={setSelectedShop} onGetDirections={getDirections} userLocation={store.userLocation} getLocation={store.getLocation} isGettingLocation={store.isGettingLocation} /> 
-              : <ClientSearchView artists={artistsWithBookings} bookings={store.data.bookings} onArtistClick={setSelectedArtist} />}
+              ? <ArtistSearchView 
+                  shops={shopsWithBooths} 
+                  onShopClick={setSelectedShop} 
+                  onGetDirections={getDirections} 
+                  userLocation={store.userLocation} 
+                  getLocation={store.getLocation} 
+                  isGettingLocation={store.isGettingLocation}
+                  user={store.user}
+                  onLoginClick={() => setAuthModalOpen(true)}
+                  showToast={showToast}
+                /> 
+              : <ClientSearchView 
+                  artists={artistsWithBookings} 
+                  onArtistClick={setSelectedArtist}
+                  user={store.user}
+                  onLoginClick={() => setAuthModalOpen(true)}
+                  showToast={showToast}
+                />}
           </>
         );
     }
