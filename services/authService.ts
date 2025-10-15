@@ -1,3 +1,4 @@
+
 // @/services/authService.ts
 import { supabase } from './supabaseClient';
 import type { User, AuthCredentials, RegisterDetails, Artist, Client, ShopOwner, UserRole, AdminUser, Admin } from '../types';

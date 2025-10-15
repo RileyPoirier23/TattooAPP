@@ -1,3 +1,4 @@
+
 // @/components/Header.tsx
 
 import React, { useState, useEffect, useRef } from 'react';
@@ -67,6 +68,9 @@ export const Header: React.FC<HeaderProps> = ({
           )}
           {user?.type === 'shop-owner' && (
             <button onClick={() => { onNavigate('dashboard'); setUserMenuOpen(false); }} className="w-full text-left px-4 py-2 text-sm text-gray-300 hover:bg-gray-800">My Dashboard</button>
+          )}
+           {(user?.type === 'artist' || user?.type === 'dual') && (
+            <button onClick={() => { onNavigate('availability'); setUserMenuOpen(false); }} className="w-full text-left px-4 py-2 text-sm text-gray-300 hover:bg-gray-800">My Availability</button>
           )}
            {(user?.type === 'artist' || user?.type === 'client' || user?.type === 'dual') && (
             <button onClick={() => { onNavigate('bookings'); setUserMenuOpen(false); }} className="w-full text-left px-4 py-2 text-sm text-gray-300 hover:bg-gray-800">My Bookings</button>

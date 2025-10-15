@@ -1,8 +1,9 @@
+
 // @/components/ModalsAndProfile.tsx
 
 import React, { useState, useMemo, useRef, useCallback } from 'react';
-import type { Artist, Shop, Booking, Booth, Review, AuthCredentials, RegisterDetails, UserRole, GroundingChunk, ClientBookingRequest, Client } from '../types';
-import { LocationIcon, StarIcon, PriceIcon, XIcon, EditIcon, PaperAirplaneIcon, CalendarIcon, UploadIcon } from './shared/Icons';
+import type { Artist, Shop, Booking, Booth, Review, AuthCredentials, RegisterDetails, UserRole, GroundingChunk, ClientBookingRequest, Client, Socials } from '../types';
+import { LocationIcon, StarIcon, PriceIcon, XIcon, EditIcon, PaperAirplaneIcon, CalendarIcon, UploadIcon, CheckBadgeIcon } from './shared/Icons';
 import { generateArtistBio, getShopInfo } from '../services/geminiService';
 import { MapEmbed } from './shared/MapEmbed';
 import { Loader } from './shared/Loader';
@@ -10,16 +11,53 @@ import { tattooSizes, bodyPlacements, estimatedHours } from '../data/bookingOpti
 
 // --- SHARED COMPONENTS ---
 
-const StarRating: React.FC<{ rating: number; className?: string }> = ({ rating, className = 'w-5 h-5' }) => {
-    const fullStars = Math.floor(rating);
-    const halfStar = rating % 1 !== 0;
-    const emptyStars = 5 - fullStars - (halfStar ? 1 : 0);
-    
+const StarRating: React.FC<{ rating: number; className?: string; onRate?: (rating: number) => void; isInteractive?: boolean }> = ({ rating, className = 'w-5 h-5', onRate, isInteractive = false }) => {
+    const [hoverRating, setHoverRating] = useState(0);
+
+    const handleRating = (rate: number) => {
+        if (isInteractive && onRate) {
+            onRate(rate);
+        }
+    };
+
+    const handleMouseEnter = (rate: number) => {
+        if (isInteractive) {
+            setHoverRating(rate);
+        }
+    };
+
+    const handleMouseLeave = () => {
+        if (isInteractive) {
+            setHoverRating(0);
+        }
+    };
+
     return (
         <div className="flex items-center">
-            {[...Array(fullStars)].map((_, i) => <StarIcon key={`full-${i}`} className={`${className} text-yellow-400`} />)}
-            {halfStar && <StarIcon key="half" className={`${className} text-yellow-400`} style={{ clipPath: 'polygon(0 0, 50% 0, 50% 100%, 0 100%)' }} />}
-            {[...Array(emptyStars)].map((_, i) => <StarIcon key={`empty-${i}`} className={`${className} text-gray-600`} />)}
+            {[...Array(5)].map((_, i) => {
+                const starValue = i + 1;
+                const displayRating = hoverRating || rating;
+                const isFull = starValue <= displayRating;
+                const isHalf = !isFull && starValue - 0.5 <= displayRating;
+
+                return (
+                    <button
+                        key={i}
+                        onClick={() => handleRating(starValue)}
+                        onMouseEnter={() => handleMouseEnter(starValue)}
+                        onMouseLeave={handleMouseLeave}
+                        disabled={!isInteractive}
+                        className={`${className} ${isInteractive ? 'cursor-pointer' : ''}`}
+                    >
+                        <StarIcon
+                            className={`transition-colors ${
+                                isFull ? 'text-yellow-400' : isHalf ? 'text-yellow-400' : 'text-gray-600'
+                            }`}
+                            style={isHalf ? { clipPath: 'polygon(0 0, 50% 0, 50% 100%, 0 100%)' } : {}}
+                        />
+                    </button>
+                );
+            })}
         </div>
     );
 };
@@ -166,10 +204,16 @@ export const AuthModal: React.FC<{onLogin: (credentials: AuthCredentials) => voi
 
 // --- DETAIL & ACTION MODALS ---
 
-export const ArtistDetailModal: React.FC<{ artist: Artist; bookings: Booking[]; shops: Shop[]; onClose: () => void; onBookRequest: () => void; showToast: (message: string, type?: 'success' | 'error') => void; onMessageClick: (artistId: string) => void; }> = ({ artist, bookings, shops, onClose, onBookRequest, onMessageClick }) => {
+export const ArtistDetailModal: React.FC<{ artist: Artist; reviews: Review[]; bookings: Booking[]; shops: Shop[]; onClose: () => void; onBookRequest: () => void; showToast: (message: string, type?: 'success' | 'error') => void; onMessageClick: (artistId: string) => void; }> = ({ artist, reviews, bookings, shops, onClose, onBookRequest, onMessageClick }) => {
     const futureBookings = bookings.filter(b => 
         b.artistId === artist.id && new Date(b.endDate) >= new Date()
     );
+
+    const averageRating = useMemo(() => {
+        if (!reviews || reviews.length === 0) return 0;
+        const total = reviews.reduce((acc, review) => acc + review.rating, 0);
+        return total / reviews.length;
+    }, [reviews]);
 
     return (
         <Modal onClose={onClose} title={artist.name}>
@@ -180,9 +224,43 @@ export const ArtistDetailModal: React.FC<{ artist: Artist; bookings: Booking[]; 
                     ))}
                 </div>
                  <div>
-                    <h3 className="text-lg font-bold text-brand-primary">{artist.specialty}</h3>
+                    <div className="flex justify-between items-start">
+                        <h3 className="text-lg font-bold text-brand-primary">{artist.specialty}</h3>
+                        {averageRating > 0 && (
+                            <div className="flex items-center gap-2">
+                                <StarRating rating={averageRating} />
+                                <span className="font-bold text-white">{averageRating.toFixed(1)}</span>
+                                <span className="text-sm text-brand-gray">({reviews.length})</span>
+                            </div>
+                        )}
+                    </div>
                     <p className="text-brand-light mt-2">{artist.bio}</p>
+                    {artist.socials && (
+                        <div className="flex items-center gap-4 mt-4">
+                            {artist.socials.instagram && <a href={artist.socials.instagram} target="_blank" rel="noopener noreferrer" className="text-brand-gray hover:text-white">Instagram</a>}
+                            {artist.socials.tiktok && <a href={artist.socials.tiktok} target="_blank" rel="noopener noreferrer" className="text-brand-gray hover:text-white">TikTok</a>}
+                            {artist.socials.x && <a href={artist.socials.x} target="_blank" rel="noopener noreferrer" className="text-brand-gray hover:text-white">X</a>}
+                        </div>
+                    )}
                 </div>
+
+                {reviews && reviews.length > 0 && (
+                <div>
+                    <h4 className="font-bold text-white mb-3">Client Reviews</h4>
+                    <div className="space-y-4 max-h-48 overflow-y-auto pr-2">
+                        {reviews.map((review) => (
+                            <div key={review.id} className="bg-gray-800/50 p-3 rounded-lg">
+                                <div className="flex items-center justify-between mb-1">
+                                    <p className="font-semibold text-gray-300">{review.authorName}</p>
+                                    <StarRating rating={review.rating} className="w-4 h-4" />
+                                </div>
+                                <p className="text-brand-gray text-sm italic">"{review.text}"</p>
+                            </div>
+                        ))}
+                    </div>
+                </div>
+                )}
+
                 <div>
                     <h4 className="font-bold text-white mb-2">Upcoming Availability</h4>
                     <ul className="space-y-2">
@@ -198,6 +276,7 @@ export const ArtistDetailModal: React.FC<{ artist: Artist; bookings: Booking[]; 
                         }) : <p className="text-brand-gray text-sm">No upcoming guest spots scheduled.</p>}
                     </ul>
                 </div>
+
                 <div className="grid grid-cols-2 gap-4">
                      <button 
                         onClick={() => onMessageClick(artist.id)}
@@ -299,7 +378,7 @@ export const ShopDetailModal: React.FC<{ shop: Shop; booths: Booth[]; onClose: (
                         {shop.reviews.map((review, index) => (
                             <div key={index} className="bg-gray-800/50 p-4 rounded-lg">
                                 <div className="flex items-center justify-between mb-1">
-                                    <p className="font-semibold text-gray-300">{review.author}</p>
+                                    <p className="font-semibold text-gray-300">{review.authorName}</p>
                                     <StarRating rating={review.rating} className="w-4 h-4" />
                                 </div>
                                 <p className="text-brand-gray text-sm">{review.text}</p>
@@ -644,6 +723,76 @@ export const UploadPortfolioModal: React.FC<{ onClose: () => void, onUpload: (fi
     );
 };
 
+export const EditBoothModal: React.FC<{ booth: Booth, onSave: (boothId: string, data: Partial<Booth>) => void, onClose: () => void }> = ({ booth, onSave, onClose }) => {
+    const [name, setName] = useState(booth.name);
+    const [dailyRate, setDailyRate] = useState(booth.dailyRate);
+    const [amenities, setAmenities] = useState((booth.amenities || []).join(', '));
+    const [rules, setRules] = useState(booth.rules || '');
+
+    const handleSave = () => {
+        const updatedData: Partial<Booth> = {
+            name,
+            dailyRate,
+            rules,
+            amenities: amenities.split(',').map(a => a.trim()).filter(Boolean),
+        };
+        onSave(booth.id, updatedData);
+    };
+
+    return (
+        <Modal onClose={onClose} title={`Edit ${booth.name}`} size="lg">
+            <div className="space-y-4">
+                <div>
+                    <label className="text-sm font-medium text-brand-gray mb-1 block">Booth Name</label>
+                    <input type="text" value={name} onChange={e => setName(e.target.value)} className="w-full bg-gray-800 border-gray-700 rounded p-2" />
+                </div>
+                <div>
+                    <label className="text-sm font-medium text-brand-gray mb-1 block">Daily Rate ($)</label>
+                    <input type="number" value={dailyRate} onChange={e => setDailyRate(Number(e.target.value))} className="w-full bg-gray-800 border-gray-700 rounded p-2" />
+                </div>
+                <div>
+                    <label className="text-sm font-medium text-brand-gray mb-1 block">Amenities (comma-separated)</label>
+                    <input type="text" value={amenities} onChange={e => setAmenities(e.target.value)} className="w-full bg-gray-800 border-gray-700 rounded p-2" placeholder="e.g., WiFi, Privacy Screen, Storage" />
+                </div>
+                 <div>
+                    <label className="text-sm font-medium text-brand-gray mb-1 block">Booth Rules</label>
+                    <textarea value={rules} onChange={e => setRules(e.target.value)} rows={3} className="w-full bg-gray-800 border-gray-700 rounded p-2"></textarea>
+                </div>
+                <button onClick={handleSave} className="w-full bg-brand-primary text-white font-bold py-3 rounded-lg">
+                    Save Changes
+                </button>
+            </div>
+        </Modal>
+    );
+};
+
+export const LeaveReviewModal: React.FC<{ request: ClientBookingRequest, onSubmit: (requestId: string, rating: number, text: string) => void, onClose: () => void }> = ({ request, onSubmit, onClose }) => {
+    const [rating, setRating] = useState(0);
+    const [text, setText] = useState('');
+
+    const handleSubmit = () => {
+        if (rating > 0) {
+            onSubmit(request.id, rating, text);
+        }
+    };
+
+    return (
+        <Modal onClose={onClose} title={`Review your session with ${request.artistName}`} size="md">
+            <div className="space-y-4 text-center">
+                <p className="text-brand-gray">How was your experience?</p>
+                <div className="flex justify-center">
+                    <StarRating rating={rating} onRate={setRating} isInteractive={true} className="w-8 h-8" />
+                </div>
+                <div>
+                    <textarea value={text} onChange={e => setText(e.target.value)} rows={4} placeholder="Share more about your experience..." className="w-full bg-gray-800 border-gray-700 rounded p-2" />
+                </div>
+                <button onClick={handleSubmit} disabled={rating === 0} className="w-full bg-brand-secondary text-white font-bold py-3 rounded-lg disabled:bg-gray-600">
+                    Submit Review
+                </button>
+            </div>
+        </Modal>
+    );
+};
 
 
 // --- PROFILE & DASHBOARD VIEWS ---
@@ -651,10 +800,11 @@ export const UploadPortfolioModal: React.FC<{ onClose: () => void, onUpload: (fi
 export const ArtistProfileView: React.FC<{ artist: Artist; updateArtist: (artistId: string, data: Partial<Artist>) => void; showToast: (message: string, type?: 'success' | 'error') => void; onUploadClick: () => void; }> = ({ artist, updateArtist, showToast, onUploadClick }) => {
     const [bio, setBio] = useState(artist.bio);
     const [specialty, setSpecialty] = useState(artist.specialty);
+    const [socials, setSocials] = useState<Socials>(artist.socials || {});
     const [isGenerating, setIsGenerating] = useState(false);
 
     const handleSave = () => {
-        updateArtist(artist.id, { bio, specialty });
+        updateArtist(artist.id, { bio, specialty, socials });
         showToast("Profile saved!");
     };
 
@@ -712,6 +862,14 @@ export const ArtistProfileView: React.FC<{ artist: Artist; updateArtist: (artist
                         className="w-full bg-gray-800 border border-gray-700 rounded-lg py-2 px-3 text-white focus:ring-2 focus:ring-brand-primary focus:outline-none"
                     />
                 </div>
+                 <div>
+                    <h3 className="text-sm font-medium text-brand-gray mb-2">Social Links</h3>
+                    <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                        <input type="url" placeholder="Instagram URL" value={socials.instagram || ''} onChange={e => setSocials(s => ({...s, instagram: e.target.value}))} className="bg-gray-800 border-gray-700 rounded-lg py-2 px-3" />
+                        <input type="url" placeholder="TikTok URL" value={socials.tiktok || ''} onChange={e => setSocials(s => ({...s, tiktok: e.target.value}))} className="bg-gray-800 border-gray-700 rounded-lg py-2 px-3" />
+                        <input type="url" placeholder="X / Twitter URL" value={socials.x || ''} onChange={e => setSocials(s => ({...s, x: e.target.value}))} className="bg-gray-800 border-gray-700 rounded-lg py-2 px-3" />
+                    </div>
+                </div>
                 <div>
                      <h3 className="text-sm font-medium text-brand-gray mb-2">Portfolio</h3>
                      <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
@@ -761,7 +919,7 @@ export const ClientProfileView: React.FC<{ client: Client; bookings: ClientBooki
                     <div className="space-y-3">
                         {upcomingBookings.length > 0 ? upcomingBookings.map(booking => (
                             <div key={booking.id} className="bg-gray-800 p-4 rounded-lg">
-                                <p className="font-semibold text-gray-300">With Artist ID: {booking.artistId}</p>
+                                <p className="font-semibold text-gray-300">With {booking.artistName}</p>
                                 <p className="text-sm text-brand-gray">{new Date(booking.startDate).toLocaleDateString()}</p>
                                 <span className="text-xs font-bold bg-green-500/20 text-green-400 px-2 py-1 rounded-full capitalize">{booking.status}</span>
                             </div>
@@ -773,7 +931,7 @@ export const ClientProfileView: React.FC<{ client: Client; bookings: ClientBooki
                     <div className="space-y-3">
                         {pendingBookings.length > 0 ? pendingBookings.map(booking => (
                             <div key={booking.id} className="bg-gray-800 p-4 rounded-lg">
-                                <p className="font-semibold text-gray-300">With Artist ID: {booking.artistId}</p>
+                                <p className="font-semibold text-gray-300">With {booking.artistName}</p>
                                 <p className="text-sm text-brand-gray">{new Date(booking.startDate).toLocaleDateString()}</p>
                                 <span className="text-xs font-bold bg-yellow-500/20 text-yellow-400 px-2 py-1 rounded-full capitalize">{booking.status}</span>
                             </div>

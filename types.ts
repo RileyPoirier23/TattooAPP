@@ -1,6 +1,13 @@
+
 // @/types.ts
 
 // --- DATA MODELS ---
+
+export interface Socials {
+  instagram?: string;
+  tiktok?: string;
+  x?: string; // Formerly Twitter
+}
 
 export interface Artist {
   id: string; // This will be the user's auth id
@@ -10,6 +17,8 @@ export interface Artist {
   city: string;
   bio: string;
   isVerified: boolean;
+  socials?: Socials;
+  averageRating?: number;
 }
 
 export interface Client {
@@ -28,9 +37,12 @@ export interface Admin {
 }
 
 export interface Review {
-  author: string;
+  id: string; // This will be the client booking request ID
+  authorId: string;
+  authorName: string;
   rating: number; 
   text: string;
+  createdAt: string;
 }
 
 export interface PaymentMethods {
@@ -59,6 +71,9 @@ export interface Booth {
   shopId: string;
   name: string;
   dailyRate: number;
+  photos?: string[];
+  amenities?: string[];
+  rules?: string;
 }
 
 export interface Booking {
@@ -79,14 +94,16 @@ export interface ClientBookingRequest {
     startDate: string;
     endDate: string;
     message: string;
-    status: 'pending' | 'approved' | 'declined';
-    // New detailed fields
+    status: 'pending' | 'approved' | 'declined' | 'completed';
     tattooSize: string;
     bodyPlacement: string;
     estimatedHours: number;
     paymentStatus: 'paid' | 'unpaid';
     clientName?: string;
     artistName?: string;
+    reviewRating?: number;
+    reviewText?: string;
+    reviewSubmittedAt?: string;
 }
 
 export interface Notification {
@@ -102,6 +119,7 @@ export interface Message {
   conversationId: string;
   senderId: string;
   content: string;
+  attachmentUrl?: string;
   createdAt: string;
 }
 
@@ -120,6 +138,13 @@ export interface ConversationWithUser extends Conversation {
   lastMessage?: Message;
 }
 
+export interface ArtistAvailability {
+  id: string;
+  artistId: string;
+  date: string;
+  status: 'available' | 'unavailable';
+}
+
 
 export interface MockData {
   artists: Artist[];
@@ -130,6 +155,7 @@ export interface MockData {
   notifications: Notification[];
   conversations: ConversationWithUser[];
   messages: Message[];
+  artistAvailability: ArtistAvailability[];
 }
 
 export interface GroundingChunk {
@@ -143,7 +169,13 @@ export interface GroundingChunk {
 // --- APP STATE & NAVIGATION ---
 
 export type ViewMode = 'artist' | 'client';
-export type Page = 'search' | 'profile' | 'dashboard' | 'bookings' | 'settings' | 'messages' | 'admin';
+export type Page = 'search' | 'profile' | 'dashboard' | 'bookings' | 'settings' | 'messages' | 'admin' | 'availability';
+
+// FIX: Export ModalState to be used across multiple files.
+export interface ModalState {
+  type: 'auth' | 'artist-detail' | 'shop-detail' | 'booking' | 'client-booking-request' | 'upload-portfolio' | 'edit-booth' | 'leave-review' | null;
+  data?: any;
+}
 
 
 // --- USER & AUTHENTICATION ---

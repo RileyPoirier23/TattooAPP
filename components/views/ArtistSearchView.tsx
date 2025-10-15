@@ -1,3 +1,4 @@
+
 // @/components/views/ArtistSearchView.tsx
 // FIX: Implement the ArtistSearchView component to display a searchable list of shops for artists.
 

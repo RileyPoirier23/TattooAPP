@@ -1,3 +1,4 @@
+
 # InkSpace - Tattoo Booth & Artist Discovery Platform
 
 InkSpace is a dual-platform application for the tattoo industry. The B2B side allows tattoo artists to find and book booths at shops, like an Airbnb for tattoo spaces. The B2C side enables clients to discover and book sessions with artists who are available in their city.
@@ -14,7 +15,7 @@ InkSpace is a dual-platform application for the tattoo industry. The B2B side al
   - Artists can book available booths by the day.
   - Clients can send detailed booking requests to artists.
 - **User Profiles & Dashboards:** Dedicated views for artists, clients, and shop owners to manage their profiles, bookings, and listings.
-- **Admin Panel:** A hidden "DevLogin" provides access to a dashboard to view all platform data.
+- **Admin Panel:** A hidden "DevLogin" provides access to a dashboard to view and manage platform data.
 - **Supabase Backend:** Fully integrated with Supabase for authentication, database, and storage.
 
 ## Tech Stack
@@ -106,7 +107,8 @@ CREATE TABLE profiles (
   specialty TEXT,
   bio TEXT,
   portfolio TEXT[],
-  is_verified BOOLEAN DEFAULT false
+  is_verified BOOLEAN DEFAULT false,
+  socials JSONB
 );
 
 -- Create the shops table
@@ -130,7 +132,10 @@ CREATE TABLE booths (
   id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
   shop_id uuid REFERENCES shops(id) ON DELETE CASCADE,
   name TEXT NOT NULL,
-  daily_rate NUMERIC NOT NULL
+  daily_rate NUMERIC NOT NULL,
+  photos TEXT[],
+  amenities TEXT[],
+  rules TEXT
 );
 
 -- Create the bookings table for artists booking booths
@@ -156,7 +161,10 @@ CREATE TABLE client_booking_requests (
   tattoo_size TEXT,
   body_placement TEXT,
   estimated_hours INTEGER,
-  payment_status TEXT DEFAULT 'unpaid'
+  payment_status TEXT DEFAULT 'unpaid',
+  review_rating INTEGER,
+  review_text TEXT,
+  review_submitted_at TIMESTAMPTZ
 );
 
 -- Create the notifications table
@@ -182,8 +190,18 @@ CREATE TABLE messages (
     id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
     conversation_id uuid REFERENCES conversations(id) ON DELETE CASCADE,
     sender_id uuid REFERENCES auth.users(id) ON DELETE CASCADE,
-    content TEXT NOT NULL,
+    content TEXT,
+    attachment_url TEXT,
     created_at TIMESTAMPTZ DEFAULT now()
+);
+
+-- Create artist_availability table
+CREATE TABLE artist_availability (
+  id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+  artist_id uuid REFERENCES auth.users(id) ON DELETE CASCADE,
+  "date" DATE NOT NULL,
+  status TEXT NOT NULL, -- e.g., 'available', 'unavailable'
+  UNIQUE(artist_id, "date")
 );
 
 
@@ -196,6 +214,7 @@ ALTER TABLE client_booking_requests ENABLE ROW LEVEL SECURITY;
 ALTER TABLE notifications ENABLE ROW LEVEL SECURITY;
 ALTER TABLE conversations ENABLE ROW LEVEL SECURITY;
 ALTER TABLE messages ENABLE ROW LEVEL SECURITY;
+ALTER TABLE artist_availability ENABLE ROW LEVEL SECURITY;
 
 
 -- RLS Policies: Allow public read access
@@ -203,15 +222,22 @@ CREATE POLICY "Public read access for profiles" ON profiles FOR SELECT USING (tr
 CREATE POLICY "Public read access for shops" ON shops FOR SELECT USING (true);
 CREATE POLICY "Public read access for booths" ON booths FOR SELECT USING (true);
 CREATE POLICY "Public read access for bookings" ON bookings FOR SELECT USING (true);
+CREATE POLICY "Public read access for artist_availability" ON artist_availability FOR SELECT USING (true);
 
 -- RLS Policies: Allow users to manage their own data
 CREATE POLICY "Allow users to insert their own profile" ON profiles FOR INSERT WITH CHECK (auth.uid() = id);
 CREATE POLICY "Allow users to update their own profile" ON profiles FOR UPDATE USING (auth.uid() = id);
+
 CREATE POLICY "Allow authenticated users to create bookings" ON bookings FOR INSERT WITH CHECK (auth.role() = 'authenticated');
 CREATE POLICY "Allow artists to view their own bookings" ON bookings FOR SELECT USING (auth.uid() = artist_id);
+
 CREATE POLICY "Allow authenticated users to create client requests" ON client_booking_requests FOR INSERT WITH CHECK (auth.role() = 'authenticated');
 CREATE POLICY "Allow users to view their own client requests" ON client_booking_requests FOR SELECT USING (auth.uid() = client_id OR auth.uid() = artist_id);
+CREATE POLICY "Allow users to update their own client requests" ON client_booking_requests FOR UPDATE USING (auth.uid() = client_id OR auth.uid() = artist_id);
+
 CREATE POLICY "Allow users to manage their own notifications" ON notifications FOR ALL USING (auth.uid() = user_id);
+
+CREATE POLICY "Artists can manage their own availability" ON artist_availability FOR ALL USING (auth.uid() = artist_id);
 
 -- RLS Policies for Messaging
 CREATE POLICY "Users can view their own conversations" ON conversations FOR SELECT USING (auth.uid() = participant_one_id OR auth.uid() = participant_two_id);
@@ -228,13 +254,21 @@ CREATE POLICY "Users can send messages in their conversations" ON messages FOR I
     )
 );
 
+-- RLS Policies for Admins
+CREATE POLICY "Admins can manage all profiles" ON profiles FOR ALL
+USING ((SELECT role FROM profiles WHERE id = auth.uid()) = 'admin');
+
+CREATE POLICY "Admins can manage all shops" ON shops FOR ALL
+USING ((SELECT role FROM profiles WHERE id = auth.uid()) = 'admin');
+
 ```
 
 #### Storage Setup
 
 1.  Go to the **Storage** section in your Supabase dashboard.
 2.  Create a new bucket named `portfolios`.
-3.  Go to **Policies** for the `portfolios` bucket and create the following policies:
+3.  Create a new bucket named `message_attachments`.
+4.  Go to **Policies** for the `portfolios` bucket and create the following policies:
 
     *   **Allow public read access:**
         *   Policy Name: `Public Read Access`
@@ -247,7 +281,18 @@ CREATE POLICY "Users can send messages in their conversations" ON messages FOR I
         *   Allowed operations: `INSERT`
         *   Target roles: `authenticated`
         *   Policy Definition: `bucket_id = 'portfolios'`
+5. Go to **Policies** for the `message_attachments` bucket and create the following policies:
+    *   **Allow public read access:**
+        *   Policy Name: `Public Read Access for Attachments`
+        *   Allowed operations: `SELECT`
+        *   Target roles: `anon`, `authenticated`
+        *   Policy Definition: `true`
 
+    *   **Allow authenticated users to upload:**
+        *   Policy Name: `Authenticated Upload for Attachments`
+        *   Allowed operations: `INSERT`
+        *   Target roles: `authenticated`
+        *   Policy Definition: `bucket_id = 'message_attachments'`
 
 ### 5. Run the Application
 

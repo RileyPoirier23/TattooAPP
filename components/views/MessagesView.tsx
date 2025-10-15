@@ -1,8 +1,9 @@
+
 // @/components/views/MessagesView.tsx
 
 import React, { useState, useEffect, useRef } from 'react';
 import { useAppStore } from '../../hooks/useAppStore';
-import { UserCircleIcon, PaperAirplaneIcon } from '../shared/Icons';
+import { UserCircleIcon, PaperAirplaneIcon, PaperClipIcon } from '../shared/Icons';
 import { Loader } from '../shared/Loader';
 
 export const MessagesView: React.FC = () => {
@@ -16,7 +17,10 @@ export const MessagesView: React.FC = () => {
     } = useAppStore();
     
     const [newMessage, setNewMessage] = useState('');
+    const [attachment, setAttachment] = useState<File | null>(null);
+    const [preview, setPreview] = useState<string | null>(null);
     const messagesEndRef = useRef<HTMLDivElement>(null);
+    const fileInputRef = useRef<HTMLInputElement>(null);
 
     const activeConversation = conversations.find(c => c.id === activeConversationId);
 
@@ -26,9 +30,21 @@ export const MessagesView: React.FC = () => {
 
     const handleSendMessage = (e: React.FormEvent) => {
         e.preventDefault();
-        if (newMessage.trim()) {
-            sendMessage(newMessage);
+        if (newMessage.trim() || attachment) {
+            sendMessage(newMessage, attachment || undefined);
             setNewMessage('');
+            setAttachment(null);
+            setPreview(null);
+        }
+    };
+    
+    const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+        const file = e.target.files?.[0];
+        if (file) {
+            setAttachment(file);
+            const reader = new FileReader();
+            reader.onloadend = () => setPreview(reader.result as string);
+            reader.readAsDataURL(file);
         }
     };
 
@@ -52,7 +68,6 @@ export const MessagesView: React.FC = () => {
                             <div>
                                 <p className="font-semibold text-white">{convo.otherUser.name}</p>
                                 <p className="text-sm text-brand-gray truncate">
-                                    {/* Placeholder for last message preview */}
                                     Click to view conversation
                                 </p>
                             </div>
@@ -83,30 +98,4 @@ export const MessagesView: React.FC = () => {
                             {messages.map(msg => (
                                 <div key={msg.id} className={`flex ${msg.senderId === user.id ? 'justify-end' : 'justify-start'}`}>
                                     <div className={`max-w-md p-3 rounded-2xl ${msg.senderId === user.id ? 'bg-brand-primary text-white rounded-br-none' : 'bg-gray-700 text-brand-light rounded-bl-none'}`}>
-                                        <p>{msg.content}</p>
-                                        <p className="text-xs opacity-70 mt-1 text-right">{new Date(msg.createdAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</p>
-                                    </div>
-                                </div>
-                            ))}
-                            <div ref={messagesEndRef} />
-                        </div>
-                        <footer className="p-4 border-t border-gray-800">
-                            <form onSubmit={handleSendMessage} className="flex items-center space-x-3">
-                                <input
-                                    type="text"
-                                    value={newMessage}
-                                    onChange={(e) => setNewMessage(e.target.value)}
-                                    placeholder="Type a message..."
-                                    className="w-full bg-gray-800 border-gray-700 rounded-full py-3 px-5 text-white focus:ring-2 focus:ring-brand-primary focus:outline-none"
-                                />
-                                <button type="submit" className="bg-brand-secondary p-3 rounded-full text-white hover:bg-opacity-80 transition-colors">
-                                    <PaperAirplaneIcon className="w-6 h-6" />
-                                </button>
-                            </form>
-                        </footer>
-                    </>
-                )}
-            </div>
-        </div>
-    );
-};
+                                        {msg.attachmentUrl &&

@@ -1,3 +1,4 @@
+
 // @/components/shared/AboutSection.tsx
 
 import React from 'react';

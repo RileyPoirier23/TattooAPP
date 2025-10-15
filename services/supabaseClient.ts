@@ -1,3 +1,4 @@
+
 import { createClient } from '@supabase/supabase-js';
 
 // FIX: Cast `import.meta` to `any` to resolve TypeScript error regarding the 'env' property.

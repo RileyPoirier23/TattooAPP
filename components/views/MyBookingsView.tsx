@@ -1,8 +1,9 @@
+
 // @/components/views/MyBookingsView.tsx
 
 import React from 'react';
 import type { User, Booking, ClientBookingRequest, Shop } from '../../types';
-import { CalendarIcon, UserCircleIcon, LocationIcon } from '../shared/Icons';
+import { CalendarIcon, UserCircleIcon, LocationIcon, CheckBadgeIcon } from '../shared/Icons';
 
 interface MyBookingsViewProps {
   user: User;
@@ -10,6 +11,8 @@ interface MyBookingsViewProps {
   allClientBookings: ClientBookingRequest[];
   shops: Shop[];
   onRespondToRequest: (requestId: string, status: 'approved' | 'declined') => void;
+  onCompleteRequest: (requestId: string) => void;
+  onLeaveReview: (request: ClientBookingRequest) => void;
 }
 
 const getStatusChip = (status: string) => {
@@ -22,12 +25,14 @@ const getStatusChip = (status: string) => {
             return 'bg-yellow-500/20 text-yellow-400';
         case 'declined':
             return 'bg-red-500/20 text-red-400';
+        case 'completed':
+            return 'bg-blue-500/20 text-blue-400';
         default:
             return 'bg-gray-500/20 text-gray-400';
     }
 };
 
-export const MyBookingsView: React.FC<MyBookingsViewProps> = ({ user, artistBookings, allClientBookings, shops, onRespondToRequest }) => {
+export const MyBookingsView: React.FC<MyBookingsViewProps> = ({ user, artistBookings, allClientBookings, shops, onRespondToRequest, onCompleteRequest, onLeaveReview }) => {
 
   const canViewArtistBookings = user.type === 'artist' || user.type === 'dual';
   const canViewClientBookings = user.type === 'client' || user.type === 'dual';
@@ -68,6 +73,12 @@ export const MyBookingsView: React.FC<MyBookingsViewProps> = ({ user, artistBook
                                                     Decline
                                                 </button>
                                             </div>
+                                        )}
+                                        {booking.status === 'approved' && (
+                                            <button onClick={() => onCompleteRequest(booking.id)} className="text-sm bg-blue-600 text-white font-semibold py-2 px-3 rounded-lg hover:bg-blue-500 transition-colors flex items-center gap-2">
+                                                <CheckBadgeIcon className="w-4 h-4" />
+                                                Mark as Complete
+                                            </button>
                                         )}
                                     </div>
                                 </div>
@@ -133,9 +144,17 @@ export const MyBookingsView: React.FC<MyBookingsViewProps> = ({ user, artistBook
                        <span className={`text-xs font-bold px-3 py-1 rounded-full capitalize ${getStatusChip(booking.status)}`}>
                             {booking.status}
                         </span>
-                        <button className="text-sm bg-gray-700 text-white font-semibold py-2 px-4 rounded-lg hover:bg-gray-600">
-                            View Details
-                        </button>
+                        {booking.status === 'completed' && !booking.reviewRating && (
+                            <button onClick={() => onLeaveReview(booking)} className="text-sm bg-yellow-600 text-white font-semibold py-2 px-4 rounded-lg hover:bg-yellow-500">
+                                Leave a Review
+                            </button>
+                        )}
+                        {booking.status === 'completed' && booking.reviewRating && (
+                            <div className="text-sm text-yellow-400 flex items-center gap-1">
+                                <CheckBadgeIcon className="w-5 h-5" />
+                                <span>Reviewed</span>
+                            </div>
+                        )}
                     </div>
                   </div>
                 ))

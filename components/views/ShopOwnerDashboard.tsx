@@ -1,7 +1,8 @@
+
 // @/components/views/ShopOwnerDashboard.tsx
 
 import React, { useState } from 'react';
-import type { Shop, Booth, PaymentMethods } from '../../types';
+import type { Shop, Booth, PaymentMethods, ModalState } from '../../types';
 import { EditIcon, PriceIcon } from '../shared/Icons';
 
 interface ShopOwnerDashboardProps {
@@ -11,6 +12,7 @@ interface ShopOwnerDashboardProps {
   addBooth: (shopId: string, boothData: Omit<Booth, 'id' | 'shopId'>) => void;
   updateBooth: (boothId: string, data: Partial<Booth>) => void;
   deleteBooth: (boothId: string) => void;
+  openModal: (type: ModalState['type'], data?: any) => void;
 }
 
 export const ShopOwnerDashboard: React.FC<ShopOwnerDashboardProps> = ({
@@ -20,6 +22,7 @@ export const ShopOwnerDashboard: React.FC<ShopOwnerDashboardProps> = ({
   addBooth,
   updateBooth,
   deleteBooth,
+  openModal,
 }) => {
   const [newBoothName, setNewBoothName] = useState('');
   const [newBoothRate, setNewBoothRate] = useState(100);
@@ -100,6 +103,7 @@ export const ShopOwnerDashboard: React.FC<ShopOwnerDashboardProps> = ({
                     <p className="font-semibold text-white">{booth.name}</p>
                     <div className="flex items-center gap-4">
                          <p className="text-lg font-bold text-brand-primary">${booth.dailyRate}<span className="text-sm font-normal text-brand-gray">/day</span></p>
+                         <button onClick={() => openModal('edit-booth', booth)} className="text-brand-gray hover:text-white"><EditIcon className="w-5 h-5"/></button>
                          <button onClick={() => deleteBooth(booth.id)} className="text-red-500 hover:text-red-400 text-sm">Delete</button>
                     </div>
                 </div>

@@ -1,11 +1,15 @@
+
 // @/components/views/AdminDashboard.tsx
 
 import React from 'react';
 import type { MockData, User } from '../../types';
+import { XIcon } from '../shared/Icons';
 
 interface AdminDashboardProps {
     data: MockData;
     allUsers: User[];
+    deleteUser: (userId: string) => void;
+    deleteShop: (shopId: string) => void;
 }
 
 const TableCard: React.FC<{ title: string; children: React.ReactNode }> = ({ title, children }) => (
@@ -30,13 +34,26 @@ const Table: React.FC<{ headers: string[]; children: React.ReactNode }> = ({ hea
     </table>
 );
 
-export const AdminDashboard: React.FC<AdminDashboardProps> = ({ data, allUsers }) => {
+export const AdminDashboard: React.FC<AdminDashboardProps> = ({ data, allUsers, deleteUser, deleteShop }) => {
+    
+    const handleDeleteUser = (user: User) => {
+        if (window.confirm(`Are you sure you want to delete user ${user.data.name} (${user.email})? This action cannot be undone.`)) {
+            deleteUser(user.id);
+        }
+    };
+
+    const handleDeleteShop = (shop: any) => {
+        if (window.confirm(`Are you sure you want to delete shop ${shop.name}? This action cannot be undone.`)) {
+            deleteShop(shop.id);
+        }
+    };
+
     return (
         <div className="max-w-7xl mx-auto space-y-8">
             <h1 className="text-4xl font-bold text-white">Admin Dashboard</h1>
 
             <TableCard title="All Users">
-                <Table headers={['ID', 'Email', 'Name', 'Role', 'Verified']}>
+                <Table headers={['ID', 'Email', 'Name', 'Role', 'Verified', 'Actions']}>
                     {allUsers.map(user => (
                         <tr key={user.id} className="border-b border-gray-800 hover:bg-gray-800/50">
                             <td className="px-6 py-4 font-mono text-xs">{user.id}</td>
@@ -44,13 +61,16 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ data, allUsers }
                             <td className="px-6 py-4 font-medium text-white">{'data' in user ? user.data.name : 'N/A'}</td>
                             <td className="px-6 py-4 capitalize">{user.type}</td>
                             <td className="px-6 py-4">{('data' in user && 'isVerified' in user.data) ? String(user.data.isVerified) : 'N/A'}</td>
+                            <td className="px-6 py-4">
+                                <button onClick={() => handleDeleteUser(user)} className="text-red-500 hover:text-red-400"><XIcon className="w-5 h-5"/></button>
+                            </td>
                         </tr>
                     ))}
                 </Table>
             </TableCard>
 
             <TableCard title="Shops">
-                <Table headers={['ID', 'Name', 'Location', 'Rating', 'Verified']}>
+                <Table headers={['ID', 'Name', 'Location', 'Rating', 'Verified', 'Actions']}>
                     {data.shops.map(shop => (
                         <tr key={shop.id} className="border-b border-gray-800 hover:bg-gray-800/50">
                             <td className="px-6 py-4 font-mono text-xs">{shop.id}</td>
@@ -58,6 +78,9 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ data, allUsers }
                             <td className="px-6 py-4">{shop.location}</td>
                             <td className="px-6 py-4">{shop.rating}</td>
                             <td className="px-6 py-4">{String(shop.isVerified)}</td>
+                            <td className="px-6 py-4">
+                                <button onClick={() => handleDeleteShop(shop)} className="text-red-500 hover:text-red-400"><XIcon className="w-5 h-5"/></button>
+                            </td>
                         </tr>
                     ))}
                 </Table>

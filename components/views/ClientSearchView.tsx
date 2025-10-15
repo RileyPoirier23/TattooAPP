@@ -1,14 +1,16 @@
+
 // @/components/views/ClientSearchView.tsx
 // FIX: Implement the ClientSearchView component to display a searchable list of artists for clients.
 
 import React, { useState, useMemo } from 'react';
 import { useAppStore } from '../../hooks/useAppStore';
-import type { Artist } from '../../types';
-import { SearchIcon, LocationIcon, PaletteIcon, CrosshairsIcon, CheckBadgeIcon } from '../shared/Icons';
+import type { Artist, Review } from '../../types';
+import { SearchIcon, LocationIcon, PaletteIcon, CrosshairsIcon, CheckBadgeIcon, StarIcon } from '../shared/Icons';
 import { Loader } from '../shared/Loader';
 import { ErrorDisplay } from '../shared/ErrorDisplay';
 import { useGoogleMaps } from '../../hooks/useGoogleMaps';
 import { getCityFromCoords } from '../../services/googlePlacesService';
+import { fetchArtistReviews } from '../../services/apiService';
 
 
 const ArtistCard: React.FC<{ artist: Artist; onSelect: (artist: Artist) => void }> = ({ artist, onSelect }) => (
@@ -20,6 +22,12 @@ const ArtistCard: React.FC<{ artist: Artist; onSelect: (artist: Artist) => void 
             <div className="absolute top-2 right-2 bg-brand-secondary text-white text-xs font-bold px-2 py-1 rounded-full flex items-center z-10 shadow-lg">
                 <CheckBadgeIcon className="w-4 h-4 mr-1" />
                 VERIFIED
+            </div>
+        )}
+        {artist.averageRating && artist.averageRating > 0 && (
+            <div className="absolute top-2 left-2 bg-black/50 text-white text-xs font-bold px-2 py-1 rounded-full flex items-center z-10 backdrop-blur-sm">
+                <StarIcon className="w-4 h-4 mr-1 text-yellow-400" />
+                {artist.averageRating.toFixed(1)}
             </div>
         )}
         <img 
@@ -36,7 +44,7 @@ const ArtistCard: React.FC<{ artist: Artist; onSelect: (artist: Artist) => void 
 );
 
 export const ClientSearchView: React.FC = () => {
-    const { data: { artists }, isLoading, error, openModal, showToast } = useAppStore();
+    const { data: { artists, clientBookingRequests }, isLoading, error, openModal, showToast } = useAppStore();
     
     // Live input state
     const [searchTerm, setSearchTerm] = useState('');
@@ -51,6 +59,15 @@ export const ClientSearchView: React.FC = () => {
     const [isLocating, setIsLocating] = useState(false);
     const [showOnlyVerified, setShowOnlyVerified] = useState(false);
     const { isLoaded: isMapsLoaded, error: mapsError } = useGoogleMaps();
+
+    const artistsWithRatings = useMemo(() => {
+        return artists.map(artist => {
+            const reviews = clientBookingRequests.filter(b => b.artistId === artist.id && b.reviewRating);
+            const totalRating = reviews.reduce((acc, curr) => acc + (curr.reviewRating || 0), 0);
+            const averageRating = reviews.length > 0 ? totalRating / reviews.length : 0;
+            return { ...artist, averageRating };
+        });
+    }, [artists, clientBookingRequests]);
 
     const handleSearch = () => {
         setSearchedTerm(searchTerm);
@@ -75,11 +92,8 @@ export const ClientSearchView: React.FC = () => {
                 const { latitude, longitude } = position.coords;
                 try {
                     const city = await getCityFromCoords({ lat: latitude, lng: longitude });
-                    // Set the input field value
                     setLocation(city);
-                    // And immediately trigger a search for that city
                     setSearchedLocation(city); 
-                    // Clear other filters for this search
                     setSearchTerm('');
                     setSearchedTerm('');
                     setSpecialty('');
@@ -98,16 +112,25 @@ export const ClientSearchView: React.FC = () => {
         );
     };
 
-    const filteredArtists = useMemo(() => {
-        const artistsToFilter = showOnlyVerified ? artists.filter(a => a.isVerified) : artists;
+    const handleSelectArtist = async (artist: Artist) => {
+        try {
+            const reviews = await fetchArtistReviews(artist.id);
+            openModal('artist-detail', { artist, reviews });
+        } catch (err) {
+            showToast('Could not load artist reviews.', 'error');
+            // Open modal without reviews on error
+            openModal('artist-detail', { artist, reviews: [] });
+        }
+    };
 
-        // Filter based on the submitted search terms
+    const filteredArtists = useMemo(() => {
+        const artistsToFilter = showOnlyVerified ? artistsWithRatings.filter(a => a.isVerified) : artistsWithRatings;
         return artistsToFilter.filter(artist => 
             artist.name.toLowerCase().includes(searchedTerm.toLowerCase()) &&
             artist.city.toLowerCase().includes(searchedLocation.toLowerCase()) &&
             artist.specialty.toLowerCase().includes(searchedSpecialty.toLowerCase())
         );
-    }, [artists, searchedTerm, searchedLocation, searchedSpecialty, showOnlyVerified]);
+    }, [artistsWithRatings, searchedTerm, searchedLocation, searchedSpecialty, showOnlyVerified]);
     
     const hasSearched = searchedTerm || searchedLocation || searchedSpecialty;
 
@@ -176,7 +199,7 @@ export const ClientSearchView: React.FC = () => {
 
             <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-6">
                 {filteredArtists.map(artist => (
-                    <ArtistCard key={artist.id} artist={artist} onSelect={() => openModal('artist-detail', artist)} />
+                    <ArtistCard key={artist.id} artist={artist} onSelect={handleSelectArtist} />
                 ))}
             </div>
              {filteredArtists.length === 0 && (

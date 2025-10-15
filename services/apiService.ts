@@ -1,6 +1,7 @@
+
 // @/services/apiService.ts
 import { supabase } from './supabaseClient';
-import type { Artist, Shop, Booth, Booking, ClientBookingRequest, Notification, User, UserRole, Client, ShopOwner, Conversation, Message, ConversationWithUser } from '../types';
+import type { Artist, Shop, Booth, Booking, ClientBookingRequest, Notification, User, UserRole, Client, ShopOwner, Conversation, Message, ConversationWithUser, ArtistAvailability, Review } from '../types';
 
 const adaptProfileToUser = (profile: any): User | null => {
     if (!profile) return null;
@@ -13,7 +14,7 @@ const adaptProfileToUser = (profile: any): User | null => {
     switch (profile.role) {
         case 'artist':
         case 'dual':
-            return { ...baseUser, type: profile.role, data: { id: profile.id, name: profile.full_name, city: profile.city, specialty: profile.specialty, bio: profile.bio, portfolio: profile.portfolio || [], isVerified: profile.is_verified } as Artist };
+            return { ...baseUser, type: profile.role, data: { id: profile.id, name: profile.full_name, city: profile.city, specialty: profile.specialty, bio: profile.bio, portfolio: profile.portfolio || [], isVerified: profile.is_verified, socials: profile.socials } as Artist };
         case 'client':
             return { ...baseUser, type: 'client', data: { id: profile.id, name: profile.full_name } as Client };
         case 'shop-owner':
@@ -46,9 +47,10 @@ export const fetchInitialData = async (): Promise<any> => {
             client:profiles!client_booking_requests_client_id_fkey(full_name),
             artist:profiles!client_booking_requests_artist_id_fkey(full_name)
         `);
+    const { data: availability, error: availabilityError } = await supabase.from('artist_availability').select('*');
 
-    if (artistsError || shopsError || boothsError || bookingsError || clientBookingsError) {
-        console.error({ artistsError, shopsError, boothsError, bookingsError, clientBookingsError });
+    if (artistsError || shopsError || boothsError || bookingsError || clientBookingsError || availabilityError) {
+        console.error({ artistsError, shopsError, boothsError, bookingsError, clientBookingsError, availabilityError });
         throw new Error('Failed to fetch initial data from Supabase.');
     }
     
@@ -60,6 +62,7 @@ export const fetchInitialData = async (): Promise<any> => {
         city: profile.city,
         bio: profile.bio,
         isVerified: profile.is_verified,
+        socials: profile.socials || {},
     }));
 
     const adaptedShops: Shop[] = shops.map(shop => ({ ...shop, isVerified: shop.is_verified }));
@@ -89,6 +92,16 @@ export const fetchInitialData = async (): Promise<any> => {
       paymentStatus: b.payment_status,
       clientName: (b.client as any)?.full_name || 'Unknown Client',
       artistName: (b.artist as any)?.full_name || 'Unknown Artist',
+      reviewRating: b.review_rating,
+      reviewText: b.review_text,
+      reviewSubmittedAt: b.review_submitted_at,
+    }));
+
+    const adaptedAvailability: ArtistAvailability[] = availability.map(a => ({
+        id: a.id,
+        artistId: a.artist_id,
+        date: a.date,
+        status: a.status,
     }));
 
     return { 
@@ -97,6 +110,7 @@ export const fetchInitialData = async (): Promise<any> => {
         booths, 
         bookings: adaptedBookings,
         clientBookingRequests: adaptedClientBookings,
+        artistAvailability: adaptedAvailability,
         notifications: [],
         conversations: [],
         messages: [],
@@ -124,6 +138,7 @@ export const updateArtistData = async (artistId: string, updatedData: Partial<Ar
     if (updatedData.bio) profileUpdate.bio = updatedData.bio;
     if (updatedData.city) profileUpdate.city = updatedData.city;
     if (updatedData.portfolio) profileUpdate.portfolio = updatedData.portfolio;
+    if (updatedData.socials) profileUpdate.socials = updatedData.socials;
 
     const { data, error } = await supabase
         .from('profiles')
@@ -142,6 +157,7 @@ export const updateArtistData = async (artistId: string, updatedData: Partial<Ar
         city: data.city,
         bio: data.bio,
         isVerified: data.is_verified,
+        socials: data.socials,
     };
 };
 
@@ -268,7 +284,7 @@ export const createClientBookingRequest = async (requestData: Omit<ClientBooking
     };
 };
 
-export const updateClientBookingRequestStatus = async (requestId: string, status: 'approved' | 'declined'): Promise<{ success: boolean }> => {
+export const updateClientBookingRequestStatus = async (requestId: string, status: ClientBookingRequest['status']): Promise<{ success: boolean }> => {
     const { data: request, error: fetchError } = await supabase
         .from('client_booking_requests')
         .select('client_id, artist_id')
@@ -424,14 +440,17 @@ export const fetchMessagesForConversation = async (conversationId: string): Prom
         conversationId: m.conversation_id,
         senderId: m.sender_id,
         content: m.content,
+        attachmentUrl: m.attachment_url,
         createdAt: m.created_at,
     }));
 };
 
-export const sendMessage = async (conversationId: string, senderId: string, content: string): Promise<Message> => {
+export const sendMessage = async (conversationId: string, senderId: string, content?: string, attachmentUrl?: string): Promise<Message> => {
+    if (!content && !attachmentUrl) throw new Error("Message must have content or an attachment.");
+    
     const { data, error } = await supabase
         .from('messages')
-        .insert({ conversation_id: conversationId, sender_id: senderId, content })
+        .insert({ conversation_id: conversationId, sender_id: senderId, content, attachment_url: attachmentUrl })
         .select()
         .single();
     
@@ -441,10 +460,24 @@ export const sendMessage = async (conversationId: string, senderId: string, cont
         conversationId: data.conversation_id,
         senderId: data.sender_id,
         content: data.content,
+        attachmentUrl: data.attachment_url,
         createdAt: data.created_at,
     };
 };
 
+export const uploadMessageAttachment = async (file: File, conversationId: string): Promise<string> => {
+    const fileExt = file.name.split('.').pop();
+    const fileName = `${conversationId}/${Date.now()}.${fileExt}`;
+
+    const { error: uploadError } = await supabase.storage
+        .from('message_attachments')
+        .upload(fileName, file);
+    
+    if (uploadError) throw uploadError;
+
+    const { data } = supabase.storage.from('message_attachments').getPublicUrl(fileName);
+    return data.publicUrl;
+};
 
 
 // --- The following are not in the placeholder but are useful ---
@@ -478,4 +511,63 @@ export const fetchUserBookings = async (userId: string, userType: 'artist' | 'cl
     }
 
     return { artistBookings, clientBookings };
+};
+
+// --- ARTIST AVAILABILITY ---
+export const setArtistAvailability = async (artistId: string, date: string, status: 'available' | 'unavailable'): Promise<ArtistAvailability> => {
+    const { data, error } = await supabase
+        .from('artist_availability')
+        .upsert({ artist_id: artistId, date: date, status: status }, { onConflict: 'artist_id, date' })
+        .select()
+        .single();
+    
+    if (error) throw error;
+    return { id: data.id, artistId: data.artist_id, date: data.date, status: data.status };
+};
+
+// --- REVIEWS ---
+export const submitReview = async (requestId: string, rating: number, text: string): Promise<ClientBookingRequest> => {
+    const { data, error } = await supabase
+        .from('client_booking_requests')
+        .update({ review_rating: rating, review_text: text, review_submitted_at: new Date().toISOString() })
+        .eq('id', requestId)
+        .select()
+        .single();
+    
+    if (error) throw error;
+    return data;
+};
+
+export const fetchArtistReviews = async (artistId: string): Promise<Review[]> => {
+    const { data, error } = await supabase
+        .from('client_booking_requests')
+        .select('id, review_rating, review_text, review_submitted_at, client:profiles!client_booking_requests_client_id_fkey(id, full_name)')
+        .eq('artist_id', artistId)
+        .not('review_rating', 'is', null);
+
+    if (error) throw error;
+
+    return data.map(r => ({
+        id: r.id,
+        authorId: (r.client as any).id,
+        authorName: (r.client as any).full_name,
+        rating: r.review_rating,
+        text: r.review_text,
+        createdAt: r.review_submitted_at,
+    }));
+};
+
+// --- ADMIN ACTIONS ---
+export const deleteUserAsAdmin = async (userId: string): Promise<{ success: boolean }> => {
+    const { error } = await supabase.from('profiles').delete().eq('id', userId);
+    if (error) throw error;
+    // Note: Deleting from auth.users requires service_role key, typically done in a backend function for security.
+    // This will only delete the profile, not the auth user.
+    return { success: true };
+};
+
+export const deleteShopAsAdmin = async (shopId: string): Promise<{ success: boolean }> => {
+    const { error } = await supabase.from('shops').delete().eq('id', shopId);
+    if (error) throw error;
+    return { success: true };
 };

@@ -1,21 +1,17 @@
+
 // @/hooks/useAppStore.ts
 // FIX: Implement the useAppStore hook with Zustand for centralized state management.
 
 import { create } from 'zustand';
 import { persist } from 'zustand/middleware';
 import {
-  Artist, Shop, Booking, Booth, User, ViewMode, Page, AuthCredentials, RegisterDetails, MockData, ClientBookingRequest, Notification, Client, ShopOwner, Admin, ConversationWithUser, Message,
+  Artist, Shop, Booking, Booth, User, ViewMode, Page, AuthCredentials, RegisterDetails, MockData, ClientBookingRequest, Notification, Client, ShopOwner, Admin, ConversationWithUser, Message, ArtistAvailability, Review, ModalState,
 } from '../types';
 import {
   fetchInitialData, updateArtistData, uploadPortfolioImage, updateShopData, addBoothToShop, deleteBoothFromShop,
-  createBookingForArtist, createClientBookingRequest, updateClientBookingRequestStatus, fetchNotificationsForUser, markUserNotificationsAsRead, createNotification, fetchAllUsers, updateUserData, updateBoothData, fetchUserConversations, fetchMessagesForConversation, sendMessage, findOrCreateConversation,
+  createBookingForArtist, createClientBookingRequest, updateClientBookingRequestStatus, fetchNotificationsForUser, markUserNotificationsAsRead, createNotification, fetchAllUsers, updateUserData, updateBoothData, fetchUserConversations, fetchMessagesForConversation, sendMessage, findOrCreateConversation, setArtistAvailability, submitReview, deleteUserAsAdmin, deleteShopAsAdmin, uploadMessageAttachment, fetchArtistReviews,
 } from '../services/apiService';
 import { authService } from '../services/authService';
-
-interface ModalState {
-  type: 'auth' | 'artist-detail' | 'shop-detail' | 'booking' | 'client-booking-request' | 'upload-portfolio' | null;
-  data?: any;
-}
 
 interface ToastState {
   id: number;
@@ -61,6 +57,8 @@ interface AppState {
   confirmArtistBooking: (bookingData: Omit<Booking, 'id' | 'artistId'>) => Promise<void>;
   sendClientBookingRequest: (requestData: Omit<ClientBookingRequest, 'id' | 'clientId' | 'status' | 'paymentStatus'>) => Promise<void>;
   respondToBookingRequest: (requestId: string, status: 'approved' | 'declined') => Promise<void>;
+  completeBookingRequest: (requestId: string) => Promise<void>;
+  submitReview: (requestId: string, rating: number, text: string) => Promise<void>;
   updateUser: (userId: string, data: Partial<User['data']>) => Promise<void>;
   updateArtist: (artistId: string, data: Partial<Artist>) => Promise<void>;
   uploadPortfolio: (file: File) => Promise<void>;
@@ -68,18 +66,23 @@ interface AppState {
   addBooth: (shopId: string, boothData: Omit<Booth, 'id' | 'shopId'>) => Promise<void>;
   updateBooth: (boothId: string, data: Partial<Booth>) => Promise<void>;
   deleteBooth: (boothId: string) => Promise<void>;
+  setArtistAvailability: (date: string, status: 'available' | 'unavailable') => Promise<void>;
+  
+  // Admin Actions
+  deleteUser: (userId: string) => Promise<void>;
+  deleteShop: (shopId: string) => Promise<void>;
   
   // Messaging Actions
   loadConversations: () => Promise<void>;
   selectConversation: (conversationId: string) => Promise<void>;
-  sendMessage: (content: string) => Promise<void>;
+  sendMessage: (content: string, attachmentFile?: File) => Promise<void>;
   startConversationAndNavigate: (otherUserId: string) => Promise<void>;
 }
 
 export const useAppStore = create<AppState>()(
   persist(
     (set, get) => ({
-      data: { artists: [], shops: [], booths: [], bookings: [], clientBookingRequests: [], notifications: [], conversations: [], messages: [] },
+      data: { artists: [], shops: [], booths: [], bookings: [], clientBookingRequests: [], notifications: [], conversations: [], messages: [], artistAvailability: [] },
       allUsers: [],
       isInitialized: false,
       isLoading: true,
@@ -235,10 +238,6 @@ export const useAppStore = create<AppState>()(
       updateUser: async (userId, data) => {
           if (get().user?.id !== userId) return;
           await updateUserData(userId, data);
-          // FIX: The generic update was causing type errors with the discriminated union `User` type.
-          // This was because `data` is a broad `Partial<User['data']>`, which makes TS think
-          // required properties on specific user data types (e.g., `Artist['specialty']`) could become optional.
-          // Using a type-guarded update inside `set` ensures type safety.
           set(state => {
               const user = state.user;
               if (!user) return {};
@@ -260,9 +259,6 @@ export const useAppStore = create<AppState>()(
       
       updateArtist: async (artistId, data) => {
         const updatedArtist = await updateArtistData(artistId, data);
-        // FIX: The previous implementation didn't check the user's type, which could lead to
-        // incorrectly assigning `Artist` data to a non-artist user (e.g., a ShopOwner).
-        // Adding a type check for 'artist' or 'dual' ensures the user in state is updated correctly and safely.
         set(state => ({
             data: { ...state.data, artists: state.data.artists.map(a => a.id === artistId ? updatedArtist : a) },
             user: (state.user?.id === artistId && (state.user.type === 'artist' || state.user.type === 'dual')) 
@@ -303,12 +299,62 @@ export const useAppStore = create<AppState>()(
           set(state => ({
               data: { ...state.data, booths: state.data.booths.map(b => b.id === boothId ? updatedBooth : b) }
           }));
+          get().closeModal();
       },
       deleteBooth: async (boothId) => {
           await deleteBoothFromShop(boothId);
           set(state => ({
               data: { ...state.data, booths: state.data.booths.filter(b => b.id !== boothId) }
           }));
+      },
+      setArtistAvailability: async (date, status) => {
+        const user = get().user;
+        if (!user || (user.type !== 'artist' && user.type !== 'dual')) return;
+        const newAvailability = await setArtistAvailability(user.id, date, status);
+        set(state => {
+            const existing = state.data.artistAvailability.find(a => a.date === date && a.artistId === user.id);
+            if (existing) {
+                return { data: { ...state.data, artistAvailability: state.data.artistAvailability.map(a => a.id === existing.id ? newAvailability : a)}};
+            } else {
+                return { data: { ...state.data, artistAvailability: [...state.data.artistAvailability, newAvailability]}};
+            }
+        });
+      },
+      completeBookingRequest: async (requestId) => {
+        await updateClientBookingRequestStatus(requestId, 'completed');
+        set(state => ({
+            data: {
+                ...state.data,
+                clientBookingRequests: state.data.clientBookingRequests.map(req => req.id === requestId ? { ...req, status: 'completed' } : req),
+            }
+        }));
+        get().showToast("Booking marked as complete.");
+      },
+      submitReview: async (requestId, rating, text) => {
+        const updatedRequest = await submitReview(requestId, rating, text);
+        set(state => ({
+            data: {
+                ...state.data,
+                clientBookingRequests: state.data.clientBookingRequests.map(req => req.id === requestId ? updatedRequest : req),
+            }
+        }));
+        get().closeModal();
+        get().showToast("Thank you for your review!");
+      },
+      deleteUser: async (userId) => {
+        await deleteUserAsAdmin(userId);
+        set(state => ({
+            allUsers: state.allUsers.filter(u => u.id !== userId),
+            data: { ...state.data, artists: state.data.artists.filter(a => a.id !== userId) }
+        }));
+        get().showToast("User deleted.");
+      },
+      deleteShop: async (shopId) => {
+        await deleteShopAsAdmin(shopId);
+        set(state => ({
+            data: { ...state.data, shops: state.data.shops.filter(s => s.id !== shopId) }
+        }));
+        get().showToast("Shop deleted.");
       },
 
       // --- MESSAGING ACTIONS ---
@@ -323,11 +369,17 @@ export const useAppStore = create<AppState>()(
         const messages = await fetchMessagesForConversation(conversationId);
         set(state => ({ data: { ...state.data, messages }, isLoading: false }));
       },
-      sendMessage: async (content) => {
+      sendMessage: async (content, attachmentFile) => {
         const { activeConversationId, user } = get();
-        if (!activeConversationId || !user || !content.trim()) return;
+        if (!activeConversationId || !user) return;
+        if (!content.trim() && !attachmentFile) return;
 
-        const newMessage = await sendMessage(activeConversationId, user.id, content.trim());
+        let attachmentUrl: string | undefined = undefined;
+        if (attachmentFile) {
+            attachmentUrl = await uploadMessageAttachment(attachmentFile, activeConversationId);
+        }
+
+        const newMessage = await sendMessage(activeConversationId, user.id, content.trim(), attachmentUrl);
         set(state => ({
           data: { ...state.data, messages: [...state.data.messages, newMessage] }
         }));
