@@ -1,9 +1,8 @@
-
 // @/components/views/MessagesView.tsx
 
 import React, { useState, useEffect, useRef } from 'react';
 import { useAppStore } from '../../hooks/useAppStore';
-import { UserCircleIcon, PaperAirplaneIcon, PaperClipIcon } from '../shared/Icons';
+import { UserCircleIcon, PaperAirplaneIcon, PaperClipIcon, XIcon } from '../shared/Icons';
 import { Loader } from '../shared/Loader';
 
 export const MessagesView: React.FC = () => {
@@ -35,6 +34,7 @@ export const MessagesView: React.FC = () => {
             setNewMessage('');
             setAttachment(null);
             setPreview(null);
+            if(fileInputRef.current) fileInputRef.current.value = '';
         }
     };
     
@@ -98,4 +98,49 @@ export const MessagesView: React.FC = () => {
                             {messages.map(msg => (
                                 <div key={msg.id} className={`flex ${msg.senderId === user.id ? 'justify-end' : 'justify-start'}`}>
                                     <div className={`max-w-md p-3 rounded-2xl ${msg.senderId === user.id ? 'bg-brand-primary text-white rounded-br-none' : 'bg-gray-700 text-brand-light rounded-bl-none'}`}>
-                                        {msg.attachmentUrl &&
+                                        {msg.attachmentUrl && (
+                                            <a href={msg.attachmentUrl} target="_blank" rel="noopener noreferrer">
+                                                <img src={msg.attachmentUrl} alt="Attachment" className="rounded-lg mb-2 max-w-xs max-h-48" />
+                                            </a>
+                                        )}
+                                        {msg.content && <p className="whitespace-pre-wrap break-words">{msg.content}</p>}
+                                    </div>
+                                </div>
+                            ))}
+                            <div ref={messagesEndRef} />
+                        </div>
+                         <footer className="p-4 border-t border-gray-800">
+                            {preview && (
+                                <div className="relative mb-2 w-24">
+                                    <img src={preview} alt="Preview" className="w-24 h-24 object-cover rounded-lg" />
+                                    <button 
+                                        onClick={() => { setAttachment(null); setPreview(null); if(fileInputRef.current) fileInputRef.current.value = ''; }} 
+                                        className="absolute -top-2 -right-2 bg-red-600 text-white rounded-full p-1"
+                                    >
+                                        <XIcon className="w-4 h-4" />
+                                    </button>
+                                </div>
+                            )}
+                            <form onSubmit={handleSendMessage} className="flex items-center space-x-3">
+                                <input type="file" ref={fileInputRef} onChange={handleFileChange} className="hidden" accept="image/*" />
+                                <button type="button" onClick={() => fileInputRef.current?.click()} className="p-2 text-brand-gray hover:text-white transition-colors">
+                                    <PaperClipIcon className="w-6 h-6" />
+                                </button>
+                                <input
+                                    type="text"
+                                    value={newMessage}
+                                    onChange={(e) => setNewMessage(e.target.value)}
+                                    placeholder="Type your message..."
+                                    className="flex-grow bg-gray-800 rounded-full py-2 px-4 text-white focus:outline-none focus:ring-2 focus:ring-brand-primary"
+                                />
+                                <button type="submit" className="bg-brand-primary text-white rounded-full p-3 hover:bg-opacity-80 transition-colors">
+                                    <PaperAirplaneIcon className="w-5 h-5" />
+                                </button>
+                            </form>
+                        </footer>
+                    </>
+                )}
+            </div>
+        </div>
+    );
+};
