@@ -1,4 +1,3 @@
-
 # InkSpace - Tattoo Booth & Artist Discovery Platform
 
 InkSpace is a dual-platform application for the tattoo industry. The B2B side allows tattoo artists to find and book booths at shops, like an Airbnb for tattoo spaces. The B2C side enables clients to discover and book sessions with artists who are available in their city.
@@ -223,6 +222,12 @@ CREATE POLICY "Public read access for shops" ON shops FOR SELECT USING (true);
 CREATE POLICY "Public read access for booths" ON booths FOR SELECT USING (true);
 CREATE POLICY "Public read access for bookings" ON bookings FOR SELECT USING (true);
 CREATE POLICY "Public read access for artist_availability" ON artist_availability FOR SELECT USING (true);
+
+-- FIX: Add public read policy for client booking requests.
+-- This is required for the initial data load, which fetches all booking requests
+-- to calculate artist ratings from reviews, even for non-logged-in users.
+-- Without this policy, the app fails to start with a data fetching error.
+CREATE POLICY "Public read access for client booking requests" ON client_booking_requests FOR SELECT USING (true);
 
 -- RLS Policies: Allow users to manage their own data
 CREATE POLICY "Allow users to insert their own profile" ON profiles FOR INSERT WITH CHECK (auth.uid() = id);
