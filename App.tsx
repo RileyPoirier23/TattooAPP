@@ -1,4 +1,3 @@
-
 // @/App.tsx
 // FIX: Implement the main App component to resolve import errors and serve as the application root.
 
@@ -23,6 +22,7 @@ import {
   UploadPortfolioModal,
   EditBoothModal,
   LeaveReviewModal,
+  ImageEditorModal,
 } from './components/ModalsAndProfile';
 import { Toast } from './components/shared/Toast';
 import { Loader } from './components/shared/Loader';
@@ -60,6 +60,7 @@ function App() {
     updateArtist,
     updateUser,
     uploadPortfolio,
+    editPortfolioImage,
     updateShop,
     addBooth,
     updateBooth,
@@ -91,7 +92,7 @@ function App() {
         return viewMode === 'artist' ? <ArtistSearchView /> : <ClientSearchView />;
       case 'profile':
         if (user?.type === 'artist' || user?.type === 'dual') {
-          return <ArtistProfileView artist={user.data} updateArtist={updateArtist} showToast={showToast} onUploadClick={() => openModal('upload-portfolio')} />;
+          return <ArtistProfileView artist={user.data} updateArtist={updateArtist} showToast={showToast} openModal={openModal} />;
         }
         if (user?.type === 'client') {
             const clientBookings = data.clientBookingRequests.filter(b => b.clientId === user.id);
@@ -148,6 +149,13 @@ function App() {
         return <EditBoothModal booth={modal.data} onSave={updateBooth} onClose={closeModal} />
       case 'leave-review':
         return <LeaveReviewModal request={modal.data} onSubmit={submitReview} onClose={closeModal} />
+      case 'image-editor':
+        return <ImageEditorModal 
+                  artistId={modal.data.artistId}
+                  image={modal.data.image}
+                  onClose={closeModal}
+                  onSave={editPortfolioImage} 
+                />;
       default:
         return null;
     }

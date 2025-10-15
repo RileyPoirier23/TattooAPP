@@ -10,6 +10,7 @@ InkSpace is a dual-platform application for the tattoo industry. The B2B side al
 - **AI-Powered Features:**
   - **Gemini Bio Generation:** Artists can automatically generate a professional bio with one click.
   - **Gemini Shop Insights:** Get AI-powered summaries of shops using Google Search grounding for up-to-date information.
+  - **Gemini Image Editing:** Artists can edit their portfolio images using text prompts. AI-edited images are clearly marked with an "AI" badge for transparency.
 - **Full Booking System:**
   - Artists can book available booths by the day.
   - Clients can send detailed booking requests to artists.
@@ -107,7 +108,7 @@ CREATE TABLE IF NOT EXISTS public.profiles (
   city TEXT,
   specialty TEXT,
   bio TEXT,
-  portfolio TEXT[],
+  portfolio JSONB,
   is_verified BOOLEAN DEFAULT false,
   socials JSONB
 );

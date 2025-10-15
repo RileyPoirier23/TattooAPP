@@ -1,4 +1,3 @@
-
 // @/components/views/ClientSearchView.tsx
 // FIX: Implement the ClientSearchView component to display a searchable list of artists for clients.
 
@@ -31,7 +30,7 @@ const ArtistCard: React.FC<{ artist: Artist; onSelect: (artist: Artist) => void 
             </div>
         )}
         <img 
-            src={artist.portfolio.length > 0 ? `${artist.portfolio[0]}?random=${artist.id}` : `https://ui-avatars.com/api/?name=${artist.name.replace(' ', '+')}&background=1A1A1D&color=F04E98`}
+            src={artist.portfolio.length > 0 ? `${artist.portfolio[0].url}?random=${artist.id}` : `https://ui-avatars.com/api/?name=${artist.name.replace(' ', '+')}&background=1A1A1D&color=F04E98`}
             alt={artist.name} 
             className="w-full h-64 object-cover" 
         />

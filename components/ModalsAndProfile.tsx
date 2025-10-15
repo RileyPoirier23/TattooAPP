@@ -1,10 +1,9 @@
-
 // @/components/ModalsAndProfile.tsx
 
 import React, { useState, useMemo, useRef, useCallback } from 'react';
-import type { Artist, Shop, Booking, Booth, Review, AuthCredentials, RegisterDetails, UserRole, GroundingChunk, ClientBookingRequest, Client, Socials } from '../types';
+import type { Artist, Shop, Booking, Booth, Review, AuthCredentials, RegisterDetails, UserRole, GroundingChunk, ClientBookingRequest, Client, Socials, ModalState, PortfolioImage } from '../types';
 import { LocationIcon, StarIcon, PriceIcon, XIcon, EditIcon, PaperAirplaneIcon, CalendarIcon, UploadIcon, CheckBadgeIcon } from './shared/Icons';
-import { generateArtistBio, getShopInfo } from '../services/geminiService';
+import { generateArtistBio, getShopInfo, editImageWithGemini } from '../services/geminiService';
 import { MapEmbed } from './shared/MapEmbed';
 import { Loader } from './shared/Loader';
 import { tattooSizes, bodyPlacements, estimatedHours } from '../data/bookingOptions';
@@ -219,8 +218,8 @@ export const ArtistDetailModal: React.FC<{ artist: Artist; reviews: Review[]; bo
         <Modal onClose={onClose} title={artist.name}>
             <div className="space-y-6">
                 <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                    {artist.portfolio.slice(0, 3).map((url, index) => (
-                        <img key={index} src={`${url}?random=${artist.id}-${index}`} alt={`${artist.name}'s portfolio ${index+1}`} className="w-full h-48 object-cover rounded-lg bg-gray-800" />
+                    {artist.portfolio.slice(0, 3).map((image, index) => (
+                        <img key={index} src={`${image.url}?random=${artist.id}-${index}`} alt={`${artist.name}'s portfolio ${index+1}`} className="w-full h-48 object-cover rounded-lg bg-gray-800" />
                     ))}
                 </div>
                  <div>
@@ -794,10 +793,108 @@ export const LeaveReviewModal: React.FC<{ request: ClientBookingRequest, onSubmi
     );
 };
 
+export const ImageEditorModal: React.FC<{ 
+    artistId: string;
+    image: PortfolioImage; 
+    onClose: () => void; 
+    onSave: (artistId: string, oldImage: PortfolioImage, newImageBase64: string) => Promise<void>; 
+}> = ({ artistId, image, onClose, onSave }) => {
+    const [prompt, setPrompt] = useState('');
+    const [editedImage, setEditedImage] = useState<string | null>(null);
+    const [isGenerating, setIsGenerating] = useState(false);
+    const [isSaving, setIsSaving] = useState(false);
+    const [error, setError] = useState<string | null>(null);
+
+    const handleGenerate = async () => {
+        if (!prompt.trim()) return;
+        setIsGenerating(true);
+        setError(null);
+        setEditedImage(null);
+        try {
+            const resultBase64 = await editImageWithGemini(image.url, prompt);
+            setEditedImage(resultBase64);
+        } catch (err) {
+            setError(err instanceof Error ? err.message : 'An unknown error occurred.');
+        } finally {
+            setIsGenerating(false);
+        }
+    };
+
+    const handleSave = async () => {
+        if (!editedImage) return;
+        setIsSaving(true);
+        setError(null);
+        try {
+            await onSave(artistId, image, editedImage);
+            // The store will close the modal on success.
+        } catch (err) {
+            // Error is handled and displayed by the store's toast.
+        } finally {
+            setIsSaving(false);
+        }
+    };
+
+    return (
+        <Modal onClose={onClose} title="Edit Image with AI" size="xl">
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                {/* Left column */}
+                <div>
+                    <h3 className="font-bold text-white mb-2">Original Image</h3>
+                    <img src={image.url} alt="Original portfolio piece" className="w-full rounded-lg bg-gray-800" />
+                </div>
+                {/* Right column */}
+                <div className="flex flex-col space-y-4">
+                    <div>
+                        <h3 className="font-bold text-white mb-2">Edited Image</h3>
+                        <div className="w-full aspect-square bg-gray-800 rounded-lg flex items-center justify-center">
+                            {isGenerating && <Loader />}
+                            {!isGenerating && editedImage && (
+                                <img src={`data:image/png;base64,${editedImage}`} alt="AI-edited image" className="w-full h-full object-contain rounded-lg" />
+                            )}
+                            {!isGenerating && !editedImage && (
+                                <p className="text-brand-gray text-sm p-4 text-center">Your generated image will appear here.</p>
+                            )}
+                        </div>
+                    </div>
+                    {error && <p className="text-sm text-red-400 text-center">{error}</p>}
+                    <div>
+                        <label htmlFor="edit-prompt" className="text-sm font-medium text-brand-gray mb-1 block">Describe your edits</label>
+                        <textarea
+                            id="edit-prompt"
+                            rows={3}
+                            value={prompt}
+                            onChange={(e) => setPrompt(e.target.value)}
+                            placeholder="e.g., Add a dragon flying in the sky, watercolor style"
+                            className="w-full bg-gray-800 border-gray-700 rounded-lg p-2"
+                            disabled={isGenerating || isSaving}
+                        />
+                    </div>
+                    <div className="flex-grow"></div>
+                    <div className="space-y-2">
+                         <button
+                            onClick={handleGenerate}
+                            disabled={!prompt.trim() || isGenerating || isSaving}
+                            className="w-full bg-brand-secondary text-white font-bold py-3 rounded-lg flex items-center justify-center space-x-2 disabled:bg-gray-600"
+                        >
+                            {isGenerating ? <><Loader /> <span>Generating...</span></> : '✨ Generate'}
+                        </button>
+                         <button
+                            onClick={handleSave}
+                            disabled={!editedImage || isGenerating || isSaving}
+                            className="w-full bg-brand-primary text-white font-bold py-3 rounded-lg flex items-center justify-center space-x-2 disabled:bg-gray-600"
+                        >
+                            {isSaving ? 'Saving...' : 'Save Changes'}
+                        </button>
+                    </div>
+                </div>
+            </div>
+        </Modal>
+    );
+};
 
 // --- PROFILE & DASHBOARD VIEWS ---
 
-export const ArtistProfileView: React.FC<{ artist: Artist; updateArtist: (artistId: string, data: Partial<Artist>) => void; showToast: (message: string, type?: 'success' | 'error') => void; onUploadClick: () => void; }> = ({ artist, updateArtist, showToast, onUploadClick }) => {
+export const ArtistProfileView: React.FC<{ artist: Artist; updateArtist: (artistId: string, data: Partial<Artist>) => void; showToast: (message: string, type?: 'success' | 'error') => void; openModal: (type: ModalState['type'], data?: any) => void; }> = ({ artist, updateArtist, showToast, openModal }) => {
     const [bio, setBio] = useState(artist.bio);
     const [specialty, setSpecialty] = useState(artist.specialty);
     const [socials, setSocials] = useState<Socials>(artist.socials || {});
@@ -825,7 +922,7 @@ export const ArtistProfileView: React.FC<{ artist: Artist; updateArtist: (artist
     return (
          <div className="bg-gray-900/50 rounded-2xl p-8 border border-gray-800 backdrop-blur-sm max-w-4xl mx-auto">
             <div className="flex items-center space-x-4 mb-8">
-                <img src={artist.portfolio.length > 0 ? artist.portfolio[0] : `https://ui-avatars.com/api/?name=${artist.name.replace(' ', '+')}&background=101014&color=F04E98`} alt={artist.name} className="w-24 h-24 object-cover rounded-full border-4 border-gray-700 bg-gray-800" />
+                <img src={artist.portfolio.length > 0 ? artist.portfolio[0].url : `https://ui-avatars.com/api/?name=${artist.name.replace(' ', '+')}&background=101014&color=F04E98`} alt={artist.name} className="w-24 h-24 object-cover rounded-full border-4 border-gray-700 bg-gray-800" />
                 <div>
                     <h2 className="text-4xl font-bold text-white">{artist.name}</h2>
                     <p className="text-brand-primary text-lg">{artist.city}</p>
@@ -873,17 +970,26 @@ export const ArtistProfileView: React.FC<{ artist: Artist; updateArtist: (artist
                 <div>
                      <h3 className="text-sm font-medium text-brand-gray mb-2">Portfolio</h3>
                      <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-                        {artist.portfolio.map((url, i) => (
+                        {artist.portfolio.map((image, i) => (
                              <div key={i} className="relative group">
-                                <img src={`${url}?random=${artist.id}-${i}`} alt={`Portfolio piece ${i}`} className="w-full h-32 object-cover rounded-lg bg-gray-800" />
+                                <img src={`${image.url}?random=${artist.id}-${i}`} alt={`Portfolio piece ${i}`} className="w-full h-32 object-cover rounded-lg bg-gray-800" />
+                                {image.isAiGenerated && (
+                                    <div className="absolute top-1 right-1 bg-black/70 text-white text-[10px] font-bold px-1.5 py-0.5 rounded-full backdrop-blur-sm">
+                                        AI
+                                    </div>
+                                )}
                                 <div className="absolute inset-0 bg-black/60 opacity-0 group-hover:opacity-100 flex items-center justify-center transition-opacity">
-                                    <button onClick={() => showToast('Editing images coming soon!', 'error')} className="text-white p-2 bg-black/50 rounded-full" title="Edit image">
+                                    <button 
+                                        onClick={() => openModal('image-editor', { image: image, artistId: artist.id })} 
+                                        className="text-white p-2 bg-black/50 rounded-full" 
+                                        title="Edit image with AI"
+                                    >
                                         <EditIcon className="w-5 h-5" />
                                     </button>
                                 </div>
                             </div>
                         ))}
-                        <button onClick={onUploadClick} className="w-full h-32 rounded-lg border-2 border-dashed border-gray-700 flex flex-col items-center justify-center text-brand-gray hover:bg-gray-800 hover:border-gray-600 transition-colors">
+                        <button onClick={() => openModal('upload-portfolio')} className="w-full h-32 rounded-lg border-2 border-dashed border-gray-700 flex flex-col items-center justify-center text-brand-gray hover:bg-gray-800 hover:border-gray-600 transition-colors">
                             <UploadIcon className="w-8 h-8 mb-2" />
                             <span className="text-sm font-semibold">Add Image</span>
                         </button>

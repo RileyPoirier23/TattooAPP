@@ -1,7 +1,6 @@
-
 // @/services/apiService.ts
 import { supabase } from './supabaseClient';
-import type { Artist, Shop, Booth, Booking, ClientBookingRequest, Notification, User, UserRole, Client, ShopOwner, Conversation, Message, ConversationWithUser, ArtistAvailability, Review } from '../types';
+import type { Artist, Shop, Booth, Booking, ClientBookingRequest, Notification, User, UserRole, Client, ShopOwner, Conversation, Message, ConversationWithUser, ArtistAvailability, Review, PortfolioImage } from '../types';
 
 const adaptProfileToUser = (profile: any): User | null => {
     if (!profile) return null;
@@ -161,7 +160,7 @@ export const updateArtistData = async (artistId: string, updatedData: Partial<Ar
     };
 };
 
-export const uploadPortfolioImage = async (userId: string, file: File): Promise<string> => {
+export const uploadPortfolioImage = async (userId: string, file: File): Promise<PortfolioImage> => {
     const fileExt = file.name.split('.').pop();
     const fileName = `${userId}/${Date.now()}.${fileExt}`;
 
@@ -173,16 +172,72 @@ export const uploadPortfolioImage = async (userId: string, file: File): Promise<
 
     const { data } = supabase.storage.from('portfolios').getPublicUrl(fileName);
     
+    const newPortfolioImage: PortfolioImage = {
+        url: data.publicUrl,
+        isAiGenerated: false
+    };
+
     // Now, update the profile with the new URL
     const { data: profile, error: profileError } = await supabase.from('profiles').select('portfolio').eq('id', userId).single();
     if (profileError) throw profileError;
     
-    const newPortfolio = [...(profile.portfolio || []), data.publicUrl];
+    const newPortfolio = [...(profile.portfolio || []), newPortfolioImage];
     
     const { error: updateError } = await supabase.from('profiles').update({ portfolio: newPortfolio }).eq('id', userId);
     if (updateError) throw updateError;
     
-    return data.publicUrl;
+    return newPortfolioImage;
+};
+
+export const replacePortfolioImage = async (userId: string, oldImage: PortfolioImage, newImageBase64: string): Promise<PortfolioImage> => {
+    // Gemini image models return PNG data.
+    const mimeType = 'image/png';
+    const fileExt = 'png';
+    const newFileName = `${userId}/${Date.now()}.${fileExt}`;
+
+    // Decode base64 to a byte array and create a File object
+    const byteCharacters = atob(newImageBase64);
+    const byteNumbers = new Array(byteCharacters.length);
+    for (let i = 0; i < byteCharacters.length; i++) {
+        byteNumbers[i] = byteCharacters.charCodeAt(i);
+    }
+    const byteArray = new Uint8Array(byteNumbers);
+    const blob = new Blob([byteArray], { type: mimeType });
+    const newFile = new File([blob], newFileName, { type: mimeType });
+
+    // 1. Upload new file to storage
+    const { error: uploadError } = await supabase.storage.from('portfolios').upload(newFileName, newFile);
+    if (uploadError) throw uploadError;
+
+    const { data: { publicUrl: newUrl } } = supabase.storage.from('portfolios').getPublicUrl(newFileName);
+    
+    const newPortfolioImage: PortfolioImage = {
+        url: newUrl,
+        isAiGenerated: true
+    };
+
+    // 2. Update the portfolio array in the user's profile
+    const { data: profile, error: profileError } = await supabase.from('profiles').select('portfolio').eq('id', userId).single();
+    if (profileError) throw profileError;
+    
+    const currentPortfolio: PortfolioImage[] = profile.portfolio || [];
+    const updatedPortfolio = currentPortfolio.map(img => img.url === oldImage.url ? newPortfolioImage : img);
+    
+    const { error: updateError } = await supabase.from('profiles').update({ portfolio: updatedPortfolio }).eq('id', userId);
+    if (updateError) throw updateError;
+    
+    // 3. Delete the old file from storage (best effort)
+    try {
+        const oldFilePath = new URL(oldImage.url).pathname.split('/portfolios/')[1];
+        if (oldFilePath) {
+            const { error: deleteError } = await supabase.storage.from('portfolios').remove([oldFilePath]);
+            if (deleteError) console.warn("Could not delete old image:", deleteError.message);
+        }
+    } catch(e) {
+        console.warn("Could not parse old image URL for deletion:", oldImage.url);
+    }
+    
+    return newPortfolioImage;
 };
 
 export const updateShopData = async (shopId: string, updatedData: Partial<Shop>): Promise<Shop> => {

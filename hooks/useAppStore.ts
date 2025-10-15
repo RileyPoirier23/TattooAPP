@@ -1,15 +1,14 @@
-
 // @/hooks/useAppStore.ts
 // FIX: Implement the useAppStore hook with Zustand for centralized state management.
 
 import { create } from 'zustand';
 import { persist } from 'zustand/middleware';
 import {
-  Artist, Shop, Booking, Booth, User, ViewMode, Page, AuthCredentials, RegisterDetails, MockData, ClientBookingRequest, Notification, Client, ShopOwner, Admin, ConversationWithUser, Message, ArtistAvailability, Review, ModalState,
+  Artist, Shop, Booking, Booth, User, ViewMode, Page, AuthCredentials, RegisterDetails, MockData, ClientBookingRequest, Notification, Client, ShopOwner, Admin, ConversationWithUser, Message, ArtistAvailability, Review, ModalState, PortfolioImage,
 } from '../types';
 import {
   fetchInitialData, updateArtistData, uploadPortfolioImage, updateShopData, addBoothToShop, deleteBoothFromShop,
-  createBookingForArtist, createClientBookingRequest, updateClientBookingRequestStatus, fetchNotificationsForUser, markUserNotificationsAsRead, createNotification, fetchAllUsers, updateUserData, updateBoothData, fetchUserConversations, fetchMessagesForConversation, sendMessage, findOrCreateConversation, setArtistAvailability, submitReview, deleteUserAsAdmin, deleteShopAsAdmin, uploadMessageAttachment, fetchArtistReviews,
+  createBookingForArtist, createClientBookingRequest, updateClientBookingRequestStatus, fetchNotificationsForUser, markUserNotificationsAsRead, createNotification, fetchAllUsers, updateUserData, updateBoothData, fetchUserConversations, fetchMessagesForConversation, sendMessage, findOrCreateConversation, setArtistAvailability, submitReview, deleteUserAsAdmin, deleteShopAsAdmin, uploadMessageAttachment, fetchArtistReviews, replacePortfolioImage,
 } from '../services/apiService';
 import { authService } from '../services/authService';
 
@@ -62,6 +61,7 @@ interface AppState {
   updateUser: (userId: string, data: Partial<User['data']>) => Promise<void>;
   updateArtist: (artistId: string, data: Partial<Artist>) => Promise<void>;
   uploadPortfolio: (file: File) => Promise<void>;
+  editPortfolioImage: (artistId: string, oldImage: PortfolioImage, newImageBase64: string) => Promise<void>;
   updateShop: (shopId: string, data: Partial<Shop>) => Promise<void>;
   addBooth: (shopId: string, boothData: Omit<Booth, 'id' | 'shopId'>) => Promise<void>;
   updateBooth: (boothId: string, data: Partial<Booth>) => Promise<void>;
@@ -271,14 +271,38 @@ export const useAppStore = create<AppState>()(
           const user = get().user;
           if (!user || (user.type !== 'artist' && user.type !== 'dual')) return;
           try {
-            const newUrl = await uploadPortfolioImage(user.id, file);
-            const updatedPortfolio = [...user.data.portfolio, newUrl];
+            const newImage = await uploadPortfolioImage(user.id, file);
+            const updatedPortfolio = [...user.data.portfolio, newImage];
             get().updateArtist(user.id, { portfolio: updatedPortfolio });
             get().closeModal();
             get().showToast('Image uploaded successfully!');
           } catch(e) {
             get().showToast('Upload failed.', 'error');
           }
+      },
+
+      editPortfolioImage: async (artistId, oldImage, newImageBase64) => {
+        const user = get().user;
+        if (!user || user.id !== artistId) {
+            get().showToast('Unauthorized action.', 'error');
+            return;
+        }
+
+        if (user.type !== 'artist' && user.type !== 'dual') {
+          get().showToast('Only artists can edit their portfolio.', 'error');
+          return;
+        }
+
+        try {
+            const newImage = await replacePortfolioImage(user.id, oldImage, newImageBase64);
+            const updatedPortfolio = user.data.portfolio.map(img => img.url === oldImage.url ? newImage : img);
+            await get().updateArtist(user.id, { portfolio: updatedPortfolio });
+            get().closeModal();
+            get().showToast('Image updated successfully with AI!');
+        } catch (e) {
+            const message = e instanceof Error ? e.message : 'Failed to save edited image.';
+            get().showToast(message, 'error');
+        }
       },
 
       updateShop: async (shopId, data) => {

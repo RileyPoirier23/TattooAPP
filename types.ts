@@ -1,7 +1,11 @@
-
 // @/types.ts
 
 // --- DATA MODELS ---
+
+export interface PortfolioImage {
+  url: string;
+  isAiGenerated: boolean;
+}
 
 export interface Socials {
   instagram?: string;
@@ -13,7 +17,7 @@ export interface Artist {
   id: string; // This will be the user's auth id
   name: string;
   specialty: string;
-  portfolio: string[];
+  portfolio: PortfolioImage[];
   city: string;
   bio: string;
   isVerified: boolean;
@@ -173,7 +177,7 @@ export type Page = 'search' | 'profile' | 'dashboard' | 'bookings' | 'settings' 
 
 // FIX: Export ModalState to be used across multiple files.
 export interface ModalState {
-  type: 'auth' | 'artist-detail' | 'shop-detail' | 'booking' | 'client-booking-request' | 'upload-portfolio' | 'edit-booth' | 'leave-review' | null;
+  type: 'auth' | 'artist-detail' | 'shop-detail' | 'booking' | 'client-booking-request' | 'upload-portfolio' | 'edit-booth' | 'leave-review' | 'image-editor' | null;
   data?: any;
 }
 
