@@ -166,7 +166,7 @@ export const AuthModal: React.FC<{onLogin: (credentials: AuthCredentials) => voi
 
 // --- DETAIL & ACTION MODALS ---
 
-export const ArtistDetailModal: React.FC<{ artist: Artist; bookings: Booking[]; shops: Shop[]; onClose: () => void; onBookRequest: () => void; showToast: (message: string, type?: 'success' | 'error') => void; }> = ({ artist, bookings, shops, onClose, onBookRequest, showToast }) => {
+export const ArtistDetailModal: React.FC<{ artist: Artist; bookings: Booking[]; shops: Shop[]; onClose: () => void; onBookRequest: () => void; showToast: (message: string, type?: 'success' | 'error') => void; onMessageClick: (artistId: string) => void; }> = ({ artist, bookings, shops, onClose, onBookRequest, onMessageClick }) => {
     const futureBookings = bookings.filter(b => 
         b.artistId === artist.id && new Date(b.endDate) >= new Date()
     );
@@ -200,7 +200,7 @@ export const ArtistDetailModal: React.FC<{ artist: Artist; bookings: Booking[]; 
                 </div>
                 <div className="grid grid-cols-2 gap-4">
                      <button 
-                        onClick={() => showToast('Direct messaging is coming soon!', 'error')}
+                        onClick={() => onMessageClick(artist.id)}
                         className="w-full bg-gray-700 text-white font-bold py-3 px-4 rounded-lg hover:bg-gray-600 transition-colors flex items-center justify-center space-x-2">
                         <PaperAirplaneIcon className="w-5 h-5" />
                         <span>Message Artist</span>

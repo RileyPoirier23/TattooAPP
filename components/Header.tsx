@@ -2,7 +2,7 @@
 
 import React, { useState, useEffect, useRef } from 'react';
 import type { ViewMode, User, Notification, Page } from '../types';
-import { NeedleIcon, UserCircleIcon, BellIcon, ChevronDownIcon } from './shared/Icons';
+import { NeedleIcon, UserCircleIcon, BellIcon, ChevronDownIcon, PaperAirplaneIcon } from './shared/Icons';
 
 interface HeaderProps {
   viewMode: ViewMode;
@@ -70,6 +70,9 @@ export const Header: React.FC<HeaderProps> = ({
           )}
            {(user?.type === 'artist' || user?.type === 'client' || user?.type === 'dual') && (
             <button onClick={() => { onNavigate('bookings'); setUserMenuOpen(false); }} className="w-full text-left px-4 py-2 text-sm text-gray-300 hover:bg-gray-800">My Bookings</button>
+          )}
+          {user?.type !== 'admin' && (
+            <button onClick={() => { onNavigate('messages'); setUserMenuOpen(false); }} className="w-full text-left px-4 py-2 text-sm text-gray-300 hover:bg-gray-800">Messages</button>
           )}
           <button onClick={() => { onNavigate('settings'); setUserMenuOpen(false); }} className="w-full text-left px-4 py-2 text-sm text-gray-300 hover:bg-gray-800">Settings</button>
           <div className="border-t border-gray-700 my-1"></div>

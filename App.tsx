@@ -10,6 +10,7 @@ import { ShopOwnerDashboard } from './components/views/ShopOwnerDashboard';
 import { AdminDashboard } from './components/views/AdminDashboard';
 import { MyBookingsView } from './components/views/MyBookingsView';
 import { SettingsView } from './components/views/SettingsView';
+import { MessagesView } from './components/views/MessagesView';
 import { ArtistProfileView, ClientProfileView } from './components/ModalsAndProfile';
 import { 
   AuthModal, 
@@ -49,13 +50,15 @@ function App() {
     markNotificationsAsRead,
     confirmArtistBooking,
     sendClientBookingRequest,
+    respondToBookingRequest,
     updateArtist,
     updateUser,
     uploadPortfolio,
     updateShop,
     addBooth,
     updateBooth,
-    deleteBooth
+    deleteBooth,
+    startConversationAndNavigate,
   } = useAppStore();
 
   useEffect(() => {
@@ -100,8 +103,7 @@ function App() {
       case 'bookings':
         if(user){
             const userArtistBookings = data.bookings.filter(b => b.artistId === user.id);
-            const userClientBookings = data.clientBookingRequests.filter(b => b.clientId === user.id);
-            return <MyBookingsView user={user} artistBookings={userArtistBookings} clientBookings={userClientBookings} shops={data.shops} artists={data.artists} />;
+            return <MyBookingsView user={user} artistBookings={userArtistBookings} allClientBookings={data.clientBookingRequests} onRespondToRequest={respondToBookingRequest} />;
         }
         return null;
       case 'settings':
@@ -109,6 +111,8 @@ function App() {
             return <SettingsView user={user} onUpdateUser={updateUser} showToast={showToast} />;
         }
         return null;
+      case 'messages':
+        return user ? <MessagesView /> : <p>Please log in to view messages.</p>;
       default:
         return <AboutSection />;
     }
@@ -119,7 +123,7 @@ function App() {
       case 'auth':
         return <AuthModal onLogin={login} onRegister={register} onClose={closeModal} />;
       case 'artist-detail':
-        return <ArtistDetailModal artist={modal.data} bookings={data.bookings} shops={data.shops} onClose={closeModal} onBookRequest={() => openModal('client-booking-request', modal.data)} showToast={showToast} />;
+        return <ArtistDetailModal artist={modal.data} bookings={data.bookings} shops={data.shops} onClose={closeModal} onBookRequest={() => openModal('client-booking-request', modal.data)} showToast={showToast} onMessageClick={(artistId) => startConversationAndNavigate(artistId)} />;
       case 'shop-detail':
         const shopBooths = data.booths.filter(b => b.shopId === modal.data.id);
         return <ShopDetailModal shop={modal.data} booths={shopBooths} onClose={closeModal} onBookClick={(shop) => openModal('booking', {shop, booths: shopBooths})} />;

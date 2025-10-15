@@ -168,6 +168,25 @@ CREATE TABLE notifications (
   created_at TIMESTAMPTZ DEFAULT now()
 );
 
+-- Create conversations table to link participants
+CREATE TABLE conversations (
+    id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+    participant_one_id uuid REFERENCES auth.users(id) ON DELETE CASCADE,
+    participant_two_id uuid REFERENCES auth.users(id) ON DELETE CASCADE,
+    created_at TIMESTAMPTZ DEFAULT now(),
+    UNIQUE(participant_one_id, participant_two_id)
+);
+
+-- Create messages table
+CREATE TABLE messages (
+    id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+    conversation_id uuid REFERENCES conversations(id) ON DELETE CASCADE,
+    sender_id uuid REFERENCES auth.users(id) ON DELETE CASCADE,
+    content TEXT NOT NULL,
+    created_at TIMESTAMPTZ DEFAULT now()
+);
+
+
 -- Enable Row Level Security (RLS) for all tables
 ALTER TABLE profiles ENABLE ROW LEVEL SECURITY;
 ALTER TABLE shops ENABLE ROW LEVEL SECURITY;
@@ -175,6 +194,9 @@ ALTER TABLE booths ENABLE ROW LEVEL SECURITY;
 ALTER TABLE bookings ENABLE ROW LEVEL SECURITY;
 ALTER TABLE client_booking_requests ENABLE ROW LEVEL SECURITY;
 ALTER TABLE notifications ENABLE ROW LEVEL SECURITY;
+ALTER TABLE conversations ENABLE ROW LEVEL SECURITY;
+ALTER TABLE messages ENABLE ROW LEVEL SECURITY;
+
 
 -- RLS Policies: Allow public read access
 CREATE POLICY "Public read access for profiles" ON profiles FOR SELECT USING (true);
@@ -190,6 +212,22 @@ CREATE POLICY "Allow artists to view their own bookings" ON bookings FOR SELECT 
 CREATE POLICY "Allow authenticated users to create client requests" ON client_booking_requests FOR INSERT WITH CHECK (auth.role() = 'authenticated');
 CREATE POLICY "Allow users to view their own client requests" ON client_booking_requests FOR SELECT USING (auth.uid() = client_id OR auth.uid() = artist_id);
 CREATE POLICY "Allow users to manage their own notifications" ON notifications FOR ALL USING (auth.uid() = user_id);
+
+-- RLS Policies for Messaging
+CREATE POLICY "Users can view their own conversations" ON conversations FOR SELECT USING (auth.uid() = participant_one_id OR auth.uid() = participant_two_id);
+CREATE POLICY "Users can create conversations" ON conversations FOR INSERT WITH CHECK (auth.uid() = participant_one_id OR auth.uid() = participant_two_id);
+CREATE POLICY "Users can view messages in their conversations" ON messages FOR SELECT USING (
+    conversation_id IN (
+        SELECT id FROM conversations WHERE auth.uid() = participant_one_id OR auth.uid() = participant_two_id
+    )
+);
+CREATE POLICY "Users can send messages in their conversations" ON messages FOR INSERT WITH CHECK (
+    auth.uid() = sender_id AND
+    conversation_id IN (
+        SELECT id FROM conversations WHERE auth.uid() = participant_one_id OR auth.uid() = participant_two_id
+    )
+);
+
 ```
 
 #### Storage Setup

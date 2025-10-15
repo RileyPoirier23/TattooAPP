@@ -85,6 +85,8 @@ export interface ClientBookingRequest {
     bodyPlacement: string;
     estimatedHours: number;
     paymentStatus: 'paid' | 'unpaid';
+    clientName?: string;
+    artistName?: string;
 }
 
 export interface Notification {
@@ -95,6 +97,30 @@ export interface Notification {
     createdAt: string;
 }
 
+export interface Message {
+  id: string;
+  conversationId: string;
+  senderId: string;
+  content: string;
+  createdAt: string;
+}
+
+export interface Conversation {
+  id:string;
+  participantOneId: string;
+  participantTwoId: string;
+}
+
+// Enriched conversation type for UI
+export interface ConversationWithUser extends Conversation {
+  otherUser: {
+    id: string;
+    name: string;
+  };
+  lastMessage?: Message;
+}
+
+
 export interface MockData {
   artists: Artist[];
   shops: Shop[];
@@ -102,6 +128,8 @@ export interface MockData {
   bookings: Booking[];
   clientBookingRequests: ClientBookingRequest[];
   notifications: Notification[];
+  conversations: ConversationWithUser[];
+  messages: Message[];
 }
 
 export interface GroundingChunk {

@@ -1,6 +1,6 @@
 // @/services/apiService.ts
 import { supabase } from './supabaseClient';
-import type { Artist, Shop, Booth, Booking, ClientBookingRequest, Notification, User, UserRole, Client, ShopOwner } from '../types';
+import type { Artist, Shop, Booth, Booking, ClientBookingRequest, Notification, User, UserRole, Client, ShopOwner, Conversation, Message, ConversationWithUser } from '../types';
 
 const adaptProfileToUser = (profile: any): User | null => {
     if (!profile) return null;
@@ -39,7 +39,13 @@ export const fetchInitialData = async (): Promise<any> => {
     const { data: shops, error: shopsError } = await supabase.from('shops').select('*');
     const { data: booths, error: boothsError } = await supabase.from('booths').select('*');
     const { data: bookings, error: bookingsError } = await supabase.from('bookings').select('*');
-    const { data: clientBookings, error: clientBookingsError } = await supabase.from('client_booking_requests').select('*');
+    const { data: clientBookings, error: clientBookingsError } = await supabase
+        .from('client_booking_requests')
+        .select(`
+            *,
+            client:profiles!client_booking_requests_client_id_fkey(full_name),
+            artist:profiles!client_booking_requests_artist_id_fkey(full_name)
+        `);
 
     if (artistsError || shopsError || boothsError || bookingsError || clientBookingsError) {
         console.error({ artistsError, shopsError, boothsError, bookingsError, clientBookingsError });
@@ -81,6 +87,8 @@ export const fetchInitialData = async (): Promise<any> => {
       bodyPlacement: b.body_placement,
       estimatedHours: b.estimated_hours,
       paymentStatus: b.payment_status,
+      clientName: (b.client as any)?.full_name || 'Unknown Client',
+      artistName: (b.artist as any)?.full_name || 'Unknown Artist',
     }));
 
     return { 
@@ -89,7 +97,9 @@ export const fetchInitialData = async (): Promise<any> => {
         booths, 
         bookings: adaptedBookings,
         clientBookingRequests: adaptedClientBookings,
-        notifications: []
+        notifications: [],
+        conversations: [],
+        messages: [],
     };
 };
 
@@ -227,10 +237,20 @@ export const createClientBookingRequest = async (requestData: Omit<ClientBooking
             body_placement: requestData.bodyPlacement,
             estimated_hours: requestData.estimatedHours,
         })
-        .select()
+        .select(`
+            *,
+            client:profiles!client_booking_requests_client_id_fkey(full_name),
+            artist:profiles!client_booking_requests_artist_id_fkey(full_name)
+        `)
         .single();
 
     if (error) throw error;
+    
+    // Automatically create a conversation
+    const conversation = await findOrCreateConversation(requestData.clientId, requestData.artistId);
+    await sendMessage(conversation.id, requestData.clientId, requestData.message);
+
+
     return {
         id: data.id,
         clientId: data.client_id,
@@ -243,7 +263,41 @@ export const createClientBookingRequest = async (requestData: Omit<ClientBooking
         bodyPlacement: data.body_placement,
         estimatedHours: data.estimated_hours,
         paymentStatus: data.payment_status,
+        clientName: (data.client as any)?.full_name,
+        artistName: (data.artist as any)?.full_name,
     };
+};
+
+export const updateClientBookingRequestStatus = async (requestId: string, status: 'approved' | 'declined'): Promise<{ success: boolean }> => {
+    const { data: request, error: fetchError } = await supabase
+        .from('client_booking_requests')
+        .select('client_id, artist_id')
+        .eq('id', requestId)
+        .single();
+
+    if (fetchError) throw fetchError;
+
+    const { error: updateError } = await supabase
+        .from('client_booking_requests')
+        .update({ status: status })
+        .eq('id', requestId);
+
+    if (updateError) throw updateError;
+    
+    const { data: artistProfile, error: profileError } = await supabase
+        .from('profiles')
+        .select('full_name')
+        .eq('id', request.artist_id)
+        .single();
+
+    if (profileError) throw profileError;
+    
+    await createNotification(
+        request.client_id,
+        `Your booking request with ${artistProfile.full_name} has been ${status}.`
+    );
+
+    return { success: true };
 };
 
 
@@ -294,6 +348,103 @@ export const createNotification = async (userId: string, message: string): Promi
         createdAt: data.created_at,
     };
 };
+
+// --- MESSAGING ---
+
+export const findOrCreateConversation = async (userId1: string, userId2: string): Promise<Conversation> => {
+    // Check if a conversation already exists
+    const { data: existing, error: existingError } = await supabase
+        .from('conversations')
+        .select('*')
+        .or(`(participant_one_id.eq.${userId1},participant_two_id.eq.${userId2}),(participant_one_id.eq.${userId2},participant_two_id.eq.${userId1})`)
+        .limit(1);
+
+    if (existingError) throw existingError;
+    if (existing && existing.length > 0) return { ...existing[0], participantOneId: existing[0].participant_one_id, participantTwoId: existing[0].participant_two_id };
+
+    // Create a new one if not
+    const { data: created, error: createError } = await supabase
+        .from('conversations')
+        .insert({ participant_one_id: userId1, participant_two_id: userId2 })
+        .select()
+        .single();
+    
+    if (createError) throw createError;
+    return { ...created, participantOneId: created.participant_one_id, participantTwoId: created.participant_two_id };
+};
+
+export const fetchUserConversations = async (userId: string): Promise<ConversationWithUser[]> => {
+    const { data: conversations, error } = await supabase
+        .from('conversations')
+        .select('*')
+        .or(`participant_one_id.eq.${userId},participant_two_id.eq.${userId}`);
+
+    if (error) throw error;
+
+    const participantIds = new Set<string>();
+    conversations.forEach(c => {
+        participantIds.add(c.participant_one_id);
+        participantIds.add(c.participant_two_id);
+    });
+
+    const { data: profiles, error: profileError } = await supabase
+        .from('profiles')
+        .select('id, full_name')
+        .in('id', Array.from(participantIds));
+    
+    if (profileError) throw profileError;
+    const profilesMap = new Map(profiles.map(p => [p.id, p]));
+
+    return conversations.map(c => {
+        const otherUserId = c.participant_one_id === userId ? c.participant_two_id : c.participant_one_id;
+        const otherUser = profilesMap.get(otherUserId);
+        return {
+            id: c.id,
+            participantOneId: c.participant_one_id,
+            participantTwoId: c.participant_two_id,
+            otherUser: {
+                id: otherUserId,
+// FIX: Cast `otherUser` to `any` to resolve a TypeScript error where the untyped Supabase client returns a value inferred as `unknown` in strict mode, preventing property access.
+                name: (otherUser as any)?.full_name || 'Unknown User'
+            }
+        };
+    });
+};
+
+export const fetchMessagesForConversation = async (conversationId: string): Promise<Message[]> => {
+    const { data, error } = await supabase
+        .from('messages')
+        .select('*')
+        .eq('conversation_id', conversationId)
+        .order('created_at', { ascending: true });
+
+    if (error) throw error;
+    return data.map(m => ({
+        id: m.id,
+        conversationId: m.conversation_id,
+        senderId: m.sender_id,
+        content: m.content,
+        createdAt: m.created_at,
+    }));
+};
+
+export const sendMessage = async (conversationId: string, senderId: string, content: string): Promise<Message> => {
+    const { data, error } = await supabase
+        .from('messages')
+        .insert({ conversation_id: conversationId, sender_id: senderId, content })
+        .select()
+        .single();
+    
+    if (error) throw error;
+    return {
+        id: data.id,
+        conversationId: data.conversation_id,
+        senderId: data.sender_id,
+        content: data.content,
+        createdAt: data.created_at,
+    };
+};
+
 
 
 // --- The following are not in the placeholder but are useful ---

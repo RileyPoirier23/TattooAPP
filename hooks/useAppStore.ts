@@ -4,11 +4,11 @@
 import { create } from 'zustand';
 import { persist } from 'zustand/middleware';
 import {
-  Artist, Shop, Booking, Booth, User, ViewMode, Page, AuthCredentials, RegisterDetails, MockData, ClientBookingRequest, Notification, Client, ShopOwner, Admin,
+  Artist, Shop, Booking, Booth, User, ViewMode, Page, AuthCredentials, RegisterDetails, MockData, ClientBookingRequest, Notification, Client, ShopOwner, Admin, ConversationWithUser, Message,
 } from '../types';
 import {
   fetchInitialData, updateArtistData, uploadPortfolioImage, updateShopData, addBoothToShop, deleteBoothFromShop,
-  createBookingForArtist, createClientBookingRequest, fetchNotificationsForUser, markUserNotificationsAsRead, createNotification, fetchAllUsers, updateUserData, updateBoothData,
+  createBookingForArtist, createClientBookingRequest, updateClientBookingRequestStatus, fetchNotificationsForUser, markUserNotificationsAsRead, createNotification, fetchAllUsers, updateUserData, updateBoothData, fetchUserConversations, fetchMessagesForConversation, sendMessage, findOrCreateConversation,
 } from '../services/apiService';
 import { authService } from '../services/authService';
 
@@ -42,6 +42,9 @@ interface AppState {
   modal: ModalState;
   toast: ToastState | null;
 
+  // Messaging State
+  activeConversationId: string | null;
+
   // Actions
   initialize: () => Promise<void>;
   setViewMode: (mode: ViewMode) => void;
@@ -57,6 +60,7 @@ interface AppState {
   markNotificationsAsRead: () => Promise<void>;
   confirmArtistBooking: (bookingData: Omit<Booking, 'id' | 'artistId'>) => Promise<void>;
   sendClientBookingRequest: (requestData: Omit<ClientBookingRequest, 'id' | 'clientId' | 'status' | 'paymentStatus'>) => Promise<void>;
+  respondToBookingRequest: (requestId: string, status: 'approved' | 'declined') => Promise<void>;
   updateUser: (userId: string, data: Partial<User['data']>) => Promise<void>;
   updateArtist: (artistId: string, data: Partial<Artist>) => Promise<void>;
   uploadPortfolio: (file: File) => Promise<void>;
@@ -64,12 +68,18 @@ interface AppState {
   addBooth: (shopId: string, boothData: Omit<Booth, 'id' | 'shopId'>) => Promise<void>;
   updateBooth: (boothId: string, data: Partial<Booth>) => Promise<void>;
   deleteBooth: (boothId: string) => Promise<void>;
+  
+  // Messaging Actions
+  loadConversations: () => Promise<void>;
+  selectConversation: (conversationId: string) => Promise<void>;
+  sendMessage: (content: string) => Promise<void>;
+  startConversationAndNavigate: (otherUserId: string) => Promise<void>;
 }
 
 export const useAppStore = create<AppState>()(
   persist(
     (set, get) => ({
-      data: { artists: [], shops: [], booths: [], bookings: [], clientBookingRequests: [], notifications: [] },
+      data: { artists: [], shops: [], booths: [], bookings: [], clientBookingRequests: [], notifications: [], conversations: [], messages: [] },
       allUsers: [],
       isInitialized: false,
       isLoading: true,
@@ -79,6 +89,7 @@ export const useAppStore = create<AppState>()(
       page: 'search',
       modal: { type: null },
       toast: null,
+      activeConversationId: null,
 
       initialize: async () => {
         try {
@@ -92,6 +103,7 @@ export const useAppStore = create<AppState>()(
             if (currentUser.type === 'artist') set({ viewMode: 'artist' });
             if (currentUser.type === 'admin') set({ page: 'dashboard' });
             get().fetchNotifications();
+            get().loadConversations();
           }
         } catch (error) {
           const message = error instanceof Error ? error.message : "Failed to initialize app.";
@@ -118,6 +130,7 @@ export const useAppStore = create<AppState>()(
           }
           get().closeModal();
           get().fetchNotifications();
+          get().loadConversations();
           get().showToast('Login successful!');
         } catch (error) {
           const message = error instanceof Error ? error.message : "Login failed.";
@@ -144,7 +157,7 @@ export const useAppStore = create<AppState>()(
       
       logout: async () => {
         await authService.logout();
-        set({ user: null, page: 'search', viewMode: 'client', data: {...get().data, notifications: []} });
+        set({ user: null, page: 'search', viewMode: 'client', data: {...get().data, notifications: [], conversations: [], messages: []}, activeConversationId: null });
         get().showToast('Logged out successfully.');
       },
 
@@ -191,10 +204,31 @@ export const useAppStore = create<AppState>()(
         try {
             const newRequest = await createClientBookingRequest({ ...requestData, clientId: user.id });
             set(state => ({ data: { ...state.data, clientBookingRequests: [...state.data.clientBookingRequests, newRequest] } }));
+            get().loadConversations();
             get().closeModal();
             get().showToast('Booking request sent!');
         } catch(e) {
-            get().showToast('Failed to send request. Please try again.', 'error');
+            const message = e instanceof Error ? e.message : 'Failed to send request. Please try again.';
+            get().showToast(message, 'error');
+        }
+      },
+
+      respondToBookingRequest: async (requestId, status) => {
+        try {
+            await updateClientBookingRequestStatus(requestId, status);
+            set(state => ({
+                data: {
+                    ...state.data,
+                    clientBookingRequests: state.data.clientBookingRequests.map(req =>
+                        req.id === requestId ? { ...req, status } : req
+                    ),
+                }
+            }));
+            get().showToast(`Request has been ${status}.`);
+            get().fetchNotifications(); // Fetch latest notifications for client
+        } catch (e) {
+            const message = e instanceof Error ? e.message : 'Failed to respond to request.';
+            get().showToast(message, 'error');
         }
       },
       
@@ -275,7 +309,50 @@ export const useAppStore = create<AppState>()(
           set(state => ({
               data: { ...state.data, booths: state.data.booths.filter(b => b.id !== boothId) }
           }));
-      }
+      },
+
+      // --- MESSAGING ACTIONS ---
+      loadConversations: async () => {
+        const user = get().user;
+        if (!user) return;
+        const conversations = await fetchUserConversations(user.id);
+        set(state => ({ data: { ...state.data, conversations }}));
+      },
+      selectConversation: async (conversationId) => {
+        set({ activeConversationId: conversationId, isLoading: true });
+        const messages = await fetchMessagesForConversation(conversationId);
+        set(state => ({ data: { ...state.data, messages }, isLoading: false }));
+      },
+      sendMessage: async (content) => {
+        const { activeConversationId, user } = get();
+        if (!activeConversationId || !user || !content.trim()) return;
+
+        const newMessage = await sendMessage(activeConversationId, user.id, content.trim());
+        set(state => ({
+          data: { ...state.data, messages: [...state.data.messages, newMessage] }
+        }));
+      },
+      startConversationAndNavigate: async (otherUserId) => {
+        const user = get().user;
+        if (!user) {
+            get().showToast('You must be logged in to send a message.', 'error');
+            get().openModal('auth');
+            return;
+        }
+        try {
+            set({ isLoading: true });
+            const conversation = await findOrCreateConversation(user.id, otherUserId);
+            await get().loadConversations();
+            get().selectConversation(conversation.id);
+            set({ page: 'messages', isLoading: false });
+            get().closeModal();
+        } catch (error) {
+            const message = error instanceof Error ? error.message : "Could not start conversation.";
+            get().showToast(message, 'error');
+            set({ isLoading: false });
+        }
+      },
+
 
     }),
     {
