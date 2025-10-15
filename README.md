@@ -93,11 +93,11 @@ You need to set up your database schema and storage bucket. Go to the **SQL Edit
 
 #### Schema SQL
 
-Copy and paste the entire block below into the SQL Editor and click **Run**.
+Copy and paste the entire block below into the SQL Editor and click **Run**. This script is idempotent, meaning it's safe to run multiple times.
 
 ```sql
 -- Create the profiles table to store user data
-CREATE TABLE profiles (
+CREATE TABLE IF NOT EXISTS profiles (
   id uuid PRIMARY KEY REFERENCES auth.users(id) ON DELETE CASCADE,
   username TEXT UNIQUE NOT NULL,
   full_name TEXT,
@@ -111,7 +111,7 @@ CREATE TABLE profiles (
 );
 
 -- Create the shops table
-CREATE TABLE shops (
+CREATE TABLE IF NOT EXISTS shops (
   id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
   name TEXT NOT NULL,
   location TEXT,
@@ -127,7 +127,7 @@ CREATE TABLE shops (
 );
 
 -- Create the booths table
-CREATE TABLE booths (
+CREATE TABLE IF NOT EXISTS booths (
   id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
   shop_id uuid REFERENCES shops(id) ON DELETE CASCADE,
   name TEXT NOT NULL,
@@ -138,7 +138,7 @@ CREATE TABLE booths (
 );
 
 -- Create the bookings table for artists booking booths
-CREATE TABLE bookings (
+CREATE TABLE IF NOT EXISTS bookings (
   id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
   artist_id uuid REFERENCES auth.users(id),
   booth_id uuid REFERENCES booths(id),
@@ -149,7 +149,7 @@ CREATE TABLE bookings (
 );
 
 -- Create the client_booking_requests table
-CREATE TABLE client_booking_requests (
+CREATE TABLE IF NOT EXISTS client_booking_requests (
   id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
   client_id uuid REFERENCES auth.users(id),
   artist_id uuid REFERENCES auth.users(id),
@@ -167,7 +167,7 @@ CREATE TABLE client_booking_requests (
 );
 
 -- Create the notifications table
-CREATE TABLE notifications (
+CREATE TABLE IF NOT EXISTS notifications (
   id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
   user_id uuid REFERENCES auth.users(id),
   message TEXT,
@@ -176,7 +176,7 @@ CREATE TABLE notifications (
 );
 
 -- Create conversations table to link participants
-CREATE TABLE conversations (
+CREATE TABLE IF NOT EXISTS conversations (
     id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
     participant_one_id uuid REFERENCES auth.users(id) ON DELETE CASCADE,
     participant_two_id uuid REFERENCES auth.users(id) ON DELETE CASCADE,
@@ -185,7 +185,7 @@ CREATE TABLE conversations (
 );
 
 -- Create messages table
-CREATE TABLE messages (
+CREATE TABLE IF NOT EXISTS messages (
     id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
     conversation_id uuid REFERENCES conversations(id) ON DELETE CASCADE,
     sender_id uuid REFERENCES auth.users(id) ON DELETE CASCADE,
@@ -195,7 +195,7 @@ CREATE TABLE messages (
 );
 
 -- Create artist_availability table
-CREATE TABLE artist_availability (
+CREATE TABLE IF NOT EXISTS artist_availability (
   id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
   artist_id uuid REFERENCES auth.users(id) ON DELETE CASCADE,
   "date" DATE NOT NULL,
@@ -217,41 +217,67 @@ ALTER TABLE artist_availability ENABLE ROW LEVEL SECURITY;
 
 
 -- RLS Policies: Allow public read access
+DROP POLICY IF EXISTS "Public read access for profiles" ON profiles;
 CREATE POLICY "Public read access for profiles" ON profiles FOR SELECT USING (true);
+
+DROP POLICY IF EXISTS "Public read access for shops" ON shops;
 CREATE POLICY "Public read access for shops" ON shops FOR SELECT USING (true);
+
+DROP POLICY IF EXISTS "Public read access for booths" ON booths;
 CREATE POLICY "Public read access for booths" ON booths FOR SELECT USING (true);
+
+DROP POLICY IF EXISTS "Public read access for bookings" ON bookings;
 CREATE POLICY "Public read access for bookings" ON bookings FOR SELECT USING (true);
+
+DROP POLICY IF EXISTS "Public read access for artist_availability" ON artist_availability;
 CREATE POLICY "Public read access for artist_availability" ON artist_availability FOR SELECT USING (true);
 
--- FIX: Add public read policy for client booking requests.
--- This is required for the initial data load, which fetches all booking requests
--- to calculate artist ratings from reviews, even for non-logged-in users.
--- Without this policy, the app fails to start with a data fetching error.
+DROP POLICY IF EXISTS "Public read access for client booking requests" ON client_booking_requests;
 CREATE POLICY "Public read access for client booking requests" ON client_booking_requests FOR SELECT USING (true);
 
 -- RLS Policies: Allow users to manage their own data
+DROP POLICY IF EXISTS "Allow users to insert their own profile" ON profiles;
 CREATE POLICY "Allow users to insert their own profile" ON profiles FOR INSERT WITH CHECK (auth.uid() = id);
+
+DROP POLICY IF EXISTS "Allow users to update their own profile" ON profiles;
 CREATE POLICY "Allow users to update their own profile" ON profiles FOR UPDATE USING (auth.uid() = id);
 
+DROP POLICY IF EXISTS "Allow authenticated users to create bookings" ON bookings;
 CREATE POLICY "Allow authenticated users to create bookings" ON bookings FOR INSERT WITH CHECK (auth.role() = 'authenticated');
+
+DROP POLICY IF EXISTS "Allow artists to view their own bookings" ON bookings;
 CREATE POLICY "Allow artists to view their own bookings" ON bookings FOR SELECT USING (auth.uid() = artist_id);
 
+DROP POLICY IF EXISTS "Allow authenticated users to create client requests" ON client_booking_requests;
 CREATE POLICY "Allow authenticated users to create client requests" ON client_booking_requests FOR INSERT WITH CHECK (auth.role() = 'authenticated');
+
+DROP POLICY IF EXISTS "Allow users to view their own client requests" ON client_booking_requests;
 CREATE POLICY "Allow users to view their own client requests" ON client_booking_requests FOR SELECT USING (auth.uid() = client_id OR auth.uid() = artist_id);
+
+DROP POLICY IF EXISTS "Allow users to update their own client requests" ON client_booking_requests;
 CREATE POLICY "Allow users to update their own client requests" ON client_booking_requests FOR UPDATE USING (auth.uid() = client_id OR auth.uid() = artist_id);
 
+DROP POLICY IF EXISTS "Allow users to manage their own notifications" ON notifications;
 CREATE POLICY "Allow users to manage their own notifications" ON notifications FOR ALL USING (auth.uid() = user_id);
 
+DROP POLICY IF EXISTS "Artists can manage their own availability" ON artist_availability;
 CREATE POLICY "Artists can manage their own availability" ON artist_availability FOR ALL USING (auth.uid() = artist_id);
 
 -- RLS Policies for Messaging
+DROP POLICY IF EXISTS "Users can view their own conversations" ON conversations;
 CREATE POLICY "Users can view their own conversations" ON conversations FOR SELECT USING (auth.uid() = participant_one_id OR auth.uid() = participant_two_id);
+
+DROP POLICY IF EXISTS "Users can create conversations" ON conversations;
 CREATE POLICY "Users can create conversations" ON conversations FOR INSERT WITH CHECK (auth.uid() = participant_one_id OR auth.uid() = participant_two_id);
+
+DROP POLICY IF EXISTS "Users can view messages in their conversations" ON messages;
 CREATE POLICY "Users can view messages in their conversations" ON messages FOR SELECT USING (
     conversation_id IN (
         SELECT id FROM conversations WHERE auth.uid() = participant_one_id OR auth.uid() = participant_two_id
     )
 );
+
+DROP POLICY IF EXISTS "Users can send messages in their conversations" ON messages;
 CREATE POLICY "Users can send messages in their conversations" ON messages FOR INSERT WITH CHECK (
     auth.uid() = sender_id AND
     conversation_id IN (
@@ -260,12 +286,13 @@ CREATE POLICY "Users can send messages in their conversations" ON messages FOR I
 );
 
 -- RLS Policies for Admins
+DROP POLICY IF EXISTS "Admins can manage all profiles" ON profiles;
 CREATE POLICY "Admins can manage all profiles" ON profiles FOR ALL
 USING ((SELECT role FROM profiles WHERE id = auth.uid()) = 'admin');
 
+DROP POLICY IF EXISTS "Admins can manage all shops" ON shops;
 CREATE POLICY "Admins can manage all shops" ON shops FOR ALL
 USING ((SELECT role FROM profiles WHERE id = auth.uid()) = 'admin');
-
 ```
 
 #### Storage Setup
