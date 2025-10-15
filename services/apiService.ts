@@ -17,7 +17,10 @@ const adaptProfileToUser = (profile: any): User | null => {
         case 'client':
             return { ...baseUser, type: 'client', data: { id: profile.id, name: profile.full_name } as Client };
         case 'shop-owner':
-            return { ...baseUser, type: 'shop-owner', data: { id: profile.id, name: profile.full_name, shopId: profile.shop_id } as ShopOwner };
+            // The shopId is now populated dynamically by authService for the current user,
+            // or should be found via a separate lookup if needed for all users.
+            // For now, it's not strictly required for the admin view.
+            return { ...baseUser, type: 'shop-owner', data: { id: profile.id, name: profile.full_name, shopId: null } as ShopOwner };
         default:
             return null;
     }
@@ -669,12 +672,6 @@ export const createShop = async (shopData: Omit<Shop, 'id' | 'isVerified' | 'rat
       .single();
     if (error) throw error;
     return { ...data, isVerified: data.is_verified, ownerId: data.owner_id, averageArtistRating: data.average_artist_rating };
-};
-
-export const updateProfileWithShopId = async (userId: string, shopId: string): Promise<{ success: boolean }> => {
-    const { error } = await supabase.from('profiles').update({ shop_id: shopId }).eq('id', userId);
-    if (error) throw error;
-    return { success: true };
 };
 
 // VERIFICATION

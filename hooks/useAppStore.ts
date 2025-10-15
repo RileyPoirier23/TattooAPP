@@ -8,7 +8,7 @@ import {
 } from '../types';
 import {
   fetchInitialData, updateArtistData, uploadPortfolioImage, updateShopData, addBoothToShop, deleteBoothFromShop,
-  createBookingForArtist, createClientBookingRequest, updateClientBookingRequestStatus, fetchNotificationsForUser, markUserNotificationsAsRead, createNotification, fetchAllUsers, updateUserData, updateBoothData, fetchUserConversations, fetchMessagesForConversation, sendMessage, findOrCreateConversation, setArtistAvailability, submitReview, deleteUserAsAdmin, deleteShopAsAdmin, uploadMessageAttachment, fetchArtistReviews, replacePortfolioImage, createShop as apiCreateShop, updateProfileWithShopId, createVerificationRequest, updateVerificationRequest, addReviewToShop, updateBookingPaymentStatus,
+  createBookingForArtist, createClientBookingRequest, updateClientBookingRequestStatus, fetchNotificationsForUser, markUserNotificationsAsRead, createNotification, fetchAllUsers, updateUserData, updateBoothData, fetchUserConversations, fetchMessagesForConversation, sendMessage, findOrCreateConversation, setArtistAvailability, submitReview, deleteUserAsAdmin, deleteShopAsAdmin, uploadMessageAttachment, fetchArtistReviews, replacePortfolioImage, createShop as apiCreateShop, createVerificationRequest, updateVerificationRequest, addReviewToShop, updateBookingPaymentStatus,
 } from '../services/apiService';
 import { authService } from '../services/authService';
 
@@ -451,8 +451,6 @@ export const useAppStore = create<AppState>()(
         if (!user || user.type !== 'shop-owner') return;
         try {
             const newShop = await apiCreateShop(shopData, user.id);
-            await updateProfileWithShopId(user.id, newShop.id);
-            // FIX: Added type guard to prevent TypeScript from being confused about the user type when updating state.
             set(state => {
                 if (state.user?.type === 'shop-owner') {
                     const updatedUser: ShopOwnerUser = {

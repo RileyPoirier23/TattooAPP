@@ -1,4 +1,3 @@
-
 // @/services/authService.ts
 import { supabase } from './supabaseClient';
 import type { User, AuthCredentials, RegisterDetails, Artist, Client, ShopOwner, UserRole, AdminUser, Admin } from '../types';
@@ -136,12 +135,15 @@ class AuthService {
         switch (profile.role) {
             case 'artist':
             case 'dual':
-                return { ...baseUser, type: profile.role, data: { id: profile.id, name: profile.full_name, city: profile.city, specialty: profile.specialty, bio: profile.bio, portfolio: profile.portfolio, isVerified: profile.is_verified } as Artist };
+                return { ...baseUser, type: profile.role, data: { id: profile.id, name: profile.full_name, city: profile.city, specialty: profile.specialty, bio: profile.bio, portfolio: profile.portfolio, isVerified: profile.is_verified, socials: profile.socials, hourlyRate: profile.hourly_rate } as Artist };
             case 'client':
                 return { ...baseUser, type: 'client', data: { id: profile.id, name: profile.full_name } as Client };
             case 'shop-owner':
-                 // This assumes shopId is managed elsewhere, e.g., on the shops table
-                return { ...baseUser, type: 'shop-owner', data: { id: profile.id, name: profile.full_name, shopId: null } as ShopOwner };
+                const { data: ownerShop, error: shopError } = await supabase.from('shops').select('id').eq('owner_id', profile.id).single();
+                if (shopError && shopError.code !== 'PGRST116') { // Ignore 'exact one row not found' errors
+                    console.warn("Could not fetch shop for owner", shopError);
+                }
+                return { ...baseUser, type: 'shop-owner', data: { id: profile.id, name: profile.full_name, shopId: ownerShop?.id || null } as ShopOwner };
             default:
                 return null;
         }

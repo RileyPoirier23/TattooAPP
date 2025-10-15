@@ -147,7 +147,6 @@ CREATE TABLE IF NOT EXISTS public.profiles (
   portfolio JSONB,
   is_verified BOOLEAN DEFAULT false,
   socials JSONB,
-  shop_id uuid, -- For shop owners
   hourly_rate NUMERIC -- For artists/dual
 );
 
@@ -443,4 +442,3 @@ This is almost always a Supabase Storage policy issue.
 -   **Advanced Search Filters:** Add more granular filters (e.g., artist ratings, shop amenities).
 -   **Personalized Recommendations:** Use AI to suggest artists to clients and shops to artists.
 -   **Push Notifications:** Implement real-time push notifications for a more engaging experience.
-```
