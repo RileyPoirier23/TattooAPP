@@ -23,6 +23,7 @@ export interface Artist {
   isVerified: boolean;
   socials?: Socials;
   averageRating?: number;
+  hourlyRate?: number;
 }
 
 export interface Client {
@@ -41,7 +42,7 @@ export interface Admin {
 }
 
 export interface Review {
-  id: string; // This will be the client booking request ID
+  id: string; 
   authorId: string;
   authorName: string;
   rating: number; 
@@ -63,11 +64,13 @@ export interface Shop {
   lat: number;
   lng: number;
   amenities: string[];
-  rating: number;
+  rating: number; // Client rating of artists at the shop (not directly used yet)
+  averageArtistRating: number; // Artist review of the shop
   imageUrl: string;
-  reviews: Review[];
+  reviews: Review[]; // Artist reviews of the shop
   paymentMethods?: PaymentMethods;
   isVerified: boolean;
+  ownerId: string;
 }
 
 export interface Booth {
@@ -89,6 +92,9 @@ export interface Booking {
   startDate: string;
   endDate: string;
   paymentStatus: 'paid' | 'unpaid';
+  totalAmount?: number;
+  platformFee?: number;
+  paymentIntentId?: string;
 }
 
 export interface ClientBookingRequest {
@@ -108,6 +114,9 @@ export interface ClientBookingRequest {
     reviewRating?: number;
     reviewText?: string;
     reviewSubmittedAt?: string;
+    depositAmount?: number;
+    platformFee?: number;
+    paymentIntentId?: string;
 }
 
 export interface Notification {
@@ -149,6 +158,18 @@ export interface ArtistAvailability {
   status: 'available' | 'unavailable';
 }
 
+export interface VerificationRequest {
+    id: string;
+    profileId?: string;
+    shopId?: string;
+    type: 'artist' | 'shop';
+    status: 'pending' | 'approved' | 'rejected';
+    createdAt: string;
+    // For UI display
+    requesterName?: string;
+    itemName?: string;
+}
+
 
 export interface MockData {
   artists: Artist[];
@@ -160,6 +181,7 @@ export interface MockData {
   conversations: ConversationWithUser[];
   messages: Message[];
   artistAvailability: ArtistAvailability[];
+  verificationRequests: VerificationRequest[];
 }
 
 export interface GroundingChunk {
@@ -173,11 +195,10 @@ export interface GroundingChunk {
 // --- APP STATE & NAVIGATION ---
 
 export type ViewMode = 'artist' | 'client';
-export type Page = 'search' | 'profile' | 'dashboard' | 'bookings' | 'settings' | 'messages' | 'admin' | 'availability';
+export type Page = 'search' | 'profile' | 'dashboard' | 'bookings' | 'settings' | 'messages' | 'admin' | 'availability' | 'onboarding';
 
-// FIX: Export ModalState to be used across multiple files.
 export interface ModalState {
-  type: 'auth' | 'artist-detail' | 'shop-detail' | 'booking' | 'client-booking-request' | 'upload-portfolio' | 'edit-booth' | 'leave-review' | 'image-editor' | null;
+  type: 'auth' | 'artist-detail' | 'shop-detail' | 'booking' | 'client-booking-request' | 'upload-portfolio' | 'edit-booth' | 'leave-review' | 'image-editor' | 'shop-review' | 'payment' | 'request-verification' | null;
   data?: any;
 }
 

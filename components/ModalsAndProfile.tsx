@@ -1,7 +1,9 @@
 // @/components/ModalsAndProfile.tsx
 
 import React, { useState, useMemo, useRef, useCallback } from 'react';
-import type { Artist, Shop, Booking, Booth, Review, AuthCredentials, RegisterDetails, UserRole, GroundingChunk, ClientBookingRequest, Client, Socials, ModalState, PortfolioImage } from '../types';
+// FIX: Add missing import for useAppStore.
+import { useAppStore } from '../hooks/useAppStore';
+import type { Artist, Shop, Booking, Booth, Review, AuthCredentials, RegisterDetails, UserRole, GroundingChunk, ClientBookingRequest, Client, Socials, ModalState, PortfolioImage, ArtistAvailability } from '../types';
 import { LocationIcon, StarIcon, PriceIcon, XIcon, EditIcon, PaperAirplaneIcon, CalendarIcon, UploadIcon, CheckBadgeIcon } from './shared/Icons';
 import { generateArtistBio, getShopInfo, editImageWithGemini } from '../services/geminiService';
 import { MapEmbed } from './shared/MapEmbed';
@@ -224,7 +226,10 @@ export const ArtistDetailModal: React.FC<{ artist: Artist; reviews: Review[]; bo
                 </div>
                  <div>
                     <div className="flex justify-between items-start">
-                        <h3 className="text-lg font-bold text-brand-primary">{artist.specialty}</h3>
+                        <div>
+                            <h3 className="text-lg font-bold text-brand-primary">{artist.specialty}</h3>
+                             {artist.hourlyRate && <p className="text-white font-semibold">${artist.hourlyRate}/hr</p>}
+                        </div>
                         {averageRating > 0 && (
                             <div className="flex items-center gap-2">
                                 <StarRating rating={averageRating} />
@@ -325,7 +330,8 @@ export const ShopDetailModal: React.FC<{ shop: Shop; booths: Booth[]; onClose: (
                     </div>
                     <div className="flex items-center space-x-1">
                         <StarIcon className="w-5 h-5 text-yellow-400" />
-                        <span className="text-white font-bold">{shop.rating.toFixed(1)}</span>
+                        <span className="text-white font-bold">{shop.averageArtistRating.toFixed(1)}</span>
+                        <span className="text-sm text-brand-gray">({shop.reviews?.length || 0} artist reviews)</span>
                     </div>
                 </div>
                 <div className="mt-4">
@@ -372,15 +378,15 @@ export const ShopDetailModal: React.FC<{ shop: Shop; booths: Booth[]; onClose: (
 
             {shop.reviews && shop.reviews.length > 0 && (
                 <div>
-                    <h4 className="font-bold text-white mb-3">Customer Reviews</h4>
-                    <div className="space-y-4">
+                    <h4 className="font-bold text-white mb-3">Artist Reviews</h4>
+                    <div className="space-y-4 max-h-48 overflow-y-auto pr-2">
                         {shop.reviews.map((review, index) => (
                             <div key={index} className="bg-gray-800/50 p-4 rounded-lg">
                                 <div className="flex items-center justify-between mb-1">
                                     <p className="font-semibold text-gray-300">{review.authorName}</p>
                                     <StarRating rating={review.rating} className="w-4 h-4" />
                                 </div>
-                                <p className="text-brand-gray text-sm">{review.text}</p>
+                                <p className="text-brand-gray text-sm italic">"{review.text}"</p>
                             </div>
                         ))}
                     </div>
@@ -475,11 +481,25 @@ const Calendar: React.FC<{ bookedDates: Date[], onDateSelect: (date: Date) => vo
     );
 };
 
-export const BookingModal: React.FC<{shop: Shop, booths: Booth[], bookings: Booking[], onClose: () => void, onConfirmBooking: (bookingData: Omit<Booking, 'id' | 'artistId'>) => void}> = ({ shop, booths, bookings, onClose, onConfirmBooking }) => {
-    const [step, setStep] = useState(1);
+export const BookingModal: React.FC<{shop: Shop, booths: Booth[], bookings: Booking[], onClose: () => void, onConfirmBooking: (bookingData: Omit<Booking, 'id' | 'artistId' | 'city'>) => void}> = ({ shop, booths, bookings, onClose, onConfirmBooking }) => {
     const [selectedBoothId, setSelectedBoothId] = useState<string | null>(booths.length > 0 ? booths[0].id : null);
     const [startDate, setStartDate] = useState<Date | null>(null);
     const [endDate, setEndDate] = useState<Date | null>(null);
+
+    const PLATFORM_FEE_PERCENT = 0.05; // 5%
+
+    const { totalAmount, platformFee, numberOfDays } = useMemo(() => {
+        if (!startDate || !endDate || !selectedBoothId) return { totalAmount: 0, platformFee: 0, numberOfDays: 0 };
+        const selectedBooth = booths.find(b => b.id === selectedBoothId);
+        if (!selectedBooth) return { totalAmount: 0, platformFee: 0, numberOfDays: 0 };
+        
+        const days = Math.round((endDate.getTime() - startDate.getTime()) / (1000 * 60 * 60 * 24)) + 1;
+        const subtotal = days * selectedBooth.dailyRate;
+        const fee = subtotal * PLATFORM_FEE_PERCENT;
+        const total = subtotal + fee;
+
+        return { totalAmount: total, platformFee: fee, numberOfDays: days };
+    }, [startDate, endDate, selectedBoothId, booths]);
 
     const bookedDatesForSelectedBooth = useMemo(() => {
         if (!selectedBoothId) return [];
@@ -488,10 +508,8 @@ export const BookingModal: React.FC<{shop: Shop, booths: Booth[], bookings: Book
         relevantBookings.forEach(booking => {
             let currentDate = new Date(booking.startDate);
             const stopDate = new Date(booking.endDate);
-            // Adjust for timezone differences by using UTC dates
             currentDate = new Date(currentDate.valueOf() + currentDate.getTimezoneOffset() * 60 * 1000);
             stopDate.setUTCHours(23, 59, 59, 999);
-
             while (currentDate <= stopDate) {
                 dates.push(new Date(currentDate));
                 currentDate.setDate(currentDate.getDate() + 1);
@@ -516,67 +534,76 @@ export const BookingModal: React.FC<{shop: Shop, booths: Booth[], bookings: Book
             onConfirmBooking({
                 shopId: shop.id,
                 boothId: selectedBoothId,
-                city: shop.location,
                 startDate: startDate.toISOString().split('T')[0],
                 endDate: endDate.toISOString().split('T')[0],
                 paymentStatus: 'unpaid',
+                totalAmount,
+                platformFee,
             });
-            setStep(2);
         }
     };
 
     return (
-        <Modal onClose={onClose} title={step === 1 ? `Book a Booth at ${shop.name}` : 'Booking Initiated'} size="xl">
-            {step === 1 ? (
-                 <div className="space-y-4">
+        <Modal onClose={onClose} title={`Book a Booth at ${shop.name}`} size="xl">
+            <div className="space-y-4">
+                <div>
+                    <label className="text-sm font-medium text-brand-gray mb-1 block">Select Booth</label>
+                    <select value={selectedBoothId || ''} onChange={e => { setSelectedBoothId(e.target.value); setStartDate(null); setEndDate(null); }} className="w-full bg-gray-800 border-gray-700 rounded p-2">
+                        {booths.map(b => <option key={b.id} value={b.id}>{b.name} - ${b.dailyRate}/day</option>)}
+                    </select>
+                </div>
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <Calendar bookedDates={bookedDatesForSelectedBooth} onDateSelect={handleDateSelect} selectedStartDate={startDate} selectedEndDate={endDate} />
                     <div>
-                        <label className="text-sm font-medium text-brand-gray mb-1 block">Select Booth</label>
-                        <select value={selectedBoothId || ''} onChange={e => { setSelectedBoothId(e.target.value); setStartDate(null); setEndDate(null); }} className="w-full bg-gray-800 border-gray-700 rounded p-2">
-                           {booths.map(b => <option key={b.id} value={b.id}>{b.name} - ${b.dailyRate}/day</option>)}
-                        </select>
-                    </div>
-
-                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                        <Calendar bookedDates={bookedDatesForSelectedBooth} onDateSelect={handleDateSelect} selectedStartDate={startDate} selectedEndDate={endDate} />
-                        <div>
-                             <h4 className="font-bold text-white mb-2">Booking Summary</h4>
-                             <div className="bg-gray-800 p-4 rounded-lg space-y-2 text-sm">
-                                <p><strong>Start Date:</strong> {startDate ? startDate.toLocaleDateString() : 'Not Selected'}</p>
-                                <p><strong>End Date:</strong> {endDate ? endDate.toLocaleDateString() : 'Not Selected'}</p>
-                             </div>
+                        <h4 className="font-bold text-white mb-2">Booking Summary</h4>
+                        <div className="bg-gray-800 p-4 rounded-lg space-y-2 text-sm">
+                            <p><strong>Start Date:</strong> {startDate ? startDate.toLocaleDateString() : 'Not Selected'}</p>
+                            <p><strong>End Date:</strong> {endDate ? endDate.toLocaleDateString() : 'Not Selected'}</p>
+                            {numberOfDays > 0 && (
+                                <>
+                                    <div className="border-t border-gray-700 my-2"></div>
+                                    <p><strong>Number of Days:</strong> {numberOfDays}</p>
+                                    <p><strong>Platform Fee (5%):</strong> ${platformFee.toFixed(2)}</p>
+                                    <p className="text-lg font-bold"><strong>Total:</strong> ${totalAmount.toFixed(2)}</p>
+                                </>
+                            )}
                         </div>
                     </div>
-
-                    <button onClick={handleConfirm} disabled={!selectedBoothId || !startDate || !endDate} className="w-full bg-brand-primary text-white font-bold py-3 rounded-lg disabled:bg-gray-600 disabled:cursor-not-allowed">
-                        Confirm Booking
-                    </button>
                 </div>
-            ) : (
-                <div className="text-center">
-                    <h3 className="text-xl font-bold text-white mb-2">Complete Your Booking</h3>
-                    <p className="text-brand-gray mb-4">Your spot is reserved pending payment. Please use one of the methods below to pay the shop directly.</p>
-                    <div className="bg-gray-800 p-4 rounded-lg text-left text-sm space-y-2">
-                        {shop.paymentMethods?.email && <p><strong>Interac e-Transfer:</strong> {shop.paymentMethods.email}</p>}
-                        {shop.paymentMethods?.paypal && <p><strong>PayPal:</strong> {shop.paymentMethods.paypal}</p>}
-                        {shop.paymentMethods?.btc && <p><strong>Bitcoin:</strong> {shop.paymentMethods.btc}</p>}
-                        {!shop.paymentMethods?.email && !shop.paymentMethods?.paypal && !shop.paymentMethods?.btc && <p>Contact the shop directly for payment.</p>}
-                    </div>
-                     <button onClick={onClose} className="w-full bg-gray-700 text-white font-bold py-3 rounded-lg mt-6">
-                        Close
-                    </button>
-                </div>
-            )}
+                <button onClick={handleConfirm} disabled={!selectedBoothId || !startDate || !endDate} className="w-full bg-brand-primary text-white font-bold py-3 rounded-lg disabled:bg-gray-600 disabled:cursor-not-allowed">
+                    Proceed to Payment
+                </button>
+            </div>
         </Modal>
     );
 };
 
-export const ClientBookingRequestModal: React.FC<{ artist: Artist; onClose: () => void; onSendRequest: (request: Omit<ClientBookingRequest, 'id' | 'clientId' | 'status' | 'paymentStatus'>) => void; }> = ({ artist, onClose, onSendRequest }) => {
+export const ClientBookingRequestModal: React.FC<{ artist: Artist; availability: ArtistAvailability[]; onClose: () => void; onSendRequest: (request: Omit<ClientBookingRequest, 'id' | 'clientId' | 'status' | 'paymentStatus'>) => void; }> = ({ artist, availability, onClose, onSendRequest }) => {
     const [startDate, setStartDate] = useState('');
     const [endDate, setEndDate] = useState('');
     const [message, setMessage] = useState('');
     const [tattooSize, setTattooSize] = useState('');
     const [bodyPlacement, setBodyPlacement] = useState('');
     const [hours, setHours] = useState(0);
+
+    const PLATFORM_FEE_PERCENT = 0.05; // 5%
+    const DEPOSIT_PERCENT = 0.25; // 25%
+
+    const { depositAmount, platformFee } = useMemo(() => {
+        if (!hours || !artist.hourlyRate) return { depositAmount: 0, platformFee: 0 };
+        const estimatedTotal = hours * artist.hourlyRate;
+        const deposit = estimatedTotal * DEPOSIT_PERCENT;
+        const fee = deposit * PLATFORM_FEE_PERCENT;
+        return { depositAmount: deposit, platformFee: fee };
+    }, [hours, artist.hourlyRate]);
+
+    const unavailableDates = useMemo(() => {
+        return new Set(availability.filter(a => a.status === 'unavailable').map(a => a.date));
+    }, [availability]);
+
+    const isDateUnavailable = (dateStr: string) => {
+        return unavailableDates.has(dateStr);
+    };
 
     const handleSubmit = () => {
         if (startDate && endDate && message && tattooSize && bodyPlacement && hours > 0) {
@@ -588,6 +615,8 @@ export const ClientBookingRequestModal: React.FC<{ artist: Artist; onClose: () =
                 tattooSize,
                 bodyPlacement,
                 estimatedHours: hours,
+                depositAmount,
+                platformFee,
             });
         }
     };
@@ -601,10 +630,12 @@ export const ClientBookingRequestModal: React.FC<{ artist: Artist; onClose: () =
                      <div>
                         <label className="text-sm font-medium text-brand-gray mb-1 block">Availability Start</label>
                         <input type="date" value={startDate} onChange={e => setStartDate(e.target.value)} className="w-full bg-gray-800 border-gray-700 rounded p-2" />
+                        {startDate && isDateUnavailable(startDate) && <p className="text-xs text-yellow-400 mt-1">Artist is marked as unavailable on this date.</p>}
                     </div>
                     <div>
                         <label className="text-sm font-medium text-brand-gray mb-1 block">Availability End</label>
                         <input type="date" value={endDate} onChange={e => setEndDate(e.target.value)} className="w-full bg-gray-800 border-gray-700 rounded p-2" />
+                        {endDate && isDateUnavailable(endDate) && <p className="text-xs text-yellow-400 mt-1">Artist is marked as unavailable on this date.</p>}
                     </div>
                 </div>
 
@@ -618,6 +649,14 @@ export const ClientBookingRequestModal: React.FC<{ artist: Artist; onClose: () =
                     <label className="text-sm font-medium text-brand-gray mb-1 block">Tattoo Idea / Message</label>
                     <textarea value={message} onChange={e => setMessage(e.target.value)} rows={4} className="w-full bg-gray-800 border-gray-700 rounded p-2" placeholder={`Hi ${artist.name}, I'm interested in getting a...`}></textarea>
                 </div>
+
+                {artist.hourlyRate && hours > 0 && (
+                    <div className="bg-gray-800 p-3 rounded-lg text-sm">
+                        <p className="font-semibold">Estimated Deposit: <span className="text-white">${depositAmount.toFixed(2)}</span> (25% of estimated cost)</p>
+                        <p className="text-xs text-brand-gray">This will be required if the artist approves your request.</p>
+                    </div>
+                )}
+
                 <button
                     onClick={handleSubmit}
                     disabled={!startDate || !endDate || !message || !tattooSize || !bodyPlacement || !hours}
@@ -892,16 +931,98 @@ export const ImageEditorModal: React.FC<{
     );
 };
 
+// --- NEW MODALS ---
+export const ShopReviewModal: React.FC<{ booking: Booking; shop: Shop; onSubmit: (shopId: string, review: Omit<Review, 'id'>) => void; onClose: () => void }> = ({ booking, shop, onSubmit, onClose }) => {
+    const [rating, setRating] = useState(0);
+    const [text, setText] = useState('');
+    const { user } = useAppStore();
+
+    const handleSubmit = () => {
+        if (rating > 0 && user) {
+            onSubmit(shop.id, {
+                authorId: user.id,
+                authorName: user.data.name,
+                rating,
+                text,
+                createdAt: new Date().toISOString()
+            });
+        }
+    };
+
+    return (
+        <Modal onClose={onClose} title={`Review your stay at ${shop.name}`} size="md">
+            <div className="space-y-4 text-center">
+                <p className="text-brand-gray">How was your experience booking a booth?</p>
+                <div className="flex justify-center">
+                    <StarRating rating={rating} onRate={setRating} isInteractive={true} className="w-8 h-8" />
+                </div>
+                <div>
+                    <textarea value={text} onChange={e => setText(e.target.value)} rows={4} placeholder="Share more about your experience..." className="w-full bg-gray-800 border-gray-700 rounded p-2" />
+                </div>
+                <button onClick={handleSubmit} disabled={rating === 0} className="w-full bg-brand-secondary text-white font-bold py-3 rounded-lg disabled:bg-gray-600">
+                    Submit Review
+                </button>
+            </div>
+        </Modal>
+    );
+};
+
+export const PaymentModal: React.FC<{ context: { type: 'artist' | 'client', data: Booking | ClientBookingRequest }, onClose: () => void, onProcessPayment: (type: 'artist' | 'client', booking: Booking | ClientBookingRequest) => void }> = ({ context, onClose, onProcessPayment }) => {
+    const { type, data } = context;
+    const isArtist = type === 'artist';
+    const amount = isArtist ? (data as Booking).totalAmount : (data as ClientBookingRequest).depositAmount;
+    const fee = isArtist ? (data as Booking).platformFee : (data as ClientBookingRequest).platformFee;
+    const total = (amount || 0) + (fee || 0);
+
+    return (
+        <Modal onClose={onClose} title="Complete Your Payment" size="md">
+            <div className="space-y-4">
+                <h3 className="text-lg font-bold text-white text-center">{isArtist ? "Booth Rental Payment" : "Booking Deposit"}</h3>
+                <div className="bg-gray-800 p-4 rounded-lg space-y-2 text-sm">
+                    <div className="flex justify-between"><span className="text-brand-gray">Subtotal:</span> <span>${amount?.toFixed(2) || '0.00'}</span></div>
+                    <div className="flex justify-between"><span className="text-brand-gray">Platform Fee:</span> <span>${fee?.toFixed(2) || '0.00'}</span></div>
+                    <div className="flex justify-between font-bold text-white border-t border-gray-700 pt-2 mt-2"><span >Total:</span> <span>${total.toFixed(2)}</span></div>
+                </div>
+                <div className="text-center text-xs text-brand-gray">
+                    This is a simulated payment gateway. Clicking 'Pay Now' will mark this booking as paid.
+                </div>
+                <button onClick={() => onProcessPayment(type, data)} className="w-full bg-brand-primary text-white font-bold py-3 rounded-lg">
+                    Pay Now
+                </button>
+            </div>
+        </Modal>
+    );
+};
+
+export const VerificationRequestModal: React.FC<{ item: Artist | Shop, type: 'artist' | 'shop', onClose: () => void, onSubmit: (type: 'artist' | 'shop', item: Artist | Shop) => void }> = ({ item, type, onClose, onSubmit }) => {
+    return (
+        <Modal onClose={onClose} title="Request Verification" size="md">
+            <div className="space-y-4 text-center">
+                <CheckBadgeIcon className="w-16 h-16 text-brand-secondary mx-auto" />
+                <h3 className="text-lg font-bold text-white">Get {item.name} Verified</h3>
+                <p className="text-brand-gray text-sm">
+                    Submitting a verification request will send your profile to our admin team for review. Verified {type}s gain trust and visibility on the platform.
+                </p>
+                <button onClick={() => onSubmit(type, item)} className="w-full bg-brand-secondary text-white font-bold py-3 rounded-lg">
+                    Submit Request
+                </button>
+            </div>
+        </Modal>
+    );
+};
+
+
 // --- PROFILE & DASHBOARD VIEWS ---
 
 export const ArtistProfileView: React.FC<{ artist: Artist; updateArtist: (artistId: string, data: Partial<Artist>) => void; showToast: (message: string, type?: 'success' | 'error') => void; openModal: (type: ModalState['type'], data?: any) => void; }> = ({ artist, updateArtist, showToast, openModal }) => {
     const [bio, setBio] = useState(artist.bio);
     const [specialty, setSpecialty] = useState(artist.specialty);
+    const [hourlyRate, setHourlyRate] = useState(artist.hourlyRate || 0);
     const [socials, setSocials] = useState<Socials>(artist.socials || {});
     const [isGenerating, setIsGenerating] = useState(false);
 
     const handleSave = () => {
-        updateArtist(artist.id, { bio, specialty, socials });
+        updateArtist(artist.id, { bio, specialty, socials, hourlyRate });
         showToast("Profile saved!");
     };
 
@@ -924,21 +1045,42 @@ export const ArtistProfileView: React.FC<{ artist: Artist; updateArtist: (artist
             <div className="flex items-center space-x-4 mb-8">
                 <img src={artist.portfolio.length > 0 ? artist.portfolio[0].url : `https://ui-avatars.com/api/?name=${artist.name.replace(' ', '+')}&background=101014&color=F04E98`} alt={artist.name} className="w-24 h-24 object-cover rounded-full border-4 border-gray-700 bg-gray-800" />
                 <div>
-                    <h2 className="text-4xl font-bold text-white">{artist.name}</h2>
+                    <div className="flex items-center gap-3">
+                        <h2 className="text-4xl font-bold text-white">{artist.name}</h2>
+                        {artist.isVerified && <CheckBadgeIcon className="w-8 h-8 text-brand-secondary" />}
+                    </div>
                     <p className="text-brand-primary text-lg">{artist.city}</p>
                 </div>
             </div>
             
             <div className="space-y-6">
-                <div>
-                    <label htmlFor="specialty" className="block text-sm font-medium text-brand-gray mb-1">Specialty</label>
-                    <input 
-                        type="text"
-                        id="specialty"
-                        value={specialty}
-                        onChange={(e) => setSpecialty(e.target.value)}
-                        className="w-full bg-gray-800 border border-gray-700 rounded-lg py-2 px-3 text-white focus:ring-2 focus:ring-brand-primary focus:outline-none"
-                    />
+                {!artist.isVerified && (
+                     <div className="bg-brand-secondary/10 border border-brand-secondary/50 p-4 rounded-lg flex items-center justify-between">
+                        <p className="text-sm text-brand-secondary">Get a verified badge to build trust with clients.</p>
+                        <button onClick={() => openModal('request-verification', { item: artist, type: 'artist' })} className="bg-brand-secondary text-white font-bold py-2 px-4 rounded-lg text-sm">Request Verification</button>
+                    </div>
+                )}
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <div>
+                        <label htmlFor="specialty" className="block text-sm font-medium text-brand-gray mb-1">Specialty</label>
+                        <input 
+                            type="text"
+                            id="specialty"
+                            value={specialty}
+                            onChange={(e) => setSpecialty(e.target.value)}
+                            className="w-full bg-gray-800 border border-gray-700 rounded-lg py-2 px-3 text-white focus:ring-2 focus:ring-brand-primary focus:outline-none"
+                        />
+                    </div>
+                    <div>
+                        <label htmlFor="hourlyRate" className="block text-sm font-medium text-brand-gray mb-1">Hourly Rate ($)</label>
+                        <input 
+                            type="number"
+                            id="hourlyRate"
+                            value={hourlyRate}
+                            onChange={(e) => setHourlyRate(Number(e.target.value))}
+                            className="w-full bg-gray-800 border border-gray-700 rounded-lg py-2 px-3 text-white focus:ring-2 focus:ring-brand-primary focus:outline-none"
+                        />
+                    </div>
                 </div>
                 <div>
                     <div className="flex justify-between items-center mb-1">

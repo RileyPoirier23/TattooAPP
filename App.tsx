@@ -12,6 +12,7 @@ import { MyBookingsView } from './components/views/MyBookingsView';
 import { SettingsView } from './components/views/SettingsView';
 import { MessagesView } from './components/views/MessagesView';
 import { ArtistAvailabilityView } from './components/views/ArtistAvailabilityView';
+import { ShopOwnerOnboardingView } from './components/views/ShopOwnerOnboardingView';
 import { ArtistProfileView, ClientProfileView } from './components/ModalsAndProfile';
 import { 
   AuthModal, 
@@ -23,6 +24,9 @@ import {
   EditBoothModal,
   LeaveReviewModal,
   ImageEditorModal,
+  ShopReviewModal,
+  PaymentModal,
+  VerificationRequestModal,
 } from './components/ModalsAndProfile';
 import { Toast } from './components/shared/Toast';
 import { Loader } from './components/shared/Loader';
@@ -68,6 +72,11 @@ function App() {
     startConversationAndNavigate,
     deleteUser,
     deleteShop,
+    createShop,
+    requestVerification,
+    respondToVerificationRequest,
+    submitShopReview,
+    processPayment,
   } = useAppStore();
 
   useEffect(() => {
@@ -87,6 +96,10 @@ function App() {
       return <ErrorDisplay message={error} />;
     }
 
+    if (user?.type === 'shop-owner' && !user.data.shopId && page !== 'onboarding') {
+        navigateTo('onboarding');
+    }
+    
     switch (page) {
       case 'search':
         return viewMode === 'artist' ? <ArtistSearchView /> : <ClientSearchView />;
@@ -106,13 +119,13 @@ function App() {
           return <ShopOwnerDashboard shop={ownerShop} booths={shopBooths} updateShop={updateShop} addBooth={addBooth} updateBooth={updateBooth} deleteBooth={deleteBooth} openModal={openModal} />;
         }
         if (user?.type === 'admin') {
-          return <AdminDashboard data={data} allUsers={allUsers} deleteUser={deleteUser} deleteShop={deleteShop} />;
+          return <AdminDashboard data={data} allUsers={allUsers} deleteUser={deleteUser} deleteShop={deleteShop} respondToVerificationRequest={respondToVerificationRequest} />;
         }
         return <p>Dashboard not available.</p>;
       case 'bookings':
         if(user){
             const userArtistBookings = data.bookings.filter(b => b.artistId === user.id);
-            return <MyBookingsView user={user} artistBookings={userArtistBookings} allClientBookings={data.clientBookingRequests} onRespondToRequest={respondToBookingRequest} onCompleteRequest={completeBookingRequest} onLeaveReview={(req) => openModal('leave-review', req)} shops={data.shops} />;
+            return <MyBookingsView user={user} artistBookings={userArtistBookings} allClientBookings={data.clientBookingRequests} onRespondToRequest={respondToBookingRequest} onCompleteRequest={completeBookingRequest} onLeaveReview={(req) => openModal('leave-review', req)} onLeaveShopReview={(booking) => openModal('shop-review', booking)} onPayDeposit={(req) => openModal('payment', { type: 'client', data: req })} shops={data.shops} />;
         }
         return null;
       case 'settings':
@@ -124,6 +137,8 @@ function App() {
         return user ? <MessagesView /> : <p>Please log in to view messages.</p>;
       case 'availability':
         return (user?.type === 'artist' || user?.type === 'dual') ? <ArtistAvailabilityView /> : <p>This page is for artists only.</p>
+      case 'onboarding':
+        return (user?.type === 'shop-owner' && !user.data.shopId) ? <ShopOwnerOnboardingView owner={user} createShop={createShop} /> : <p>Access denied.</p>
       default:
         return <AboutSection />;
     }
@@ -140,9 +155,14 @@ function App() {
         return <ShopDetailModal shop={modal.data} booths={shopBooths} onClose={closeModal} onBookClick={(shop) => openModal('booking', {shop, booths: shopBooths})} />;
       case 'booking':
         const relevantBookings = data.bookings.filter(b => b.shopId === modal.data.shop.id);
-        return <BookingModal shop={modal.data.shop} booths={modal.data.booths} bookings={relevantBookings} onClose={closeModal} onConfirmBooking={confirmArtistBooking} />;
+        return <BookingModal shop={modal.data.shop} booths={modal.data.booths} bookings={relevantBookings} onClose={closeModal} onConfirmBooking={(booking) => {
+            confirmArtistBooking(booking).then((newBooking) => {
+                if(newBooking) openModal('payment', { type: 'artist', data: newBooking });
+            });
+        }} />;
       case 'client-booking-request':
-        return <ClientBookingRequestModal artist={modal.data} onClose={closeModal} onSendRequest={sendClientBookingRequest} />
+        const artistAvail = data.artistAvailability.filter(a => a.artistId === modal.data.id);
+        return <ClientBookingRequestModal artist={modal.data} availability={artistAvail} onClose={closeModal} onSendRequest={sendClientBookingRequest} />
       case 'upload-portfolio':
         return <UploadPortfolioModal onClose={closeModal} onUpload={uploadPortfolio} />
       case 'edit-booth':
@@ -156,6 +176,14 @@ function App() {
                   onClose={closeModal}
                   onSave={editPortfolioImage} 
                 />;
+      case 'shop-review':
+        const shopForReview = data.shops.find(s => s.id === modal.data.shopId);
+        if (!shopForReview) return null;
+        return <ShopReviewModal booking={modal.data} shop={shopForReview} onClose={closeModal} onSubmit={submitShopReview} />
+      case 'payment':
+        return <PaymentModal context={modal.data} onClose={closeModal} onProcessPayment={processPayment} />
+      case 'request-verification':
+        return <VerificationRequestModal item={modal.data.item} type={modal.data.type} onClose={closeModal} onSubmit={requestVerification} />
       default:
         return null;
     }

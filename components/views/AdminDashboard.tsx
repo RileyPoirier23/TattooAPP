@@ -2,14 +2,15 @@
 // @/components/views/AdminDashboard.tsx
 
 import React from 'react';
-import type { MockData, User } from '../../types';
-import { XIcon } from '../shared/Icons';
+import type { MockData, User, VerificationRequest } from '../../types';
+import { XIcon, CheckBadgeIcon } from '../shared/Icons';
 
 interface AdminDashboardProps {
     data: MockData;
     allUsers: User[];
     deleteUser: (userId: string) => void;
     deleteShop: (shopId: string) => void;
+    respondToVerificationRequest: (requestId: string, status: 'approved' | 'rejected') => void;
 }
 
 const TableCard: React.FC<{ title: string; children: React.ReactNode }> = ({ title, children }) => (
@@ -34,7 +35,7 @@ const Table: React.FC<{ headers: string[]; children: React.ReactNode }> = ({ hea
     </table>
 );
 
-export const AdminDashboard: React.FC<AdminDashboardProps> = ({ data, allUsers, deleteUser, deleteShop }) => {
+export const AdminDashboard: React.FC<AdminDashboardProps> = ({ data, allUsers, deleteUser, deleteShop, respondToVerificationRequest }) => {
     
     const handleDeleteUser = (user: User) => {
         if (window.confirm(`Are you sure you want to delete user ${user.data.name} (${user.email})? This action cannot be undone.`)) {
@@ -48,9 +49,30 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ data, allUsers, 
         }
     };
 
+    const pendingVerifications = data.verificationRequests.filter(v => v.status === 'pending');
+
     return (
         <div className="max-w-7xl mx-auto space-y-8">
             <h1 className="text-4xl font-bold text-white">Admin Dashboard</h1>
+
+            {pendingVerifications.length > 0 && (
+                <TableCard title="Pending Verification Requests">
+                    <Table headers={['Request ID', 'Name', 'Type', 'Submitted', 'Actions']}>
+                        {pendingVerifications.map(req => (
+                            <tr key={req.id} className="border-b border-gray-800 hover:bg-gray-800/50">
+                                <td className="px-6 py-4 font-mono text-xs">{req.id}</td>
+                                <td className="px-6 py-4 font-medium text-white">{req.itemName}</td>
+                                <td className="px-6 py-4 capitalize">{req.type}</td>
+                                <td className="px-6 py-4">{new Date(req.createdAt).toLocaleDateString()}</td>
+                                <td className="px-6 py-4 flex gap-2">
+                                    <button onClick={() => respondToVerificationRequest(req.id, 'approved')} className="text-xs bg-green-600 text-white font-semibold py-1 px-3 rounded-lg">Approve</button>
+                                    <button onClick={() => respondToVerificationRequest(req.id, 'rejected')} className="text-xs bg-red-600 text-white font-semibold py-1 px-3 rounded-lg">Decline</button>
+                                </td>
+                            </tr>
+                        ))}
+                    </Table>
+                </TableCard>
+            )}
 
             <TableCard title="All Users">
                 <Table headers={['ID', 'Email', 'Name', 'Role', 'Verified', 'Actions']}>
@@ -60,7 +82,17 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ data, allUsers, 
                             <td className="px-6 py-4">{user.email}</td>
                             <td className="px-6 py-4 font-medium text-white">{'data' in user ? user.data.name : 'N/A'}</td>
                             <td className="px-6 py-4 capitalize">{user.type}</td>
-                            <td className="px-6 py-4">{('data' in user && 'isVerified' in user.data) ? String(user.data.isVerified) : 'N/A'}</td>
+                            <td className="px-6 py-4">
+                                {('data' in user && 'isVerified' in user.data) ? (
+                                    user.data.isVerified ? (
+                                        <CheckBadgeIcon className="w-6 h-6 text-green-400" title="Verified" />
+                                    ) : (
+                                        <XIcon className="w-6 h-6 text-brand-gray" title="Not Verified" />
+                                    )
+                                ) : (
+                                    <span className="text-xs text-gray-500">N/A</span>
+                                )}
+                            </td>
                             <td className="px-6 py-4">
                                 <button onClick={() => handleDeleteUser(user)} className="text-red-500 hover:text-red-400"><XIcon className="w-5 h-5"/></button>
                             </td>
@@ -77,7 +109,13 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ data, allUsers, 
                             <td className="px-6 py-4 font-medium text-white">{shop.name}</td>
                             <td className="px-6 py-4">{shop.location}</td>
                             <td className="px-6 py-4">{shop.rating}</td>
-                            <td className="px-6 py-4">{String(shop.isVerified)}</td>
+                            <td className="px-6 py-4">
+                                {shop.isVerified ? (
+                                    <CheckBadgeIcon className="w-6 h-6 text-green-400" title="Verified" />
+                                ) : (
+                                    <XIcon className="w-6 h-6 text-brand-gray" title="Not Verified" />
+                                )}
+                            </td>
                             <td className="px-6 py-4">
                                 <button onClick={() => handleDeleteShop(shop)} className="text-red-500 hover:text-red-400"><XIcon className="w-5 h-5"/></button>
                             </td>

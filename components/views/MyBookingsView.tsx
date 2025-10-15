@@ -1,9 +1,8 @@
-
 // @/components/views/MyBookingsView.tsx
 
 import React from 'react';
 import type { User, Booking, ClientBookingRequest, Shop } from '../../types';
-import { CalendarIcon, UserCircleIcon, LocationIcon, CheckBadgeIcon } from '../shared/Icons';
+import { CalendarIcon, UserCircleIcon, LocationIcon, CheckBadgeIcon, CreditCardIcon, StarIcon } from '../shared/Icons';
 
 interface MyBookingsViewProps {
   user: User;
@@ -13,6 +12,8 @@ interface MyBookingsViewProps {
   onRespondToRequest: (requestId: string, status: 'approved' | 'declined') => void;
   onCompleteRequest: (requestId: string) => void;
   onLeaveReview: (request: ClientBookingRequest) => void;
+  onLeaveShopReview: (booking: Booking) => void;
+  onPayDeposit: (request: ClientBookingRequest) => void;
 }
 
 const getStatusChip = (status: string) => {
@@ -32,13 +33,18 @@ const getStatusChip = (status: string) => {
     }
 };
 
-export const MyBookingsView: React.FC<MyBookingsViewProps> = ({ user, artistBookings, allClientBookings, shops, onRespondToRequest, onCompleteRequest, onLeaveReview }) => {
+export const MyBookingsView: React.FC<MyBookingsViewProps> = ({ user, artistBookings, allClientBookings, shops, onRespondToRequest, onCompleteRequest, onLeaveReview, onLeaveShopReview, onPayDeposit }) => {
 
   const canViewArtistBookings = user.type === 'artist' || user.type === 'dual';
   const canViewClientBookings = user.type === 'client' || user.type === 'dual';
   
   const mySentClientBookings = allClientBookings.filter(b => b.clientId === user.id);
   const myReceivedClientBookings = allClientBookings.filter(b => b.artistId === user.id);
+
+  // A booth booking is "completed" if it's paid and the end date is in the past
+  const hasCompletedBoothBookings = (booking: Booking) => {
+      return booking.paymentStatus === 'paid' && new Date(booking.endDate) < new Date();
+  };
 
   return (
     <div className="max-w-4xl mx-auto space-y-8">
@@ -108,12 +114,14 @@ export const MyBookingsView: React.FC<MyBookingsViewProps> = ({ user, artistBook
                         </div>
                         </div>
                         <div className="flex items-center gap-4">
-                        <span className={`text-xs font-bold px-3 py-1 rounded-full capitalize ${getStatusChip(booking.paymentStatus)}`}>
+                            <span className={`text-xs font-bold px-3 py-1 rounded-full capitalize ${getStatusChip(booking.paymentStatus)}`}>
                                 {booking.paymentStatus}
                             </span>
-                            <button className="text-sm bg-brand-secondary text-white font-semibold py-2 px-4 rounded-lg hover:bg-opacity-80">
-                                Manage
-                            </button>
+                            {hasCompletedBoothBookings(booking) && (
+                                <button onClick={() => onLeaveShopReview(booking)} className="text-sm bg-yellow-600 text-white font-semibold py-2 px-4 rounded-lg hover:bg-yellow-500 flex items-center gap-2">
+                                   <StarIcon className="w-4 h-4" /> Review Shop
+                                </button>
+                            )}
                         </div>
                     </div>
                     );
@@ -144,6 +152,11 @@ export const MyBookingsView: React.FC<MyBookingsViewProps> = ({ user, artistBook
                        <span className={`text-xs font-bold px-3 py-1 rounded-full capitalize ${getStatusChip(booking.status)}`}>
                             {booking.status}
                         </span>
+                        {booking.status === 'approved' && booking.paymentStatus === 'unpaid' && (
+                            <button onClick={() => onPayDeposit(booking)} className="text-sm bg-brand-primary text-white font-semibold py-2 px-4 rounded-lg hover:bg-opacity-80 flex items-center gap-2">
+                                <CreditCardIcon className="w-4 h-4" /> Pay Deposit
+                            </button>
+                        )}
                         {booking.status === 'completed' && !booking.reviewRating && (
                             <button onClick={() => onLeaveReview(booking)} className="text-sm bg-yellow-600 text-white font-semibold py-2 px-4 rounded-lg hover:bg-yellow-500">
                                 Leave a Review

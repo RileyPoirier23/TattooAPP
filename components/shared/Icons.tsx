@@ -1,10 +1,12 @@
 
+
 import React from 'react';
 
 // FIX: Add optional `style` property to allow inline styling of icons.
 interface IconProps {
   className?: string;
   style?: React.CSSProperties;
+  title?: string;
 }
 
 export const NeedleIcon: React.FC<IconProps> = ({ className, style }) => (
@@ -66,8 +68,10 @@ export const EditIcon: React.FC<IconProps> = ({ className, style }) => (
     </svg>
 );
 
-export const XIcon: React.FC<IconProps> = ({ className, style }) => (
-    <svg xmlns="http://www.w3.org/2000/svg" className={className} style={style} fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor" >
+export const XIcon: React.FC<IconProps> = ({ className, style, title }) => (
+    <svg xmlns="http://www.w3.org/2000/svg" className={className} style={style} fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor">
+{/* FIX: The `title` prop is not a valid SVG attribute. Use a nested <title> element for accessibility. */}
+        {title && <title>{title}</title>}
         <path strokeLinecap="round" strokeLinejoin="round" d="M6 18 18 6M6 6l12 12" />
     </svg>
 );
@@ -81,6 +85,13 @@ export const BellIcon: React.FC<IconProps> = ({ className, style }) => (
 export const CalendarIcon: React.FC<IconProps> = ({ className, style }) => (
     <svg xmlns="http://www.w3.org/2000/svg" className={className} style={style} fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor">
         <path strokeLinecap="round" strokeLinejoin="round" d="M6.75 3v2.25M17.25 3v2.25M3 18.75V7.5a2.25 2.25 0 0 1 2.25-2.25h13.5A2.25 2.25 0 0 1 21 7.5v11.25m-18 0A2.25 2.25 0 0 0 5.25 21h13.5A2.25 2.25 0 0 0 21 18.75m-18 0h18M-4.5 12h22.5" />
+    </svg>
+);
+
+// FIX: Add missing CreditCardIcon.
+export const CreditCardIcon: React.FC<IconProps> = ({ className, style }) => (
+    <svg xmlns="http://www.w3.org/2000/svg" className={className} style={style} fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor">
+        <path strokeLinecap="round" strokeLinejoin="round" d="M2.25 8.25h19.5M2.25 9h19.5m-16.5 5.25h6m-6 2.25h3m-3.5 3.75h15a2.25 2.25 0 0 0 2.25-2.25V6.75A2.25 2.25 0 0 0 19.5 4.5h-15a2.25 2.25 0 0 0-2.25 2.25v10.5A2.25 2.25 0 0 0 4.5 21Z" />
     </svg>
 );
 
@@ -109,8 +120,10 @@ export const CrosshairsIcon: React.FC<IconProps> = ({ className, style }) => (
     </svg>
 );
 
-export const CheckBadgeIcon: React.FC<IconProps> = ({ className, style }) => (
+export const CheckBadgeIcon: React.FC<IconProps> = ({ className, style, title }) => (
     <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" className={className} style={style}>
+{/* FIX: The `title` prop is not a valid SVG attribute. Use a nested <title> element for accessibility. */}
+        {title && <title>{title}</title>}
         <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.857-9.809a.75.75 0 00-1.214-.882l-3.483 4.79-1.88-1.88a.75.75 0 10-1.06 1.061l2.5 2.5a.75.75 0 001.137-.089l4-5.5z" clipRule="evenodd" />
     </svg>
 );

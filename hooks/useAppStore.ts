@@ -4,11 +4,11 @@
 import { create } from 'zustand';
 import { persist } from 'zustand/middleware';
 import {
-  Artist, Shop, Booking, Booth, User, ViewMode, Page, AuthCredentials, RegisterDetails, MockData, ClientBookingRequest, Notification, Client, ShopOwner, Admin, ConversationWithUser, Message, ArtistAvailability, Review, ModalState, PortfolioImage,
+  Artist, Shop, Booking, Booth, User, ViewMode, Page, AuthCredentials, RegisterDetails, MockData, ClientBookingRequest, Notification, Client, ShopOwner, Admin, ConversationWithUser, Message, ArtistAvailability, Review, ModalState, PortfolioImage, VerificationRequest, ShopOwnerUser,
 } from '../types';
 import {
   fetchInitialData, updateArtistData, uploadPortfolioImage, updateShopData, addBoothToShop, deleteBoothFromShop,
-  createBookingForArtist, createClientBookingRequest, updateClientBookingRequestStatus, fetchNotificationsForUser, markUserNotificationsAsRead, createNotification, fetchAllUsers, updateUserData, updateBoothData, fetchUserConversations, fetchMessagesForConversation, sendMessage, findOrCreateConversation, setArtistAvailability, submitReview, deleteUserAsAdmin, deleteShopAsAdmin, uploadMessageAttachment, fetchArtistReviews, replacePortfolioImage,
+  createBookingForArtist, createClientBookingRequest, updateClientBookingRequestStatus, fetchNotificationsForUser, markUserNotificationsAsRead, createNotification, fetchAllUsers, updateUserData, updateBoothData, fetchUserConversations, fetchMessagesForConversation, sendMessage, findOrCreateConversation, setArtistAvailability, submitReview, deleteUserAsAdmin, deleteShopAsAdmin, uploadMessageAttachment, fetchArtistReviews, replacePortfolioImage, createShop as apiCreateShop, updateProfileWithShopId, createVerificationRequest, updateVerificationRequest, addReviewToShop, updateBookingPaymentStatus,
 } from '../services/apiService';
 import { authService } from '../services/authService';
 
@@ -53,7 +53,7 @@ interface AppState {
   logout: () => Promise<void>;
   fetchNotifications: () => Promise<void>;
   markNotificationsAsRead: () => Promise<void>;
-  confirmArtistBooking: (bookingData: Omit<Booking, 'id' | 'artistId'>) => Promise<void>;
+  confirmArtistBooking: (bookingData: Omit<Booking, 'id' | 'artistId' | 'city'>) => Promise<Booking | null>;
   sendClientBookingRequest: (requestData: Omit<ClientBookingRequest, 'id' | 'clientId' | 'status' | 'paymentStatus'>) => Promise<void>;
   respondToBookingRequest: (requestId: string, status: 'approved' | 'declined') => Promise<void>;
   completeBookingRequest: (requestId: string) => Promise<void>;
@@ -77,12 +77,19 @@ interface AppState {
   selectConversation: (conversationId: string) => Promise<void>;
   sendMessage: (content: string, attachmentFile?: File) => Promise<void>;
   startConversationAndNavigate: (otherUserId: string) => Promise<void>;
+
+  // New Roadmap Actions
+  createShop: (shopData: Omit<Shop, 'id' | 'isVerified' | 'rating' | 'reviews' | 'averageArtistRating' | 'ownerId'>) => Promise<void>;
+  requestVerification: (type: 'artist' | 'shop', item: Artist | Shop) => Promise<void>;
+  respondToVerificationRequest: (requestId: string, status: 'approved' | 'rejected') => Promise<void>;
+  submitShopReview: (shopId: string, review: Omit<Review, 'id'>) => Promise<void>;
+  processPayment: (type: 'artist' | 'client', booking: Booking | ClientBookingRequest) => Promise<void>;
 }
 
 export const useAppStore = create<AppState>()(
   persist(
     (set, get) => ({
-      data: { artists: [], shops: [], booths: [], bookings: [], clientBookingRequests: [], notifications: [], conversations: [], messages: [], artistAvailability: [] },
+      data: { artists: [], shops: [], booths: [], bookings: [], clientBookingRequests: [], notifications: [], conversations: [], messages: [], artistAvailability: [], verificationRequests: [] },
       allUsers: [],
       isInitialized: false,
       isLoading: true,
@@ -104,7 +111,11 @@ export const useAppStore = create<AppState>()(
           set({ data: initialData, user: currentUser, isInitialized: true, isLoading: false });
           if (currentUser) {
             if (currentUser.type === 'artist') set({ viewMode: 'artist' });
-            if (currentUser.type === 'admin') set({ page: 'dashboard' });
+            if (currentUser.type === 'admin') {
+              set({ page: 'dashboard' });
+              const users = await fetchAllUsers();
+              set({ allUsers: users });
+            }
             get().fetchNotifications();
             get().loadConversations();
           }
@@ -126,6 +137,7 @@ export const useAppStore = create<AppState>()(
           const user = await authService.login(credentials);
           set({ user, page: 'search' }); // Reset to search on login
           if (user.type === 'artist') set({ viewMode: 'artist' });
+          if (user.type === 'shop-owner' && !user.data.shopId) set({ page: 'onboarding' });
           if (user.type === 'admin') {
             set({ page: 'dashboard' });
             const users = await fetchAllUsers();
@@ -147,6 +159,8 @@ export const useAppStore = create<AppState>()(
           set({ user });
            if (user.type === 'artist' || user.type === 'dual') {
             set({ viewMode: 'artist', page: 'profile' }); // Go to profile to set up
+          } else if (user.type === 'shop-owner') {
+            set({ page: 'onboarding' });
           } else {
             set({ page: 'search' });
           }
@@ -187,14 +201,16 @@ export const useAppStore = create<AppState>()(
           const user = get().user;
           if (!user || user.type !== 'artist' && user.type !== 'dual') {
               get().showToast('You must be an artist to book a booth.', 'error');
-              return;
+              return null;
           }
           try {
               const newBooking = await createBookingForArtist({ ...bookingData, artistId: user.id });
               set(state => ({ data: { ...state.data, bookings: [...state.data.bookings, newBooking] } }));
               get().showToast('Booking initiated! Please complete payment.');
+              return newBooking;
           } catch(e) {
               get().showToast('Booking failed. Please try again.', 'error');
+              return null;
           }
       },
 
@@ -426,6 +442,95 @@ export const useAppStore = create<AppState>()(
             const message = error instanceof Error ? error.message : "Could not start conversation.";
             get().showToast(message, 'error');
             set({ isLoading: false });
+        }
+      },
+
+      // --- NEW ROADMAP ACTIONS ---
+      createShop: async (shopData) => {
+        const user = get().user;
+        if (!user || user.type !== 'shop-owner') return;
+        try {
+            const newShop = await apiCreateShop(shopData, user.id);
+            await updateProfileWithShopId(user.id, newShop.id);
+            // FIX: Added type guard to prevent TypeScript from being confused about the user type when updating state.
+            set(state => {
+                if (state.user?.type === 'shop-owner') {
+                    const updatedUser: ShopOwnerUser = {
+                        ...state.user,
+                        data: {
+                            ...state.user.data,
+                            shopId: newShop.id,
+                        },
+                    };
+                    return {
+                        data: { ...state.data, shops: [...state.data.shops, newShop] },
+                        user: updatedUser,
+                        page: 'dashboard',
+                    };
+                }
+                return {};
+            });
+            get().showToast('Your shop has been created!', 'success');
+        } catch (e) {
+            get().showToast('Failed to create shop.', 'error');
+        }
+      },
+      requestVerification: async (type, item) => {
+        const user = get().user;
+        if (!user) return;
+        try {
+            // FIX: Simplified the 'id' retrieval which was causing a 'type never' error.
+            const id = item.id;
+            const newRequest = await createVerificationRequest(type, id, user.id);
+            // No need to add to local state, admin will see it.
+            get().closeModal();
+            get().showToast('Verification request submitted.');
+        } catch (e) {
+            get().showToast('Failed to submit request.', 'error');
+        }
+      },
+      respondToVerificationRequest: async (requestId, status) => {
+        try {
+            const updatedRequest = await updateVerificationRequest(requestId, status);
+            // Refresh all data to reflect verification status change
+            get().initialize();
+            get().showToast(`Request ${status}.`);
+        } catch (e) {
+            get().showToast('Failed to process request.', 'error');
+        }
+      },
+      submitShopReview: async (shopId, review) => {
+        try {
+            const updatedShop = await addReviewToShop(shopId, review);
+            set(state => ({
+                data: { ...state.data, shops: state.data.shops.map(s => s.id === shopId ? updatedShop : s) }
+            }));
+            get().closeModal();
+            get().showToast('Thank you for reviewing the shop!');
+        } catch (e) {
+            get().showToast('Failed to submit review.', 'error');
+        }
+      },
+      processPayment: async (type, booking) => {
+        try {
+            // Simulate API call to payment provider
+            const paymentIntentId = `pi_sim_${Date.now()}`;
+            await updateBookingPaymentStatus(type, booking.id, paymentIntentId);
+
+            if (type === 'artist') {
+                 set(state => ({
+                    data: { ...state.data, bookings: state.data.bookings.map(b => b.id === booking.id ? { ...b, paymentStatus: 'paid' } : b) }
+                }));
+            } else {
+                 set(state => ({
+                    data: { ...state.data, clientBookingRequests: state.data.clientBookingRequests.map(b => b.id === booking.id ? { ...b, paymentStatus: 'paid' } : b) }
+                }));
+            }
+
+            get().closeModal();
+            get().showToast('Payment successful!');
+        } catch (e) {
+            get().showToast('Payment failed.', 'error');
         }
       },
 
