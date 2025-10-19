@@ -735,7 +735,7 @@ export const ShopReviewModal: React.FC<{ booking: Booking; shop: Shop; onSubmit:
 };
 
 // --- STRIPE PAYMENT MODAL ---
-const STRIPE_PUBLISHABLE_KEY = process.env.VITE_STRIPE_PUBLISHABLE_KEY;
+const STRIPE_PUBLISHABLE_KEY = process.env.STRIPE_PUBLISHABLE_KEY;
 
 const cardStyle = (isDarkMode: boolean) => ({
   style: {
@@ -767,7 +767,7 @@ export const PaymentModal: React.FC<{ context: PaymentContext, onClose: () => vo
     const cardElementRef = useRef<HTMLDivElement>(null);
 
     useEffect(() => {
-        if (window.Stripe && !stripe) {
+        if (window.Stripe && !stripe && STRIPE_PUBLISHABLE_KEY) {
             setStripe(window.Stripe(STRIPE_PUBLISHABLE_KEY));
         }
     }, [stripe]);
@@ -806,6 +806,14 @@ export const PaymentModal: React.FC<{ context: PaymentContext, onClose: () => vo
 
     const amount = context.type === 'artist' ? context.data.totalAmount : context.data.depositAmount;
     const title = context.type === 'artist' ? 'Pay for Booth Rental' : 'Pay Booking Deposit';
+
+    if (!STRIPE_PUBLISHABLE_KEY) {
+        return (
+            <Modal onClose={onClose} title="Configuration Error" size="md">
+                <p className="text-center text-red-400">The Stripe service is not configured. Please provide a publishable key.</p>
+            </Modal>
+        )
+    }
 
     return (
         <Modal onClose={onClose} title={title} size="md" closeDisabled={isLoading}>
