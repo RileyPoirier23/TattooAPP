@@ -56,7 +56,6 @@ export const SettingsView: React.FC<SettingsViewProps> = ({ user, onUpdateUser, 
                     <input
                         type="text"
                         id="email"
-                        // FIX: Property 'username' does not exist on type 'User'. The correct property is 'email'.
                         value={user.email}
                         disabled
                         className="w-full bg-gray-800/50 border border-gray-700 rounded-lg py-2 px-3 text-gray-400 cursor-not-allowed"

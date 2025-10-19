@@ -195,10 +195,9 @@ export interface GroundingChunk {
 // --- APP STATE & NAVIGATION ---
 
 export type ViewMode = 'artist' | 'client';
-export type Page = 'search' | 'profile' | 'dashboard' | 'bookings' | 'settings' | 'messages' | 'admin' | 'availability' | 'onboarding';
 
 export interface ModalState {
-  type: 'auth' | 'artist-detail' | 'shop-detail' | 'booking' | 'client-booking-request' | 'upload-portfolio' | 'edit-booth' | 'leave-review' | 'image-editor' | 'shop-review' | 'payment' | 'request-verification' | null;
+  type: 'auth' | 'artist-detail' | 'shop-detail' | 'booking' | 'client-booking-request' | 'upload-portfolio' | 'edit-booth' | 'leave-review' | 'image-editor' | 'shop-review' | 'payment' | 'request-verification' | 'admin-edit-user' | 'admin-edit-shop' | null;
   data?: any;
 }
 

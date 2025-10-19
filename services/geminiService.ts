@@ -1,6 +1,7 @@
 // @/services/geminiService.ts
 
-import { GoogleGenAI, GenerateContentResponse, Modality } from "@google/genai";
+import { GoogleGenAI, GenerateContentResponse, Modality, Type } from "@google/genai";
+import type { Artist, Client, Shop } from "../types";
 
 // The API key is sourced from the environment and is assumed to be present.
 // For Vite projects, environment variables must be accessed via `import.meta.env`.
@@ -119,5 +120,85 @@ export const editImageWithGemini = async (imageUrl: string, prompt: string): Pro
     } catch (error) {
         console.error("Error editing image with Gemini:", error);
         throw new Error("Failed to edit image with AI. The service might be busy or the content was filtered.");
+    }
+};
+
+// --- Function Overloading for Type Safety ---
+
+/**
+ * Generates personalized recommendations for artists looking for shops.
+ * @param type Must be 'shop'.
+ * @param items The full list of shops to choose from.
+ * @param user The artist for whom to generate recommendations.
+ * @returns A promise that resolves to an array of recommended shop IDs.
+ */
+export function getRecommendations(type: 'shop', items: Shop[], user: Artist): Promise<string[]>;
+/**
+ * Generates personalized recommendations for clients looking for artists.
+ * @param type Must be 'artist'.
+ * @param items The full list of artists to choose from.
+ * @param user The client or artist (acting as a client) for whom to generate recommendations.
+ * @returns A promise that resolves to an array of recommended artist IDs.
+ */
+export function getRecommendations(type: 'artist', items: Artist[], user: Artist | Client): Promise<string[]>;
+
+/**
+ * Generates personalized recommendations for artists or clients using AI.
+ * This is the implementation function and should not be called directly.
+ */
+export async function getRecommendations(
+    type: 'artist' | 'shop',
+    items: (Artist | Shop)[],
+    user: Artist | Client
+): Promise<string[]> {
+    
+    let prompt = '';
+
+    if (type === 'shop') {
+        // FIX: Add a type guard. The function overloads ensure `user` is an `Artist` when `type` is 'shop',
+        // but we must check this within the implementation to narrow the type for TypeScript and safely access artist-specific properties.
+        if (!('specialty' in user)) {
+            // This path should not be hit in a type-safe application.
+            throw new Error("getRecommendations was called with type 'shop' but the user provided was not an artist.");
+        }
+        const artist = user; // `user` is now correctly narrowed to `Artist`
+        const shopsForPrompt = (items as Shop[]).map(s => ({ id: s.id, name: s.name, location: s.location, amenities: s.amenities, averageArtistRating: s.averageArtistRating, isVerified: s.isVerified }));
+        prompt = `You are a recommendation engine for a tattoo marketplace. An artist named ${artist.name} in ${artist.city} who specializes in "${artist.specialty}" is looking for a shop. Based on the following list of shops, recommend the top 3. Prioritize verified shops with high ratings and relevant amenities.
+        Available shops: ${JSON.stringify(shopsForPrompt)}`;
+    } else {
+        // FIX: Safely check for the 'city' property, as a 'Client' type does not have it.
+        const userCity = 'city' in user ? user.city : 'their area';
+        const artistsForPrompt = (items as Artist[]).map(a => ({ id: a.id, name: a.name, city: a.city, specialty: a.specialty, averageRating: a.averageRating, isVerified: a.isVerified }));
+        prompt = `You are a recommendation engine for a tattoo marketplace. A client is looking for an artist in ${userCity}. Based on the following list of artists, recommend the top 3. Prioritize verified artists with high ratings who are in the client's city.
+        Available artists: ${JSON.stringify(artistsForPrompt)}`;
+    }
+
+    try {
+        const response: GenerateContentResponse = await ai.models.generateContent({
+            model: 'gemini-2.5-flash',
+            contents: prompt,
+            config: {
+                responseMimeType: "application/json",
+                responseSchema: {
+                    type: Type.OBJECT,
+                    properties: {
+                        recommendedIds: {
+                            type: Type.ARRAY,
+                            items: {
+                                type: Type.STRING
+                            }
+                        }
+                    },
+                    required: ['recommendedIds']
+                }
+            }
+        });
+        
+        const jsonStr = response.text.trim();
+        const result = JSON.parse(jsonStr);
+        return result.recommendedIds || [];
+    } catch (error) {
+        console.error("Error generating recommendations:", error);
+        throw new Error("Failed to generate recommendations with AI.");
     }
 };

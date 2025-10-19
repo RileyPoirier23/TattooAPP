@@ -2,7 +2,8 @@
 
 import React from 'react';
 import type { User, Booking, ClientBookingRequest, Shop } from '../../types';
-import { CalendarIcon, UserCircleIcon, LocationIcon, CheckBadgeIcon, CreditCardIcon, StarIcon } from '../shared/Icons';
+import { CalendarIcon, LocationIcon, CheckBadgeIcon, CreditCardIcon, StarIcon, SearchIcon } from '../shared/Icons';
+import { useRouter } from '../../hooks/useRouter';
 
 interface MyBookingsViewProps {
   user: User;
@@ -14,6 +15,7 @@ interface MyBookingsViewProps {
   onLeaveReview: (request: ClientBookingRequest) => void;
   onLeaveShopReview: (booking: Booking) => void;
   onPayDeposit: (request: ClientBookingRequest) => void;
+  onPayForBooking: (booking: Booking) => void;
 }
 
 const getStatusChip = (status: string) => {
@@ -33,7 +35,23 @@ const getStatusChip = (status: string) => {
     }
 };
 
-export const MyBookingsView: React.FC<MyBookingsViewProps> = ({ user, artistBookings, allClientBookings, shops, onRespondToRequest, onCompleteRequest, onLeaveReview, onLeaveShopReview, onPayDeposit }) => {
+const EmptyState: React.FC<{ message: string; ctaText: string; ctaLink: string; }> = ({ message, ctaText, ctaLink }) => {
+    const { navigate } = useRouter();
+    return (
+        <div className="text-center bg-gray-900/50 border border-dashed border-gray-700 p-8 rounded-lg">
+            <p className="text-brand-gray mb-4">{message}</p>
+            <button
+                onClick={() => navigate(ctaLink)}
+                className="inline-flex items-center gap-2 bg-brand-secondary hover:bg-opacity-80 text-white font-bold py-2 px-4 rounded-full transition-colors"
+            >
+                <SearchIcon className="w-5 h-5" />
+                <span>{ctaText}</span>
+            </button>
+        </div>
+    );
+};
+
+export const MyBookingsView: React.FC<MyBookingsViewProps> = ({ user, artistBookings, allClientBookings, shops, onRespondToRequest, onCompleteRequest, onLeaveReview, onLeaveShopReview, onPayDeposit, onPayForBooking }) => {
 
   const canViewArtistBookings = user.type === 'artist' || user.type === 'dual';
   const canViewClientBookings = user.type === 'client' || user.type === 'dual';
@@ -41,7 +59,6 @@ export const MyBookingsView: React.FC<MyBookingsViewProps> = ({ user, artistBook
   const mySentClientBookings = allClientBookings.filter(b => b.clientId === user.id);
   const myReceivedClientBookings = allClientBookings.filter(b => b.artistId === user.id);
 
-  // A booth booking is "completed" if it's paid and the end date is in the past
   const hasCompletedBoothBookings = (booking: Booking) => {
       return booking.paymentStatus === 'paid' && new Date(booking.endDate) < new Date();
   };
@@ -91,7 +108,7 @@ export const MyBookingsView: React.FC<MyBookingsViewProps> = ({ user, artistBook
                             </div>
                         ))
                     ) : (
-                        <p className="text-brand-gray">You have no incoming client booking requests.</p>
+                        <EmptyState message="You have no incoming client booking requests." ctaText="Explore Shops" ctaLink="/shops" />
                     )}
                 </div>
             </section>
@@ -117,6 +134,11 @@ export const MyBookingsView: React.FC<MyBookingsViewProps> = ({ user, artistBook
                             <span className={`text-xs font-bold px-3 py-1 rounded-full capitalize ${getStatusChip(booking.paymentStatus)}`}>
                                 {booking.paymentStatus}
                             </span>
+                            {booking.paymentStatus === 'unpaid' && (
+                                <button onClick={() => onPayForBooking(booking)} className="text-sm bg-brand-primary text-white font-semibold py-2 px-4 rounded-lg hover:bg-opacity-80 flex items-center gap-2">
+                                    <CreditCardIcon className="w-4 h-4" /> Pay Now
+                                </button>
+                            )}
                             {hasCompletedBoothBookings(booking) && (
                                 <button onClick={() => onLeaveShopReview(booking)} className="text-sm bg-yellow-600 text-white font-semibold py-2 px-4 rounded-lg hover:bg-yellow-500 flex items-center gap-2">
                                    <StarIcon className="w-4 h-4" /> Review Shop
@@ -127,7 +149,7 @@ export const MyBookingsView: React.FC<MyBookingsViewProps> = ({ user, artistBook
                     );
                 })
                 ) : (
-                <p className="text-brand-gray">You have not booked any booths yet.</p>
+                    <EmptyState message="You haven't booked any booths yet." ctaText="Find a Booth" ctaLink="/shops" />
                 )}
             </div>
             </section>
@@ -172,7 +194,7 @@ export const MyBookingsView: React.FC<MyBookingsViewProps> = ({ user, artistBook
                   </div>
                 ))
             ) : (
-              <p className="text-brand-gray">You have not requested any appointments yet.</p>
+              <EmptyState message="You haven't requested any appointments yet." ctaText="Find an Artist" ctaLink="/artists" />
             )}
           </div>
         </section>
