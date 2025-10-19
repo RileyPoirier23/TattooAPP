@@ -86,13 +86,9 @@ export const Header: React.FC<HeaderProps> = ({
   );
   
   const renderViewModeControls = () => {
-    const commonArtistClasses = `px-4 py-2 text-sm font-semibold rounded-full transition-colors duration-300`;
-    const activeArtistClasses = `bg-brand-primary text-white`;
-    const inactiveArtistClasses = `bg-gray-200 dark:bg-gray-800 text-brand-gray hover:bg-gray-300 dark:hover:bg-gray-700`;
-
-    const commonClientClasses = `px-4 py-2 text-sm font-semibold rounded-full transition-colors duration-300`;
-    const activeClientClasses = `bg-brand-primary text-white`;
-    const inactiveClientClasses = `bg-gray-200 dark:bg-gray-800 text-brand-gray hover:bg-gray-300 dark:hover:bg-gray-700`;
+    const commonClasses = `px-4 py-2 text-sm font-semibold rounded-full transition-colors duration-300`;
+    const activeClasses = `bg-brand-primary text-white`;
+    const inactiveClasses = `bg-gray-200 dark:bg-gray-800 text-brand-gray hover:bg-gray-300 dark:hover:bg-gray-700`;
 
     // Always show toggles if not a shop owner or admin
     if (!user || user.type === 'artist' || user.type === 'client' || user.type === 'dual') {
@@ -100,13 +96,13 @@ export const Header: React.FC<HeaderProps> = ({
             <div className="flex items-center bg-gray-100 dark:bg-gray-900 rounded-full p-1">
                 <button
                     onClick={() => { setViewMode('artist'); onNavigate('/shops'); }}
-                    className={`${commonArtistClasses} ${viewMode === 'artist' ? activeArtistClasses : inactiveArtistClasses}`}
+                    className={`${commonClasses} ${viewMode === 'artist' ? activeClasses : inactiveClasses}`}
                 >
                     For Artists
                 </button>
                 <button
                     onClick={() => { setViewMode('client'); onNavigate('/artists'); }}
-                    className={`${commonClientClasses} ${viewMode === 'client' ? activeClientClasses : inactiveClientClasses}`}
+                    className={`${commonClasses} ${viewMode === 'client' ? activeClasses : inactiveClasses}`}
                 >
                     For Clients
                 </button>

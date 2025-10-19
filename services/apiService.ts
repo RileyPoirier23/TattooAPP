@@ -1,5 +1,5 @@
 // @/services/apiService.ts
-import { supabase } from './supabaseClient';
+import { getSupabase } from './supabaseClient';
 import type { Artist, Shop, Booth, Booking, ClientBookingRequest, Notification, User, UserRole, Client, ShopOwner, Conversation, Message, ConversationWithUser, ArtistAvailability, Review, PortfolioImage, VerificationRequest } from '../types';
 
 /**
@@ -45,6 +45,7 @@ const adaptProfileToUser = (profile: any): User | null => {
 }
 
 export const fetchAllUsers = async(): Promise<User[]> => {
+    const supabase = getSupabase();
     const { data: profiles, error } = await supabase.from('profiles').select('*');
     if (error) {
         console.error("Failed to fetch all users:", error);
@@ -55,6 +56,7 @@ export const fetchAllUsers = async(): Promise<User[]> => {
 
 
 export const fetchInitialData = async (): Promise<any> => {
+    const supabase = getSupabase();
     const { data: profiles, error: artistsError } = await supabase.from('profiles').select('*').in('role', ['artist', 'dual']);
     const { data: shops, error: shopsError } = await supabase.from('shops').select('*');
     const { data: booths, error: boothsError } = await supabase.from('booths').select('*');
@@ -158,6 +160,7 @@ export const fetchInitialData = async (): Promise<any> => {
 };
 
 export const updateUserData = async (userId: string, updatedData: Partial<User['data']>) => {
+    const supabase = getSupabase();
     const profileUpdate: { [key: string]: any } = {};
     if ('name' in updatedData) profileUpdate.full_name = updatedData.name;
     if ('city' in updatedData) profileUpdate.city = updatedData.city;
@@ -172,6 +175,7 @@ export const updateUserData = async (userId: string, updatedData: Partial<User['
 }
 
 export const updateArtistData = async (artistId: string, updatedData: Partial<Artist>): Promise<Artist> => {
+    const supabase = getSupabase();
     const profileUpdate: { [key: string]: any } = {};
     if (updatedData.name) profileUpdate.full_name = updatedData.name;
     if (updatedData.specialty) profileUpdate.specialty = updatedData.specialty;
@@ -205,6 +209,7 @@ export const updateArtistData = async (artistId: string, updatedData: Partial<Ar
 };
 
 export const uploadPortfolioImage = async (userId: string, file: File): Promise<PortfolioImage> => {
+    const supabase = getSupabase();
     const fileExt = file.name.split('.').pop();
     const fileName = `${userId}/${Date.now()}.${fileExt}`;
 
@@ -227,6 +232,7 @@ export const uploadPortfolioImage = async (userId: string, file: File): Promise<
 };
 
 export const replacePortfolioImage = async (userId: string, oldImage: PortfolioImage, newImageBase64: string): Promise<PortfolioImage> => {
+    const supabase = getSupabase();
     const mimeType = 'image/png';
     const fileExt = 'png';
     const newFileName = `${userId}/${Date.now()}.${fileExt}`;
@@ -265,30 +271,35 @@ export const replacePortfolioImage = async (userId: string, oldImage: PortfolioI
 };
 
 export const updateShopData = async (shopId: string, updatedData: Partial<Shop>): Promise<Shop> => {
+    const supabase = getSupabase();
     const { data, error } = await supabase.from('shops').update(updatedData).eq('id', shopId).select().single();
     if (error) throw error;
     return { ...data, id: data.id, name: data.name, location: data.location, address: data.address, lat: data.lat, lng: data.lng, amenities: data.amenities, rating: data.rating, imageUrl: data.image_url, paymentMethods: data.payment_methods, reviews: data.reviews, isVerified: data.is_verified, ownerId: data.owner_id, averageArtistRating: data.average_artist_rating };
 };
 
 export const addBoothToShop = async (shopId: string, boothData: Omit<Booth, 'id' | 'shopId'>): Promise<Booth> => {
+    const supabase = getSupabase();
     const { data, error } = await supabase.from('booths').insert({ ...boothData, shop_id: shopId }).select().single();
     if (error) throw error;
     return { ...data, shopId: data.shop_id, dailyRate: data.daily_rate };
 };
 
 export const deleteBoothFromShop = async (boothId: string): Promise<{ success: true }> => {
+    const supabase = getSupabase();
     const { error } = await supabase.from('booths').delete().eq('id', boothId);
     if (error) throw error;
     return { success: true };
 };
 
 export const createBookingForArtist = async (bookingData: Omit<Booking, 'id'| 'city'>): Promise<Booking> => {
+    const supabase = getSupabase();
     const { data, error } = await supabase.from('bookings').insert({ artist_id: bookingData.artistId, booth_id: bookingData.boothId, shop_id: bookingData.shopId, start_date: bookingData.startDate, end_date: bookingData.endDate, payment_status: bookingData.paymentStatus, total_amount: bookingData.totalAmount, platform_fee: bookingData.platformFee }).select().single();
     if (error) throw error;
     return { id: data.id, artistId: data.artist_id, boothId: data.booth_id, shopId: data.shop_id, startDate: data.start_date, endDate: data.end_date, paymentStatus: data.payment_status, totalAmount: data.total_amount, platformFee: data.platform_fee, city: '' };
 };
 
 export const createClientBookingRequest = async (requestData: Omit<ClientBookingRequest, 'id' | 'status'|'paymentStatus'>): Promise<ClientBookingRequest> => {
+    const supabase = getSupabase();
     const { data, error } = await supabase.from('client_booking_requests').insert({ client_id: requestData.clientId, artist_id: requestData.artistId, start_date: requestData.startDate, end_date: requestData.endDate, message: requestData.message, tattoo_size: requestData.tattooSize, body_placement: requestData.bodyPlacement, estimated_hours: requestData.estimatedHours, deposit_amount: requestData.depositAmount, platform_fee: requestData.platformFee }).select(`*, client:profiles!client_booking_requests_client_id_fkey(full_name), artist:profiles!client_booking_requests_artist_id_fkey(full_name)`).single();
     if (error) throw error;
     
@@ -299,6 +310,7 @@ export const createClientBookingRequest = async (requestData: Omit<ClientBooking
 };
 
 export const updateClientBookingRequestStatus = async (requestId: string, status: ClientBookingRequest['status']): Promise<{ success: boolean }> => {
+    const supabase = getSupabase();
     const { data: request, error: fetchError } = await supabase.from('client_booking_requests').select('client_id, artist_id').eq('id', requestId).single();
     if (fetchError) throw fetchError;
     const { error: updateError } = await supabase.from('client_booking_requests').update({ status: status }).eq('id', requestId);
@@ -311,24 +323,28 @@ export const updateClientBookingRequestStatus = async (requestId: string, status
 };
 
 export const fetchNotificationsForUser = async (userId: string): Promise<Notification[]> => {
+    const supabase = getSupabase();
     const { data, error } = await supabase.from('notifications').select('*').eq('user_id', userId).order('created_at', { ascending: false });
     if (error) return [];
     return data.map(n => ({ id: n.id, userId: n.user_id, message: n.message, read: n.read, createdAt: n.created_at }));
 };
 
 export const markUserNotificationsAsRead = async (userId: string): Promise<{ success: true }> => {
+    const supabase = getSupabase();
     const { error } = await supabase.from('notifications').update({ read: true }).eq('user_id', userId).eq('read', false);
     if (error) throw error;
     return { success: true };
 };
 
 export const createNotification = async (userId: string, message: string): Promise<Notification> => {
+    const supabase = getSupabase();
     const { data, error } = await supabase.from('notifications').insert({ user_id: userId, message: message }).select().single();
     if (error) throw error;
     return { id: data.id, userId: data.user_id, message: data.message, read: data.read, createdAt: data.created_at };
 };
 
 export const findOrCreateConversation = async (userId1: string, userId2: string): Promise<Conversation> => {
+    const supabase = getSupabase();
     const { data: existing, error: existingError } = await supabase.from('conversations').select('*').or(`(participant_one_id.eq.${userId1},participant_two_id.eq.${userId2}),(participant_one_id.eq.${userId2},participant_two_id.eq.${userId1})`).limit(1);
     if (existingError) throw existingError;
     if (existing && existing.length > 0) return { ...existing[0], participantOneId: existing[0].participant_one_id, participantTwoId: existing[0].participant_two_id };
@@ -339,6 +355,7 @@ export const findOrCreateConversation = async (userId1: string, userId2: string)
 };
 
 export const fetchUserConversations = async (userId: string): Promise<ConversationWithUser[]> => {
+    const supabase = getSupabase();
     const { data: conversations, error } = await supabase.from('conversations').select('*').or(`participant_one_id.eq.${userId},participant_two_id.eq.${userId}`);
     if (error) throw error;
 
@@ -356,12 +373,14 @@ export const fetchUserConversations = async (userId: string): Promise<Conversati
 };
 
 export const fetchMessagesForConversation = async (conversationId: string): Promise<Message[]> => {
+    const supabase = getSupabase();
     const { data, error } = await supabase.from('messages').select('*').eq('conversation_id', conversationId).order('created_at', { ascending: true });
     if (error) throw error;
     return data.map(m => ({ id: m.id, conversationId: m.conversation_id, senderId: m.sender_id, content: m.content, attachmentUrl: m.attachment_url, createdAt: m.created_at }));
 };
 
 export const sendMessage = async (conversationId: string, senderId: string, content?: string, attachmentUrl?: string): Promise<Message> => {
+    const supabase = getSupabase();
     if (!content && !attachmentUrl) throw new Error("Message must have content or an attachment.");
     const { data, error } = await supabase.from('messages').insert({ conversation_id: conversationId, sender_id: senderId, content, attachment_url: attachmentUrl }).select().single();
     if (error) throw error;
@@ -369,6 +388,7 @@ export const sendMessage = async (conversationId: string, senderId: string, cont
 };
 
 export const uploadMessageAttachment = async (file: File, conversationId: string): Promise<string> => {
+    const supabase = getSupabase();
     const fileExt = file.name.split('.').pop();
     const fileName = `${conversationId}/${Date.now()}.${fileExt}`;
     const { error: uploadError } = await supabase.storage.from('message_attachments').upload(fileName, file);
@@ -378,24 +398,28 @@ export const uploadMessageAttachment = async (file: File, conversationId: string
 };
 
 export const updateBoothData = async (boothId: string, updatedData: Partial<Booth>): Promise<Booth> => {
+    const supabase = getSupabase();
     const { data, error } = await supabase.from('booths').update(updatedData).eq('id', boothId).select().single();
     if (error) throw error;
     return { ...data, shopId: data.shop_id, dailyRate: data.daily_rate };
 };
 
 export const setArtistAvailability = async (artistId: string, date: string, status: 'available' | 'unavailable'): Promise<ArtistAvailability> => {
+    const supabase = getSupabase();
     const { data, error } = await supabase.from('artist_availability').upsert({ artist_id: artistId, date: date, status: status }, { onConflict: 'artist_id, date' }).select().single();
     if (error) throw error;
     return { id: data.id, artistId: data.artist_id, date: data.date, status: data.status };
 };
 
 export const submitReview = async (requestId: string, rating: number, text: string): Promise<ClientBookingRequest> => {
+    const supabase = getSupabase();
     const { data, error } = await supabase.from('client_booking_requests').update({ review_rating: rating, review_text: text, review_submitted_at: new Date().toISOString() }).eq('id', requestId).select().single();
     if (error) throw error;
     return data;
 };
 
 export const fetchArtistReviews = async (artistId: string): Promise<Review[]> => {
+    const supabase = getSupabase();
     const { data, error } = await supabase.from('client_booking_requests').select('id, review_rating, review_text, review_submitted_at, client:profiles!client_booking_requests_client_id_fkey(id, full_name)').eq('artist_id', artistId).not('review_rating', 'is', null);
     if (error) throw error;
     if (!data) return [];
@@ -414,24 +438,28 @@ export const fetchArtistReviews = async (artistId: string): Promise<Review[]> =>
 };
 
 export const deleteUserAsAdmin = async (userId: string): Promise<{ success: boolean }> => {
+    const supabase = getSupabase();
     const { error } = await supabase.from('profiles').delete().eq('id', userId);
     if (error) throw error;
     return { success: true };
 };
 
 export const deleteShopAsAdmin = async (shopId: string): Promise<{ success: boolean }> => {
+    const supabase = getSupabase();
     const { error } = await supabase.from('shops').delete().eq('id', shopId);
     if (error) throw error;
     return { success: true };
 };
 
 export const createShop = async (shopData: Omit<Shop, 'id' | 'isVerified' | 'rating' | 'reviews' | 'averageArtistRating' | 'ownerId'>, ownerId: string): Promise<Shop> => {
+    const supabase = getSupabase();
     const { data, error } = await supabase.from('shops').insert({ ...shopData, owner_id: ownerId, is_verified: false, rating: 0, reviews: [], average_artist_rating: 0 }).select().single();
     if (error) throw error;
     return { ...data, id: data.id, name: data.name, location: data.location, address: data.address, lat: data.lat, lng: data.lng, amenities: data.amenities, rating: data.rating, imageUrl: data.image_url, paymentMethods: data.payment_methods, reviews: data.reviews, isVerified: data.is_verified, ownerId: data.owner_id, averageArtistRating: data.average_artist_rating };
 };
 
 export const createVerificationRequest = async (type: 'artist' | 'shop', id: string, profileId: string): Promise<VerificationRequest> => {
+    const supabase = getSupabase();
     const insertData = type === 'artist' ? { profile_id: id, type } : { shop_id: id, profile_id: profileId, type };
     const { data, error } = await supabase.from('verification_requests').insert(insertData).select().single();
     if (error) throw error;
@@ -439,6 +467,7 @@ export const createVerificationRequest = async (type: 'artist' | 'shop', id: str
 };
 
 export const updateVerificationRequest = async (requestId: string, status: 'approved' | 'rejected'): Promise<VerificationRequest> => {
+    const supabase = getSupabase();
     const { data: request, error: fetchError } = await supabase.from('verification_requests').select('*').eq('id', requestId).single();
     if (fetchError) throw fetchError;
 
@@ -456,6 +485,7 @@ export const updateVerificationRequest = async (requestId: string, status: 'appr
 };
 
 export const addReviewToShop = async (shopId: string, review: Omit<Review, 'id'>): Promise<Shop> => {
+    const supabase = getSupabase();
     const { data: shop, error: fetchError } = await supabase.from('shops').select('reviews').eq('id', shopId).single();
     if (fetchError) throw fetchError;
     
@@ -469,6 +499,7 @@ export const addReviewToShop = async (shopId: string, review: Omit<Review, 'id'>
 };
 
 export const updateBookingPaymentStatus = async (type: 'artist' | 'client', id: string, paymentIntentId: string): Promise<any> => {
+    const supabase = getSupabase();
     const table = type === 'artist' ? 'bookings' : 'client_booking_requests';
     const { data, error } = await supabase.from(table).update({ payment_status: 'paid', payment_intent_id: paymentIntentId }).eq('id', id).select().single();
     if (error) throw error;
@@ -477,6 +508,7 @@ export const updateBookingPaymentStatus = async (type: 'artist' | 'client', id: 
 
 // --- NEW ADMIN FUNCTIONS ---
 export const adminUpdateUserProfile = async (userId: string, updates: { name: string, role: UserRole, isVerified: boolean }): Promise<{success: boolean}> => {
+    const supabase = getSupabase();
     const { error } = await supabase
         .from('profiles')
         .update({ full_name: updates.name, role: updates.role, is_verified: updates.isVerified })
@@ -486,6 +518,7 @@ export const adminUpdateUserProfile = async (userId: string, updates: { name: st
 };
 
 export const adminUpdateShopDetails = async (shopId: string, updates: { name: string, isVerified: boolean }): Promise<Shop> => {
+    const supabase = getSupabase();
     const { data, error } = await supabase
         .from('shops')
         .update({ name: updates.name, is_verified: updates.isVerified })

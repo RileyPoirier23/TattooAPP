@@ -9,11 +9,23 @@
     <script src="https://cdn.tailwindcss.com"></script>
     <script>
       // Apply theme from localStorage to prevent FOUC (Flash of Unstyled Content)
-      if (localStorage.getItem('inkspace-app-storage') && JSON.parse(localStorage.getItem('inkspace-app-storage')).state.theme === 'light') {
-        document.documentElement.classList.remove('dark');
-      } else {
-        document.documentElement.classList.add('dark');
+      try {
+        const storage = localStorage.getItem('inkspace-app-storage');
+        if (storage) {
+          const parsed = JSON.parse(storage);
+          if (parsed && parsed.state && parsed.state.theme === 'light') {
+            document.documentElement.classList.remove('dark');
+          } else {
+            document.documentElement.classList.add('dark');
+          }
+        } else {
+           document.documentElement.classList.add('dark'); // Default to dark if no storage
+        }
+      } catch (e) {
+        console.error("Could not apply theme from localStorage. It might be corrupted.", e);
+        document.documentElement.classList.add('dark'); // Fallback to dark on error
       }
+
 
       tailwind.config = {
         darkMode: 'class',

@@ -1,5 +1,5 @@
 // @/services/authService.ts
-import { supabase } from './supabaseClient';
+import { getSupabase } from './supabaseClient';
 import type { User, AuthCredentials, RegisterDetails, Artist, Client, ShopOwner, UserRole, AdminUser, Admin } from '../types';
 
 const USER_STORAGE_KEY = 'inkspace_user_session';
@@ -8,13 +8,22 @@ class AuthService {
     
     async getCurrentUser(): Promise<User | null> {
         try {
-            // Dev admin session is local only
+            // Dev admin session is local only, check first
             const cachedUser = localStorage.getItem(USER_STORAGE_KEY);
             if(cachedUser) {
                 const parsed = JSON.parse(cachedUser);
                 if (parsed.type === 'admin') return parsed as AdminUser;
             }
             
+            // If supabase is not configured, we can't get a remote user. Return null.
+            // This is a safe check before calling getSupabase() which would throw
+            try {
+                getSupabase();
+            } catch (e) {
+                return null;
+            }
+
+            const supabase = getSupabase();
             const { data: { session } } = await supabase.auth.getSession();
             if (!session) {
                 localStorage.removeItem(USER_STORAGE_KEY);
@@ -50,6 +59,7 @@ class AuthService {
             return adminUser;
         }
 
+        const supabase = getSupabase();
         const { error } = await supabase.auth.signInWithPassword({
             email: credentials.email,
             password: credentials.password!,
@@ -66,6 +76,7 @@ class AuthService {
     }
 
     async register(details: RegisterDetails): Promise<User> {
+        const supabase = getSupabase();
         const { data: authData, error: authError } = await supabase.auth.signUp({
             email: details.email,
             password: details.password!,
@@ -109,12 +120,19 @@ class AuthService {
     }
 
     async logout(): Promise<void> {
-        const { error } = await supabase.auth.signOut();
+        try {
+            const supabase = getSupabase();
+            const { error } = await supabase.auth.signOut();
+            if (error) throw error;
+        } catch (e) {
+            // If getSupabase throws, it means we weren't configured anyway, so logout is a no-op.
+            console.warn("Could not sign out from Supabase, probably due to missing config. Clearing local session only.");
+        }
         localStorage.removeItem(USER_STORAGE_KEY);
-        if (error) throw error;
     }
 
     async getUserProfile(userId: string): Promise<User | null> {
+        const supabase = getSupabase();
         const { data: profile, error } = await supabase
             .from('profiles')
             .select('*')

@@ -3,12 +3,35 @@
 import { GoogleGenAI, GenerateContentResponse, Modality, Type } from "@google/genai";
 import type { Artist, Client, Shop } from "../types";
 
-// The API key is sourced from the environment and is assumed to be present.
-const apiKey = process.env.API_KEY || process.env.VITE_API_KEY;
-if (!apiKey) {
-  console.error("Gemini API key is missing. Please provide API_KEY or VITE_API_KEY as an environment variable.");
-}
-const ai = new GoogleGenAI({ apiKey: apiKey! });
+// Cache the client instance once created.
+let ai: GoogleGenAI | null = null;
+let geminiInitializationError: string | null = null;
+
+/**
+ * Initializes and returns the GoogleGenAI client instance.
+ * Throws an error if the API key is not configured.
+ * @returns The initialized GoogleGenAI client.
+ */
+const getAi = (): GoogleGenAI => {
+    if (ai) return ai;
+    if (geminiInitializationError) throw new Error(geminiInitializationError);
+
+    const apiKey = process.env.API_KEY || process.env.VITE_API_KEY;
+    if (!apiKey) {
+        geminiInitializationError = "AI features are disabled. Gemini API key is not configured in environment variables (API_KEY or VITE_API_KEY).";
+        console.error(geminiInitializationError);
+        throw new Error(geminiInitializationError);
+    }
+    
+    try {
+        ai = new GoogleGenAI({ apiKey });
+        return ai;
+    } catch (e) {
+        geminiInitializationError = `Failed to initialize Gemini client: ${(e as Error).message}`;
+        throw new Error(geminiInitializationError);
+    }
+};
+
 
 /**
  * Generates a creative and professional biography for a tattoo artist.
@@ -17,11 +40,10 @@ const ai = new GoogleGenAI({ apiKey: apiKey! });
  * @returns A promise that resolves to the generated biography string.
  */
 export const generateArtistBio = async (name: string, specialty: string): Promise<string> => {
-  if (!apiKey) throw new Error("AI features are disabled. API key is not configured.");
   const prompt = `Generate a short, professional, and creative biography for a tattoo artist named "${name}" who specializes in "${specialty}". The tone should be inspiring and welcoming to potential clients. Make it about 2-3 sentences long.`;
   
   try {
-    const response: GenerateContentResponse = await ai.models.generateContent({
+    const response: GenerateContentResponse = await getAi().models.generateContent({
         model: 'gemini-2.5-flash',
         contents: prompt,
     });
@@ -40,11 +62,10 @@ export const generateArtistBio = async (name: string, specialty: string): Promis
  * @returns A promise that resolves to an object containing the summary text and grounding chunks.
  */
 export const getShopInfo = async (shopName: string, shopLocation: string): Promise<{ text: string; chunks: any[] }> => {
-  if (!apiKey) throw new Error("AI features are disabled. API key is not configured.");
   const prompt = `Provide a brief, interesting summary about the tattoo shop "${shopName}" located in "${shopLocation}". Mention its reputation, notable styles, or any unique facts. Keep it to 2-3 sentences.`;
 
   try {
-    const response: GenerateContentResponse = await ai.models.generateContent({
+    const response: GenerateContentResponse = await getAi().models.generateContent({
       model: 'gemini-2.5-flash',
       contents: prompt,
       config: {
@@ -95,7 +116,6 @@ const urlToBase64 = async (url: string): Promise<{ base64: string; mimeType: str
  * @returns A promise that resolves to the base64 string of the edited image.
  */
 export const editImageWithGemini = async (imageUrl: string, prompt: string): Promise<string> => {
-    if (!apiKey) throw new Error("AI features are disabled. API key is not configured.");
     try {
         const { base64, mimeType } = await urlToBase64(imageUrl);
 
@@ -107,7 +127,7 @@ export const editImageWithGemini = async (imageUrl: string, prompt: string): Pro
         };
         const textPart = { text: prompt };
 
-        const response: GenerateContentResponse = await ai.models.generateContent({
+        const response: GenerateContentResponse = await getAi().models.generateContent({
             model: 'gemini-2.5-flash-image',
             contents: { parts: [imagePart, textPart] },
             config: {
@@ -156,7 +176,6 @@ export async function getRecommendations(
     items: (Artist | Shop)[],
     user: Artist | Client
 ): Promise<string[]> {
-    if (!apiKey) throw new Error("AI features are disabled. API key is not configured.");
     let prompt = '';
 
     if (type === 'shop') {
@@ -179,7 +198,7 @@ export async function getRecommendations(
     }
 
     try {
-        const response: GenerateContentResponse = await ai.models.generateContent({
+        const response: GenerateContentResponse = await getAi().models.generateContent({
             model: 'gemini-2.5-flash',
             contents: prompt,
             config: {
