@@ -3,7 +3,6 @@
 import React, { useState } from 'react';
 import type { MockData, User, Shop, ModalState } from '../../types';
 import { XIcon, CheckBadgeIcon, EditIcon, UserCircleIcon, LocationIcon } from '../shared/Icons';
-import { Loader } from '../shared/Loader';
 
 interface AdminDashboardProps {
     data: MockData;
@@ -48,6 +47,8 @@ const Table: React.FC<{ headers: string[]; children: React.ReactNode }> = ({ hea
 
 export const AdminDashboard: React.FC<AdminDashboardProps> = ({ data, allUsers, deleteUser, deleteShop, respondToVerificationRequest, openModal }) => {
     const [processingRequestId, setProcessingRequestId] = useState<string | null>(null);
+    
+    const SmallLoader = <div className="w-4 h-4 border-2 border-white border-t-transparent border-dashed rounded-full animate-spin"></div>;
     
     const handleDeleteUser = (user: User) => {
         if (window.confirm(`Are you sure you want to delete user ${user.data.name} (${user.email})? This action cannot be undone.`)) {
@@ -97,16 +98,16 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ data, allUsers, 
                                     <button 
                                         onClick={() => handleVerificationResponse(req.id, 'approved')} 
                                         disabled={!!processingRequestId}
-                                        className="text-xs bg-green-600 text-white font-semibold py-1 px-3 rounded-lg hover:bg-green-500 disabled:bg-gray-600 w-20 flex justify-center items-center"
+                                        className="text-xs bg-green-600 text-white font-semibold py-1 px-3 rounded-lg hover:bg-green-500 disabled:bg-gray-600 w-20 h-7 flex justify-center items-center"
                                     >
-                                      {processingRequestId === req.id ? <Loader /> : 'Approve'}
+                                      {processingRequestId === req.id ? SmallLoader : 'Approve'}
                                     </button>
                                     <button 
                                         onClick={() => handleVerificationResponse(req.id, 'rejected')} 
                                         disabled={!!processingRequestId}
-                                        className="text-xs bg-red-600 text-white font-semibold py-1 px-3 rounded-lg hover:bg-red-500 disabled:bg-gray-600 w-20 flex justify-center items-center"
+                                        className="text-xs bg-red-600 text-white font-semibold py-1 px-3 rounded-lg hover:bg-red-500 disabled:bg-gray-600 w-20 h-7 flex justify-center items-center"
                                     >
-                                       {processingRequestId === req.id ? <Loader /> : 'Decline'}
+                                       {processingRequestId === req.id ? SmallLoader : 'Decline'}
                                     </button>
                                 </td>
                             </tr>

@@ -12,6 +12,16 @@ import { getCityFromCoords } from '../../services/googlePlacesService';
 import { fetchArtistReviews } from '../../services/apiService';
 import { getRecommendations } from '../../services/geminiService';
 
+const ArtistCardSkeleton: React.FC = () => (
+    <div className="bg-white dark:bg-gray-900/50 rounded-lg border border-gray-200 dark:border-gray-800 overflow-hidden animate-pulse">
+        <div className="w-full h-64 bg-gray-300 dark:bg-gray-700"></div>
+        <div className="p-4">
+            <div className="h-5 bg-gray-300 dark:bg-gray-700 rounded w-3/4 mb-2"></div>
+            <div className="h-4 bg-gray-300 dark:bg-gray-700 rounded w-1/2 mb-2"></div>
+            <div className="h-4 bg-gray-300 dark:bg-gray-700 rounded w-1/3"></div>
+        </div>
+    </div>
+);
 
 const ArtistCard: React.FC<{ artist: Artist; onSelect: (artist: Artist) => void }> = ({ artist, onSelect }) => (
     <div 
@@ -171,10 +181,6 @@ export const ClientSearchView: React.FC = () => {
         );
     }, [artists, searchTerm, location, specialty, showOnlyVerified, minRating]);
     
-    if (isLoading) {
-        return <div className="flex justify-center mt-16"><Loader /></div>;
-    }
-
     if (error) {
         return <ErrorDisplay message={error} />;
     }
@@ -251,27 +257,35 @@ export const ClientSearchView: React.FC = () => {
                 </div>
             </div>
             
-            {(user?.type === 'client' || user?.type === 'dual') && <RecommendedArtists artists={artists} user={user} />}
+            {(user?.type === 'client' || user?.type === 'dual') && !isLoading && <RecommendedArtists artists={artists} user={user} />}
 
-            <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-6">
-                {filteredArtists.map(artist => (
-                    <ArtistCard key={artist.id} artist={artist} onSelect={handleSelectArtist} />
-                ))}
-            </div>
-             {filteredArtists.length === 0 && (
-                <div className="text-center py-16">
-                    {searchTerm || location || specialty ? (
-                        <>
-                            <h3 className="text-xl font-semibold text-brand-dark dark:text-white">No Artists Found</h3>
-                            <p className="text-brand-gray mt-2">Your search did not return any results. Try adjusting your filters.</p>
-                        </>
-                    ) : (
-                         <>
-                            <h3 className="text-xl font-semibold text-brand-dark dark:text-white">Find Your Artist</h3>
-                            <p className="text-brand-gray mt-2">Use the search filters above to discover artists near you.</p>
-                        </>
-                    )}
+            {isLoading ? (
+                <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-6">
+                    {[...Array(8)].map((_, i) => <ArtistCardSkeleton key={i} />)}
                 </div>
+            ) : (
+                <>
+                    <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-6">
+                        {filteredArtists.map(artist => (
+                            <ArtistCard key={artist.id} artist={artist} onSelect={handleSelectArtist} />
+                        ))}
+                    </div>
+                    {filteredArtists.length === 0 && (
+                        <div className="text-center py-16">
+                            {searchTerm || location || specialty ? (
+                                <>
+                                    <h3 className="text-xl font-semibold text-brand-dark dark:text-white">No Artists Found</h3>
+                                    <p className="text-brand-gray mt-2">Your search did not return any results. Try adjusting your filters.</p>
+                                </>
+                            ) : (
+                                <>
+                                    <h3 className="text-xl font-semibold text-brand-dark dark:text-white">Find Your Artist</h3>
+                                    <p className="text-brand-gray mt-2">Use the search filters above to discover artists near you.</p>
+                                </>
+                            )}
+                        </div>
+                    )}
+                </>
             )}
         </div>
     );

@@ -2,6 +2,27 @@
 import { supabase } from './supabaseClient';
 import type { Artist, Shop, Booth, Booking, ClientBookingRequest, Notification, User, UserRole, Client, ShopOwner, Conversation, Message, ConversationWithUser, ArtistAvailability, Review, PortfolioImage, VerificationRequest } from '../types';
 
+/**
+ * Safely extracts a property from a Supabase joined table result,
+ * which can be a single object or an array containing a single object.
+ * @param joinedData The data from the join.
+ * @param property The property key to extract.
+ * @returns The value of the property, or undefined if not found.
+ */
+function getJoinedProperty<T extends object>(
+  joinedData: unknown,
+  property: keyof T
+): T[keyof T] | undefined {
+  if (!joinedData) return undefined;
+  // Handle both single object and array-of-one-object cases
+  const data = Array.isArray(joinedData) ? joinedData[0] : joinedData;
+  if (typeof data === 'object' && data !== null && property in data) {
+    return (data as T)[property];
+  }
+  return undefined;
+}
+
+
 const adaptProfileToUser = (profile: any): User | null => {
     if (!profile) return null;
     const baseUser = {
@@ -94,8 +115,8 @@ export const fetchInitialData = async (): Promise<any> => {
       bodyPlacement: b.body_placement,
       estimatedHours: b.estimated_hours,
       paymentStatus: b.payment_status,
-      clientName: (b.client as { full_name: string } | null)?.full_name || 'Unknown Client',
-      artistName: (b.artist as { full_name: string } | null)?.full_name || 'Unknown Artist',
+      clientName: getJoinedProperty<{ full_name: string }>(b.client, 'full_name') || 'Unknown Client',
+      artistName: getJoinedProperty<{ full_name: string }>(b.artist, 'full_name') || 'Unknown Artist',
       reviewRating: b.review_rating,
       reviewText: b.review_text,
       reviewSubmittedAt: b.review_submitted_at,
@@ -118,8 +139,8 @@ export const fetchInitialData = async (): Promise<any> => {
       type: v.type,
       status: v.status,
       createdAt: v.created_at,
-      requesterName: v.type === 'artist' ? v.profile?.full_name : v.shop?.name,
-      itemName: v.type === 'artist' ? v.profile?.full_name : v.shop?.name,
+      requesterName: v.type === 'artist' ? getJoinedProperty<{ full_name: string }>(v.profile, 'full_name') : getJoinedProperty<{ name: string }>(v.shop, 'name'),
+      itemName: v.type === 'artist' ? getJoinedProperty<{ full_name: string }>(v.profile, 'full_name') : getJoinedProperty<{ name: string }>(v.shop, 'name'),
     }));
 
     return { 
@@ -380,13 +401,10 @@ export const fetchArtistReviews = async (artistId: string): Promise<Review[]> =>
     if (!data) return [];
     return data
         .map(r => {
-            // The type of `r.client` from the Supabase join is inferred as `unknown`. Cast it to a specific, known shape to ensure type-safe access.
-            // FIX: Based on the error, the Supabase client returns an array for this join. Safely access the first element.
-            const client = (r.client as ({ id: string; full_name: string }[] | null))?.[0];
             return {
                 id: r.id,
-                authorId: client?.id,
-                authorName: client?.full_name,
+                authorId: getJoinedProperty<{ id: string }>(r.client, 'id'),
+                authorName: getJoinedProperty<{ full_name: string }>(r.client, 'full_name'),
                 rating: r.review_rating,
                 text: r.review_text,
                 createdAt: r.review_submitted_at

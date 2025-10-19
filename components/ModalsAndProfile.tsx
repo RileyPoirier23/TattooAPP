@@ -765,6 +765,8 @@ export const PaymentModal: React.FC<{ context: PaymentContext, onClose: () => vo
     const [isLoading, setIsLoading] = useState(false);
     const [error, setError] = useState<string | null>(null);
     const cardElementRef = useRef<HTMLDivElement>(null);
+    
+    const SmallLoader = <div className="w-5 h-5 border-2 border-white border-t-transparent border-dashed rounded-full animate-spin"></div>;
 
     useEffect(() => {
         if (stripe || !STRIPE_PUBLISHABLE_KEY) {
@@ -847,7 +849,7 @@ export const PaymentModal: React.FC<{ context: PaymentContext, onClose: () => vo
                     disabled={!stripe || isLoading}
                     className="w-full bg-brand-primary text-white font-bold py-3 rounded-lg flex items-center justify-center disabled:bg-gray-600"
                 >
-                    {isLoading ? <div className="w-6 h-6"><Loader /></div> : `Pay $${amount?.toFixed(2) || '0.00'}`}
+                    {isLoading ? SmallLoader : `Pay $${amount?.toFixed(2) || '0.00'}`}
                 </button>
             </form>
         </Modal>

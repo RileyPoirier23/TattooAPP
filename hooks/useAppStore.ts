@@ -142,6 +142,7 @@ export const useAppStore = create<AppState>()(
             notificationInterval = window.setInterval(() => get().fetchNotifications(), 30000);
           }
         } catch (error) {
+          console.error("Fatal: Application initialization failed.", error);
           const message = error instanceof Error ? error.message : "Failed to initialize app.";
           set({ error: message, isLoading: false, isInitialized: true });
         }
@@ -213,28 +214,36 @@ export const useAppStore = create<AppState>()(
       fetchNotifications: async () => {
         const user = get().user;
         if (!user) return;
-        const notifications = await fetchNotificationsForUser(user.id);
-        const currentNotifications = get().data.notifications;
-        if(notifications.length > currentNotifications.length) {
-            const newUnreadCount = notifications.filter(n => !n.read).length;
-            const oldUnreadCount = currentNotifications.filter(n => !n.read).length;
-            if (newUnreadCount > oldUnreadCount) {
-                get().showToast('You have a new notification!');
+        try {
+            const notifications = await fetchNotificationsForUser(user.id);
+            const currentNotifications = get().data.notifications;
+            if(notifications.length > currentNotifications.length) {
+                const newUnreadCount = notifications.filter(n => !n.read).length;
+                const oldUnreadCount = currentNotifications.filter(n => !n.read).length;
+                if (newUnreadCount > oldUnreadCount) {
+                    get().showToast('You have a new notification!');
+                }
             }
+            set(state => ({ data: { ...state.data, notifications } }));
+        } catch (error) {
+            console.error("Failed to fetch notifications:", error);
         }
-        set(state => ({ data: { ...state.data, notifications } }));
       },
 
       markNotificationsAsRead: async () => {
         const user = get().user;
         if (!user) return;
-        await markUserNotificationsAsRead(user.id);
-        set(state => ({
-          data: {
-            ...state.data,
-            notifications: state.data.notifications.map(n => ({ ...n, read: true })),
-          }
-        }));
+        try {
+            await markUserNotificationsAsRead(user.id);
+            set(state => ({
+              data: {
+                ...state.data,
+                notifications: state.data.notifications.map(n => ({ ...n, read: true })),
+              }
+            }));
+        } catch (error) {
+             get().showToast("Could not mark notifications as read.", 'error');
+        }
       },
 
       confirmArtistBooking: async (bookingData) => {
@@ -293,31 +302,39 @@ export const useAppStore = create<AppState>()(
       
       updateUser: async (userId, data) => {
           if (get().user?.id !== userId) return;
-          await updateUserData(userId, data);
-          set(state => {
-              const user = state.user;
-              if (!user) return {};
-              const newUserData = { ...user.data, ...data };
-              
-              if (user.type === 'artist' || user.type === 'dual') {
-                  return { user: { ...user, data: newUserData as Artist } };
-              } else if (user.type === 'client') {
-                  return { user: { ...user, data: newUserData as Client } };
-              } else if (user.type === 'shop-owner') {
-                  return { user: { ...user, data: newUserData as ShopOwner } };
-              }
-              return {};
-          });
+          try {
+            await updateUserData(userId, data);
+            set(state => {
+                const user = state.user;
+                if (!user) return {};
+                const newUserData = { ...user.data, ...data };
+                
+                if (user.type === 'artist' || user.type === 'dual') {
+                    return { user: { ...user, data: newUserData as Artist } };
+                } else if (user.type === 'client') {
+                    return { user: { ...user, data: newUserData as Client } };
+                } else if (user.type === 'shop-owner') {
+                    return { user: { ...user, data: newUserData as ShopOwner } };
+                }
+                return {};
+            });
+          } catch(error) {
+              get().showToast("Failed to update profile.", 'error');
+          }
       },
       
       updateArtist: async (artistId, data) => {
-        const updatedArtist = await updateArtistData(artistId, data);
-        set(state => ({
-            data: { ...state.data, artists: state.data.artists.map(a => a.id === artistId ? {...a, ...updatedArtist} : a) },
-            user: (state.user?.id === artistId && (state.user.type === 'artist' || state.user.type === 'dual')) 
-                ? { ...state.user, data: {...state.user.data, ...updatedArtist} } 
-                : state.user
-        }));
+        try {
+            const updatedArtist = await updateArtistData(artistId, data);
+            set(state => ({
+                data: { ...state.data, artists: state.data.artists.map(a => a.id === artistId ? {...a, ...updatedArtist} : a) },
+                user: (state.user?.id === artistId && (state.user.type === 'artist' || state.user.type === 'dual')) 
+                    ? { ...state.user, data: {...state.user.data, ...updatedArtist} } 
+                    : state.user
+            }));
+        } catch (error) {
+            get().showToast("Failed to update artist details.", 'error');
+        }
       },
 
       uploadPortfolio: async (file) => {
@@ -336,8 +353,7 @@ export const useAppStore = create<AppState>()(
 
       editPortfolioImage: async (artistId, oldImage, newImageBase64) => {
         const user = get().user;
-        if (!user || user.id !== artistId) return;
-        if (user.type !== 'artist' && user.type !== 'dual') return;
+        if (!user || user.id !== artistId || (user.type !== 'artist' && user.type !== 'dual')) return;
 
         try {
             const newImage = await replacePortfolioImage(user.id, oldImage, newImageBase64);
@@ -351,126 +367,182 @@ export const useAppStore = create<AppState>()(
       },
 
       updateShop: async (shopId, data) => {
+        try {
           const updatedShop = await updateShopData(shopId, data);
           set(state => ({
               data: { ...state.data, shops: state.data.shops.map(s => s.id === shopId ? updatedShop : s) }
           }));
           get().showToast('Shop details updated.');
+        } catch(e) {
+            get().showToast("Failed to update shop.", 'error');
+        }
       },
       addBooth: async (shopId, boothData) => {
+        try {
           const newBooth = await addBoothToShop(shopId, boothData);
           set(state => ({
               data: { ...state.data, booths: [...state.data.booths, newBooth] }
           }));
+        } catch (e) {
+            get().showToast("Failed to add booth.", 'error');
+        }
       },
       updateBooth: async (boothId, data) => {
+        try {
           const updatedBooth = await updateBoothData(boothId, data);
           set(state => ({
               data: { ...state.data, booths: state.data.booths.map(b => b.id === boothId ? updatedBooth : b) }
           }));
           get().closeModal();
+        } catch (e) {
+            get().showToast("Failed to update booth.", 'error');
+        }
       },
       deleteBooth: async (boothId) => {
+        try {
           await deleteBoothFromShop(boothId);
           set(state => ({
               data: { ...state.data, booths: state.data.booths.filter(b => b.id !== boothId) }
           }));
+        } catch (e) {
+            get().showToast("Failed to delete booth.", 'error');
+        }
       },
       setArtistAvailability: async (date, status) => {
         const user = get().user;
         if (!user || (user.type !== 'artist' && user.type !== 'dual')) return;
-        const newAvailability = await setArtistAvailability(user.id, date, status);
-        set(state => {
-            const existing = state.data.artistAvailability.find(a => a.date === date && a.artistId === user.id);
-            if (existing) {
-                return { data: { ...state.data, artistAvailability: state.data.artistAvailability.map(a => a.id === existing.id ? newAvailability : a)}};
-            } else {
-                return { data: { ...state.data, artistAvailability: [...state.data.artistAvailability, newAvailability]}};
-            }
-        });
+        try {
+            const newAvailability = await setArtistAvailability(user.id, date, status);
+            set(state => {
+                const existing = state.data.artistAvailability.find(a => a.date === date && a.artistId === user.id);
+                if (existing) {
+                    return { data: { ...state.data, artistAvailability: state.data.artistAvailability.map(a => a.id === existing.id ? newAvailability : a)}};
+                } else {
+                    return { data: { ...state.data, artistAvailability: [...state.data.artistAvailability, newAvailability]}};
+                }
+            });
+        } catch (e) {
+            get().showToast("Failed to update availability.", 'error');
+        }
       },
       completeBookingRequest: async (requestId) => {
-        await updateClientBookingRequestStatus(requestId, 'completed');
-        set(state => ({
-            data: {
-                ...state.data,
-                clientBookingRequests: state.data.clientBookingRequests.map(req => req.id === requestId ? { ...req, status: 'completed' } : req),
-            }
-        }));
-        get().showToast("Booking marked as complete.");
+        try {
+            await updateClientBookingRequestStatus(requestId, 'completed');
+            set(state => ({
+                data: {
+                    ...state.data,
+                    clientBookingRequests: state.data.clientBookingRequests.map(req => req.id === requestId ? { ...req, status: 'completed' } : req),
+                }
+            }));
+            get().showToast("Booking marked as complete.");
+        } catch (e) {
+            get().showToast("Failed to mark booking as complete.", 'error');
+        }
       },
       submitReview: async (requestId, rating, text) => {
-        const updatedRequest = await submitReview(requestId, rating, text);
-        set(state => ({
-            data: {
-                ...state.data,
-                clientBookingRequests: state.data.clientBookingRequests.map(req => req.id === requestId ? updatedRequest : req),
-            }
-        }));
-        get().closeModal();
-        get().showToast("Thank you for your review!");
-        get().initialize(get().logout as any); // Re-initialize to update artist ratings
+        try {
+            const updatedRequest = await submitReview(requestId, rating, text);
+            set(state => ({
+                data: {
+                    ...state.data,
+                    clientBookingRequests: state.data.clientBookingRequests.map(req => req.id === requestId ? updatedRequest : req),
+                }
+            }));
+            get().closeModal();
+            get().showToast("Thank you for your review!");
+            get().initialize(get().logout as any); // Re-initialize to update artist ratings
+        } catch (e) {
+            get().showToast("Failed to submit review.", 'error');
+        }
       },
       deleteUser: async (userId) => {
-        await deleteUserAsAdmin(userId);
-        set(state => ({
-            allUsers: state.allUsers.filter(u => u.id !== userId),
-            data: { ...state.data, artists: state.data.artists.filter(a => a.id !== userId) }
-        }));
-        get().showToast("User deleted.");
+        try {
+            await deleteUserAsAdmin(userId);
+            set(state => ({
+                allUsers: state.allUsers.filter(u => u.id !== userId),
+                data: { ...state.data, artists: state.data.artists.filter(a => a.id !== userId) }
+            }));
+            get().showToast("User deleted.");
+        } catch (e) {
+            get().showToast("Failed to delete user.", 'error');
+        }
       },
       deleteShop: async (shopId) => {
-        await deleteShopAsAdmin(shopId);
-        set(state => ({
-            data: { ...state.data, shops: state.data.shops.filter(s => s.id !== shopId) }
-        }));
-        get().showToast("Shop deleted.");
+        try {
+            await deleteShopAsAdmin(shopId);
+            set(state => ({
+                data: { ...state.data, shops: state.data.shops.filter(s => s.id !== shopId) }
+            }));
+            get().showToast("Shop deleted.");
+        } catch (e) {
+            get().showToast("Failed to delete shop.", 'error');
+        }
       },
       adminUpdateUser: async (userId, data) => {
-        await adminUpdateUserProfile(userId, data);
-        const users = await fetchAllUsers(); // Re-fetch all users to get consistent data
-        set({ allUsers: users });
-        get().closeModal();
-        get().showToast('User updated successfully.');
+        try {
+            await adminUpdateUserProfile(userId, data);
+            const users = await fetchAllUsers(); // Re-fetch all users to get consistent data
+            set({ allUsers: users });
+            get().closeModal();
+            get().showToast('User updated successfully.');
+        } catch (e) {
+            get().showToast("Failed to update user.", 'error');
+        }
       },
       adminUpdateShop: async (shopId, data) => {
-        const updatedShop = await adminUpdateShopDetails(shopId, data);
-        set(state => ({
-            data: { ...state.data, shops: state.data.shops.map(s => s.id === shopId ? updatedShop : s) }
-        }));
-        get().closeModal();
-        get().showToast('Shop updated successfully.');
+        try {
+            const updatedShop = await adminUpdateShopDetails(shopId, data);
+            set(state => ({
+                data: { ...state.data, shops: state.data.shops.map(s => s.id === shopId ? updatedShop : s) }
+            }));
+            get().closeModal();
+            get().showToast('Shop updated successfully.');
+        } catch(e) {
+            get().showToast("Failed to update shop.", 'error');
+        }
       },
 
       // --- MESSAGING ACTIONS ---
       loadConversations: async () => {
         const user = get().user;
         if (!user) return;
-        const conversations = await fetchUserConversations(user.id);
-        set(state => ({ data: { ...state.data, conversations }}));
+        try {
+            const conversations = await fetchUserConversations(user.id);
+            set(state => ({ data: { ...state.data, conversations }}));
+        } catch(e) {
+            console.error("Failed to load conversations:", e);
+        }
       },
       selectConversation: async (conversationId) => {
         set({ activeConversationId: conversationId });
         if(conversationId) {
             set({ isLoading: true });
-            const messages = await fetchMessagesForConversation(conversationId);
-            set(state => ({ data: { ...state.data, messages }, isLoading: false }));
+            try {
+                const messages = await fetchMessagesForConversation(conversationId);
+                set(state => ({ data: { ...state.data, messages }, isLoading: false }));
+            } catch (e) {
+                set({ isLoading: false });
+                get().showToast("Could not load messages.", 'error');
+            }
         }
       },
       sendMessage: async (content, attachmentFile) => {
         const { activeConversationId, user } = get();
-        if (!activeConversationId || !user) return;
-        if (!content.trim() && !attachmentFile) return;
+        if (!activeConversationId || !user || (!content.trim() && !attachmentFile)) return;
 
-        let attachmentUrl: string | undefined = undefined;
-        if (attachmentFile) {
-            attachmentUrl = await uploadMessageAttachment(attachmentFile, activeConversationId);
+        try {
+            let attachmentUrl: string | undefined = undefined;
+            if (attachmentFile) {
+                attachmentUrl = await uploadMessageAttachment(attachmentFile, activeConversationId);
+            }
+
+            const newMessage = await sendMessage(activeConversationId, user.id, content.trim(), attachmentUrl);
+            set(state => ({
+              data: { ...state.data, messages: [...state.data.messages, newMessage] }
+            }));
+        } catch (e) {
+            get().showToast("Failed to send message.", 'error');
         }
-
-        const newMessage = await sendMessage(activeConversationId, user.id, content.trim(), attachmentUrl);
-        set(state => ({
-          data: { ...state.data, messages: [...state.data.messages, newMessage] }
-        }));
       },
       startConversation: async (otherUserId) => {
         const user = get().user;
