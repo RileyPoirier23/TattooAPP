@@ -735,7 +735,7 @@ export const ShopReviewModal: React.FC<{ booking: Booking; shop: Shop; onSubmit:
 };
 
 // --- STRIPE PAYMENT MODAL ---
-const STRIPE_PUBLISHABLE_KEY = (import.meta as any).env.VITE_STRIPE_PUBLISHABLE_KEY;
+const STRIPE_PUBLISHABLE_KEY = process.env.VITE_STRIPE_PUBLISHABLE_KEY;
 
 const cardStyle = (isDarkMode: boolean) => ({
   style: {

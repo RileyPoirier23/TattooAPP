@@ -380,7 +380,7 @@ export const fetchArtistReviews = async (artistId: string): Promise<Review[]> =>
     if (!data) return [];
     return data
         .map(r => {
-            // FIX: The type of `r.client` from the Supabase join is inferred as `unknown`. Cast it to a specific, known shape to ensure type-safe access.
+            // The type of `r.client` from the Supabase join is inferred as `unknown`. Cast it to a specific, known shape to ensure type-safe access.
             const client = r.client as { id: string; full_name: string } | null;
             return {
                 id: r.id,

@@ -12,8 +12,7 @@ declare global {
   }
 }
 
-// FIX: Cast `import.meta` to `any` to resolve TypeScript error regarding the 'env' property.
-const GOOGLE_MAPS_API_KEY = (import.meta as any).env.VITE_MAPS_API_KEY;
+const GOOGLE_MAPS_API_KEY = process.env.VITE_MAPS_API_KEY;
 const GOOGLE_MAPS_SCRIPT_ID = 'google-maps-script';
 
 // This ensures callbacks and the script are only attached once, even if the hook is used in multiple components.
