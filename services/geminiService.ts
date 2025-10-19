@@ -4,7 +4,11 @@ import { GoogleGenAI, GenerateContentResponse, Modality, Type } from "@google/ge
 import type { Artist, Client, Shop } from "../types";
 
 // The API key is sourced from the environment and is assumed to be present.
-const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
+const apiKey = process.env.API_KEY || process.env.VITE_API_KEY;
+if (!apiKey) {
+  console.error("Gemini API key is missing. Please provide API_KEY or VITE_API_KEY as an environment variable.");
+}
+const ai = new GoogleGenAI({ apiKey: apiKey! });
 
 /**
  * Generates a creative and professional biography for a tattoo artist.
@@ -13,6 +17,7 @@ const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
  * @returns A promise that resolves to the generated biography string.
  */
 export const generateArtistBio = async (name: string, specialty: string): Promise<string> => {
+  if (!apiKey) throw new Error("AI features are disabled. API key is not configured.");
   const prompt = `Generate a short, professional, and creative biography for a tattoo artist named "${name}" who specializes in "${specialty}". The tone should be inspiring and welcoming to potential clients. Make it about 2-3 sentences long.`;
   
   try {
@@ -35,6 +40,7 @@ export const generateArtistBio = async (name: string, specialty: string): Promis
  * @returns A promise that resolves to an object containing the summary text and grounding chunks.
  */
 export const getShopInfo = async (shopName: string, shopLocation: string): Promise<{ text: string; chunks: any[] }> => {
+  if (!apiKey) throw new Error("AI features are disabled. API key is not configured.");
   const prompt = `Provide a brief, interesting summary about the tattoo shop "${shopName}" located in "${shopLocation}". Mention its reputation, notable styles, or any unique facts. Keep it to 2-3 sentences.`;
 
   try {
@@ -89,6 +95,7 @@ const urlToBase64 = async (url: string): Promise<{ base64: string; mimeType: str
  * @returns A promise that resolves to the base64 string of the edited image.
  */
 export const editImageWithGemini = async (imageUrl: string, prompt: string): Promise<string> => {
+    if (!apiKey) throw new Error("AI features are disabled. API key is not configured.");
     try {
         const { base64, mimeType } = await urlToBase64(imageUrl);
 
@@ -149,7 +156,7 @@ export async function getRecommendations(
     items: (Artist | Shop)[],
     user: Artist | Client
 ): Promise<string[]> {
-    
+    if (!apiKey) throw new Error("AI features are disabled. API key is not configured.");
     let prompt = '';
 
     if (type === 'shop') {

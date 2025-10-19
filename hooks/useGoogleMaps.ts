@@ -12,7 +12,7 @@ declare global {
   }
 }
 
-const GOOGLE_MAPS_API_KEY = process.env.MAPS_API_KEY;
+const GOOGLE_MAPS_API_KEY = process.env.MAPS_API_KEY || process.env.VITE_MAPS_API_KEY;
 const GOOGLE_MAPS_SCRIPT_ID = 'google-maps-script';
 
 // This ensures callbacks and the script are only attached once, even if the hook is used in multiple components.

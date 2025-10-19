@@ -735,7 +735,7 @@ export const ShopReviewModal: React.FC<{ booking: Booking; shop: Shop; onSubmit:
 };
 
 // --- STRIPE PAYMENT MODAL ---
-const STRIPE_PUBLISHABLE_KEY = process.env.STRIPE_PUBLISHABLE_KEY;
+const STRIPE_PUBLISHABLE_KEY = process.env.STRIPE_PUBLISHABLE_KEY || process.env.VITE_STRIPE_PUBLISHABLE_KEY;
 
 const cardStyle = (isDarkMode: boolean) => ({
   style: {
@@ -767,9 +767,24 @@ export const PaymentModal: React.FC<{ context: PaymentContext, onClose: () => vo
     const cardElementRef = useRef<HTMLDivElement>(null);
 
     useEffect(() => {
-        if (window.Stripe && !stripe && STRIPE_PUBLISHABLE_KEY) {
-            setStripe(window.Stripe(STRIPE_PUBLISHABLE_KEY));
+        if (stripe || !STRIPE_PUBLISHABLE_KEY) {
+            return;
         }
+
+        let attempts = 0;
+        const intervalId = setInterval(() => {
+            attempts++;
+            if (window.Stripe) {
+                clearInterval(intervalId);
+                setStripe(window.Stripe(STRIPE_PUBLISHABLE_KEY));
+            } else if (attempts > 20) { // Stop after 2 seconds
+                clearInterval(intervalId);
+                setError("Payment services could not be loaded. Please check your network connection and refresh.");
+                console.error("Stripe.js did not load in time.");
+            }
+        }, 100);
+
+        return () => clearInterval(intervalId);
     }, [stripe]);
 
     useEffect(() => {
