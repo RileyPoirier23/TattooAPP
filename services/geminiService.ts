@@ -16,9 +16,11 @@ const getAi = (): GoogleGenAI => {
     if (ai) return ai;
     if (geminiInitializationError) throw new Error(geminiInitializationError);
 
-    const apiKey = process.env.API_KEY || process.env.VITE_API_KEY;
+    // Fix: Per Gemini guidelines, the API key must be retrieved from process.env.API_KEY.
+    const apiKey = process.env.API_KEY;
     if (!apiKey) {
-        geminiInitializationError = "AI features are disabled. Gemini API key is not configured in environment variables (API_KEY or VITE_API_KEY).";
+        // Fix: Update error message to reflect the change to API_KEY.
+        geminiInitializationError = "AI features are disabled. Gemini API key is not configured in environment variables (API_KEY).";
         console.error(geminiInitializationError);
         throw new Error(geminiInitializationError);
     }

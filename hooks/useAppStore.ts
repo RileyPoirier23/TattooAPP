@@ -602,14 +602,22 @@ export const useAppStore = create<AppState>()(
                 const newVerificationRequests = state.data.verificationRequests.map(req => req.id === requestId ? { ...req, status } : req);
                 let newArtists = state.data.artists;
                 let newShops = state.data.shops;
+                let newAllUsers = state.allUsers;
+
                 if (status === 'approved') {
                     if (updatedRequest.type === 'artist' && updatedRequest.profileId) {
                         newArtists = state.data.artists.map(artist => artist.id === updatedRequest.profileId ? { ...artist, isVerified: true } : artist);
+                        newAllUsers = state.allUsers.map(user => {
+                            if (user.id === updatedRequest.profileId && (user.type === 'artist' || user.type === 'dual')) {
+                                return { ...user, data: { ...user.data, isVerified: true } };
+                            }
+                            return user;
+                        });
                     } else if (updatedRequest.type === 'shop' && updatedRequest.shopId) {
                         newShops = state.data.shops.map(shop => shop.id === updatedRequest.shopId ? { ...shop, isVerified: true } : shop);
                     }
                 }
-                return { data: { ...state.data, verificationRequests: newVerificationRequests, artists: newArtists, shops: newShops }};
+                return { data: { ...state.data, verificationRequests: newVerificationRequests, artists: newArtists, shops: newShops }, allUsers: newAllUsers };
             });
             get().showToast(`Request ${status}.`);
         } catch (e) {

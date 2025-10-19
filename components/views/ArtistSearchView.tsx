@@ -220,15 +220,15 @@ export const ArtistSearchView: React.FC = () => {
 
     return (
         <div>
-            <div className="bg-white dark:bg-gray-900/50 rounded-lg p-4 mb-8 border border-gray-200 dark:border-gray-800 flex flex-col items-center gap-4">
+            <div className="bg-white dark:bg-gray-900/50 rounded-lg p-4 mb-8 border border-gray-200 dark:border-gray-800">
                  {mapsError && (
                     <div className="w-full bg-red-900/30 border border-red-500/50 rounded-lg p-3 text-center mb-4">
                         <p className="text-red-300 font-semibold text-sm">Location Services Error</p>
                         <p className="text-xs text-red-300/80 mt-1">{mapsError.message}</p>
                     </div>
                 )}
-                <div className="w-full flex flex-col md:flex-row items-center gap-4">
-                    <div className="relative flex-grow w-full md:w-auto">
+                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 items-center">
+                    <div className="relative w-full lg:col-span-2">
                         <SearchIcon className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-brand-gray" />
                         <input
                             type="text"
@@ -238,7 +238,7 @@ export const ArtistSearchView: React.FC = () => {
                             className="w-full bg-gray-100 dark:bg-gray-800 border-gray-300 dark:border-gray-700 rounded-lg py-3 pl-10 pr-4 text-brand-dark dark:text-white focus:ring-2 focus:ring-brand-primary focus:outline-none"
                         />
                     </div>
-                    <form className="flex-grow w-full md:w-auto flex gap-2" onSubmit={(e) => { e.preventDefault(); handleLocationSearch(location); }}>
+                    <form className="lg:col-span-2 w-full flex gap-2" onSubmit={(e) => { e.preventDefault(); handleLocationSearch(location); }}>
                         <div className="relative flex-grow">
                             <LocationIcon className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-brand-gray" />
                             <input
@@ -252,16 +252,16 @@ export const ArtistSearchView: React.FC = () => {
                         </div>
                         <button type="submit" disabled={!!mapsError || !isMapsLoaded} className="bg-brand-primary hover:bg-opacity-80 text-white font-bold py-3 px-6 rounded-lg transition-colors disabled:bg-gray-600 disabled:cursor-not-allowed">Search</button>
                     </form>
-                     <button 
+                </div>
+                 <div className="w-full flex flex-wrap items-center gap-4 pt-4 mt-4 border-t border-gray-200 dark:border-gray-800/50">
+                    <button 
                         onClick={handleFindNearby}
                         disabled={isLocating || !isMapsLoaded || !!mapsError}
-                        className="flex items-center justify-center space-x-2 bg-brand-secondary hover:bg-opacity-80 text-white font-bold py-3 px-4 rounded-lg transition-colors disabled:bg-gray-600 disabled:cursor-not-allowed w-full md:w-auto"
+                        className="flex items-center justify-center space-x-2 bg-brand-secondary hover:bg-opacity-80 text-white font-bold py-2 px-4 rounded-lg transition-colors disabled:bg-gray-600 disabled:cursor-not-allowed text-sm"
                     >
-                        {isLocating ? <div className="w-5 h-5"><Loader /></div> : <CrosshairsIcon className="w-5 h-5" />}
+                        {isLocating ? <Loader size="sm" color="white" /> : <CrosshairsIcon className="w-5 h-5" />}
                         <span>Find Nearby</span>
                     </button>
-                </div>
-                 <div className="w-full flex flex-wrap items-center gap-4 pt-4 border-t border-gray-200 dark:border-gray-800/50">
                      <div className="relative">
                         <button onClick={() => setFilterMenuOpen(!isFilterMenuOpen)} className="flex items-center space-x-2 text-sm font-medium text-brand-gray bg-gray-100 dark:bg-gray-800 px-4 py-2 rounded-lg hover:bg-gray-200 dark:hover:bg-gray-700">
                             <span>Filter by Amenities</span>
@@ -300,7 +300,7 @@ export const ArtistSearchView: React.FC = () => {
                 </div>
             )}
 
-            {!isLoading && isSearching && <div className="flex justify-center mt-16"><Loader /></div>}
+            {!isLoading && isSearching && <div className="flex justify-center mt-16"><Loader size="lg"/></div>}
 
             {!isLoading && searchError && (
                  <div className="text-center py-16">

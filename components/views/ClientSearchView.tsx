@@ -241,7 +241,7 @@ export const ClientSearchView: React.FC = () => {
                             disabled={isLocating || !isMapsLoaded}
                             className="flex items-center justify-center space-x-2 bg-brand-secondary hover:bg-opacity-80 text-white font-bold py-3 px-4 rounded-lg transition-colors disabled:bg-gray-600 disabled:cursor-not-allowed"
                         >
-                            {isLocating ? <div className="w-5 h-5"><Loader /></div> : <CrosshairsIcon className="w-5 h-5" />}
+                            {isLocating ? <div className="w-5 h-5"><Loader size="sm" color="white" /></div> : <CrosshairsIcon className="w-5 h-5" />}
                             <span>Find Nearby</span>
                         </button>
                         <label htmlFor="verified-toggle-client" className="flex items-center cursor-pointer">

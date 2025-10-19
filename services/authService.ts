@@ -1,6 +1,7 @@
 // @/services/authService.ts
 import { getSupabase } from './supabaseClient';
-import type { User, AuthCredentials, RegisterDetails, Artist, Client, ShopOwner, UserRole, AdminUser, Admin } from '../types';
+import type { User, AuthCredentials, RegisterDetails, AdminUser } from '../types';
+import { adaptSupabaseProfileToUser } from './dataAdapters';
 
 const USER_STORAGE_KEY = 'inkspace_user_session';
 
@@ -15,8 +16,7 @@ class AuthService {
                 if (parsed.type === 'admin') return parsed as AdminUser;
             }
             
-            // If supabase is not configured, we can't get a remote user. Return null.
-            // This is a safe check before calling getSupabase() which would throw
+            // This is a safe check before calling getSupabase() which would throw if misconfigured
             try {
                 getSupabase();
             } catch (e) {
@@ -30,13 +30,15 @@ class AuthService {
                 return null;
             }
 
-            if(cachedUser) {
-                const parsed = JSON.parse(cachedUser);
-                if (parsed.id === session.user.id) return parsed;
-            }
-
+            // If we have a valid session, let's re-fetch the profile to ensure data is fresh.
+            // This prevents stale data from being used if it was changed in another tab/session.
             const user = await this.getUserProfile(session.user.id);
-            if(user) localStorage.setItem(USER_STORAGE_KEY, JSON.stringify(user));
+            if(user) {
+                localStorage.setItem(USER_STORAGE_KEY, JSON.stringify(user));
+            } else {
+                // If profile fetch fails, clear local session to prevent being logged in with no data
+                localStorage.removeItem(USER_STORAGE_KEY);
+            }
             return user;
 
         } catch (error) {
@@ -95,7 +97,7 @@ class AuthService {
             username: details.email,
             full_name: details.name,
             role: details.type,
-            is_verified: false, // New users are now unverified by default
+            is_verified: false,
         };
 
         if (details.type === 'artist' || details.type === 'dual') {
@@ -107,8 +109,6 @@ class AuthService {
 
         const { error: profileError } = await supabase.from('profiles').insert(profileData);
         if (profileError) {
-            // Attempt to clean up the auth user if profile creation fails
-            // This is an advanced operation and might require admin privileges.
             console.error("Failed to create user profile:", profileError);
             throw new Error(`User created, but profile setup failed. Please contact support. Error: ${profileError.message}`);
         }
@@ -125,7 +125,6 @@ class AuthService {
             const { error } = await supabase.auth.signOut();
             if (error) throw error;
         } catch (e) {
-            // If getSupabase throws, it means we weren't configured anyway, so logout is a no-op.
             console.warn("Could not sign out from Supabase, probably due to missing config. Clearing local session only.");
         }
         localStorage.removeItem(USER_STORAGE_KEY);
@@ -140,31 +139,20 @@ class AuthService {
             .single();
 
         if (error || !profile) {
-            console.error("Error fetching profile:", error);
+            console.error("Error fetching profile for user:", userId, error);
             return null;
         }
 
-        const baseUser = {
-            id: profile.id,
-            email: profile.username, // DB username is email
-            type: profile.role as UserRole,
-        };
-        
-        switch (profile.role) {
-            case 'artist':
-            case 'dual':
-                return { ...baseUser, type: profile.role, data: { id: profile.id, name: profile.full_name, city: profile.city, specialty: profile.specialty, bio: profile.bio, portfolio: profile.portfolio, isVerified: profile.is_verified, socials: profile.socials, hourlyRate: profile.hourly_rate } as Artist };
-            case 'client':
-                return { ...baseUser, type: 'client', data: { id: profile.id, name: profile.full_name } as Client };
-            case 'shop-owner':
-                const { data: ownerShop, error: shopError } = await supabase.from('shops').select('id').eq('owner_id', profile.id).single();
-                if (shopError && shopError.code !== 'PGRST116') { // Ignore 'exact one row not found' errors
-                    console.warn("Could not fetch shop for owner", shopError);
-                }
-                return { ...baseUser, type: 'shop-owner', data: { id: profile.id, name: profile.full_name, shopId: ownerShop?.id || null } as ShopOwner };
-            default:
-                return null;
+        let shopId: string | null = null;
+        if (profile.role === 'shop-owner') {
+             const { data: ownerShop, error: shopError } = await supabase.from('shops').select('id').eq('owner_id', profile.id).single();
+            if (shopError && shopError.code !== 'PGRST116') { // Ignore 'exact one row not found' errors
+                console.warn("Could not fetch shop for owner", shopError);
+            }
+            shopId = ownerShop?.id || null;
         }
+        
+        return adaptSupabaseProfileToUser(profile, shopId);
     }
 }
 

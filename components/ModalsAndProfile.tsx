@@ -688,8 +688,7 @@ export const ImageEditorModal: React.FC<{ artistId: string; image: PortfolioImag
                     <h3 className="font-semibold text-brand-dark dark:text-white">Describe your edits</h3>
                     <input type="text" value={prompt} onChange={e => setPrompt(e.target.value)} placeholder="e.g., 'make the background a vibrant cyberpunk city'" className="w-full bg-gray-100 dark:bg-gray-800 rounded p-2" />
                     <button onClick={handleEdit} disabled={isLoading || !prompt} className="w-full bg-brand-secondary text-white font-bold py-3 rounded-lg disabled:bg-gray-600 flex items-center justify-center">
-                        {isLoading && <Loader />}
-                        {!isLoading && "✨ Generate Edit"}
+                        {isLoading ? <Loader size="sm" color="white" /> : "✨ Generate Edit"}
                     </button>
                 </div>
                  <div className="space-y-4">
@@ -735,7 +734,8 @@ export const ShopReviewModal: React.FC<{ booking: Booking; shop: Shop; onSubmit:
 };
 
 // --- STRIPE PAYMENT MODAL ---
-const STRIPE_PUBLISHABLE_KEY = process.env.STRIPE_PUBLISHABLE_KEY || process.env.VITE_STRIPE_PUBLISHABLE_KEY;
+// Fix: Cast import.meta to any to resolve TypeScript error about missing 'env' property.
+const STRIPE_PUBLISHABLE_KEY = (import.meta as any).env.VITE_STRIPE_PUBLISHABLE_KEY;
 
 const cardStyle = (isDarkMode: boolean) => ({
   style: {
@@ -753,7 +753,6 @@ const cardStyle = (isDarkMode: boolean) => ({
   }
 });
 
-// FIX: Define a discriminated union for the context prop to allow TypeScript to correctly narrow types.
 type PaymentContext = 
     { type: 'artist', data: Booking } | 
     { type: 'client', data: ClientBookingRequest };
@@ -766,8 +765,6 @@ export const PaymentModal: React.FC<{ context: PaymentContext, onClose: () => vo
     const [error, setError] = useState<string | null>(null);
     const cardElementRef = useRef<HTMLDivElement>(null);
     
-    const SmallLoader = <div className="w-5 h-5 border-2 border-white border-t-transparent border-dashed rounded-full animate-spin"></div>;
-
     useEffect(() => {
         if (stripe || !STRIPE_PUBLISHABLE_KEY) {
             return;
@@ -816,8 +813,6 @@ export const PaymentModal: React.FC<{ context: PaymentContext, onClose: () => vo
             return;
         }
 
-        // In a real app, you'd send paymentMethod.id to your backend to create a PaymentIntent.
-        // Here, we simulate success and pass the ID to our store.
         onProcessPayment(context.type, context.data, paymentMethod.id);
     };
 
@@ -849,7 +844,7 @@ export const PaymentModal: React.FC<{ context: PaymentContext, onClose: () => vo
                     disabled={!stripe || isLoading}
                     className="w-full bg-brand-primary text-white font-bold py-3 rounded-lg flex items-center justify-center disabled:bg-gray-600"
                 >
-                    {isLoading ? SmallLoader : `Pay $${amount?.toFixed(2) || '0.00'}`}
+                    {isLoading ? <Loader size="sm" color="white" /> : `Pay $${amount?.toFixed(2) || '0.00'}`}
                 </button>
             </form>
         </Modal>
@@ -922,8 +917,10 @@ export const ArtistProfileView: React.FC<{ artist: Artist, updateArtist: (id: st
                         <div><label className="text-sm text-brand-gray">Hourly Rate ($)</label><input type="number" value={formData.hourlyRate || ''} onChange={e => setFormData({...formData, hourlyRate: Number(e.target.value)})} className="w-full bg-gray-100 dark:bg-gray-800 p-2 rounded"/></div>
                         <div className="relative">
                            <label className="text-sm text-brand-gray">Bio</label>
-                           <textarea value={formData.bio} onChange={e => setFormData({...formData, bio: e.target.value})} rows={3} className={`w-full bg-gray-100 dark:bg-gray-800 p-2 rounded transition-all ${isGeneratingBio ? 'animate-pulse border-brand-secondary border-2' : 'border-transparent'}`}/>
-                           <button onClick={handleGenerateBio} disabled={isGeneratingBio} className="absolute bottom-2 right-2 text-xs bg-brand-secondary text-white px-2 py-1 rounded-lg disabled:bg-gray-600">✨ {isGeneratingBio ? 'Generating...' : 'AI Generate'}</button>
+                           <textarea value={formData.bio} onChange={e => setFormData({...formData, bio: e.target.value})} rows={3} className={`w-full bg-gray-100 dark:bg-gray-800 p-2 rounded transition-all ${isGeneratingBio ? 'opacity-50' : ''}`}/>
+                           <button onClick={handleGenerateBio} disabled={isGeneratingBio} className="absolute bottom-2 right-2 text-xs bg-brand-secondary text-white px-2 py-1 rounded-lg disabled:bg-gray-600 flex items-center justify-center" style={{minWidth: '90px'}}>
+                            {isGeneratingBio ? <Loader size="sm" color="white" /> : '✨ AI Generate'}
+                           </button>
                         </div>
                         <div>
                             <h4 className="text-sm text-brand-gray mb-1">Socials</h4>

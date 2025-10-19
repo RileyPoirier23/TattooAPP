@@ -1,4 +1,3 @@
-
 // @/hooks/useGoogleMaps.ts
 
 import { useState, useEffect } from 'react';
@@ -12,7 +11,8 @@ declare global {
   }
 }
 
-const GOOGLE_MAPS_API_KEY = process.env.MAPS_API_KEY || process.env.VITE_MAPS_API_KEY;
+// Fix: Cast import.meta to any to resolve TypeScript error about missing 'env' property.
+const GOOGLE_MAPS_API_KEY = (import.meta as any).env.VITE_MAPS_API_KEY;
 const GOOGLE_MAPS_SCRIPT_ID = 'google-maps-script';
 
 // This ensures callbacks and the script are only attached once, even if the hook is used in multiple components.
@@ -32,7 +32,7 @@ export const useGoogleMaps = () => {
 
     // If no API key, set a clear, developer-focused error and stop.
     if (!GOOGLE_MAPS_API_KEY) {
-      const errorMsg = "Configuration Issue: The Google Maps API key is missing. Please provide MAPS_API_KEY as an environment variable. Location features will be disabled.";
+      const errorMsg = "Configuration Issue: The Google Maps API key is missing. Please provide VITE_MAPS_API_KEY as an environment variable. Location features will be disabled.";
       console.error(errorMsg);
       setError(new Error(errorMsg));
       return;

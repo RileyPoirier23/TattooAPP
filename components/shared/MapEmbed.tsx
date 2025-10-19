@@ -1,4 +1,3 @@
-
 // @/components/shared/MapEmbed.tsx
 
 import React, { useEffect, useRef } from 'react';

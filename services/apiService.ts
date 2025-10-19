@@ -1,48 +1,11 @@
 // @/services/apiService.ts
 import { getSupabase } from './supabaseClient';
-import type { Artist, Shop, Booth, Booking, ClientBookingRequest, Notification, User, UserRole, Client, ShopOwner, Conversation, Message, ConversationWithUser, ArtistAvailability, Review, PortfolioImage, VerificationRequest } from '../types';
+import type { Artist, Shop, Booth, Booking, ClientBookingRequest, Notification, User, UserRole, Review, PortfolioImage, VerificationRequest, Conversation, ConversationWithUser, Message, ArtistAvailability } from '../types';
+import { 
+    adaptProfileToArtist, adaptShop, adaptBooth, adaptBooking, adaptClientBookingRequest, adaptAvailability, 
+    adaptVerificationRequest, adaptReviewFromBooking, adaptNotification, adaptConversation, adaptMessage, adaptSupabaseProfileToUser 
+} from './dataAdapters';
 
-/**
- * Safely extracts a property from a Supabase joined table result,
- * which can be a single object or an array containing a single object.
- * @param joinedData The data from the join.
- * @param property The property key to extract.
- * @returns The value of the property, or undefined if not found.
- */
-function getJoinedProperty<T extends object>(
-  joinedData: unknown,
-  property: keyof T
-): T[keyof T] | undefined {
-  if (!joinedData) return undefined;
-  // Handle both single object and array-of-one-object cases
-  const data = Array.isArray(joinedData) ? joinedData[0] : joinedData;
-  if (typeof data === 'object' && data !== null && property in data) {
-    return (data as T)[property];
-  }
-  return undefined;
-}
-
-
-const adaptProfileToUser = (profile: any): User | null => {
-    if (!profile) return null;
-    const baseUser = {
-        id: profile.id,
-        email: profile.username, // DB username is email
-        type: profile.role as UserRole,
-    };
-    
-    switch (profile.role) {
-        case 'artist':
-        case 'dual':
-            return { ...baseUser, type: profile.role, data: { id: profile.id, name: profile.full_name, city: profile.city, specialty: profile.specialty, bio: profile.bio, portfolio: profile.portfolio || [], isVerified: profile.is_verified, socials: profile.socials, hourlyRate: profile.hourly_rate } as Artist };
-        case 'client':
-            return { ...baseUser, type: 'client', data: { id: profile.id, name: profile.full_name } as Client };
-        case 'shop-owner':
-            return { ...baseUser, type: 'shop-owner', data: { id: profile.id, name: profile.full_name, shopId: null } as ShopOwner };
-        default:
-            return null;
-    }
-}
 
 export const fetchAllUsers = async(): Promise<User[]> => {
     const supabase = getSupabase();
@@ -51,25 +14,25 @@ export const fetchAllUsers = async(): Promise<User[]> => {
         console.error("Failed to fetch all users:", error);
         throw error;
     }
-    return profiles.map(adaptProfileToUser).filter(Boolean) as User[];
+    return profiles.map(p => adaptSupabaseProfileToUser(p)).filter((u): u is User => u !== null);
 };
 
 
 export const fetchInitialData = async (): Promise<any> => {
     const supabase = getSupabase();
     const { data: profiles, error: artistsError } = await supabase.from('profiles').select('*').in('role', ['artist', 'dual']);
-    const { data: shops, error: shopsError } = await supabase.from('shops').select('*');
-    const { data: booths, error: boothsError } = await supabase.from('booths').select('*');
-    const { data: bookings, error: bookingsError } = await supabase.from('bookings').select('*');
-    const { data: clientBookings, error: clientBookingsError } = await supabase
+    const { data: rawShops, error: shopsError } = await supabase.from('shops').select('*');
+    const { data: rawBooths, error: boothsError } = await supabase.from('booths').select('*');
+    const { data: rawBookings, error: bookingsError } = await supabase.from('bookings').select('*');
+    const { data: rawClientBookings, error: clientBookingsError } = await supabase
         .from('client_booking_requests')
         .select(`
             *,
-            client:profiles!client_booking_requests_client_id_fkey(full_name),
-            artist:profiles!client_booking_requests_artist_id_fkey(full_name)
+            client:profiles!client_booking_requests_client_id_fkey(id, full_name),
+            artist:profiles!client_booking_requests_artist_id_fkey(id, full_name)
         `);
-    const { data: availability, error: availabilityError } = await supabase.from('artist_availability').select('*');
-    const { data: verificationRequests, error: verificationRequestsError } = await supabase.from('verification_requests').select(`*, profile:profiles(full_name), shop:shops(name)`);
+    const { data: rawAvailability, error: availabilityError } = await supabase.from('artist_availability').select('*');
+    const { data: rawVerificationRequests, error: verificationRequestsError } = await supabase.from('verification_requests').select(`*, profile:profiles(full_name), shop:shops(name)`);
 
 
     if (artistsError || shopsError || boothsError || bookingsError || clientBookingsError || availabilityError || verificationRequestsError) {
@@ -77,82 +40,22 @@ export const fetchInitialData = async (): Promise<any> => {
         throw new Error('Failed to fetch initial data from Supabase.');
     }
     
-    const adaptedArtists: Artist[] = profiles.map(profile => ({
-        id: profile.id,
-        name: profile.full_name,
-        specialty: profile.specialty,
-        portfolio: profile.portfolio || [],
-        city: profile.city,
-        bio: profile.bio,
-        isVerified: profile.is_verified,
-        socials: profile.socials || {},
-        hourlyRate: profile.hourly_rate,
-    }));
-
-    const adaptedShops: Shop[] = shops.map(shop => ({ ...shop, id: shop.id, name: shop.name, location: shop.location, address: shop.address, lat: shop.lat, lng: shop.lng, amenities: shop.amenities, rating: shop.rating, imageUrl: shop.image_url, paymentMethods: shop.payment_methods, reviews: shop.reviews, isVerified: shop.is_verified, ownerId: shop.owner_id, averageArtistRating: shop.average_artist_rating }));
-    
-    const adaptedBookings: Booking[] = bookings.map(b => ({
-      id: b.id,
-      artistId: b.artist_id,
-      boothId: b.booth_id,
-      shopId: b.shop_id,
-      city: shops.find(s => s.id === b.shop_id)?.location || '',
-      startDate: b.start_date,
-      endDate: b.end_date,
-      paymentStatus: b.payment_status,
-      totalAmount: b.total_amount,
-      platformFee: b.platform_fee,
-      paymentIntentId: b.payment_intent_id
-    }));
-
-     const adaptedClientBookings: ClientBookingRequest[] = clientBookings.map(b => ({
-      id: b.id,
-      clientId: b.client_id,
-      artistId: b.artist_id,
-      startDate: b.start_date,
-      endDate: b.end_date,
-      message: b.message,
-      status: b.status,
-      tattooSize: b.tattoo_size,
-      bodyPlacement: b.body_placement,
-      estimatedHours: b.estimated_hours,
-      paymentStatus: b.payment_status,
-      clientName: getJoinedProperty<{ full_name: string }>(b.client, 'full_name') || 'Unknown Client',
-      artistName: getJoinedProperty<{ full_name: string }>(b.artist, 'full_name') || 'Unknown Artist',
-      reviewRating: b.review_rating,
-      reviewText: b.review_text,
-      reviewSubmittedAt: b.review_submitted_at,
-      depositAmount: b.deposit_amount,
-      platformFee: b.platform_fee,
-      paymentIntentId: b.payment_intent_id
-    }));
-
-    const adaptedAvailability: ArtistAvailability[] = availability.map(a => ({
-        id: a.id,
-        artistId: a.artist_id,
-        date: a.date,
-        status: a.status,
-    }));
-    
-    const adaptedVerificationRequests: VerificationRequest[] = verificationRequests.map(v => ({
-      id: v.id,
-      profileId: v.profile_id,
-      shopId: v.shop_id,
-      type: v.type,
-      status: v.status,
-      createdAt: v.created_at,
-      requesterName: v.type === 'artist' ? getJoinedProperty<{ full_name: string }>(v.profile, 'full_name') : getJoinedProperty<{ name: string }>(v.shop, 'name'),
-      itemName: v.type === 'artist' ? getJoinedProperty<{ full_name: string }>(v.profile, 'full_name') : getJoinedProperty<{ name: string }>(v.shop, 'name'),
-    }));
+    const artists: Artist[] = profiles.map(adaptProfileToArtist);
+    const shops: Shop[] = rawShops.map(adaptShop);
+    const booths: Booth[] = rawBooths.map(adaptBooth);
+    const bookings: Booking[] = rawBookings.map(b => adaptBooking(b, shops));
+    const clientBookingRequests: ClientBookingRequest[] = rawClientBookings.map(adaptClientBookingRequest);
+    const artistAvailability = rawAvailability.map(adaptAvailability);
+    const verificationRequests = rawVerificationRequests.map(adaptVerificationRequest);
 
     return { 
-        artists: adaptedArtists, 
-        shops: adaptedShops, 
+        artists, 
+        shops, 
         booths, 
-        bookings: adaptedBookings,
-        clientBookingRequests: adaptedClientBookings,
-        artistAvailability: adaptedAvailability,
-        verificationRequests: adaptedVerificationRequests,
+        bookings,
+        clientBookingRequests,
+        artistAvailability,
+        verificationRequests,
         notifications: [],
         conversations: [],
         messages: [],
@@ -194,18 +97,7 @@ export const updateArtistData = async (artistId: string, updatedData: Partial<Ar
 
     if (error) throw error;
     
-    return {
-        id: data.id,
-        name: data.full_name,
-        specialty: data.specialty,
-        portfolio: data.portfolio || [],
-        city: data.city,
-        bio: data.bio,
-        isVerified: data.is_verified,
-        socials: data.socials,
-        hourlyRate: data.hourly_rate,
-        averageRating: 0,
-    };
+    return adaptProfileToArtist(data);
 };
 
 export const uploadPortfolioImage = async (userId: string, file: File): Promise<PortfolioImage> => {
@@ -274,14 +166,14 @@ export const updateShopData = async (shopId: string, updatedData: Partial<Shop>)
     const supabase = getSupabase();
     const { data, error } = await supabase.from('shops').update(updatedData).eq('id', shopId).select().single();
     if (error) throw error;
-    return { ...data, id: data.id, name: data.name, location: data.location, address: data.address, lat: data.lat, lng: data.lng, amenities: data.amenities, rating: data.rating, imageUrl: data.image_url, paymentMethods: data.payment_methods, reviews: data.reviews, isVerified: data.is_verified, ownerId: data.owner_id, averageArtistRating: data.average_artist_rating };
+    return adaptShop(data);
 };
 
 export const addBoothToShop = async (shopId: string, boothData: Omit<Booth, 'id' | 'shopId'>): Promise<Booth> => {
     const supabase = getSupabase();
     const { data, error } = await supabase.from('booths').insert({ ...boothData, shop_id: shopId }).select().single();
     if (error) throw error;
-    return { ...data, shopId: data.shop_id, dailyRate: data.daily_rate };
+    return adaptBooth(data);
 };
 
 export const deleteBoothFromShop = async (boothId: string): Promise<{ success: true }> => {
@@ -291,11 +183,31 @@ export const deleteBoothFromShop = async (boothId: string): Promise<{ success: t
     return { success: true };
 };
 
-export const createBookingForArtist = async (bookingData: Omit<Booking, 'id'| 'city'>): Promise<Booking> => {
+export const createBookingForArtist = async (bookingData: Omit<Booking, 'id' | 'city'>): Promise<Booking> => {
     const supabase = getSupabase();
-    const { data, error } = await supabase.from('bookings').insert({ artist_id: bookingData.artistId, booth_id: bookingData.boothId, shop_id: bookingData.shopId, start_date: bookingData.startDate, end_date: bookingData.endDate, payment_status: bookingData.paymentStatus, total_amount: bookingData.totalAmount, platform_fee: bookingData.platformFee }).select().single();
+    const { data, error } = await supabase.from('bookings').insert({ 
+        artist_id: bookingData.artistId, 
+        booth_id: bookingData.boothId, 
+        shop_id: bookingData.shopId, 
+        start_date: bookingData.startDate, 
+        end_date: bookingData.endDate, 
+        payment_status: bookingData.paymentStatus, 
+        total_amount: bookingData.totalAmount, 
+        platform_fee: bookingData.platformFee 
+    }).select().single();
+
     if (error) throw error;
-    return { id: data.id, artistId: data.artist_id, boothId: data.booth_id, shopId: data.shop_id, startDate: data.start_date, endDate: data.end_date, paymentStatus: data.payment_status, totalAmount: data.total_amount, platformFee: data.platform_fee, city: '' };
+    
+    // Fetch the specific shop associated with this booking to ensure data consistency
+    const { data: rawShop, error: shopError } = await supabase.from('shops').select('*').eq('id', bookingData.shopId).single();
+    
+    if (shopError) {
+        console.error("Failed to fetch shop details for new booking:", shopError);
+        // Proceed with adaptation but the city will be 'Unknown'
+        return adaptBooking(data, []);
+    }
+    
+    return adaptBooking(data, rawShop ? [adaptShop(rawShop)] : []);
 };
 
 export const createClientBookingRequest = async (requestData: Omit<ClientBookingRequest, 'id' | 'status'|'paymentStatus'>): Promise<ClientBookingRequest> => {
@@ -306,7 +218,7 @@ export const createClientBookingRequest = async (requestData: Omit<ClientBooking
     const conversation = await findOrCreateConversation(requestData.clientId, requestData.artistId);
     await sendMessage(conversation.id, requestData.clientId, requestData.message);
 
-    return { id: data.id, clientId: data.client_id, artistId: data.artist_id, startDate: data.start_date, endDate: data.end_date, message: data.message, status: data.status, tattooSize: data.tattoo_size, bodyPlacement: data.body_placement, estimatedHours: data.estimated_hours, paymentStatus: data.payment_status, clientName: (data.client as { full_name: string } | null)?.full_name, artistName: (data.artist as { full_name: string } | null)?.full_name, depositAmount: data.deposit_amount, platformFee: data.platform_fee };
+    return adaptClientBookingRequest(data);
 };
 
 export const updateClientBookingRequestStatus = async (requestId: string, status: ClientBookingRequest['status']): Promise<{ success: boolean }> => {
@@ -326,7 +238,7 @@ export const fetchNotificationsForUser = async (userId: string): Promise<Notific
     const supabase = getSupabase();
     const { data, error } = await supabase.from('notifications').select('*').eq('user_id', userId).order('created_at', { ascending: false });
     if (error) return [];
-    return data.map(n => ({ id: n.id, userId: n.user_id, message: n.message, read: n.read, createdAt: n.created_at }));
+    return data.map(adaptNotification);
 };
 
 export const markUserNotificationsAsRead = async (userId: string): Promise<{ success: true }> => {
@@ -340,7 +252,7 @@ export const createNotification = async (userId: string, message: string): Promi
     const supabase = getSupabase();
     const { data, error } = await supabase.from('notifications').insert({ user_id: userId, message: message }).select().single();
     if (error) throw error;
-    return { id: data.id, userId: data.user_id, message: data.message, read: data.read, createdAt: data.created_at };
+    return adaptNotification(data);
 };
 
 export const findOrCreateConversation = async (userId1: string, userId2: string): Promise<Conversation> => {
@@ -365,18 +277,14 @@ export const fetchUserConversations = async (userId: string): Promise<Conversati
     if (profileError) throw profileError;
     const profilesMap = new Map(profiles.map(p => [p.id, p]));
 
-    return conversations.map(c => {
-        const otherUserId = c.participant_one_id === userId ? c.participant_two_id : c.participant_one_id;
-        const otherUser = profilesMap.get(otherUserId);
-        return { id: c.id, participantOneId: c.participant_one_id, participantTwoId: c.participant_two_id, otherUser: { id: otherUserId, name: otherUser?.full_name || 'Unknown User' } };
-    });
+    return conversations.map(c => adaptConversation(c, userId, profilesMap));
 };
 
 export const fetchMessagesForConversation = async (conversationId: string): Promise<Message[]> => {
     const supabase = getSupabase();
     const { data, error } = await supabase.from('messages').select('*').eq('conversation_id', conversationId).order('created_at', { ascending: true });
     if (error) throw error;
-    return data.map(m => ({ id: m.id, conversationId: m.conversation_id, senderId: m.sender_id, content: m.content, attachmentUrl: m.attachment_url, createdAt: m.created_at }));
+    return data.map(adaptMessage);
 };
 
 export const sendMessage = async (conversationId: string, senderId: string, content?: string, attachmentUrl?: string): Promise<Message> => {
@@ -384,7 +292,7 @@ export const sendMessage = async (conversationId: string, senderId: string, cont
     if (!content && !attachmentUrl) throw new Error("Message must have content or an attachment.");
     const { data, error } = await supabase.from('messages').insert({ conversation_id: conversationId, sender_id: senderId, content, attachment_url: attachmentUrl }).select().single();
     if (error) throw error;
-    return { id: data.id, conversationId: data.conversation_id, senderId: data.sender_id, content: data.content, attachmentUrl: data.attachment_url, createdAt: data.created_at };
+    return adaptMessage(data);
 };
 
 export const uploadMessageAttachment = async (file: File, conversationId: string): Promise<string> => {
@@ -401,21 +309,21 @@ export const updateBoothData = async (boothId: string, updatedData: Partial<Boot
     const supabase = getSupabase();
     const { data, error } = await supabase.from('booths').update(updatedData).eq('id', boothId).select().single();
     if (error) throw error;
-    return { ...data, shopId: data.shop_id, dailyRate: data.daily_rate };
+    return adaptBooth(data);
 };
 
 export const setArtistAvailability = async (artistId: string, date: string, status: 'available' | 'unavailable'): Promise<ArtistAvailability> => {
     const supabase = getSupabase();
     const { data, error } = await supabase.from('artist_availability').upsert({ artist_id: artistId, date: date, status: status }, { onConflict: 'artist_id, date' }).select().single();
     if (error) throw error;
-    return { id: data.id, artistId: data.artist_id, date: data.date, status: data.status };
+    return adaptAvailability(data);
 };
 
 export const submitReview = async (requestId: string, rating: number, text: string): Promise<ClientBookingRequest> => {
     const supabase = getSupabase();
-    const { data, error } = await supabase.from('client_booking_requests').update({ review_rating: rating, review_text: text, review_submitted_at: new Date().toISOString() }).eq('id', requestId).select().single();
+    const { data, error } = await supabase.from('client_booking_requests').update({ review_rating: rating, review_text: text, review_submitted_at: new Date().toISOString() }).select(`*, client:profiles!client_booking_requests_client_id_fkey(full_name), artist:profiles!client_booking_requests_artist_id_fkey(full_name)`).single();
     if (error) throw error;
-    return data;
+    return adaptClientBookingRequest(data);
 };
 
 export const fetchArtistReviews = async (artistId: string): Promise<Review[]> => {
@@ -423,24 +331,15 @@ export const fetchArtistReviews = async (artistId: string): Promise<Review[]> =>
     const { data, error } = await supabase.from('client_booking_requests').select('id, review_rating, review_text, review_submitted_at, client:profiles!client_booking_requests_client_id_fkey(id, full_name)').eq('artist_id', artistId).not('review_rating', 'is', null);
     if (error) throw error;
     if (!data) return [];
-    return data
-        .map(r => {
-            return {
-                id: r.id,
-                authorId: getJoinedProperty<{ id: string }>(r.client, 'id'),
-                authorName: getJoinedProperty<{ full_name: string }>(r.client, 'full_name'),
-                rating: r.review_rating,
-                text: r.review_text,
-                createdAt: r.review_submitted_at
-            };
-        })
-        .filter((r): r is Review => !!(r.authorId && r.authorName));
+    return data.map(adaptReviewFromBooking).filter((r): r is Review => r !== null);
 };
 
 export const deleteUserAsAdmin = async (userId: string): Promise<{ success: boolean }> => {
     const supabase = getSupabase();
     const { error } = await supabase.from('profiles').delete().eq('id', userId);
     if (error) throw error;
+    // Note: You might want to delete the auth user as well, which requires admin privileges.
+    // const { error: authError } = await supabase.auth.admin.deleteUser(userId);
     return { success: true };
 };
 
@@ -453,9 +352,23 @@ export const deleteShopAsAdmin = async (shopId: string): Promise<{ success: bool
 
 export const createShop = async (shopData: Omit<Shop, 'id' | 'isVerified' | 'rating' | 'reviews' | 'averageArtistRating' | 'ownerId'>, ownerId: string): Promise<Shop> => {
     const supabase = getSupabase();
-    const { data, error } = await supabase.from('shops').insert({ ...shopData, owner_id: ownerId, is_verified: false, rating: 0, reviews: [], average_artist_rating: 0 }).select().single();
+    const { data, error } = await supabase.from('shops').insert({ 
+        name: shopData.name,
+        location: shopData.location,
+        address: shopData.address,
+        lat: shopData.lat,
+        lng: shopData.lng,
+        amenities: shopData.amenities,
+        image_url: shopData.imageUrl,
+        payment_methods: shopData.paymentMethods,
+        owner_id: ownerId, 
+        is_verified: false, 
+        rating: 0, 
+        reviews: [], 
+        average_artist_rating: 0 
+    }).select().single();
     if (error) throw error;
-    return { ...data, id: data.id, name: data.name, location: data.location, address: data.address, lat: data.lat, lng: data.lng, amenities: data.amenities, rating: data.rating, imageUrl: data.image_url, paymentMethods: data.payment_methods, reviews: data.reviews, isVerified: data.is_verified, ownerId: data.owner_id, averageArtistRating: data.average_artist_rating };
+    return adaptShop(data);
 };
 
 export const createVerificationRequest = async (type: 'artist' | 'shop', id: string, profileId: string): Promise<VerificationRequest> => {
@@ -463,7 +376,7 @@ export const createVerificationRequest = async (type: 'artist' | 'shop', id: str
     const insertData = type === 'artist' ? { profile_id: id, type } : { shop_id: id, profile_id: profileId, type };
     const { data, error } = await supabase.from('verification_requests').insert(insertData).select().single();
     if (error) throw error;
-    return data;
+    return adaptVerificationRequest(data);
 };
 
 export const updateVerificationRequest = async (requestId: string, status: 'approved' | 'rejected'): Promise<VerificationRequest> => {
@@ -481,7 +394,7 @@ export const updateVerificationRequest = async (requestId: string, status: 'appr
         if (verifyError) throw verifyError;
     }
     
-    return { id: updatedData.id, profileId: updatedData.profile_id, shopId: updatedData.shop_id, type: updatedData.type, status: updatedData.status, createdAt: updatedData.created_at };
+    return adaptVerificationRequest(updatedData);
 };
 
 export const addReviewToShop = async (shopId: string, review: Omit<Review, 'id'>): Promise<Shop> => {
@@ -495,7 +408,7 @@ export const addReviewToShop = async (shopId: string, review: Omit<Review, 'id'>
 
     const { data, error } = await supabase.from('shops').update({ reviews: updatedReviews, average_artist_rating: newAverageRating }).eq('id', shopId).select().single();
     if (error) throw error;
-    return { ...data, id: data.id, name: data.name, location: data.location, address: data.address, lat: data.lat, lng: data.lng, amenities: data.amenities, rating: data.rating, imageUrl: data.image_url, paymentMethods: data.payment_methods, reviews: data.reviews, isVerified: data.is_verified, ownerId: data.owner_id, averageArtistRating: data.average_artist_rating };
+    return adaptShop(data);
 };
 
 export const updateBookingPaymentStatus = async (type: 'artist' | 'client', id: string, paymentIntentId: string): Promise<any> => {
@@ -526,5 +439,5 @@ export const adminUpdateShopDetails = async (shopId: string, updates: { name: st
         .select()
         .single();
     if (error) throw error;
-    return { ...data, id: data.id, name: data.name, location: data.location, address: data.address, lat: data.lat, lng: data.lng, amenities: data.amenities, rating: data.rating, imageUrl: data.image_url, paymentMethods: data.payment_methods, reviews: data.reviews, isVerified: data.is_verified, ownerId: data.owner_id, averageArtistRating: data.average_artist_rating };
+    return adaptShop(data);
 };

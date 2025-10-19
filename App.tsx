@@ -106,7 +106,7 @@ function App() {
     if (!isInitialized || isLoading) {
       return (
         <div className="flex justify-center items-center h-[60vh]">
-          <Loader />
+          <Loader size="lg" />
         </div>
       );
     }
@@ -118,7 +118,7 @@ function App() {
     // Onboarding redirect
     if (user?.type === 'shop-owner' && !user.data.shopId && path !== '/onboarding') {
         navigate('/onboarding');
-        return <Loader />;
+        return <div className="flex justify-center items-center h-[60vh]"><Loader size="lg" /></div>;
     }
 
     const pathSegments = path.split('/').filter(Boolean);
