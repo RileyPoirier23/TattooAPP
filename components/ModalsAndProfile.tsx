@@ -9,11 +9,7 @@ import { MapEmbed } from './shared/MapEmbed';
 import { Loader } from './shared/Loader';
 import { tattooSizes, bodyPlacements, estimatedHours } from '../data/bookingOptions';
 
-declare global {
-  interface Window {
-    Stripe: any;
-  }
-}
+// FIX: Removed redundant global declaration for window.Stripe. It is now centralized in src/vite-env.d.ts.
 
 // --- SHARED COMPONENTS ---
 
@@ -734,8 +730,7 @@ export const ShopReviewModal: React.FC<{ booking: Booking; shop: Shop; onSubmit:
 };
 
 // --- STRIPE PAYMENT MODAL ---
-// Fix: Cast import.meta to any to resolve TypeScript error about missing 'env' property.
-const STRIPE_PUBLISHABLE_KEY = (import.meta as any).env.VITE_STRIPE_PUBLISHABLE_KEY;
+const STRIPE_PUBLISHABLE_KEY = import.meta.env.VITE_STRIPE_PUBLISHABLE_KEY;
 
 const cardStyle = (isDarkMode: boolean) => ({
   style: {

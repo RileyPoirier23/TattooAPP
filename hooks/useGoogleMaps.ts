@@ -2,17 +2,10 @@
 
 import { useState, useEffect } from 'react';
 
-// FIX: Add global declarations for Google Maps callbacks to inform TypeScript that these properties will be available at runtime.
-declare global {
-  interface Window {
-    google: any;
-    inkspaceGoogleMapsLoaded: () => void;
-    gm_authFailure: () => void;
-  }
-}
+// Global declarations are no longer needed here as they are handled by vite/client types
+// and custom declarations in `vite-env.d.ts`.
 
-// Fix: Cast import.meta to any to resolve TypeScript error about missing 'env' property.
-const GOOGLE_MAPS_API_KEY = (import.meta as any).env.VITE_MAPS_API_KEY;
+const GOOGLE_MAPS_API_KEY = import.meta.env.VITE_MAPS_API_KEY;
 const GOOGLE_MAPS_SCRIPT_ID = 'google-maps-script';
 
 // This ensures callbacks and the script are only attached once, even if the hook is used in multiple components.
@@ -25,6 +18,7 @@ export const useGoogleMaps = () => {
   useEffect(() => {
     // If the API is already loaded or the script has been attached, don't do anything.
     if (isLoaded || isMapsApiAttached) {
+      if(window.google?.maps) setIsLoaded(true); // Ensure state is correct on re-mount
       return;
     }
     

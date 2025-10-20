@@ -11,21 +11,6 @@ import { useGoogleMaps } from '../../hooks/useGoogleMaps';
 import { getCityFromCoords, findTattooShops } from '../../services/googlePlacesService';
 import { getRecommendations } from '../../services/geminiService';
 
-const ShopCardSkeleton: React.FC = () => (
-    <div className="bg-white dark:bg-gray-900/50 rounded-lg border border-gray-200 dark:border-gray-800 overflow-hidden animate-pulse">
-        <div className="w-full h-48 bg-gray-300 dark:bg-gray-700"></div>
-        <div className="p-4">
-            <div className="h-5 bg-gray-300 dark:bg-gray-700 rounded w-3/4 mb-2"></div>
-            <div className="h-4 bg-gray-300 dark:bg-gray-700 rounded w-1/2"></div>
-            <div className="mt-3 flex flex-wrap gap-2">
-                <div className="h-5 bg-gray-300 dark:bg-gray-700 rounded-full w-16"></div>
-                <div className="h-5 bg-gray-300 dark:bg-gray-700 rounded-full w-20"></div>
-            </div>
-        </div>
-    </div>
-);
-
-
 const ShopCard: React.FC<{ shop: Partial<Shop>; onSelect: (shop: Shop) => void }> = ({ shop, onSelect }) => (
     <div 
         className={`relative bg-white dark:bg-gray-900/50 rounded-lg border ${shop.isVerified ? 'border-brand-secondary/30 dark:border-brand-secondary/50' : 'border-gray-200 dark:border-gray-800'} overflow-hidden group transform hover:-translate-y-1 transition-transform duration-300 ${shop.isVerified ? 'cursor-pointer' : 'cursor-default'}`}
@@ -221,14 +206,14 @@ export const ArtistSearchView: React.FC = () => {
     return (
         <div>
             <div className="bg-white dark:bg-gray-900/50 rounded-lg p-4 mb-8 border border-gray-200 dark:border-gray-800">
-                 {mapsError && (
+                {mapsError && (
                     <div className="w-full bg-red-900/30 border border-red-500/50 rounded-lg p-3 text-center mb-4">
                         <p className="text-red-300 font-semibold text-sm">Location Services Error</p>
                         <p className="text-xs text-red-300/80 mt-1">{mapsError.message}</p>
                     </div>
                 )}
                 <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 items-center">
-                    <div className="relative w-full lg:col-span-2">
+                     <div className="relative w-full lg:col-span-2">
                         <SearchIcon className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-brand-gray" />
                         <input
                             type="text"
@@ -295,8 +280,8 @@ export const ArtistSearchView: React.FC = () => {
             {(user?.type === 'artist' || user?.type === 'dual') && !isLoading && <RecommendedShops shops={shops} artist={user.data} />}
             
             {isLoading && (
-                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
-                    {[...Array(8)].map((_, i) => <ShopCardSkeleton key={i} />)}
+                <div className="flex justify-center items-center h-96">
+                    <Loader size="lg" />
                 </div>
             )}
 

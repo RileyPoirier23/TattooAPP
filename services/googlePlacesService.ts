@@ -4,11 +4,7 @@
 
 import type { Shop } from '../types';
 
-declare global {
-  interface Window {
-    google: any;
-  }
-}
+// FIX: Removed redundant global declaration for window.google. It is now centralized in src/vite-env.d.ts.
 
 const getPlacesService = () => {
     if (window.google?.maps?.places?.PlacesService) {

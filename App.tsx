@@ -103,18 +103,6 @@ function App() {
   }, [theme]);
 
   const renderPage = () => {
-    if (!isInitialized || isLoading) {
-      return (
-        <div className="flex justify-center items-center h-[60vh]">
-          <Loader size="lg" />
-        </div>
-      );
-    }
-
-     if (error) {
-      return <ErrorDisplay message={error} />;
-    }
-    
     // Onboarding redirect
     if (user?.type === 'shop-owner' && !user.data.shopId && path !== '/onboarding') {
         navigate('/onboarding');
@@ -224,6 +212,18 @@ function App() {
     }
   };
 
+  if (!isInitialized) {
+    return (
+      <div className="flex justify-center items-center h-screen bg-brand-dark">
+        <Loader size="lg" />
+      </div>
+    );
+  }
+
+  if (error) {
+    return <ErrorDisplay message={error} />;
+  }
+
   return (
     <div className="bg-brand-light dark:bg-brand-dark min-h-screen text-brand-dark dark:text-brand-light font-sans">
       <Header
@@ -238,7 +238,11 @@ function App() {
       />
       <main className="container mx-auto px-4 py-8">
         <PageTransition key={path}>
-          {renderPage()}
+          {isLoading ? (
+            <div className="flex justify-center items-center h-[60vh]">
+              <Loader size="lg" />
+            </div>
+          ) : renderPage()}
         </PageTransition>
       </main>
       {renderModals()}

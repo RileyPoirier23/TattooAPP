@@ -16,11 +16,10 @@ const getAi = (): GoogleGenAI => {
     if (ai) return ai;
     if (geminiInitializationError) throw new Error(geminiInitializationError);
 
-    // Fix: Per Gemini guidelines, the API key must be retrieved from process.env.API_KEY.
-    const apiKey = process.env.API_KEY;
+    // Standardize to Vite's environment variables as requested.
+    const apiKey = import.meta.env.VITE_API_KEY;
     if (!apiKey) {
-        // Fix: Update error message to reflect the change to API_KEY.
-        geminiInitializationError = "AI features are disabled. Gemini API key is not configured in environment variables (API_KEY).";
+        geminiInitializationError = "AI features are disabled. Gemini API key is not configured in environment variables (VITE_API_KEY).";
         console.error(geminiInitializationError);
         throw new Error(geminiInitializationError);
     }
@@ -181,18 +180,14 @@ export async function getRecommendations(
     let prompt = '';
 
     if (type === 'shop') {
-        // FIX: Add a type guard. The function overloads ensure `user` is an `Artist` when `type` is 'shop',
-        // but we must check this within the implementation to narrow the type for TypeScript and safely access artist-specific properties.
         if (!('specialty' in user)) {
-            // This path should not be hit in a type-safe application.
             throw new Error("getRecommendations was called with type 'shop' but the user provided was not an artist.");
         }
-        const artist = user; // `user` is now correctly narrowed to `Artist`
+        const artist = user; 
         const shopsForPrompt = (items as Shop[]).map(s => ({ id: s.id, name: s.name, location: s.location, amenities: s.amenities, averageArtistRating: s.averageArtistRating, isVerified: s.isVerified }));
         prompt = `You are a recommendation engine for a tattoo marketplace. An artist named ${artist.name} in ${artist.city} who specializes in "${artist.specialty}" is looking for a shop. Based on the following list of shops, recommend the top 3. Prioritize verified shops with high ratings and relevant amenities.
         Available shops: ${JSON.stringify(shopsForPrompt)}`;
     } else {
-        // FIX: Safely check for the 'city' property, as a 'Client' type does not have it.
         const userCity = 'city' in user ? user.city : 'their area';
         const artistsForPrompt = (items as Artist[]).map(a => ({ id: a.id, name: a.name, city: a.city, specialty: a.specialty, averageRating: a.averageRating, isVerified: a.isVerified }));
         prompt = `You are a recommendation engine for a tattoo marketplace. A client is looking for an artist in ${userCity}. Based on the following list of artists, recommend the top 3. Prioritize verified artists with high ratings who are in the client's city.

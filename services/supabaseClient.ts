@@ -14,9 +14,8 @@ function initializeSupabase() {
         return;
     }
 
-    // Fix: Cast import.meta to any to resolve TypeScript error about missing 'env' property.
-    const supabaseUrl = (import.meta as any).env.VITE_SUPABASE_URL;
-    const supabaseAnonKey = (import.meta as any).env.VITE_SUPABASE_ANON_KEY;
+    const supabaseUrl = import.meta.env.VITE_SUPABASE_URL;
+    const supabaseAnonKey = import.meta.env.VITE_SUPABASE_ANON_KEY;
 
     if (!supabaseUrl || !supabaseAnonKey) {
         supabaseInitializationError = 'Supabase configuration is missing. Please provide VITE_SUPABASE_URL and VITE_SUPABASE_ANON_KEY in your .env file. Refer to README.md for setup instructions.';

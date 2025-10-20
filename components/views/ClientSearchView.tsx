@@ -12,17 +12,6 @@ import { getCityFromCoords } from '../../services/googlePlacesService';
 import { fetchArtistReviews } from '../../services/apiService';
 import { getRecommendations } from '../../services/geminiService';
 
-const ArtistCardSkeleton: React.FC = () => (
-    <div className="bg-white dark:bg-gray-900/50 rounded-lg border border-gray-200 dark:border-gray-800 overflow-hidden animate-pulse">
-        <div className="w-full h-64 bg-gray-300 dark:bg-gray-700"></div>
-        <div className="p-4">
-            <div className="h-5 bg-gray-300 dark:bg-gray-700 rounded w-3/4 mb-2"></div>
-            <div className="h-4 bg-gray-300 dark:bg-gray-700 rounded w-1/2 mb-2"></div>
-            <div className="h-4 bg-gray-300 dark:bg-gray-700 rounded w-1/3"></div>
-        </div>
-    </div>
-);
-
 const ArtistCard: React.FC<{ artist: Artist; onSelect: (artist: Artist) => void }> = ({ artist, onSelect }) => (
     <div 
         className="relative bg-white dark:bg-gray-900/50 rounded-lg border border-gray-200 dark:border-gray-800 overflow-hidden cursor-pointer group transform hover:-translate-y-1 transition-transform duration-300"
@@ -260,8 +249,8 @@ export const ClientSearchView: React.FC = () => {
             {(user?.type === 'client' || user?.type === 'dual') && !isLoading && <RecommendedArtists artists={artists} user={user} />}
 
             {isLoading ? (
-                <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-6">
-                    {[...Array(8)].map((_, i) => <ArtistCardSkeleton key={i} />)}
+                <div className="flex justify-center items-center h-96">
+                    <Loader size="lg" />
                 </div>
             ) : (
                 <>

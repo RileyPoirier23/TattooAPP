@@ -4,12 +4,7 @@ import React, { useEffect, useRef } from 'react';
 import { useGoogleMaps } from '../../hooks/useGoogleMaps';
 import { Loader } from './Loader';
 
-// FIX: Add a global declaration for window.google to inform TypeScript that this property will be available at runtime.
-declare global {
-  interface Window {
-    google: any;
-  }
-}
+// FIX: Removed redundant global declaration for window.google. It is now centralized in src/vite-env.d.ts to prevent type conflicts and improve organization.
 
 interface MapEmbedProps {
   lat: number;
