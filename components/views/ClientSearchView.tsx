@@ -10,7 +10,6 @@ import { ErrorDisplay } from '../shared/ErrorDisplay';
 import { useGoogleMaps } from '../../hooks/useGoogleMaps';
 import { getCityFromCoords } from '../../services/googlePlacesService';
 import { fetchArtistReviews } from '../../services/apiService';
-import { getRecommendations } from '../../services/geminiService';
 
 const ArtistCard: React.FC<{ artist: Artist; onSelect: (artist: Artist) => void }> = ({ artist, onSelect }) => (
     <div 
@@ -41,61 +40,6 @@ const ArtistCard: React.FC<{ artist: Artist; onSelect: (artist: Artist) => void 
         </div>
     </div>
 );
-
-const RecommendedArtists: React.FC<{artists: Artist[], user: User}> = ({artists, user}) => {
-    const [recommended, setRecommended] = useState<Artist[]>([]);
-    const [isLoading, setIsLoading] = useState(true);
-    const { openModal, showToast } = useAppStore();
-
-    useEffect(() => {
-        const fetchRecs = async () => {
-            if (user.type !== 'client' && user.type !== 'dual') {
-                setIsLoading(false);
-                return;
-            }
-            try {
-                const recommendedIds = await getRecommendations('artist', artists, user.data);
-                const recArtists = artists.filter(a => recommendedIds.includes(a.id));
-                setRecommended(recArtists);
-            } catch (error) {
-                console.error("Failed to get recommendations:", error);
-            } finally {
-                setIsLoading(false);
-            }
-        };
-        fetchRecs();
-    }, [artists, user]);
-
-    const handleSelectArtist = async (artist: Artist) => {
-        try {
-            const reviews = await fetchArtistReviews(artist.id);
-            openModal('artist-detail', { artist, reviews });
-        } catch (err) {
-            showToast('Could not load artist reviews.', 'error');
-            openModal('artist-detail', { artist, reviews: [] });
-        }
-    };
-    
-    if (isLoading) {
-        return <div className="flex justify-center mt-8"><Loader /></div>;
-    }
-
-    if (recommended.length === 0) return null;
-
-    const city = 'city' in user.data ? user.data.city : '';
-
-    return (
-        <div className="mb-12">
-            <h2 className="text-2xl font-bold text-brand-dark dark:text-white mb-4">✨ Recommended For You {city && `in ${city}`}</h2>
-            <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-6">
-                {recommended.map(artist => (
-                    <ArtistCard key={artist.id} artist={artist} onSelect={handleSelectArtist} />
-                ))}
-            </div>
-            <hr className="border-gray-200 dark:border-gray-800 my-8" />
-        </div>
-    );
-};
 
 export const ClientSearchView: React.FC = () => {
     const { user, data: { artists }, isLoading, error, openModal, showToast } = useAppStore();
@@ -246,8 +190,6 @@ export const ClientSearchView: React.FC = () => {
                 </div>
             </div>
             
-            {(user?.type === 'client' || user?.type === 'dual') && !isLoading && <RecommendedArtists artists={artists} user={user} />}
-
             {isLoading ? (
                 <div className="flex justify-center items-center h-96">
                     <Loader size="lg" />

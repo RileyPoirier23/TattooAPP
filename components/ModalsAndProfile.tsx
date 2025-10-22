@@ -2,9 +2,8 @@
 
 import React, { useState, useMemo, useRef, useCallback, useEffect } from 'react';
 import { useAppStore } from '../hooks/useAppStore';
-import type { Artist, Shop, Booking, Booth, Review, AuthCredentials, RegisterDetails, UserRole, GroundingChunk, ClientBookingRequest, Client, Socials, ModalState, PortfolioImage, ArtistAvailability, User } from '../types';
+import type { Artist, Shop, Booking, Booth, Review, AuthCredentials, RegisterDetails, UserRole, ClientBookingRequest, Client, Socials, ModalState, PortfolioImage, ArtistAvailability, User } from '../types';
 import { LocationIcon, StarIcon, PriceIcon, XIcon, EditIcon, PaperAirplaneIcon, CalendarIcon, UploadIcon, CheckBadgeIcon, CreditCardIcon } from './shared/Icons';
-import { generateArtistBio, getShopInfo, editImageWithGemini } from '../services/geminiService';
 import { MapEmbed } from './shared/MapEmbed';
 import { Loader } from './shared/Loader';
 import { tattooSizes, bodyPlacements, estimatedHours } from '../data/bookingOptions';
@@ -255,23 +254,6 @@ export const ArtistDetailModal: React.FC<{ artist: Artist; reviews: Review[]; bo
 };
 
 export const ShopDetailModal: React.FC<{ shop: Shop; booths: Booth[]; onClose: () => void; onBookClick: (shop: Shop) => void; }> = ({ shop, booths, onClose, onBookClick }) => {
-    const [insights, setInsights] = useState<{ text: string; chunks: GroundingChunk[] } | null>(null);
-    const [isLoadingInsights, setIsLoadingInsights] = useState(false);
-    const [insightsError, setInsightsError] = useState<string | null>(null);
-
-    const handleGetInsights = async () => {
-        setIsLoadingInsights(true);
-        setInsightsError(null);
-        try {
-            const result = await getShopInfo(shop.name, shop.location);
-            setInsights(result);
-        } catch (error) {
-            setInsightsError((error as Error).message);
-        } finally {
-            setIsLoadingInsights(false);
-        }
-    };
-    
     return (
     <Modal onClose={onClose} title={shop.name}>
         <div className="space-y-6">
@@ -292,38 +274,6 @@ export const ShopDetailModal: React.FC<{ shop: Shop; booths: Booth[]; onClose: (
                             <span key={amenity} className="bg-brand-primary/20 text-brand-primary text-xs font-semibold px-3 py-1 rounded-full">{amenity}</span>
                         ))}
                     </div>
-                </div>
-            </div>
-
-            <div>
-                <h4 className="font-bold text-brand-dark dark:text-white mb-3">AI-Powered Insights</h4>
-                <div className="bg-gray-100 dark:bg-gray-800/50 p-4 rounded-lg">
-                    {!insights && !isLoadingInsights && !insightsError && (
-                         <button onClick={handleGetInsights} className="text-sm font-semibold bg-brand-secondary/80 text-white px-4 py-2 rounded-lg hover:bg-brand-secondary transition-colors">
-                            ✨ Learn more about this shop
-                        </button>
-                    )}
-                    {isLoadingInsights && <div className="flex justify-center items-center h-10"><Loader /></div>}
-                    {insightsError && <p className="text-sm text-red-400">{insightsError}</p>}
-                    {insights && (
-                        <div className="space-y-3">
-                            <p className="text-brand-gray text-sm italic">"{insights.text}"</p>
-                            {insights.chunks.length > 0 && (
-                                <div>
-                                    <h5 className="text-xs font-bold text-gray-500 dark:text-gray-400 mb-1">Sources:</h5>
-                                    <ul className="flex flex-wrap gap-2">
-                                        {insights.chunks.map((chunk, i) => (
-                                            <li key={i}>
-                                                <a href={chunk.web.uri} target="_blank" rel="noopener noreferrer" className="text-xs bg-gray-200 dark:bg-gray-700 hover:bg-gray-300 dark:hover:bg-gray-600 text-gray-700 dark:text-gray-300 px-2 py-1 rounded-md truncate">
-                                                    {chunk.web.title || new URL(chunk.web.uri).hostname}
-                                                </a>
-                                            </li>
-                                        ))}
-                                    </ul>
-                                </div>
-                            )}
-                        </div>
-                    )}
                 </div>
             </div>
 
@@ -658,47 +608,6 @@ export const LeaveReviewModal: React.FC<{ request: ClientBookingRequest; onSubmi
     );
 };
 
-export const ImageEditorModal: React.FC<{ artistId: string; image: PortfolioImage; onSave: (artistId: string, oldImage: PortfolioImage, newBase64: string) => void; onClose: () => void; }> = ({ artistId, image, onSave, onClose }) => {
-    const [prompt, setPrompt] = useState('');
-    const [isLoading, setIsLoading] = useState(false);
-    const [editedImage, setEditedImage] = useState<string | null>(null);
-
-    const handleEdit = async () => {
-        setIsLoading(true);
-        try {
-            const result = await editImageWithGemini(image.url, prompt);
-            setEditedImage(result);
-        } catch (error) {
-            console.error(error);
-        } finally {
-            setIsLoading(false);
-        }
-    };
-
-    return (
-        <Modal onClose={onClose} title="Edit Image with AI" size="xl">
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                <div className="space-y-4">
-                    <h3 className="font-semibold text-brand-dark dark:text-white">Original Image</h3>
-                    <img src={image.url} alt="Original" className="w-full rounded-lg" />
-                    <h3 className="font-semibold text-brand-dark dark:text-white">Describe your edits</h3>
-                    <input type="text" value={prompt} onChange={e => setPrompt(e.target.value)} placeholder="e.g., 'make the background a vibrant cyberpunk city'" className="w-full bg-gray-100 dark:bg-gray-800 rounded p-2" />
-                    <button onClick={handleEdit} disabled={isLoading || !prompt} className="w-full bg-brand-secondary text-white font-bold py-3 rounded-lg disabled:bg-gray-600 flex items-center justify-center">
-                        {isLoading ? <Loader size="sm" color="white" /> : "✨ Generate Edit"}
-                    </button>
-                </div>
-                 <div className="space-y-4">
-                    <h3 className="font-semibold text-brand-dark dark:text-white">AI Generated Result</h3>
-                    <div className="w-full h-[300px] bg-gray-100 dark:bg-gray-800 rounded-lg flex items-center justify-center">
-                        {editedImage ? <img src={`data:image/png;base64,${editedImage}`} alt="Edited" className="w-full rounded-lg" /> : <p className="text-brand-gray">Result will appear here</p>}
-                    </div>
-                    <button onClick={() => editedImage && onSave(artistId, image, editedImage)} disabled={!editedImage} className="w-full bg-brand-primary text-white font-bold py-3 rounded-lg disabled:bg-gray-600">Save to Portfolio</button>
-                 </div>
-            </div>
-        </Modal>
-    );
-};
-
 export const ShopReviewModal: React.FC<{ booking: Booking; shop: Shop; onSubmit: (shopId: string, review: Omit<Review, 'id'>) => void; onClose: () => void; }> = ({ booking, shop, onSubmit, onClose }) => {
     const { user } = useAppStore();
     const [rating, setRating] = useState(0);
@@ -749,20 +658,7 @@ export const VerificationRequestModal: React.FC<{ item: Artist | Shop, type: 'ar
 
 export const ArtistProfileView: React.FC<{ artist: Artist, updateArtist: (id: string, data: Partial<Artist>) => void, showToast: (msg: string) => void, openModal: (type: ModalState['type'], data?: any) => void }> = ({ artist, updateArtist, showToast, openModal }) => {
     const [isEditing, setIsEditing] = useState(false);
-    const [isGeneratingBio, setIsGeneratingBio] = useState(false);
     const [formData, setFormData] = useState<Partial<Artist>>({ ...artist });
-
-    const handleGenerateBio = async () => {
-        setIsGeneratingBio(true);
-        try {
-            const bio = await generateArtistBio(formData.name!, formData.specialty!);
-            setFormData(prev => ({ ...prev, bio }));
-        } catch (error) {
-            showToast('Failed to generate bio.');
-        } finally {
-            setIsGeneratingBio(false);
-        }
-    };
 
     const handleSave = () => {
         updateArtist(artist.id, formData);
@@ -794,10 +690,7 @@ export const ArtistProfileView: React.FC<{ artist: Artist, updateArtist: (id: st
                         <div><label className="text-sm text-brand-gray">Hourly Rate ($)</label><input type="number" value={formData.hourlyRate || ''} onChange={e => setFormData({...formData, hourlyRate: Number(e.target.value)})} className="w-full bg-gray-100 dark:bg-gray-800 p-2 rounded"/></div>
                         <div className="relative">
                            <label className="text-sm text-brand-gray">Bio</label>
-                           <textarea value={formData.bio} onChange={e => setFormData({...formData, bio: e.target.value})} rows={3} className={`w-full bg-gray-100 dark:bg-gray-800 p-2 rounded transition-all ${isGeneratingBio ? 'opacity-50' : ''}`}/>
-                           <button onClick={handleGenerateBio} disabled={isGeneratingBio} className="absolute bottom-2 right-2 text-xs bg-brand-secondary text-white px-2 py-1 rounded-lg disabled:bg-gray-600 flex items-center justify-center" style={{minWidth: '90px'}}>
-                            {isGeneratingBio ? <Loader size="sm" color="white" /> : '✨ AI Generate'}
-                           </button>
+                           <textarea value={formData.bio} onChange={e => setFormData({...formData, bio: e.target.value})} rows={3} className={`w-full bg-gray-100 dark:bg-gray-800 p-2 rounded transition-all`}/>
                         </div>
                         <div>
                             <h4 className="text-sm text-brand-gray mb-1">Socials</h4>
@@ -831,11 +724,6 @@ export const ArtistProfileView: React.FC<{ artist: Artist, updateArtist: (id: st
                     {artist.portfolio.map((image, index) => (
                         <div key={index} className="relative group">
                             <img src={`${image.url}?random=${artist.id}-${index}`} alt={`Portfolio piece ${index+1}`} className="w-full h-48 object-cover rounded-lg bg-gray-200 dark:bg-gray-800" />
-                            <div className="absolute inset-0 bg-black/60 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center">
-                                <button onClick={() => openModal('image-editor', { artistId: artist.id, image })} className="text-white flex items-center gap-2 bg-black/50 p-2 rounded-lg">
-                                    <EditIcon className="w-5 h-5"/> AI Edit
-                                </button>
-                            </div>
                         </div>
                     ))}
                 </div>

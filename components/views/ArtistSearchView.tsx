@@ -9,7 +9,6 @@ import { Loader } from '../shared/Loader';
 import { ErrorDisplay } from '../shared/ErrorDisplay';
 import { useGoogleMaps } from '../../hooks/useGoogleMaps';
 import { getCityFromCoords, findTattooShops } from '../../services/googlePlacesService';
-import { getRecommendations } from '../../services/geminiService';
 
 const ShopCard: React.FC<{ shop: Partial<Shop>; onSelect: (shop: Shop) => void }> = ({ shop, onSelect }) => (
     <div 
@@ -47,46 +46,6 @@ const ShopCard: React.FC<{ shop: Partial<Shop>; onSelect: (shop: Shop) => void }
         )}
     </div>
 );
-
-const RecommendedShops: React.FC<{shops: Shop[], artist: Artist}> = ({shops, artist}) => {
-    const [recommended, setRecommended] = useState<Shop[]>([]);
-    const [isLoading, setIsLoading] = useState(true);
-    const { openModal } = useAppStore();
-
-    useEffect(() => {
-        const fetchRecs = async () => {
-            try {
-                const recommendedIds = await getRecommendations('shop', shops, artist);
-                const recShops = shops.filter(s => recommendedIds.includes(s.id));
-                setRecommended(recShops);
-            } catch (error) {
-                console.error("Failed to get recommendations:", error);
-            } finally {
-                setIsLoading(false);
-            }
-        };
-        fetchRecs();
-    }, [shops, artist]);
-    
-    if (isLoading) {
-        return <div className="flex justify-center mt-8"><Loader /></div>;
-    }
-
-    if (recommended.length === 0) return null;
-
-    return (
-        <div className="mb-12">
-            <h2 className="text-2xl font-bold text-brand-dark dark:text-white mb-4">✨ Recommended For You in <span className="text-brand-secondary">{artist.city}</span></h2>
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-                {recommended.map(shop => (
-                    <ShopCard key={shop.id} shop={shop} onSelect={(s) => openModal('shop-detail', s)} />
-                ))}
-            </div>
-            <hr className="border-gray-200 dark:border-gray-800 my-8" />
-        </div>
-    );
-};
-
 
 export const ArtistSearchView: React.FC = () => {
     const { user, data: { shops }, isLoading, error, openModal, showToast } = useAppStore();
@@ -276,8 +235,6 @@ export const ArtistSearchView: React.FC = () => {
                     <button onClick={handleClearFilters} className="text-sm font-medium text-brand-gray hover:underline">Clear Filters</button>
                 </div>
             </div>
-
-            {(user?.type === 'artist' || user?.type === 'dual') && !isLoading && <RecommendedShops shops={shops} artist={user.data} />}
             
             {isLoading && (
                 <div className="flex justify-center items-center h-96">

@@ -22,7 +22,6 @@ import {
   UploadPortfolioModal,
   EditBoothModal,
   LeaveReviewModal,
-  ImageEditorModal,
   ShopReviewModal,
   VerificationRequestModal,
   AdminEditUserModal,
@@ -72,7 +71,6 @@ function App() {
     updateArtist,
     updateUser,
     uploadPortfolio,
-    editPortfolioImage,
     updateShop,
     addBooth,
     updateBooth,
@@ -182,13 +180,6 @@ function App() {
         return <EditBoothModal booth={modal.data} onSave={updateBooth} onClose={closeModal} />
       case 'leave-review':
         return <LeaveReviewModal request={modal.data} onSubmit={submitReview} onClose={closeModal} />
-      case 'image-editor':
-        return <ImageEditorModal 
-                  artistId={modal.data.artistId}
-                  image={modal.data.image}
-                  onClose={closeModal}
-                  onSave={editPortfolioImage} 
-                />;
       case 'shop-review':
         const shopForReview = data.shops.find(s => s.id === modal.data.shopId);
         if (!shopForReview) return null;

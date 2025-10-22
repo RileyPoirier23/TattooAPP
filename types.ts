@@ -182,13 +182,6 @@ export interface MockData {
   verificationRequests: VerificationRequest[];
 }
 
-export interface GroundingChunk {
-  web: {
-    uri: string;
-    title: string;
-  };
-}
-
 
 // --- APP STATE & NAVIGATION ---
 

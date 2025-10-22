@@ -6,7 +6,7 @@ import {
 } from '../types';
 import {
   fetchInitialData, updateArtistData, uploadPortfolioImage, updateShopData, addBoothToShop, deleteBoothFromShop,
-  createBookingForArtist, createClientBookingRequest, updateClientBookingRequestStatus, fetchNotificationsForUser, markUserNotificationsAsRead, createNotification, fetchAllUsers, updateUserData, updateBoothData, fetchUserConversations, fetchMessagesForConversation, sendMessage, findOrCreateConversation, setArtistAvailability, submitReview, deleteUserAsAdmin, deleteShopAsAdmin, uploadMessageAttachment, fetchArtistReviews, replacePortfolioImage, createShop as apiCreateShop, createVerificationRequest, updateVerificationRequest, addReviewToShop,
+  createBookingForArtist, createClientBookingRequest, updateClientBookingRequestStatus, fetchNotificationsForUser, markUserNotificationsAsRead, createNotification, fetchAllUsers, updateUserData, updateBoothData, fetchUserConversations, fetchMessagesForConversation, sendMessage, findOrCreateConversation, setArtistAvailability, submitReview, deleteUserAsAdmin, deleteShopAsAdmin, uploadMessageAttachment, fetchArtistReviews, createShop as apiCreateShop, createVerificationRequest, updateVerificationRequest, addReviewToShop,
   adminUpdateUserProfile, adminUpdateShopDetails,
 } from '../services/apiService';
 import { authService } from '../services/authService';
@@ -67,7 +67,6 @@ interface AppState {
   updateUser: (userId: string, data: Partial<User['data']>) => Promise<void>;
   updateArtist: (artistId: string, data: Partial<Artist>) => Promise<void>;
   uploadPortfolio: (file: File) => Promise<void>;
-  editPortfolioImage: (artistId: string, oldImage: PortfolioImage, newImageBase64: string) => Promise<void>;
   updateShop: (shopId: string, data: Partial<Shop>) => Promise<void>;
   addBooth: (shopId: string, boothData: Omit<Booth, 'id' | 'shopId'>) => Promise<void>;
   updateBooth: (boothId: string, data: Partial<Booth>) => Promise<void>;
@@ -353,21 +352,6 @@ export const useAppStore = create<AppState>()(
           } catch(e) {
             get().showToast('Upload failed.', 'error');
           }
-      },
-
-      editPortfolioImage: async (artistId, oldImage, newImageBase64) => {
-        const user = get().user;
-        if (!user || user.id !== artistId || (user.type !== 'artist' && user.type !== 'dual')) return;
-
-        try {
-            const newImage = await replacePortfolioImage(user.id, oldImage, newImageBase64);
-            const updatedPortfolio = user.data.portfolio.map(img => img.url === oldImage.url ? newImage : img);
-            await get().updateArtist(user.id, { portfolio: updatedPortfolio });
-            get().closeModal();
-            get().showToast('Image updated successfully with AI!');
-        } catch (e) {
-            get().showToast((e as Error).message, 'error');
-        }
       },
 
       updateShop: async (shopId, data) => {
