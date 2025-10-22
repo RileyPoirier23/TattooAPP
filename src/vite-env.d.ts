@@ -1,4 +1,4 @@
-/// <reference types="vite/client" />
+// FIX: Removed `/// <reference types="vite/client" />` to resolve a "Cannot find type definition file" error. The necessary types are defined manually below.
 
 // Fix: Manually define types for Vite's `import.meta.env` to resolve TypeScript errors.
 // This provides the necessary type information for environment variables when the default
@@ -7,6 +7,8 @@ interface ImportMetaEnv {
   readonly VITE_SUPABASE_URL: string;
   readonly VITE_SUPABASE_ANON_KEY: string;
   readonly VITE_MAPS_API_KEY: string;
+  readonly VITE_API_KEY: string;
+  readonly VITE_STRIPE_PUBLISHABLE_KEY: string;
 }
 
 interface ImportMeta {

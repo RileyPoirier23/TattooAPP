@@ -3,10 +3,11 @@
 import React, { useState, useMemo, useRef, useCallback, useEffect } from 'react';
 import { useAppStore } from '../hooks/useAppStore';
 import type { Artist, Shop, Booking, Booth, Review, AuthCredentials, RegisterDetails, UserRole, ClientBookingRequest, Client, Socials, ModalState, PortfolioImage, ArtistAvailability, User } from '../types';
-import { LocationIcon, StarIcon, PriceIcon, XIcon, EditIcon, PaperAirplaneIcon, CalendarIcon, UploadIcon, CheckBadgeIcon, CreditCardIcon } from './shared/Icons';
+import { LocationIcon, StarIcon, PriceIcon, XIcon, EditIcon, PaperAirplaneIcon, CalendarIcon, UploadIcon, CheckBadgeIcon, CreditCardIcon, SparklesIcon } from './shared/Icons';
 import { MapEmbed } from './shared/MapEmbed';
 import { Loader } from './shared/Loader';
 import { tattooSizes, bodyPlacements, estimatedHours } from '../data/bookingOptions';
+import { generateArtistBio } from '../services/geminiService';
 
 // Redundant global declarations are centralized in src/vite-env.d.ts.
 
@@ -656,14 +657,34 @@ export const VerificationRequestModal: React.FC<{ item: Artist | Shop, type: 'ar
 
 // --- PROFILE & DASHBOARD VIEWS ---
 
-export const ArtistProfileView: React.FC<{ artist: Artist, updateArtist: (id: string, data: Partial<Artist>) => void, showToast: (msg: string) => void, openModal: (type: ModalState['type'], data?: any) => void }> = ({ artist, updateArtist, showToast, openModal }) => {
+export const ArtistProfileView: React.FC<{ artist: Artist, updateArtist: (id: string, data: Partial<Artist>) => void, showToast: (msg: string, type?: 'success' | 'error') => void, openModal: (type: ModalState['type'], data?: any) => void }> = ({ artist, updateArtist, showToast, openModal }) => {
     const [isEditing, setIsEditing] = useState(false);
     const [formData, setFormData] = useState<Partial<Artist>>({ ...artist });
+    const [isGeneratingBio, setIsGeneratingBio] = useState(false);
 
     const handleSave = () => {
         updateArtist(artist.id, formData);
         setIsEditing(false);
     };
+
+    const handleGenerateBio = async () => {
+        if (!formData.name || !formData.specialty || !formData.city) {
+            showToast('Please fill in your name, specialty, and city first.', 'error');
+            return;
+        }
+        setIsGeneratingBio(true);
+        try {
+            const bio = await generateArtistBio(formData.name, formData.specialty, formData.city);
+            setFormData({ ...formData, bio });
+            showToast('AI bio generated!', 'success');
+        } catch (error) {
+            const message = error instanceof Error ? error.message : "An unknown error occurred.";
+            showToast(message, 'error');
+        } finally {
+            setIsGeneratingBio(false);
+        }
+    };
+
 
     return (
         <div className="max-w-4xl mx-auto">
@@ -689,8 +710,23 @@ export const ArtistProfileView: React.FC<{ artist: Artist, updateArtist: (id: st
                         <div><label className="text-sm text-brand-gray">Specialty</label><input type="text" value={formData.specialty} onChange={e => setFormData({...formData, specialty: e.target.value})} className="w-full bg-gray-100 dark:bg-gray-800 p-2 rounded"/></div>
                         <div><label className="text-sm text-brand-gray">Hourly Rate ($)</label><input type="number" value={formData.hourlyRate || ''} onChange={e => setFormData({...formData, hourlyRate: Number(e.target.value)})} className="w-full bg-gray-100 dark:bg-gray-800 p-2 rounded"/></div>
                         <div className="relative">
-                           <label className="text-sm text-brand-gray">Bio</label>
-                           <textarea value={formData.bio} onChange={e => setFormData({...formData, bio: e.target.value})} rows={3} className={`w-full bg-gray-100 dark:bg-gray-800 p-2 rounded transition-all`}/>
+                           <div className="flex items-center gap-2 mb-1">
+                                <label className="text-sm text-brand-gray">Bio</label>
+                                <button
+                                    type="button"
+                                    onClick={handleGenerateBio}
+                                    disabled={isGeneratingBio}
+                                    className="text-brand-secondary hover:text-brand-primary disabled:text-brand-gray disabled:cursor-not-allowed"
+                                    title="Generate bio with AI"
+                                >
+                                    {isGeneratingBio ? (
+                                        <Loader size="sm" />
+                                    ) : (
+                                        <SparklesIcon className="w-5 h-5" />
+                                    )}
+                                </button>
+                            </div>
+                           <textarea value={formData.bio} onChange={e => setFormData({...formData, bio: e.target.value})} rows={3} className={`w-full bg-gray-100 dark:bg-gray-800 p-2 rounded transition-all`} disabled={isGeneratingBio}/>
                         </div>
                         <div>
                             <h4 className="text-sm text-brand-gray mb-1">Socials</h4>
