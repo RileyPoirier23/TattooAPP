@@ -63,7 +63,16 @@ export const adaptSupabaseProfileToUser = (profile: any, shopId?: string | null)
         case 'shop-owner':
             return { ...baseUser, type: 'shop-owner', data: adaptProfileToShopOwner(profile, shopId ?? null) };
         case 'admin':
-             return { id: 'admin-dev', email: '__admin__', type: 'admin', data: { name: 'Admin' } };
+            // FIX: Reverted to a stable implementation. The previous change caused a startup crash
+            // by incorrectly handling the distinction between real DB admins and the special local dev admin.
+            // This ensures any admin from the DB is correctly processed without crashing the app.
+            const adminUser: AdminUser = {
+                id: profile.id,
+                email: profile.username,
+                type: 'admin',
+                data: { name: profile.full_name || 'Admin' }
+            };
+            return adminUser;
         default:
             console.warn(`Unknown user role encountered during adaptation: ${profile.role}`);
             return null;
@@ -155,36 +164,34 @@ export const adaptVerificationRequest = (v: any): VerificationRequest => ({
   type: v.type,
   status: v.status,
   createdAt: v.created_at,
-  // The requester is always the 'profile' associated with the request.
-  requesterName: getJoinedProperty<{ full_name: string }>(v.profile, 'full_name') || 'Unknown Requester',
-  // The item name depends on whether it's an artist or shop verification.
-  itemName: v.type === 'artist' 
-    ? getJoinedProperty<{ full_name: string }>(v.profile, 'full_name') || 'Unnamed Artist'
-    : getJoinedProperty<{ name: string }>(v.shop, 'name') || 'Unnamed Shop',
+  requesterName: v.profile?.full_name,
+  itemName: v.type === 'artist' ? v.profile?.full_name : v.shop?.name,
 });
 
-export const adaptReviewFromBooking = (r: any): Review | null => {
-    const authorName = getJoinedProperty<{ full_name: string }>(r.client, 'full_name');
-    const authorId = getJoinedProperty<{ id: string }>(r.client, 'id');
-    if (!authorId || !authorName || !r.review_rating) return null;
+export const adaptReviewFromBooking = (b: any): Review | null => {
+    if (!b.review_rating || !b.client) return null;
     return {
-        id: r.id,
-        authorId: authorId,
-        authorName: authorName,
-        rating: r.review_rating,
-        text: r.review_text,
-        createdAt: r.review_submitted_at
+        id: b.id,
+        authorId: getJoinedProperty<{id: string}>(b.client, 'id') || 'unknown',
+        authorName: getJoinedProperty<{full_name: string}>(b.client, 'full_name') || 'Anonymous',
+        rating: b.review_rating,
+        text: b.review_text,
+        createdAt: b.review_submitted_at
     };
 };
 
-export const adaptConversation = (c: any, userId: string, profilesMap: Map<string, {id: string, full_name: string}>): ConversationWithUser => {
-    const otherUserId = c.participant_one_id === userId ? c.participant_two_id : c.participant_one_id;
-    const otherUser = profilesMap.get(otherUserId);
-    return { 
-        id: c.id, 
-        participantOneId: c.participant_one_id, 
-        participantTwoId: c.participant_two_id, 
-        otherUser: { id: otherUserId, name: otherUser?.full_name || 'Unknown User' } 
+export const adaptConversation = (c: any, currentUserId: string, profilesMap: Map<string, { id: string; full_name: string }>): ConversationWithUser => {
+    const otherParticipantId = c.participant_one_id === currentUserId ? c.participant_two_id : c.participant_one_id;
+    const otherUser = profilesMap.get(otherParticipantId) || { id: otherParticipantId, full_name: 'Unknown User' };
+
+    return {
+        id: c.id,
+        participantOneId: c.participant_one_id,
+        participantTwoId: c.participant_two_id,
+        otherUser: {
+            id: otherUser.id,
+            name: otherUser.full_name
+        }
     };
 };
 
@@ -194,5 +201,5 @@ export const adaptMessage = (m: any): Message => ({
     senderId: m.sender_id,
     content: m.content,
     attachmentUrl: m.attachment_url,
-    createdAt: m.created_at
+    createdAt: m.created_at,
 });
