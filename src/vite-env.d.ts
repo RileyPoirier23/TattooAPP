@@ -1,6 +1,8 @@
-// FIX: Removed reference to "vite/client" to resolve a type definition error.
-// The necessary 'import.meta.env' types are still defined in this file.
+/// <reference types="vite/client" />
 
+// Fix: Manually define types for Vite's `import.meta.env` to resolve TypeScript errors.
+// This provides the necessary type information for environment variables when the default
+// `vite/client` types are not being picked up by the TypeScript compiler.
 interface ImportMetaEnv {
   readonly VITE_SUPABASE_URL: string;
   readonly VITE_SUPABASE_ANON_KEY: string;

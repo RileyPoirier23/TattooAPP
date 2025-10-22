@@ -2,8 +2,9 @@
 
 import { useState, useEffect } from 'react';
 
-// Global declarations are handled in `src/vite-env.d.ts`.
+// Redundant global declarations are handled in `src/vite-env.d.ts`.
 
+// FIX: Changed from optional chaining to direct access, as types are now provided by `src/vite-env.d.ts`.
 const GOOGLE_MAPS_API_KEY = import.meta.env.VITE_MAPS_API_KEY;
 const GOOGLE_MAPS_SCRIPT_ID = 'google-maps-script';
 
@@ -60,7 +61,8 @@ export const useGoogleMaps = () => {
 
     document.head.appendChild(script);
 
-  }, [isLoaded]); // Depend on isLoaded to ensure effect logic doesn't re-run unnecessarily.
+  // Fix: Changed dependency array to empty to ensure this setup effect runs only once.
+  }, []); // Depend on isLoaded to ensure effect logic doesn't re-run unnecessarily.
 
   return { isLoaded, error };
 };

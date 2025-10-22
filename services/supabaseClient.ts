@@ -15,7 +15,9 @@ function initializeSupabase() {
     }
 
     // Use Vite's standard method for accessing environment variables on the client.
+    // FIX: Changed from optional chaining to direct access, as types are now provided by `src/vite-env.d.ts`.
     const supabaseUrl = import.meta.env.VITE_SUPABASE_URL;
+    // FIX: Changed from optional chaining to direct access, as types are now provided by `src/vite-env.d.ts`.
     const supabaseAnonKey = import.meta.env.VITE_SUPABASE_ANON_KEY;
 
     if (!supabaseUrl || !supabaseAnonKey) {
