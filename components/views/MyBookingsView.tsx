@@ -14,8 +14,6 @@ interface MyBookingsViewProps {
   onCompleteRequest: (requestId: string) => void;
   onLeaveReview: (request: ClientBookingRequest) => void;
   onLeaveShopReview: (booking: Booking) => void;
-  onPayDeposit: (request: ClientBookingRequest) => void;
-  onPayForBooking: (booking: Booking) => void;
 }
 
 const getStatusChip = (status: string) => {
@@ -51,7 +49,7 @@ const EmptyState: React.FC<{ message: string; ctaText: string; ctaLink: string; 
     );
 };
 
-export const MyBookingsView: React.FC<MyBookingsViewProps> = ({ user, artistBookings, allClientBookings, shops, onRespondToRequest, onCompleteRequest, onLeaveReview, onLeaveShopReview, onPayDeposit, onPayForBooking }) => {
+export const MyBookingsView: React.FC<MyBookingsViewProps> = ({ user, artistBookings, allClientBookings, shops, onRespondToRequest, onCompleteRequest, onLeaveReview, onLeaveShopReview }) => {
 
   const canViewArtistBookings = user.type === 'artist' || user.type === 'dual';
   const canViewClientBookings = user.type === 'client' || user.type === 'dual';
@@ -60,7 +58,8 @@ export const MyBookingsView: React.FC<MyBookingsViewProps> = ({ user, artistBook
   const myReceivedClientBookings = allClientBookings.filter(b => b.artistId === user.id);
 
   const hasCompletedBoothBookings = (booking: Booking) => {
-      return booking.paymentStatus === 'paid' && new Date(booking.endDate) < new Date();
+      // An artist can review a shop after their booking period is over, regardless of payment status.
+      return new Date(booking.endDate) < new Date();
   };
 
   return (
@@ -134,11 +133,6 @@ export const MyBookingsView: React.FC<MyBookingsViewProps> = ({ user, artistBook
                             <span className={`text-xs font-bold px-3 py-1 rounded-full capitalize ${getStatusChip(booking.paymentStatus)}`}>
                                 {booking.paymentStatus}
                             </span>
-                            {booking.paymentStatus === 'unpaid' && (
-                                <button onClick={() => onPayForBooking(booking)} className="text-sm bg-brand-primary text-white font-semibold py-2 px-4 rounded-lg hover:bg-opacity-80 flex items-center gap-2">
-                                    <CreditCardIcon className="w-4 h-4" /> Pay Now
-                                </button>
-                            )}
                             {hasCompletedBoothBookings(booking) && (
                                 <button onClick={() => onLeaveShopReview(booking)} className="text-sm bg-yellow-600 text-white font-semibold py-2 px-4 rounded-lg hover:bg-yellow-500 flex items-center gap-2">
                                    <StarIcon className="w-4 h-4" /> Review Shop
@@ -174,11 +168,6 @@ export const MyBookingsView: React.FC<MyBookingsViewProps> = ({ user, artistBook
                        <span className={`text-xs font-bold px-3 py-1 rounded-full capitalize ${getStatusChip(booking.status)}`}>
                             {booking.status}
                         </span>
-                        {booking.status === 'approved' && booking.paymentStatus === 'unpaid' && (
-                            <button onClick={() => onPayDeposit(booking)} className="text-sm bg-brand-primary text-white font-semibold py-2 px-4 rounded-lg hover:bg-opacity-80 flex items-center gap-2">
-                                <CreditCardIcon className="w-4 h-4" /> Pay Deposit
-                            </button>
-                        )}
                         {booking.status === 'completed' && !booking.reviewRating && (
                             <button onClick={() => onLeaveReview(booking)} className="text-sm bg-yellow-600 text-white font-semibold py-2 px-4 rounded-lg hover:bg-yellow-500">
                                 Leave a Review

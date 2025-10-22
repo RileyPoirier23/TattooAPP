@@ -1,7 +1,7 @@
 // @/services/geminiService.ts
 
 import { GoogleGenAI, GenerateContentResponse, Modality, Type } from "@google/genai";
-import type { Artist, Client, Shop } from "../types";
+import type { Artist, Client, Shop, GroundingChunk } from "../types";
 
 // Cache the client instance once created.
 let ai: GoogleGenAI | null = null;
@@ -16,7 +16,7 @@ const getAi = (): GoogleGenAI => {
     if (ai) return ai;
     if (geminiInitializationError) throw new Error(geminiInitializationError);
 
-    // Standardize to Vite's environment variables as requested.
+    // Use Vite's standard method for accessing environment variables on the client.
     const apiKey = import.meta.env.VITE_API_KEY;
     if (!apiKey) {
         geminiInitializationError = "AI features are disabled. Gemini API key is not configured in environment variables (VITE_API_KEY).";
@@ -62,7 +62,7 @@ export const generateArtistBio = async (name: string, specialty: string): Promis
  * @param shopLocation The city/location of the shop.
  * @returns A promise that resolves to an object containing the summary text and grounding chunks.
  */
-export const getShopInfo = async (shopName: string, shopLocation: string): Promise<{ text: string; chunks: any[] }> => {
+export const getShopInfo = async (shopName: string, shopLocation: string): Promise<{ text: string; chunks: GroundingChunk[] }> => {
   const prompt = `Provide a brief, interesting summary about the tattoo shop "${shopName}" located in "${shopLocation}". Mention its reputation, notable styles, or any unique facts. Keep it to 2-3 sentences.`;
 
   try {
@@ -75,7 +75,19 @@ export const getShopInfo = async (shopName: string, shopLocation: string): Promi
     });
 
     const text = response.text;
-    const chunks = response.candidates?.[0]?.groundingMetadata?.groundingChunks || [];
+    const apiChunks = response.candidates?.[0]?.groundingMetadata?.groundingChunks || [];
+
+    // FIX: Adapt grounding chunks from the Gemini API to the stricter local GroundingChunk type.
+    // The API response may have chunks where `web.uri` is optional, but our app requires it.
+    // This filters out incomplete chunks and ensures type compatibility.
+    const chunks: GroundingChunk[] = apiChunks
+      .filter(chunk => chunk.web?.uri)
+      .map(chunk => ({
+        web: {
+          uri: chunk.web!.uri!,
+          title: chunk.web!.title || '',
+        },
+      }));
     
     return { text, chunks };
   } catch (error) {

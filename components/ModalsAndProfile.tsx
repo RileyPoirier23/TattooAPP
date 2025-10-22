@@ -9,7 +9,7 @@ import { MapEmbed } from './shared/MapEmbed';
 import { Loader } from './shared/Loader';
 import { tattooSizes, bodyPlacements, estimatedHours } from '../data/bookingOptions';
 
-// FIX: Removed redundant global declaration for window.Stripe. It is now centralized in src/vite-env.d.ts.
+// Redundant global declarations are centralized in src/vite-env.d.ts.
 
 // --- SHARED COMPONENTS ---
 
@@ -422,7 +422,7 @@ const Calendar: React.FC<{ bookedDates: Date[], onDateSelect: (date: Date) => vo
     );
 };
 
-export const BookingModal: React.FC<{shop: Shop, booths: Booth[], bookings: Booking[], onClose: () => void, onConfirmBooking: (bookingData: Omit<Booking, 'id' | 'artistId' | 'city'>) => void}> = ({ shop, booths, bookings, onClose, onConfirmBooking }) => {
+export const BookingModal: React.FC<{shop: Shop, booths: Booth[], bookings: Booking[], onClose: () => void, onConfirmBooking: (bookingData: Omit<Booking, 'id' | 'artistId' | 'city' | 'paymentStatus'>) => void}> = ({ shop, booths, bookings, onClose, onConfirmBooking }) => {
     const [selectedBoothId, setSelectedBoothId] = useState<string | null>(booths.length > 0 ? booths[0].id : null);
     const [startDate, setStartDate] = useState<Date | null>(null);
     const [endDate, setEndDate] = useState<Date | null>(null);
@@ -467,7 +467,7 @@ export const BookingModal: React.FC<{shop: Shop, booths: Booth[], bookings: Book
     
     const handleConfirm = () => {
         if (selectedBoothId && startDate && endDate) {
-            onConfirmBooking({ shopId: shop.id, boothId: selectedBoothId, startDate: startDate.toISOString().split('T')[0], endDate: endDate.toISOString().split('T')[0], paymentStatus: 'unpaid', totalAmount, platformFee });
+            onConfirmBooking({ shopId: shop.id, boothId: selectedBoothId, startDate: startDate.toISOString().split('T')[0], endDate: endDate.toISOString().split('T')[0], totalAmount, platformFee });
         }
     };
 
@@ -499,7 +499,7 @@ export const BookingModal: React.FC<{shop: Shop, booths: Booth[], bookings: Book
                     </div>
                 </div>
                 <button onClick={handleConfirm} disabled={!selectedBoothId || !startDate || !endDate} className="w-full bg-brand-primary text-white font-bold py-3 rounded-lg disabled:bg-gray-600 disabled:cursor-not-allowed">
-                    Proceed to Payment
+                    Confirm Booking
                 </button>
             </div>
         </Modal>
@@ -728,124 +728,6 @@ export const ShopReviewModal: React.FC<{ booking: Booking; shop: Shop; onSubmit:
         </Modal>
     );
 };
-
-// --- STRIPE PAYMENT MODAL ---
-const STRIPE_PUBLISHABLE_KEY = import.meta.env.VITE_STRIPE_PUBLISHABLE_KEY;
-
-const cardStyle = (isDarkMode: boolean) => ({
-  style: {
-    base: {
-      color: isDarkMode ? '#F5F5F7' : '#101014',
-      fontFamily: 'sans-serif',
-      fontSmoothing: 'antialiased',
-      fontSize: '16px',
-      '::placeholder': { color: '#A0A0A0' }
-    },
-    invalid: {
-      color: '#F04E98',
-      iconColor: '#F04E98'
-    }
-  }
-});
-
-type PaymentContext = 
-    { type: 'artist', data: Booking } | 
-    { type: 'client', data: ClientBookingRequest };
-
-export const PaymentModal: React.FC<{ context: PaymentContext, onClose: () => void, onProcessPayment: (type: 'artist' | 'client', booking: Booking | ClientBookingRequest, paymentMethodId: string) => void }> = ({ context, onClose, onProcessPayment }) => {
-    const { theme } = useAppStore();
-    const [stripe, setStripe] = useState<any>(null);
-    const [cardElement, setCardElement] = useState<any>(null);
-    const [isLoading, setIsLoading] = useState(false);
-    const [error, setError] = useState<string | null>(null);
-    const cardElementRef = useRef<HTMLDivElement>(null);
-    
-    useEffect(() => {
-        if (stripe || !STRIPE_PUBLISHABLE_KEY) {
-            return;
-        }
-
-        let attempts = 0;
-        const intervalId = setInterval(() => {
-            attempts++;
-            if (window.Stripe) {
-                clearInterval(intervalId);
-                setStripe(window.Stripe(STRIPE_PUBLISHABLE_KEY));
-            } else if (attempts > 20) { // Stop after 2 seconds
-                clearInterval(intervalId);
-                setError("Payment services could not be loaded. Please check your network connection and refresh.");
-                console.error("Stripe.js did not load in time.");
-            }
-        }, 100);
-
-        return () => clearInterval(intervalId);
-    }, [stripe]);
-
-    useEffect(() => {
-        if (stripe && !cardElement && cardElementRef.current) {
-            const elements = stripe.elements();
-            const card = elements.create('card', cardStyle(theme === 'dark'));
-            card.mount(cardElementRef.current);
-            setCardElement(card);
-        }
-    }, [stripe, cardElement, theme]);
-
-    const handleSubmit = async (e: React.FormEvent) => {
-        e.preventDefault();
-        if (!stripe || !cardElement) return;
-
-        setIsLoading(true);
-        setError(null);
-
-        const { error: pmError, paymentMethod } = await stripe.createPaymentMethod({
-            type: 'card',
-            card: cardElement,
-        });
-
-        if (pmError) {
-            setError(pmError.message);
-            setIsLoading(false);
-            return;
-        }
-
-        onProcessPayment(context.type, context.data, paymentMethod.id);
-    };
-
-    const amount = context.type === 'artist' ? context.data.totalAmount : context.data.depositAmount;
-    const title = context.type === 'artist' ? 'Pay for Booth Rental' : 'Pay Booking Deposit';
-
-    if (!STRIPE_PUBLISHABLE_KEY) {
-        return (
-            <Modal onClose={onClose} title="Configuration Error" size="md">
-                <p className="text-center text-red-400">The Stripe service is not configured. Please provide a publishable key.</p>
-            </Modal>
-        )
-    }
-
-    return (
-        <Modal onClose={onClose} title={title} size="md" closeDisabled={isLoading}>
-            <form onSubmit={handleSubmit} className="space-y-6">
-                <div>
-                    <label className="block text-sm font-medium text-brand-gray mb-2">Card Details</label>
-                    <div className="bg-gray-100 dark:bg-gray-800 p-3 rounded-lg border border-gray-300 dark:border-gray-700">
-                        <div ref={cardElementRef} />
-                    </div>
-                </div>
-
-                {error && <p className="text-sm text-red-400 text-center">{error}</p>}
-                
-                <button
-                    type="submit"
-                    disabled={!stripe || isLoading}
-                    className="w-full bg-brand-primary text-white font-bold py-3 rounded-lg flex items-center justify-center disabled:bg-gray-600"
-                >
-                    {isLoading ? <Loader size="sm" color="white" /> : `Pay $${amount?.toFixed(2) || '0.00'}`}
-                </button>
-            </form>
-        </Modal>
-    );
-};
-
 
 export const VerificationRequestModal: React.FC<{ item: Artist | Shop, type: 'artist' | 'shop', onSubmit: (type: 'artist' | 'shop', item: Artist | Shop) => void, onClose: () => void }> = ({ item, type, onSubmit, onClose }) => {
     return (

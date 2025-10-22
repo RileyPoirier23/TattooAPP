@@ -110,7 +110,6 @@ export const adaptBooking = (booking: any, shops: Shop[]): Booking => ({
   paymentStatus: booking.payment_status,
   totalAmount: booking.total_amount,
   platformFee: booking.platform_fee,
-  paymentIntentId: booking.payment_intent_id
 });
 
 export const adaptClientBookingRequest = (b: any): ClientBookingRequest => ({
@@ -132,7 +131,6 @@ export const adaptClientBookingRequest = (b: any): ClientBookingRequest => ({
   reviewSubmittedAt: b.review_submitted_at,
   depositAmount: b.deposit_amount,
   platformFee: b.platform_fee,
-  paymentIntentId: b.payment_intent_id
 });
 
 export const adaptNotification = (n: any): Notification => ({

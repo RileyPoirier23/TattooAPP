@@ -14,6 +14,7 @@ function initializeSupabase() {
         return;
     }
 
+    // Use Vite's standard method for accessing environment variables on the client.
     const supabaseUrl = import.meta.env.VITE_SUPABASE_URL;
     const supabaseAnonKey = import.meta.env.VITE_SUPABASE_ANON_KEY;
 

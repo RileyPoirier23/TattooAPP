@@ -2,8 +2,7 @@
 
 import { useState, useEffect } from 'react';
 
-// Global declarations are no longer needed here as they are handled by vite/client types
-// and custom declarations in `vite-env.d.ts`.
+// Global declarations are handled in `src/vite-env.d.ts`.
 
 const GOOGLE_MAPS_API_KEY = import.meta.env.VITE_MAPS_API_KEY;
 const GOOGLE_MAPS_SCRIPT_ID = 'google-maps-script';

@@ -1,5 +1,5 @@
 // @/components/views/ArtistSearchView.tsx
-// FIX: Implement the ArtistSearchView component to display a searchable list of shops for artists.
+// Implemented the ArtistSearchView component to display a searchable list of shops for artists.
 
 import React, { useState, useMemo, useCallback, useEffect } from 'react';
 import { useAppStore } from '../../hooks/useAppStore';

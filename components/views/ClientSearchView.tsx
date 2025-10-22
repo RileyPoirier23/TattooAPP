@@ -1,5 +1,5 @@
 // @/components/views/ClientSearchView.tsx
-// FIX: Implement the ClientSearchView component to display a searchable list of artists for clients.
+// Implemented the ClientSearchView component to display a searchable list of artists for clients.
 
 import React, { useState, useMemo, useEffect } from 'react';
 import { useAppStore } from '../../hooks/useAppStore';

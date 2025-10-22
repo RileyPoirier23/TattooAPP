@@ -94,7 +94,6 @@ export interface Booking {
   paymentStatus: 'paid' | 'unpaid';
   totalAmount?: number;
   platformFee?: number;
-  paymentIntentId?: string;
 }
 
 export interface ClientBookingRequest {
@@ -116,7 +115,6 @@ export interface ClientBookingRequest {
     reviewSubmittedAt?: string;
     depositAmount?: number;
     platformFee?: number;
-    paymentIntentId?: string;
 }
 
 export interface Notification {
@@ -197,7 +195,7 @@ export interface GroundingChunk {
 export type ViewMode = 'artist' | 'client';
 
 export interface ModalState {
-  type: 'auth' | 'artist-detail' | 'shop-detail' | 'booking' | 'client-booking-request' | 'upload-portfolio' | 'edit-booth' | 'leave-review' | 'image-editor' | 'shop-review' | 'payment' | 'request-verification' | 'admin-edit-user' | 'admin-edit-shop' | null;
+  type: 'auth' | 'artist-detail' | 'shop-detail' | 'booking' | 'client-booking-request' | 'upload-portfolio' | 'edit-booth' | 'leave-review' | 'image-editor' | 'shop-review' | 'request-verification' | 'admin-edit-user' | 'admin-edit-shop' | null;
   data?: any;
 }
 

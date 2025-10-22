@@ -4,7 +4,7 @@ import React, { useEffect, useRef } from 'react';
 import { useGoogleMaps } from '../../hooks/useGoogleMaps';
 import { Loader } from './Loader';
 
-// FIX: Removed redundant global declaration for window.google. It is now centralized in src/vite-env.d.ts to prevent type conflicts and improve organization.
+// Redundant global declarations are now centralized in src/vite-env.d.ts to prevent type conflicts and improve organization.
 
 interface MapEmbedProps {
   lat: number;

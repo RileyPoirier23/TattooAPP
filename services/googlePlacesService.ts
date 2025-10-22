@@ -1,10 +1,9 @@
-
 // @/services/googlePlacesService.ts
-// FIX: Implement the googlePlacesService to provide location autocomplete functionality.
+// Implemented the googlePlacesService to provide location autocomplete functionality.
 
 import type { Shop } from '../types';
 
-// FIX: Removed redundant global declaration for window.google. It is now centralized in src/vite-env.d.ts.
+// Redundant global declarations are centralized in src/vite-env.d.ts.
 
 const getPlacesService = () => {
     if (window.google?.maps?.places?.PlacesService) {

@@ -24,7 +24,6 @@ import {
   LeaveReviewModal,
   ImageEditorModal,
   ShopReviewModal,
-  PaymentModal,
   VerificationRequestModal,
   AdminEditUserModal,
   AdminEditShopModal,
@@ -85,7 +84,6 @@ function App() {
     requestVerification,
     respondToVerificationRequest,
     submitShopReview,
-    processPayment,
     adminUpdateUser,
     adminUpdateShop,
   } = useAppStore();
@@ -141,7 +139,7 @@ function App() {
       case 'bookings':
         if(user){
             const userArtistBookings = data.bookings.filter(b => b.artistId === user.id);
-            return <MyBookingsView user={user} artistBookings={userArtistBookings} allClientBookings={data.clientBookingRequests} onRespondToRequest={respondToBookingRequest} onCompleteRequest={completeBookingRequest} onLeaveReview={(req) => openModal('leave-review', req)} onLeaveShopReview={(booking) => openModal('shop-review', booking)} onPayDeposit={(req) => openModal('payment', { type: 'client', data: req })} onPayForBooking={(booking) => openModal('payment', { type: 'artist', data: booking })} shops={data.shops} />;
+            return <MyBookingsView user={user} artistBookings={userArtistBookings} allClientBookings={data.clientBookingRequests} onRespondToRequest={respondToBookingRequest} onCompleteRequest={completeBookingRequest} onLeaveReview={(req) => openModal('leave-review', req)} onLeaveShopReview={(booking) => openModal('shop-review', booking)} shops={data.shops} />;
         }
         return <Hero navigate={navigate} />;
       case 'settings':
@@ -174,11 +172,7 @@ function App() {
         return <ShopDetailModal shop={modal.data} booths={shopBooths} onClose={closeModal} onBookClick={(shop) => openModal('booking', {shop, booths: shopBooths})} />;
       case 'booking':
         const relevantBookings = data.bookings.filter(b => b.shopId === modal.data.shop.id);
-        return <BookingModal shop={modal.data.shop} booths={modal.data.booths} bookings={relevantBookings} onClose={closeModal} onConfirmBooking={(booking) => {
-            confirmArtistBooking(booking).then((newBooking) => {
-                if(newBooking) openModal('payment', { type: 'artist', data: newBooking });
-            });
-        }} />;
+        return <BookingModal shop={modal.data.shop} booths={modal.data.booths} bookings={relevantBookings} onClose={closeModal} onConfirmBooking={confirmArtistBooking} />;
       case 'client-booking-request':
         const artistAvail = data.artistAvailability.filter(a => a.artistId === modal.data.id);
         return <ClientBookingRequestModal artist={modal.data} availability={artistAvail} onClose={closeModal} onSendRequest={sendClientBookingRequest} />
@@ -199,8 +193,6 @@ function App() {
         const shopForReview = data.shops.find(s => s.id === modal.data.shopId);
         if (!shopForReview) return null;
         return <ShopReviewModal booking={modal.data} shop={shopForReview} onClose={closeModal} onSubmit={submitShopReview} />
-      case 'payment':
-        return <PaymentModal context={modal.data} onClose={closeModal} onProcessPayment={processPayment} />
       case 'request-verification':
         return <VerificationRequestModal item={modal.data.item} type={modal.data.type} onClose={closeModal} onSubmit={requestVerification} />
       case 'admin-edit-user':

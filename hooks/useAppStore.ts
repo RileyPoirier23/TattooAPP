@@ -6,7 +6,7 @@ import {
 } from '../types';
 import {
   fetchInitialData, updateArtistData, uploadPortfolioImage, updateShopData, addBoothToShop, deleteBoothFromShop,
-  createBookingForArtist, createClientBookingRequest, updateClientBookingRequestStatus, fetchNotificationsForUser, markUserNotificationsAsRead, createNotification, fetchAllUsers, updateUserData, updateBoothData, fetchUserConversations, fetchMessagesForConversation, sendMessage, findOrCreateConversation, setArtistAvailability, submitReview, deleteUserAsAdmin, deleteShopAsAdmin, uploadMessageAttachment, fetchArtistReviews, replacePortfolioImage, createShop as apiCreateShop, createVerificationRequest, updateVerificationRequest, addReviewToShop, updateBookingPaymentStatus,
+  createBookingForArtist, createClientBookingRequest, updateClientBookingRequestStatus, fetchNotificationsForUser, markUserNotificationsAsRead, createNotification, fetchAllUsers, updateUserData, updateBoothData, fetchUserConversations, fetchMessagesForConversation, sendMessage, findOrCreateConversation, setArtistAvailability, submitReview, deleteUserAsAdmin, deleteShopAsAdmin, uploadMessageAttachment, fetchArtistReviews, replacePortfolioImage, createShop as apiCreateShop, createVerificationRequest, updateVerificationRequest, addReviewToShop,
   adminUpdateUserProfile, adminUpdateShopDetails,
 } from '../services/apiService';
 import { authService } from '../services/authService';
@@ -59,7 +59,7 @@ interface AppState {
   logout: (navigate: NavigateFunction) => Promise<void>;
   fetchNotifications: () => Promise<void>;
   markNotificationsAsRead: () => Promise<void>;
-  confirmArtistBooking: (bookingData: Omit<Booking, 'id' | 'artistId' | 'city'>) => Promise<Booking | null>;
+  confirmArtistBooking: (bookingData: Omit<Booking, 'id' | 'artistId' | 'city' | 'paymentStatus'>) => Promise<void>;
   sendClientBookingRequest: (requestData: Omit<ClientBookingRequest, 'id' | 'clientId' | 'status' | 'paymentStatus'>) => Promise<void>;
   respondToBookingRequest: (requestId: string, status: 'approved' | 'declined') => Promise<void>;
   completeBookingRequest: (requestId: string) => Promise<void>;
@@ -91,7 +91,6 @@ interface AppState {
   requestVerification: (type: 'artist' | 'shop', item: Artist | Shop) => Promise<void>;
   respondToVerificationRequest: (requestId: string, status: 'approved' | 'rejected') => Promise<void>;
   submitShopReview: (shopId: string, review: Omit<Review, 'id'>) => Promise<void>;
-  processPayment: (type: 'artist' | 'client', booking: Booking | ClientBookingRequest, paymentMethodId: string) => Promise<void>;
 }
 
 export const useAppStore = create<AppState>()(
@@ -250,16 +249,15 @@ export const useAppStore = create<AppState>()(
           const user = get().user;
           if (!user || user.type !== 'artist' && user.type !== 'dual') {
               get().showToast('You must be an artist to book a booth.', 'error');
-              return null;
+              return;
           }
           try {
-              const newBooking = await createBookingForArtist({ ...bookingData, artistId: user.id });
+              const newBooking = await createBookingForArtist({ ...bookingData, artistId: user.id, paymentStatus: 'unpaid' });
               set(state => ({ data: { ...state.data, bookings: [...state.data.bookings, newBooking] } }));
-              get().showToast('Booking initiated! Please complete payment.');
-              return newBooking;
+              get().closeModal();
+              get().showToast('Booking confirmed! Payment is due.');
           } catch(e) {
               get().showToast('Booking failed. Please try again.', 'error');
-              return null;
           }
       },
 
@@ -283,16 +281,22 @@ export const useAppStore = create<AppState>()(
 
       respondToBookingRequest: async (requestId, status) => {
         try {
-            await updateClientBookingRequestStatus(requestId, status);
+            const paymentStatus = 'unpaid';
+            await updateClientBookingRequestStatus(requestId, status, paymentStatus);
             set(state => ({
                 data: {
                     ...state.data,
                     clientBookingRequests: state.data.clientBookingRequests.map(req =>
-                        req.id === requestId ? { ...req, status } : req
+                        req.id === requestId ? { ...req, status, paymentStatus } : req
                     ),
                 }
             }));
-            get().showToast(`Request has been ${status}.`);
+
+            if (status === 'approved') {
+                get().showToast(`Request has been approved. Deposit is now due.`);
+            } else {
+                get().showToast(`Request has been ${status}.`);
+            }
             get().fetchNotifications();
         } catch (e) {
             const message = e instanceof Error ? e.message : 'Failed to respond to request.';
@@ -632,20 +636,6 @@ export const useAppStore = create<AppState>()(
             get().showToast('Thank you for reviewing the shop!');
         } catch (e) {
             get().showToast('Failed to submit review.', 'error');
-        }
-      },
-      processPayment: async (type, booking, paymentMethodId) => {
-        try {
-            await updateBookingPaymentStatus(type, booking.id, paymentMethodId);
-            if (type === 'artist') {
-                 set(state => ({ data: { ...state.data, bookings: state.data.bookings.map(b => b.id === booking.id ? { ...b, paymentStatus: 'paid', paymentIntentId: paymentMethodId } : b) }}));
-            } else {
-                 set(state => ({ data: { ...state.data, clientBookingRequests: state.data.clientBookingRequests.map(b => b.id === booking.id ? { ...b, paymentStatus: 'paid', paymentIntentId: paymentMethodId } : b) }}));
-            }
-            get().closeModal();
-            get().showToast('Payment successful!');
-        } catch (e) {
-            get().showToast('Payment failed.', 'error');
         }
       },
     }),

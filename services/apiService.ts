@@ -221,11 +221,17 @@ export const createClientBookingRequest = async (requestData: Omit<ClientBooking
     return adaptClientBookingRequest(data);
 };
 
-export const updateClientBookingRequestStatus = async (requestId: string, status: ClientBookingRequest['status']): Promise<{ success: boolean }> => {
+export const updateClientBookingRequestStatus = async (requestId: string, status: ClientBookingRequest['status'], paymentStatus?: 'paid' | 'unpaid'): Promise<{ success: boolean }> => {
     const supabase = getSupabase();
     const { data: request, error: fetchError } = await supabase.from('client_booking_requests').select('client_id, artist_id').eq('id', requestId).single();
     if (fetchError) throw fetchError;
-    const { error: updateError } = await supabase.from('client_booking_requests').update({ status: status }).eq('id', requestId);
+
+    const updatePayload: { status: ClientBookingRequest['status'], payment_status?: 'paid' | 'unpaid' } = { status };
+    if (paymentStatus) {
+        updatePayload.payment_status = paymentStatus;
+    }
+
+    const { error: updateError } = await supabase.from('client_booking_requests').update(updatePayload).eq('id', requestId);
     if (updateError) throw updateError;
     
     const { data: artistProfile, error: profileError } = await supabase.from('profiles').select('full_name').eq('id', request.artist_id).single();
@@ -275,7 +281,7 @@ export const fetchUserConversations = async (userId: string): Promise<Conversati
     conversations.forEach(c => { participantIds.add(c.participant_one_id); participantIds.add(c.participant_two_id); });
     const { data: profiles, error: profileError } = await supabase.from('profiles').select('id, full_name').in('id', Array.from(participantIds));
     if (profileError) throw profileError;
-    const profilesMap = new Map(profiles.map(p => [p.id, p]));
+    const profilesMap = new Map<string, { id: string; full_name: string }>(profiles.map(p => [p.id, p]));
 
     return conversations.map(c => adaptConversation(c, userId, profilesMap));
 };
@@ -409,14 +415,6 @@ export const addReviewToShop = async (shopId: string, review: Omit<Review, 'id'>
     const { data, error } = await supabase.from('shops').update({ reviews: updatedReviews, average_artist_rating: newAverageRating }).eq('id', shopId).select().single();
     if (error) throw error;
     return adaptShop(data);
-};
-
-export const updateBookingPaymentStatus = async (type: 'artist' | 'client', id: string, paymentIntentId: string): Promise<any> => {
-    const supabase = getSupabase();
-    const table = type === 'artist' ? 'bookings' : 'client_booking_requests';
-    const { data, error } = await supabase.from(table).update({ payment_status: 'paid', payment_intent_id: paymentIntentId }).eq('id', id).select().single();
-    if (error) throw error;
-    return data;
 };
 
 // --- NEW ADMIN FUNCTIONS ---
