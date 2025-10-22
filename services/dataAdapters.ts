@@ -23,7 +23,7 @@ function getJoinedProperty<T extends object>(
 
 export const adaptProfileToArtist = (profile: any): Artist => ({
   id: profile.id,
-  name: profile.full_name,
+  name: profile.full_name || 'Unnamed Artist',
   specialty: profile.specialty || 'Not specified',
   portfolio: profile.portfolio || [],
   city: profile.city || 'Unknown',
@@ -36,12 +36,12 @@ export const adaptProfileToArtist = (profile: any): Artist => ({
 
 export const adaptProfileToClient = (profile: any): Client => ({
   id: profile.id,
-  name: profile.full_name,
+  name: profile.full_name || 'Unnamed Client',
 });
 
 export const adaptProfileToShopOwner = (profile: any, shopId: string | null = null): ShopOwner => ({
   id: profile.id,
-  name: profile.full_name,
+  name: profile.full_name || 'Unnamed Owner',
   shopId: shopId,
 });
 

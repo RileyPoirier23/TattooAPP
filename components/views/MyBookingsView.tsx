@@ -173,21 +173,4 @@ export const MyBookingsView: React.FC<MyBookingsViewProps> = ({ user, artistBook
                                 Leave a Review
                             </button>
                         )}
-                        {booking.status === 'completed' && booking.reviewRating && (
-                            <div className="text-sm text-yellow-400 flex items-center gap-1">
-                                <CheckBadgeIcon className="w-5 h-5" />
-                                <span>Reviewed</span>
-                            </div>
-                        )}
-                    </div>
-                  </div>
-                ))
-            ) : (
-              <EmptyState message="You haven't requested any appointments yet." ctaText="Find an Artist" ctaLink="/artists" />
-            )}
-          </div>
-        </section>
-      )}
-    </div>
-  );
-};
+                        {

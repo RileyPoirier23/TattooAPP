@@ -47,7 +47,7 @@ interface AppState {
   activeConversationId: string | null;
 
   // Actions
-  // Fix: Made the navigate parameter optional to allow calling initialize for data refresh without navigation.
+  // FIX: Made the `navigate` parameter optional to allow calling `initialize` for data refresh without navigation side-effects.
   initialize: (navigate?: NavigateFunction) => Promise<void>;
   setViewMode: (mode: ViewMode) => void;
   toggleTheme: () => void;
@@ -129,9 +129,9 @@ export const useAppStore = create<AppState>()(
           set({ data: initialData, user: currentUser, isInitialized: true, isLoading: false });
           if (currentUser) {
             if (currentUser.type === 'artist' || currentUser.type === 'dual') set({ viewMode: 'artist' });
-            if (currentUser.type === 'admin') {
-              // Fix: Added null check for navigate before calling it.
-              navigate?.('/admin');
+            // FIX: Added a guard to ensure `navigate` is only called when it's provided.
+            if (currentUser.type === 'admin' && navigate) {
+              navigate('/admin');
               const users = await fetchAllUsers();
               set({ allUsers: users });
             }
@@ -440,7 +440,6 @@ export const useAppStore = create<AppState>()(
             }));
             get().closeModal();
             get().showToast("Thank you for your review!");
-            // Fix: Corrected the call to initialize to refresh data without breaking navigation.
             get().initialize(); // Re-initialize to update artist ratings
         } catch (e) {
             get().showToast("Failed to submit review.", 'error');

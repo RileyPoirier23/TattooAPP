@@ -1,4 +1,4 @@
-
+// @/components/shared/ErrorDisplay.tsx
 
 import React from 'react';
 

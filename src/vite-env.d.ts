@@ -16,9 +16,11 @@ interface ImportMeta {
 }
 
 // Consolidate global window property declarations here to avoid errors and maintain clean code.
+// FIX: Made properties optional to resolve modifier mismatch errors across multiple declarations.
+// These properties are from externally loaded scripts and may not exist on `window` at all times.
 interface Window {
-  google: any;
-  gm_authFailure: () => void;
-  inkspaceGoogleMapsLoaded: () => void;
-  Stripe: any;
+  google?: any;
+  gm_authFailure?: () => void;
+  inkspaceGoogleMapsLoaded?: () => void;
+  Stripe?: any;
 }
