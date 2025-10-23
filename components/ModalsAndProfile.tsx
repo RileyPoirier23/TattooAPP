@@ -9,7 +9,11 @@ import { Loader } from './shared/Loader';
 import { tattooSizes, bodyPlacements, estimatedHours } from '../data/bookingOptions';
 import { generateArtistBio } from '../services/geminiService';
 
-// FIX: Removed redundant global interface declaration. Types are now centralized in `src/vite-env.d.ts`.
+declare global {
+    interface Window {
+        Stripe?: any;
+    }
+}
 
 // --- SHARED COMPONENTS ---
 

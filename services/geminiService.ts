@@ -1,17 +1,17 @@
 // @/services/geminiService.ts
-// FIX: Changed import from deprecated `GoogleGenerativeAI` to `GoogleGenAI`.
-import { GoogleGenAI } from "@google/genai";
+import { GoogleGenerativeAI } from "@google/genai";
 
+// IMPORTANT: This service will not work without a valid API key.
+// See README.md for instructions on how to set up your .env file.
 const geminiApiKey = import.meta.env.VITE_API_KEY;
 
+let genAI: GoogleGenerativeAI | null = null;
 if (!geminiApiKey) {
     console.error("Gemini API key (VITE_API_KEY) is missing from .env file. AI features will be disabled.");
+} else {
+    genAI = new GoogleGenerativeAI(geminiApiKey);
 }
 
-// Initialize the client, but handle the case where the key might be missing.
-// The generateArtistBio function will throw a specific error if the client isn't initialized.
-// FIX: Updated client initialization to use a named parameter as required by the new API.
-const ai = geminiApiKey ? new GoogleGenAI({ apiKey: geminiApiKey }) : null;
 
 /**
  * Generates a professional bio for a tattoo artist using the Gemini API.
@@ -21,20 +21,17 @@ const ai = geminiApiKey ? new GoogleGenAI({ apiKey: geminiApiKey }) : null;
  * @returns A promise that resolves to the generated bio string.
  */
 export async function generateArtistBio(name: string, specialty: string, city: string): Promise<string> {
-  if (!ai) {
+  if (!genAI) {
       throw new Error("AI service is not configured. Please check your API key in the .env file.");
   }
 
+  const model = genAI.getGenerativeModel({ model: "gemini-pro" });
   const prompt = `Write a short, professional, and engaging bio for a tattoo artist named ${name}. They specialize in ${specialty} and are based in ${city}. The bio should be around 50-70 words, written in the first person, and highlight their passion and skill. Do not use markdown.`;
 
   try {
-    // FIX: Updated to use the new `ai.models.generateContent` API and a current model.
-    const response = await ai.models.generateContent({
-      model: "gemini-2.5-flash",
-      contents: prompt,
-    });
-    // FIX: Updated to access the response text directly via the `.text` property.
-    const text = response.text;
+    const result = await model.generateContent(prompt);
+    const response = await result.response;
+    const text = response.text();
     
     // Clean up response, remove potential markdown like quotes
     return text.replace(/^"|"$/g, '').trim();

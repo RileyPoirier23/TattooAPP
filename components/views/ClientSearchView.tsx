@@ -80,7 +80,7 @@ export const ClientSearchView: React.FC = () => {
                 }
             },
             () => {
-                showToast("Unable to retrieve your location. Please check your browser permissions.", 'error');
+                showToast("Unable to retrieve your location. Please check browser permissions.", 'error');
                 setIsLocating(false);
             }
         );

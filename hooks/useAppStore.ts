@@ -47,8 +47,7 @@ interface AppState {
   activeConversationId: string | null;
 
   // Actions
-  // FIX: Made the `navigate` parameter optional to allow calling `initialize` for data refresh without navigation side-effects.
-  initialize: (navigate?: NavigateFunction) => Promise<void>;
+  initialize: (navigate: NavigateFunction) => Promise<void>;
   setViewMode: (mode: ViewMode) => void;
   toggleTheme: () => void;
   openModal: (type: ModalState['type'], data?: any) => void;
@@ -129,8 +128,7 @@ export const useAppStore = create<AppState>()(
           set({ data: initialData, user: currentUser, isInitialized: true, isLoading: false });
           if (currentUser) {
             if (currentUser.type === 'artist' || currentUser.type === 'dual') set({ viewMode: 'artist' });
-            // FIX: Added a guard to ensure `navigate` is only called when it's provided.
-            if (currentUser.type === 'admin' && navigate) {
+            if (currentUser.type === 'admin') {
               navigate('/admin');
               const users = await fetchAllUsers();
               set({ allUsers: users });

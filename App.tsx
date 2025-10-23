@@ -88,7 +88,7 @@ function App() {
 
   useEffect(() => {
     initialize(navigate);
-  }, [initialize, navigate]);
+  }, []);
 
   useEffect(() => {
     if (theme === 'dark') {

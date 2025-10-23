@@ -23,7 +23,7 @@ function getJoinedProperty<T extends object>(
 
 export const adaptProfileToArtist = (profile: any): Artist => ({
   id: profile.id,
-  name: profile.full_name || 'Unnamed Artist',
+  name: profile.full_name,
   specialty: profile.specialty || 'Not specified',
   portfolio: profile.portfolio || [],
   city: profile.city || 'Unknown',
@@ -36,12 +36,12 @@ export const adaptProfileToArtist = (profile: any): Artist => ({
 
 export const adaptProfileToClient = (profile: any): Client => ({
   id: profile.id,
-  name: profile.full_name || 'Unnamed Client',
+  name: profile.full_name,
 });
 
 export const adaptProfileToShopOwner = (profile: any, shopId: string | null = null): ShopOwner => ({
   id: profile.id,
-  name: profile.full_name || 'Unnamed Owner',
+  name: profile.full_name,
   shopId: shopId,
 });
 
@@ -63,14 +63,11 @@ export const adaptSupabaseProfileToUser = (profile: any, shopId?: string | null)
         case 'shop-owner':
             return { ...baseUser, type: 'shop-owner', data: adaptProfileToShopOwner(profile, shopId ?? null) };
         case 'admin':
-            // FIX: Reverted to a stable implementation. The previous change caused a startup crash
-            // by incorrectly handling the distinction between real DB admins and the special local dev admin.
-            // This ensures any admin from the DB is correctly processed without crashing the app.
             const adminUser: AdminUser = {
-                id: profile.id,
-                email: profile.username,
+                id: 'admin-dev',
+                email: '__admin__',
                 type: 'admin',
-                data: { name: profile.full_name || 'Admin' }
+                data: { name: 'Admin' }
             };
             return adminUser;
         default:

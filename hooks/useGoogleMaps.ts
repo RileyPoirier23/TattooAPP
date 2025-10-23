@@ -2,7 +2,13 @@
 
 import { useState, useEffect } from 'react';
 
-// FIX: Removed redundant global interface declaration. Types are now centralized in `src/vite-env.d.ts`.
+declare global {
+    interface Window {
+        google?: any;
+        gm_authFailure?: () => void;
+        inkspaceGoogleMapsLoaded?: () => void;
+    }
+}
 
 const GOOGLE_MAPS_API_KEY = import.meta.env.VITE_MAPS_API_KEY;
 const GOOGLE_MAPS_SCRIPT_ID = 'google-maps-script';
