@@ -4,13 +4,6 @@ import React, { useEffect, useRef } from 'react';
 import { useGoogleMaps } from '../../hooks/useGoogleMaps';
 import { Loader } from './Loader';
 
-// Assuming the global `google` object from the Maps script
-declare global {
-  interface Window {
-    google: any;
-  }
-}
-
 interface MapEmbedProps {
   lat: number;
   lng: number;

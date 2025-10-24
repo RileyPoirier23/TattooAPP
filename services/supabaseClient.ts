@@ -15,8 +15,8 @@ function initializeSupabase() {
     }
 
     // Use Vite's standard method for accessing environment variables on the client.
-    const supabaseUrl = import.meta.env?.VITE_SUPABASE_URL;
-    const supabaseAnonKey = import.meta.env?.VITE_SUPABASE_ANON_KEY;
+    const supabaseUrl = import.meta.env.VITE_SUPABASE_URL;
+    const supabaseAnonKey = import.meta.env.VITE_SUPABASE_ANON_KEY;
 
     if (!supabaseUrl || !supabaseAnonKey) {
         supabaseInitializationError = 'Supabase configuration is missing. Please provide VITE_SUPABASE_URL and VITE_SUPABASE_ANON_KEY in your .env file. Refer to README.md for setup instructions.';

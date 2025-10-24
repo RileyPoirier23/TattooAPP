@@ -1,15 +1,14 @@
 // @/services/geminiService.ts
-import { GoogleGenerativeAI } from "@google/genai";
+import { GoogleGenAI } from "@google/genai";
 
-// IMPORTANT: This service will not work without a valid API key.
-// See README.md for instructions on how to set up your .env file.
-const geminiApiKey = import.meta.env.VITE_API_KEY;
+// The API key must be obtained exclusively from the environment variable `process.env.API_KEY`.
+const geminiApiKey = process.env.API_KEY;
 
-let genAI: GoogleGenerativeAI | null = null;
+let genAI: GoogleGenAI | null = null;
 if (!geminiApiKey) {
-    console.error("Gemini API key (VITE_API_KEY) is missing from .env file. AI features will be disabled.");
+    console.error("Gemini API key (API_KEY) is missing from environment variables. AI features will be disabled.");
 } else {
-    genAI = new GoogleGenerativeAI(geminiApiKey);
+    genAI = new GoogleGenAI({ apiKey: geminiApiKey });
 }
 
 
@@ -22,16 +21,18 @@ if (!geminiApiKey) {
  */
 export async function generateArtistBio(name: string, specialty: string, city: string): Promise<string> {
   if (!genAI) {
-      throw new Error("AI service is not configured. Please check your API key in the .env file.");
+      throw new Error("AI service is not configured. Please check your API key in the environment variables.");
   }
 
-  const model = genAI.getGenerativeModel({ model: "gemini-pro" });
+  const model = "gemini-2.5-flash";
   const prompt = `Write a short, professional, and engaging bio for a tattoo artist named ${name}. They specialize in ${specialty} and are based in ${city}. The bio should be around 50-70 words, written in the first person, and highlight their passion and skill. Do not use markdown.`;
 
   try {
-    const result = await model.generateContent(prompt);
-    const response = await result.response;
-    const text = response.text();
+    const response = await genAI.models.generateContent({
+      model,
+      contents: prompt,
+    });
+    const text = response.text;
     
     // Clean up response, remove potential markdown like quotes
     return text.replace(/^"|"$/g, '').trim();
