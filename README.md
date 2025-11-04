@@ -149,27 +149,31 @@ If you encounter issues, check here first.
 ### Connection Issues / "Failed to fetch"
 This is the most common error and is almost always related to Supabase setup.
 
-1.  **Check `.env` Variables:** Double-check that `VITE_SUPABASE_URL` and `VITE_SUPABASE_ANON_KEY` are correct and have no extra spaces or characters.
-2.  **Check RLS Policies:** The error "Failed to fetch initial data" often means Row Level Security is blocking the app from reading public data. Go to **Authentication > Policies** in Supabase and ensure that you have policies enabling `SELECT` access for `public.profiles`, `public.shops`, etc., as defined in the schema script.
+1.  **Check `.env` Variables:** Double-check that `VITE_SUPABASE_URL` and `VITE_SUPABASE_ANON_KEY` are correct and have no extra spaces or characters. For a deployed app (like on Vercel), ensure these are set as **Environment Variables** in the project settings.
+2.  **Check RLS Policies (Most Likely Cause):** The error "Failed to fetch initial data" often means Row Level Security is blocking the app from reading public data. For the app to work for logged-out users, certain tables **must be readable by everyone**.
+    - In your Supabase dashboard, go to **Authentication > Policies**.
+    - For tables like `shops`, `profiles`, and `booths`, you need a policy that allows public read access.
+    - Click "New Policy" > "Get started quickly" > "Enable read access for everyone".
+    - This will create a policy for the `SELECT` action with the condition `true`, making it public. **You must do this for all tables that need to be visible to the public.**
 3.  **Check Browser Console:** Open your browser's developer tools (F12 or Ctrl+Shift+I) and look at the **Network** tab. If you see requests to Supabase failing with a 401 or 403 error, it confirms an authentication or RLS issue.
 
 ### Google Maps Not Loading
-1.  **Check API Key:** Ensure `VITE_MAPS_API_KEY` in your `.env` is correct.
+1.  **Check API Key:** Ensure `VITE_MAPS_API_KEY` in your `.env` or deployment variables is correct.
 2.  **Enable APIs:** In your Google Cloud Console, make sure you have enabled the **Maps JavaScript API** and the **Places API**.
-3.  **API Key Restrictions:** If you have restricted your API key, ensure your development URL (e.g., `localhost:5173`) is included in the allowed HTTP referrers.
+3.  **API Key Restrictions:** If you have restricted your API key, ensure your development or deployment URL (e.g., `inkspacebooking.vercel.app`) is included in the allowed HTTP referrers.
 
 ### Gemini AI Features Not Working
-1.  **Check API Key:** Ensure `VITE_API_KEY` in your `.env` is correct.
+1.  **Check API Key:** Ensure `VITE_API_KEY` (for Gemini) is set correctly.
 2.  **Enable API:** In your Google Cloud Console, make sure you have enabled the **Generative Language API** (also known as the Gemini API).
 
 ### Image Uploads Fail
 This is almost always a Supabase Storage policy issue.
-1.  **Public Buckets:** Confirm that both `portfolios` and `message_attachments` buckets exist and are marked as "Public".
-2.  **Storage RLS Policies:** Go to **Storage > Policies** in your Supabase dashboard. Verify you have policies that allow `authenticated` users to perform `INSERT` operations on both buckets.
+1.  **Public Buckets:** Confirm that your storage buckets (`portfolios`, `booking-references`, etc.) exist and are marked as "Public".
+2.  **Storage RLS Policies:** Go to **Storage > Policies** in your Supabase dashboard. Verify you have policies that allow `authenticated` users to perform `INSERT` (upload) operations on all relevant buckets.
 
 ### Authentication Errors (Login/Signup)
 1.  **Email Confirmation:** By default, Supabase requires users to confirm their email. For development, you can disable this by going to **Authentication > Providers > Email** and turning off "Confirm email".
-2.  **Check RLS for `profiles` Table:** A new user signup can fail if the RLS policy for `INSERT` on the `profiles` table is missing. The provided schema script includes this, but it's worth checking if you're having issues.
+2.  **Check RLS for `profiles` Table:** A new user signup can fail if the RLS policy for `INSERT` on the `profiles` table is missing or too restrictive. The policy should allow a newly signed-up user to insert their own profile. A common policy for this uses the condition `auth.uid() = id`.
 
 ## Project Structure
 -   `src/components/`: Contains all React components, organized by views, shared elements, and modals.

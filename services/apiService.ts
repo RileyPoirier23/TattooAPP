@@ -36,8 +36,17 @@ export const fetchInitialData = async (): Promise<any> => {
 
 
     if (artistsError || shopsError || boothsError || bookingsError || clientBookingsError || availabilityError || verificationRequestsError) {
-        console.error({ artistsError, shopsError, boothsError, bookingsError, clientBookingsError, availabilityError, verificationRequestsError });
-        throw new Error('Failed to fetch initial data from Supabase.');
+        const firstError = artistsError || shopsError || boothsError || bookingsError || clientBookingsError || availabilityError || verificationRequestsError;
+        console.error("Supabase fetchInitialData failed. Individual errors:", { artistsError, shopsError, boothsError, bookingsError, clientBookingsError, availabilityError, verificationRequestsError });
+
+        let errorMessage = 'Failed to fetch initial data from Supabase.';
+        if (firstError) {
+            errorMessage += ` The database returned: "${firstError.message}".`;
+            if (firstError.message.toLowerCase().includes("security policy") || firstError.message.toLowerCase().includes("rls")) {
+                errorMessage += " This is likely a Row Level Security (RLS) issue. Please check the README's troubleshooting guide to ensure your public tables have the correct SELECT policies for anonymous users.";
+            }
+        }
+        throw new Error(errorMessage);
     }
     
     const artists: Artist[] = profiles.map(adaptProfileToArtist);
