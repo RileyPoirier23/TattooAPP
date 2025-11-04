@@ -29,7 +29,7 @@ export const ArtistAvailabilityView: React.FC = () => {
     const renderDays = () => {
         const days = [];
         for (let i = 0; i < startDay; i++) {
-            days.push(<div key={`empty-${i}`} className="w-full h-24 border border-gray-800"></div>);
+            days.push(<div key={`empty-${i}`} className="w-full h-24 border border-gray-200 dark:border-gray-800"></div>);
         }
         for (let day = 1; day <= daysInMonth; day++) {
             const date = new Date(currentDate.getFullYear(), currentDate.getMonth(), day);
@@ -37,17 +37,17 @@ export const ArtistAvailabilityView: React.FC = () => {
             const status = myAvailability.get(dateString);
             const isPast = date < new Date(new Date().toDateString());
 
-            let statusClass = 'bg-gray-900/50 hover:bg-gray-800';
+            let statusClass = 'bg-white dark:bg-gray-900/50 hover:bg-gray-100 dark:hover:bg-gray-800';
             if (status === 'available') statusClass = 'bg-green-500/30 hover:bg-green-500/50 border-green-500';
             if (status === 'unavailable') statusClass = 'bg-red-500/30 hover:bg-red-500/50 border-red-500';
-            if (isPast) statusClass = 'bg-gray-800/50 text-gray-600';
+            if (isPast) statusClass = 'bg-gray-100 dark:bg-gray-800/50 text-gray-400 dark:text-gray-600';
 
             days.push(
                 <button
                     key={day}
                     disabled={isPast}
                     onClick={() => handleDateClick(date)}
-                    className={`p-2 w-full h-24 border border-gray-800 text-left align-top transition-colors ${statusClass}`}
+                    className={`p-2 w-full h-24 border border-gray-200 dark:border-gray-800 text-left align-top transition-colors ${statusClass}`}
                 >
                     <span className="font-bold">{day}</span>
                     <span className="block text-xs mt-1 capitalize">{status}</span>
@@ -59,14 +59,14 @@ export const ArtistAvailabilityView: React.FC = () => {
 
     return (
         <div className="max-w-4xl mx-auto">
-            <h1 className="text-4xl font-bold text-white mb-2">My Availability</h1>
+            <h1 className="text-4xl font-bold text-brand-dark dark:text-white mb-2">My Availability</h1>
             <p className="text-brand-gray mb-8">Click on a date to toggle your status. Clients will see this when considering booking requests.</p>
 
-            <div className="bg-gray-900/50 rounded-2xl p-6 border border-gray-800">
+            <div className="bg-white dark:bg-gray-900/50 rounded-2xl p-6 border border-gray-200 dark:border-gray-800">
                 <div className="flex justify-between items-center mb-4">
-                    <button onClick={() => setCurrentDate(new Date(currentDate.getFullYear(), currentDate.getMonth() - 1, 1))} className="bg-gray-800 px-3 py-1 rounded-lg">&lt;</button>
-                    <h2 className="text-2xl font-bold text-white">{currentDate.toLocaleString('default', { month: 'long', year: 'numeric' })}</h2>
-                    <button onClick={() => setCurrentDate(new Date(currentDate.getFullYear(), currentDate.getMonth() + 1, 1))} className="bg-gray-800 px-3 py-1 rounded-lg">&gt;</button>
+                    <button onClick={() => setCurrentDate(new Date(currentDate.getFullYear(), currentDate.getMonth() - 1, 1))} className="bg-gray-100 dark:bg-gray-800 px-3 py-1 rounded-lg">&lt;</button>
+                    <h2 className="text-2xl font-bold text-brand-dark dark:text-white">{currentDate.toLocaleString('default', { month: 'long', year: 'numeric' })}</h2>
+                    <button onClick={() => setCurrentDate(new Date(currentDate.getFullYear(), currentDate.getMonth() + 1, 1))} className="bg-gray-100 dark:bg-gray-800 px-3 py-1 rounded-lg">&gt;</button>
                 </div>
                 <div className="grid grid-cols-7 gap-1 text-center text-xs text-brand-gray mb-2">
                     {['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'].map(day => <div key={day} className="py-2">{day}</div>)}
@@ -77,7 +77,7 @@ export const ArtistAvailabilityView: React.FC = () => {
                  <div className="flex items-center space-x-4 mt-4 text-sm">
                     <div className="flex items-center gap-2"><div className="w-4 h-4 bg-green-500/30 border border-green-500 rounded"></div><span>Available</span></div>
                     <div className="flex items-center gap-2"><div className="w-4 h-4 bg-red-500/30 border border-red-500 rounded"></div><span>Unavailable</span></div>
-                    <div className="flex items-center gap-2"><div className="w-4 h-4 bg-gray-900/50 border border-gray-800 rounded"></div><span>Not Set</span></div>
+                    <div className="flex items-center gap-2"><div className="w-4 h-4 bg-white dark:bg-gray-900/50 border border-gray-200 dark:border-gray-800 rounded"></div><span>Not Set</span></div>
                 </div>
             </div>
         </div>

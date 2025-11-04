@@ -203,9 +203,9 @@ export const ArtistDetailModal: React.FC<{ artist: Artist; reviews: Review[]; bo
                     <p className="text-gray-800 dark:text-brand-light mt-2">{artist.bio}</p>
                     {artist.socials && (
                         <div className="flex items-center gap-4 mt-4">
-                            {artist.socials.instagram && <a href={artist.socials.instagram} target="_blank" rel="noopener noreferrer" className="text-brand-gray hover:text-white" title="Instagram"><InstagramIcon className="w-6 h-6"/></a>}
-                            {artist.socials.tiktok && <a href={artist.socials.tiktok} target="_blank" rel="noopener noreferrer" className="text-brand-gray hover:text-white" title="TikTok"><TikTokIcon className="w-6 h-6"/></a>}
-                            {artist.socials.x && <a href={artist.socials.x} target="_blank" rel="noopener noreferrer" className="text-brand-gray hover:text-white" title="X (Twitter)"><XIconSocial className="w-5 h-5"/></a>}
+                            {artist.socials.instagram && <a href={artist.socials.instagram} target="_blank" rel="noopener noreferrer" className="text-brand-gray hover:text-brand-dark dark:hover:text-white" title="Instagram"><InstagramIcon className="w-6 h-6"/></a>}
+                            {artist.socials.tiktok && <a href={artist.socials.tiktok} target="_blank" rel="noopener noreferrer" className="text-brand-gray hover:text-brand-dark dark:hover:text-white" title="TikTok"><TikTokIcon className="w-6 h-6"/></a>}
+                            {artist.socials.x && <a href={artist.socials.x} target="_blank" rel="noopener noreferrer" className="text-brand-gray hover:text-brand-dark dark:hover:text-white" title="X (Twitter)"><XIconSocial className="w-5 h-5"/></a>}
                         </div>
                     )}
                 </div>
@@ -747,17 +747,17 @@ export const ArtistProfileView: React.FC<{ artist: Artist, updateArtist: (id: st
                         {artist.socials && (artist.socials.instagram || artist.socials.tiktok || artist.socials.x) && (
                             <div className="flex items-center gap-4 mt-4">
                                 {artist.socials.instagram && (
-                                    <a href={artist.socials.instagram} target="_blank" rel="noopener noreferrer" className="text-brand-gray hover:text-white" title="Instagram">
+                                    <a href={artist.socials.instagram} target="_blank" rel="noopener noreferrer" className="text-brand-gray hover:text-brand-dark dark:hover:text-white" title="Instagram">
                                         <InstagramIcon className="w-6 h-6"/>
                                     </a>
                                 )}
                                 {artist.socials.tiktok && (
-                                    <a href={artist.socials.tiktok} target="_blank" rel="noopener noreferrer" className="text-brand-gray hover:text-white" title="TikTok">
+                                    <a href={artist.socials.tiktok} target="_blank" rel="noopener noreferrer" className="text-brand-gray hover:text-brand-dark dark:hover:text-white" title="TikTok">
                                         <TikTokIcon className="w-6 h-6"/>
                                     </a>
                                 )}
                                 {artist.socials.x && (
-                                    <a href={artist.socials.x} target="_blank" rel="noopener noreferrer" className="text-brand-gray hover:text-white" title="X (Twitter)">
+                                    <a href={artist.socials.x} target="_blank" rel="noopener noreferrer" className="text-brand-gray hover:text-brand-dark dark:hover:text-white" title="X (Twitter)">
                                         <XIconSocial className="w-5 h-5"/>
                                     </a>
                                 )}
