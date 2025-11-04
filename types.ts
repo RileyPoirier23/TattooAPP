@@ -13,6 +13,14 @@ export interface Socials {
   x?: string; // Formerly Twitter
 }
 
+export interface ArtistService {
+  id: string;
+  name: string;
+  duration: number; // in hours
+  price: number;
+  depositAmount: number;
+}
+
 export interface Artist {
   id: string; // This will be the user's auth id
   name: string;
@@ -23,7 +31,10 @@ export interface Artist {
   isVerified: boolean;
   socials?: Socials;
   averageRating?: number;
-  hourlyRate?: number;
+  hourlyRate?: number; // Can be used for custom pricing or as a fallback
+  services?: ArtistService[];
+  aftercareMessage?: string;
+  requestHealedPhoto?: boolean;
 }
 
 export interface Client {
@@ -103,10 +114,10 @@ export interface ClientBookingRequest {
     startDate: string;
     endDate: string;
     message: string;
-    status: 'pending' | 'approved' | 'declined' | 'completed';
-    tattooSize: string;
+    status: 'pending' | 'approved' | 'declined' | 'completed' | 'rescheduled' | 'no-show';
+    tattooWidth: number;
+    tattooHeight: number;
     bodyPlacement: string;
-    estimatedHours: number;
     paymentStatus: 'paid' | 'unpaid';
     clientName?: string;
     artistName?: string;
@@ -115,6 +126,11 @@ export interface ClientBookingRequest {
     reviewSubmittedAt?: string;
     depositAmount?: number;
     platformFee?: number;
+    // New fields from spec
+    serviceId: string; 
+    serviceName?: string; // Denormalized for easier display
+    budget?: number;
+    referenceImageUrls?: string[];
 }
 
 export interface Notification {

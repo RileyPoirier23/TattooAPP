@@ -97,10 +97,13 @@ export const ClientSearchView: React.FC = () => {
     const handleSelectArtist = async (artist: Artist) => {
         try {
             const reviews = await fetchArtistReviews(artist.id);
-            openModal('artist-detail', { artist, reviews });
+            // Ensure the artist object is the most up-to-date from the store
+            const currentArtistData = artists.find(a => a.id === artist.id) || artist;
+            openModal('artist-detail', { artist: currentArtistData, reviews });
         } catch (err) {
             showToast('Could not load artist reviews.', 'error');
-            openModal('artist-detail', { artist, reviews: [] });
+            const currentArtistData = artists.find(a => a.id === artist.id) || artist;
+            openModal('artist-detail', { artist: currentArtistData, reviews: [] });
         }
     };
 

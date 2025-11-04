@@ -66,7 +66,7 @@ function App() {
     confirmArtistBooking,
     sendClientBookingRequest,
     respondToBookingRequest,
-    completeBookingRequest,
+    updateCompletionStatus,
     submitReview,
     updateArtist,
     deletePortfolioImage,
@@ -138,7 +138,7 @@ function App() {
       case 'bookings':
         if(user){
             const userArtistBookings = data.bookings.filter(b => b.artistId === user.id);
-            return <MyBookingsView user={user} artistBookings={userArtistBookings} allClientBookings={data.clientBookingRequests} onRespondToRequest={respondToBookingRequest} onCompleteRequest={completeBookingRequest} onLeaveReview={(req) => openModal('leave-review', req)} onLeaveShopReview={(booking) => openModal('shop-review', booking)} shops={data.shops} />;
+            return <MyBookingsView user={user} artistBookings={userArtistBookings} allClientBookings={data.clientBookingRequests} onRespondToRequest={respondToBookingRequest} onCompleteRequest={updateCompletionStatus} onLeaveReview={(req) => openModal('leave-review', req)} onLeaveShopReview={(booking) => openModal('shop-review', booking)} shops={data.shops} />;
         }
         return <Hero navigate={navigate} />;
       case 'settings':

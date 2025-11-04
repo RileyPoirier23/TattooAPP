@@ -7,7 +7,7 @@ import {
 import {
   fetchInitialData, updateArtistData, uploadPortfolioImage, updateShopData, addBoothToShop, deleteBoothFromShop,
   createBookingForArtist, createClientBookingRequest, updateClientBookingRequestStatus, fetchNotificationsForUser, markUserNotificationsAsRead, createNotification, fetchAllUsers, updateUserData, updateBoothData, fetchUserConversations, fetchMessagesForConversation, sendMessage, findOrCreateConversation, setArtistAvailability, submitReview, deleteUserAsAdmin, deleteShopAsAdmin, uploadMessageAttachment, fetchArtistReviews, createShop as apiCreateShop, createVerificationRequest, updateVerificationRequest, addReviewToShop,
-  adminUpdateUserProfile, adminUpdateShopDetails, deletePortfolioImageFromStorage,
+  adminUpdateUserProfile, adminUpdateShopDetails, deletePortfolioImageFromStorage, uploadBookingReferenceImage,
 } from '../services/apiService';
 import { authService } from '../services/authService';
 
@@ -61,9 +61,9 @@ interface AppState {
   fetchNotifications: () => Promise<void>;
   markNotificationsAsRead: () => Promise<void>;
   confirmArtistBooking: (bookingData: Omit<Booking, 'id' | 'artistId' | 'city' | 'paymentStatus'>) => Promise<void>;
-  sendClientBookingRequest: (requestData: Omit<ClientBookingRequest, 'id' | 'clientId' | 'status' | 'paymentStatus'>) => Promise<void>;
+  sendClientBookingRequest: (requestData: Omit<ClientBookingRequest, 'id' | 'clientId' | 'status' | 'paymentStatus'>, referenceFiles: File[]) => Promise<void>;
   respondToBookingRequest: (requestId: string, status: 'approved' | 'declined') => Promise<void>;
-  completeBookingRequest: (requestId: string) => Promise<void>;
+  updateCompletionStatus: (requestId: string, status: 'completed' | 'rescheduled' | 'no-show') => Promise<void>;
   submitReview: (requestId: string, rating: number, text: string) => Promise<void>;
   updateUser: (userId: string, data: Partial<User['data']>) => Promise<void>;
   updateArtist: (artistId: string, data: Partial<Artist>) => Promise<void>;
@@ -266,21 +266,35 @@ export const useAppStore = create<AppState>()(
           }
       },
 
-      sendClientBookingRequest: async (requestData) => {
+      sendClientBookingRequest: async (requestData, referenceFiles) => {
         const user = get().user;
         if (!user || user.type !== 'client' && user.type !== 'dual') {
             get().showToast('You must be logged in as a client.', 'error');
             return;
         }
         try {
-            const newRequest = await createClientBookingRequest({ ...requestData, clientId: user.id });
-            set(state => ({ data: { ...state.data, clientBookingRequests: [...state.data.clientBookingRequests, newRequest] } }));
+            set({ isLoading: true });
+            const tempRequestId = `temp_${Date.now()}`;
+            const uploadPromises = referenceFiles.map((file, index) => 
+                uploadBookingReferenceImage(tempRequestId, file, index)
+            );
+            const referenceImageUrls = await Promise.all(uploadPromises);
+
+            const finalRequestData = { ...requestData, clientId: user.id, referenceImageUrls };
+
+            const newRequest = await createClientBookingRequest(finalRequestData);
+
+            set(state => ({ 
+                data: { ...state.data, clientBookingRequests: [...state.data.clientBookingRequests, newRequest] },
+                isLoading: false 
+            }));
             await get().loadConversations();
             get().closeModal();
             get().showToast('Booking request sent!');
         } catch(e) {
             const message = e instanceof Error ? e.message : 'Failed to send request. Please try again.';
             get().showToast(message, 'error');
+            set({ isLoading: false });
         }
       },
 
@@ -306,6 +320,21 @@ export const useAppStore = create<AppState>()(
         } catch (e) {
             const message = e instanceof Error ? e.message : 'Failed to respond to request.';
             get().showToast(message, 'error');
+        }
+      },
+      
+      updateCompletionStatus: async (requestId, status) => {
+        try {
+            await updateClientBookingRequestStatus(requestId, status);
+            set(state => ({
+                data: {
+                    ...state.data,
+                    clientBookingRequests: state.data.clientBookingRequests.map(req => req.id === requestId ? { ...req, status } : req),
+                }
+            }));
+            get().showToast(`Booking marked as ${status}.`);
+        } catch (e) {
+            get().showToast(`Failed to mark booking as ${status}.`, 'error');
         }
       },
       
@@ -442,20 +471,6 @@ export const useAppStore = create<AppState>()(
             });
         } catch (e) {
             get().showToast("Failed to update availability.", 'error');
-        }
-      },
-      completeBookingRequest: async (requestId) => {
-        try {
-            await updateClientBookingRequestStatus(requestId, 'completed');
-            set(state => ({
-                data: {
-                    ...state.data,
-                    clientBookingRequests: state.data.clientBookingRequests.map(req => req.id === requestId ? { ...req, status: 'completed' } : req),
-                }
-            }));
-            get().showToast("Booking marked as complete.");
-        } catch (e) {
-            get().showToast("Failed to mark booking as complete.", 'error');
         }
       },
       submitReview: async (requestId, rating, text) => {

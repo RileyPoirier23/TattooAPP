@@ -1,5 +1,6 @@
 // @/services/geminiService.ts
 import { GoogleGenAI } from "@google/genai";
+import type { ArtistService } from '../types';
 
 // The API key must be obtained exclusively from the environment variable `process.env.API_KEY`.
 const geminiApiKey = process.env.API_KEY;
@@ -40,5 +41,63 @@ export async function generateArtistBio(name: string, specialty: string, city: s
   } catch (error) {
     console.error("Error generating artist bio with Gemini:", error);
     throw new Error("Failed to generate bio. The AI service may be unavailable or the API key is invalid.");
+  }
+}
+
+/**
+ * Suggests an appropriate tattoo service based on tattoo dimensions and the artist's available services.
+ * @param width The width of the tattoo in inches.
+ * @param height The height of the tattoo in inches.
+ * @param services The list of available services from the artist.
+ * @returns A promise that resolves to the ID of the suggested service.
+ */
+export async function suggestTattooService(width: number, height: number, services: ArtistService[]): Promise<string> {
+  if (!genAI) {
+      throw new Error("AI service is not configured.");
+  }
+   if (services.length === 0) {
+    throw new Error("This artist has not defined any services to choose from.");
+  }
+
+  const model = "gemini-2.5-flash";
+  const servicesString = services.map(s => `- ID: "${s.id}", Name: "${s.name}", Duration: ${s.duration} hours`).join('\n');
+  const prompt = `A client wants a tattoo that is approximately ${width} inches wide by ${height} inches high.
+Given the following list of available tattoo services, which one is the most appropriate for a tattoo of this size?
+
+${servicesString}
+
+Consider the typical time it takes to tattoo an area of this size. Choose the service that provides the most suitable duration.
+Return ONLY the ID string of the most appropriate service from the list. Do not add any other text, explanation, or quotation marks.`;
+
+  try {
+    const response = await genAI.models.generateContent({
+      model,
+      contents: prompt,
+    });
+    const suggestedId = response.text.trim().replace(/"/g, '');
+    
+    // Validate that the returned ID is one of the available service IDs
+    const isValidId = services.some(s => s.id === suggestedId);
+
+    if (isValidId) {
+      return suggestedId;
+    } else {
+      console.warn(`Gemini returned an invalid or unexpected service ID: "${suggestedId}". Falling back to default logic.`);
+      // Fallback logic: find the service with the duration closest to a calculated estimate.
+      const area = width * height;
+      let estimatedHours = 1;
+      if (area > 4 && area <= 16) estimatedHours = 3;
+      else if (area > 16 && area <= 36) estimatedHours = 5;
+      else if (area > 36) estimatedHours = 8;
+
+      const closestService = services.reduce((prev, curr) => 
+        Math.abs(curr.duration - estimatedHours) < Math.abs(prev.duration - estimatedHours) ? curr : prev
+      );
+      return closestService.id;
+    }
+
+  } catch (error) {
+    console.error("Error suggesting tattoo service with Gemini:", error);
+    throw new Error("Failed to suggest a service. The AI service may be unavailable.");
   }
 }

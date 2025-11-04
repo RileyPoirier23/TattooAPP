@@ -29,7 +29,7 @@ export const fetchInitialData = async (): Promise<any> => {
         .select(`
             *,
             client:profiles!client_booking_requests_client_id_fkey(id, full_name),
-            artist:profiles!client_booking_requests_artist_id_fkey(id, full_name)
+            artist:profiles!client_booking_requests_artist_id_fkey(id, full_name, services)
         `);
     const { data: rawAvailability, error: availabilityError } = await supabase.from('artist_availability').select('*');
     const { data: rawVerificationRequests, error: verificationRequestsError } = await supabase.from('verification_requests').select(`*, profile:profiles(full_name), shop:shops(name)`);
@@ -87,6 +87,9 @@ export const updateArtistData = async (artistId: string, updatedData: Partial<Ar
     if (updatedData.portfolio) profileUpdate.portfolio = updatedData.portfolio;
     if (updatedData.socials) profileUpdate.socials = updatedData.socials;
     if (updatedData.hourlyRate) profileUpdate.hourly_rate = updatedData.hourlyRate;
+    if (updatedData.services) profileUpdate.services = updatedData.services;
+    if (updatedData.aftercareMessage) profileUpdate.aftercare_message = updatedData.aftercareMessage;
+    if (typeof updatedData.requestHealedPhoto === 'boolean') profileUpdate.request_healed_photo = updatedData.requestHealedPhoto;
 
     const { data, error } = await supabase
         .from('profiles')
@@ -193,9 +196,33 @@ export const createBookingForArtist = async (bookingData: Omit<Booking, 'id' | '
     return adaptBooking(data, rawShop ? [adaptShop(rawShop)] : []);
 };
 
+export const uploadBookingReferenceImage = async (requestId: string, file: File, index: number): Promise<string> => {
+    const supabase = getSupabase();
+    const fileExt = file.name.split('.').pop();
+    const fileName = `${requestId}/${index}.${fileExt}`;
+    const { error } = await supabase.storage.from('booking-references').upload(fileName, file);
+    if (error) throw error;
+    const { data } = supabase.storage.from('booking-references').getPublicUrl(fileName);
+    return data.publicUrl;
+};
+
 export const createClientBookingRequest = async (requestData: Omit<ClientBookingRequest, 'id' | 'status'|'paymentStatus'>): Promise<ClientBookingRequest> => {
     const supabase = getSupabase();
-    const { data, error } = await supabase.from('client_booking_requests').insert({ client_id: requestData.clientId, artist_id: requestData.artistId, start_date: requestData.startDate, end_date: requestData.endDate, message: requestData.message, tattoo_size: requestData.tattooSize, body_placement: requestData.bodyPlacement, estimated_hours: requestData.estimatedHours, deposit_amount: requestData.depositAmount, platform_fee: requestData.platformFee }).select(`*, client:profiles!client_booking_requests_client_id_fkey(full_name), artist:profiles!client_booking_requests_artist_id_fkey(full_name)`).single();
+    const { data, error } = await supabase.from('client_booking_requests').insert({ 
+        client_id: requestData.clientId, 
+        artist_id: requestData.artistId, 
+        start_date: requestData.startDate, 
+        end_date: requestData.endDate, 
+        message: requestData.message, 
+        tattoo_width: requestData.tattooWidth,
+        tattoo_height: requestData.tattooHeight,
+        body_placement: requestData.bodyPlacement, 
+        deposit_amount: requestData.depositAmount, 
+        platform_fee: requestData.platformFee,
+        service_id: requestData.serviceId,
+        budget: requestData.budget,
+        reference_image_urls: requestData.referenceImageUrls,
+    }).select(`*, client:profiles!client_booking_requests_client_id_fkey(full_name), artist:profiles!client_booking_requests_artist_id_fkey(full_name, services)`).single();
     if (error) throw error;
     
     const conversation = await findOrCreateConversation(requestData.clientId, requestData.artistId);
@@ -209,7 +236,7 @@ export const updateClientBookingRequestStatus = async (requestId: string, status
     const { data: request, error: fetchError } = await supabase.from('client_booking_requests').select('client_id, artist_id').eq('id', requestId).single();
     if (fetchError) throw fetchError;
 
-    const updatePayload: { status: ClientBookingRequest['status'], payment_status?: 'paid' | 'unpaid' } = { status };
+    const updatePayload: { [key: string]: any } = { status };
     if (paymentStatus) {
         updatePayload.payment_status = paymentStatus;
     }
@@ -217,9 +244,11 @@ export const updateClientBookingRequestStatus = async (requestId: string, status
     const { error: updateError } = await supabase.from('client_booking_requests').update(updatePayload).eq('id', requestId);
     if (updateError) throw updateError;
     
-    const { data: artistProfile, error: profileError } = await supabase.from('profiles').select('full_name').eq('id', request.artist_id).single();
-    if (profileError) throw profileError;
-    await createNotification(request.client_id, `Your booking request with ${artistProfile.full_name} has been ${status}.`);
+    if (status === 'approved' || status === 'declined') {
+        const { data: artistProfile, error: profileError } = await supabase.from('profiles').select('full_name').eq('id', request.artist_id).single();
+        if (profileError) throw profileError;
+        await createNotification(request.client_id, `Your booking request with ${artistProfile.full_name} has been ${status}.`);
+    }
     return { success: true };
 };
 
@@ -310,7 +339,7 @@ export const setArtistAvailability = async (artistId: string, date: string, stat
 
 export const submitReview = async (requestId: string, rating: number, text: string): Promise<ClientBookingRequest> => {
     const supabase = getSupabase();
-    const { data, error } = await supabase.from('client_booking_requests').update({ review_rating: rating, review_text: text, review_submitted_at: new Date().toISOString() }).select(`*, client:profiles!client_booking_requests_client_id_fkey(full_name), artist:profiles!client_booking_requests_artist_id_fkey(full_name)`).single();
+    const { data, error } = await supabase.from('client_booking_requests').update({ review_rating: rating, review_text: text, review_submitted_at: new Date().toISOString() }).select(`*, client:profiles!client_booking_requests_client_id_fkey(full_name), artist:profiles!client_booking_requests_artist_id_fkey(full_name, services)`).single();
     if (error) throw error;
     return adaptClientBookingRequest(data);
 };

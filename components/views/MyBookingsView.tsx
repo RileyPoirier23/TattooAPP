@@ -10,7 +10,7 @@ interface MyBookingsViewProps {
   allClientBookings: ClientBookingRequest[];
   shops: Shop[];
   onRespondToRequest: (requestId: string, status: 'approved' | 'declined') => void;
-  onCompleteRequest: (requestId: string) => void;
+  onCompleteRequest: (requestId: string, status: 'completed' | 'rescheduled' | 'no-show') => void;
   onLeaveReview: (request: ClientBookingRequest) => void;
   onLeaveShopReview: (booking: Booking) => void;
 }
@@ -24,9 +24,12 @@ const getStatusChip = (status: string) => {
         case 'pending':
             return 'bg-yellow-500/20 text-yellow-400';
         case 'declined':
+        case 'no-show':
             return 'bg-red-500/20 text-red-400';
         case 'completed':
             return 'bg-blue-500/20 text-blue-400';
+        case 'rescheduled':
+            return 'bg-purple-500/20 text-purple-400';
         default:
             return 'bg-gray-500/20 text-gray-400';
     }
@@ -91,7 +94,7 @@ const ClientRequests: React.FC<Pick<MyBookingsViewProps, 'user' | 'allClientBook
     const myClientRequests = allClientBookings.filter(b => (user.type === 'artist' || user.type === 'dual') ? b.artistId === user.id : b.clientId === user.id);
     const pending = myClientRequests.filter(b => b.status === 'pending');
     const upcoming = myClientRequests.filter(b => b.status === 'approved' && new Date(b.endDate) >= new Date());
-    const past = myClientRequests.filter(b => b.status === 'completed' || b.status === 'declined' || (b.status === 'approved' && new Date(b.endDate) < new Date()));
+    const past = myClientRequests.filter(b => !pending.includes(b) && !upcoming.includes(b));
 
     const isArtistView = user.type === 'artist' || user.type === 'dual';
 
@@ -102,6 +105,7 @@ const ClientRequests: React.FC<Pick<MyBookingsViewProps, 'user' | 'allClientBook
                     {pending.length > 0 ? pending.map(req => (
                         <div key={req.id} className="bg-gray-100 dark:bg-gray-800 p-4 rounded-lg">
                            <p className="font-bold text-brand-dark dark:text-white">Request from {req.clientName}</p>
+                            <p className="font-semibold text-brand-primary text-sm">{req.serviceName}</p>
                            <p className="text-sm text-brand-gray mt-1 italic">"{req.message}"</p>
                            <div className="flex gap-2 mt-4">
                                 <button onClick={() => onRespondToRequest(req.id, 'approved')} className="bg-green-600 text-white text-sm font-bold py-2 px-3 rounded-lg">Approve</button>
@@ -118,12 +122,17 @@ const ClientRequests: React.FC<Pick<MyBookingsViewProps, 'user' | 'allClientBook
                         <div className="flex justify-between items-start">
                             <div>
                                 <p className="font-bold text-brand-dark dark:text-white">Session with {isArtistView ? req.clientName : req.artistName}</p>
+                                <p className="font-semibold text-brand-primary text-sm">{req.serviceName}</p>
                                 <p className="text-sm text-brand-gray flex items-center mt-1"><CalendarIcon className="w-4 h-4 mr-1.5"/>{new Date(req.startDate).toLocaleDateString()}</p>
                             </div>
                             <span className={`text-xs font-bold px-3 py-1 rounded-full capitalize ${getStatusChip(req.paymentStatus)}`}>{req.paymentStatus === 'unpaid' ? 'Deposit Due' : 'Deposit Paid'}</span>
                         </div>
                          {isArtistView && req.status === 'approved' && (
-                            <button onClick={() => onCompleteRequest(req.id)} className="mt-4 bg-brand-secondary text-white text-sm font-bold py-2 px-3 rounded-lg">Mark as Completed</button>
+                             <div className="mt-4 pt-4 border-t border-gray-200 dark:border-gray-700 flex flex-wrap gap-2">
+                                <button onClick={() => onCompleteRequest(req.id, 'completed')} className="bg-blue-600 text-white text-sm font-bold py-2 px-3 rounded-lg">Mark Completed</button>
+                                <button onClick={() => onCompleteRequest(req.id, 'rescheduled')} className="bg-purple-600 text-white text-sm font-bold py-2 px-3 rounded-lg">Mark Rescheduled</button>
+                                <button onClick={() => onCompleteRequest(req.id, 'no-show')} className="bg-red-600 text-white text-sm font-bold py-2 px-3 rounded-lg">Mark No-Show</button>
+                            </div>
                         )}
                     </div>
                  )) : <p className="text-brand-gray">No upcoming sessions.</p>}
@@ -135,6 +144,7 @@ const ClientRequests: React.FC<Pick<MyBookingsViewProps, 'user' | 'allClientBook
                          <div className="flex justify-between items-center">
                             <div>
                                 <p className="font-bold text-brand-dark dark:text-white">Session with {isArtistView ? req.clientName : req.artistName}</p>
+                                <p className="font-semibold text-brand-primary text-sm">{req.serviceName}</p>
                                 <p className="text-sm text-brand-gray">{new Date(req.startDate).toLocaleDateString()}</p>
                             </div>
                             <span className={`text-xs font-bold px-3 py-1 rounded-full capitalize ${getStatusChip(req.status)}`}>{req.status}</span>

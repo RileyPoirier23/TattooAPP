@@ -1,6 +1,6 @@
 // @/services/dataAdapters.ts
 
-import type { Artist, Shop, Booth, Booking, ClientBookingRequest, Notification, User, UserRole, Client, ShopOwner, Admin, Conversation, Message, ConversationWithUser, ArtistAvailability, Review, VerificationRequest, AdminUser } from '../types';
+import type { Artist, Shop, Booth, Booking, ClientBookingRequest, Notification, User, UserRole, Client, ShopOwner, Admin, Conversation, Message, ConversationWithUser, ArtistAvailability, Review, VerificationRequest, AdminUser, ArtistService } from '../types';
 
 /**
  * Safely extracts a property from a Supabase joined table result,
@@ -31,6 +31,9 @@ export const adaptProfileToArtist = (profile: any): Artist => ({
   isVerified: profile.is_verified || false,
   socials: profile.socials || {},
   hourlyRate: profile.hourly_rate,
+  services: profile.services || [],
+  aftercareMessage: profile.aftercare_message || '',
+  requestHealedPhoto: profile.request_healed_photo || false,
   averageRating: 0, // This is calculated dynamically in the store
 });
 
@@ -118,26 +121,35 @@ export const adaptBooking = (booking: any, shops: Shop[]): Booking => ({
   platformFee: booking.platform_fee,
 });
 
-export const adaptClientBookingRequest = (b: any): ClientBookingRequest => ({
-  id: b.id,
-  clientId: b.client_id,
-  artistId: b.artist_id,
-  startDate: b.start_date,
-  endDate: b.end_date,
-  message: b.message,
-  status: b.status,
-  tattooSize: b.tattoo_size,
-  bodyPlacement: b.body_placement,
-  estimatedHours: b.estimated_hours,
-  paymentStatus: b.payment_status,
-  clientName: getJoinedProperty<{ full_name: string }>(b.client, 'full_name') || 'Unknown Client',
-  artistName: getJoinedProperty<{ full_name: string }>(b.artist, 'full_name') || 'Unknown Artist',
-  reviewRating: b.review_rating,
-  reviewText: b.review_text,
-  reviewSubmittedAt: b.review_submitted_at,
-  depositAmount: b.deposit_amount,
-  platformFee: b.platform_fee,
-});
+export const adaptClientBookingRequest = (b: any): ClientBookingRequest => {
+  const artistServices = getJoinedProperty<{ services: ArtistService[] }>(b.artist, 'services') || [];
+  const service = artistServices.find(s => s.id === b.service_id);
+
+  return {
+    id: b.id,
+    clientId: b.client_id,
+    artistId: b.artist_id,
+    startDate: b.start_date,
+    endDate: b.end_date,
+    message: b.message,
+    status: b.status,
+    tattooWidth: b.tattoo_width,
+    tattooHeight: b.tattoo_height,
+    bodyPlacement: b.body_placement,
+    paymentStatus: b.payment_status,
+    clientName: getJoinedProperty<{ full_name: string }>(b.client, 'full_name') || 'Unknown Client',
+    artistName: getJoinedProperty<{ full_name: string }>(b.artist, 'full_name') || 'Unknown Artist',
+    reviewRating: b.review_rating,
+    reviewText: b.review_text,
+    reviewSubmittedAt: b.review_submitted_at,
+    depositAmount: b.deposit_amount,
+    platformFee: b.platform_fee,
+    serviceId: b.service_id,
+    serviceName: service?.name || 'Custom Session',
+    budget: b.budget,
+    referenceImageUrls: b.reference_image_urls || [],
+  };
+};
 
 export const adaptNotification = (n: any): Notification => ({
     id: n.id,

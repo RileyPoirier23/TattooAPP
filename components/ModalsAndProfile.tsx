@@ -2,12 +2,12 @@
 
 import React, { useState, useMemo, useRef, useCallback, useEffect } from 'react';
 import { useAppStore } from '../hooks/useAppStore';
-import type { Artist, Shop, Booking, Booth, Review, AuthCredentials, RegisterDetails, UserRole, ClientBookingRequest, Client, Socials, ModalState, PortfolioImage, ArtistAvailability, User } from '../types';
+import type { Artist, Shop, Booking, Booth, Review, AuthCredentials, RegisterDetails, UserRole, ClientBookingRequest, Client, Socials, ModalState, PortfolioImage, ArtistAvailability, User, ArtistService } from '../types';
 import { LocationIcon, StarIcon, PriceIcon, XIcon, EditIcon, PaperAirplaneIcon, CalendarIcon, UploadIcon, CheckBadgeIcon, CreditCardIcon, SparklesIcon, InstagramIcon, TikTokIcon, XIconSocial, TrashIcon } from './shared/Icons';
 import { MapEmbed } from './shared/MapEmbed';
 import { Loader } from './shared/Loader';
-import { tattooSizes, bodyPlacements, estimatedHours } from '../data/bookingOptions';
-import { generateArtistBio } from '../services/geminiService';
+import { bodyPlacements } from '../data/bookingOptions';
+import { generateArtistBio, suggestTattooService } from '../services/geminiService';
 
 declare global {
     interface Window {
@@ -69,16 +69,6 @@ export const Modal: React.FC<{ children: React.ReactNode; onClose: () => void; t
         </div>
     );
 };
-
-const Dropdown: React.FC<{ label: string; value: string | number; onChange: (e: React.ChangeEvent<HTMLSelectElement>) => void; options: readonly { value: string | number; label: string }[] }> = ({ label, value, onChange, options }) => (
-    <div>
-        <label className="text-sm font-medium text-brand-gray mb-1 block">{label}</label>
-        <select value={value} onChange={onChange} className="w-full bg-gray-100 dark:bg-gray-800 border-gray-300 dark:border-gray-700 rounded p-2 text-brand-dark dark:text-brand-light">
-            <option value="">Select...</option>
-            {options.map(opt => <option key={opt.value} value={opt.value}>{opt.label}</option>)}
-        </select>
-    </div>
-);
 
 // --- AUTHENTICATION MODAL ---
 
@@ -176,7 +166,6 @@ export const AuthModal: React.FC<{onLogin: (credentials: AuthCredentials) => voi
 // --- DETAIL & ACTION MODALS ---
 
 export const ArtistDetailModal: React.FC<{ artist: Artist; reviews: Review[]; bookings: Booking[]; shops: Shop[]; onClose: () => void; onBookRequest: () => void; showToast: (message: string, type?: 'success' | 'error') => void; onMessageClick: (artistId: string) => void; }> = ({ artist, reviews, bookings, shops, onClose, onBookRequest, onMessageClick }) => {
-    const futureBookings = bookings.filter(b => b.artistId === artist.id && new Date(b.endDate) >= new Date());
     
     return (
         <Modal onClose={onClose} title={artist.name}>
@@ -190,7 +179,6 @@ export const ArtistDetailModal: React.FC<{ artist: Artist; reviews: Review[]; bo
                     <div className="flex justify-between items-start">
                         <div>
                             <h3 className="text-lg font-bold text-brand-primary">{artist.specialty}</h3>
-                             {artist.hourlyRate && <p className="text-brand-dark dark:text-white font-semibold">${artist.hourlyRate}/hr</p>}
                         </div>
                         {artist.averageRating && artist.averageRating > 0 && (
                             <div className="flex items-center gap-2">
@@ -203,12 +191,33 @@ export const ArtistDetailModal: React.FC<{ artist: Artist; reviews: Review[]; bo
                     <p className="text-gray-800 dark:text-brand-light mt-2">{artist.bio}</p>
                     {artist.socials && (
                         <div className="flex items-center gap-4 mt-4">
-                            {artist.socials.instagram && <a href={artist.socials.instagram} target="_blank" rel="noopener noreferrer" className="text-brand-gray hover:text-brand-dark dark:hover:text-white" title="Instagram"><InstagramIcon className="w-6 h-6"/></a>}
-                            {artist.socials.tiktok && <a href={artist.socials.tiktok} target="_blank" rel="noopener noreferrer" className="text-brand-gray hover:text-brand-dark dark:hover:text-white" title="TikTok"><TikTokIcon className="w-6 h-6"/></a>}
-                            {artist.socials.x && <a href={artist.socials.x} target="_blank" rel="noopener noreferrer" className="text-brand-gray hover:text-brand-dark dark:hover:text-white" title="X (Twitter)"><XIconSocial className="w-5 h-5"/></a>}
+                            {artist.socials.instagram && <a href={artist.socials.instagram} target="_blank" rel="noopener noreferrer" className="text-brand-gray hover:text-brand-primary dark:hover:text-white" title="Instagram"><InstagramIcon className="w-6 h-6"/></a>}
+                            {artist.socials.tiktok && <a href={artist.socials.tiktok} target="_blank" rel="noopener noreferrer" className="text-brand-gray hover:text-brand-primary dark:hover:text-white" title="TikTok"><TikTokIcon className="w-6 h-6"/></a>}
+                            {artist.socials.x && <a href={artist.socials.x} target="_blank" rel="noopener noreferrer" className="text-brand-gray hover:text-brand-primary dark:hover:text-white" title="X (Twitter)"><XIconSocial className="w-5 h-5"/></a>}
                         </div>
                     )}
                 </div>
+
+                {artist.services && artist.services.length > 0 && (
+                <div>
+                    <h4 className="font-bold text-brand-dark dark:text-white mb-3">Services</h4>
+                    <div className="space-y-2 max-h-48 overflow-y-auto pr-2">
+                        {artist.services.map((service) => (
+                            <div key={service.id} className="bg-gray-100 dark:bg-gray-800/50 p-3 rounded-lg flex justify-between items-center">
+                                <div>
+                                    <p className="font-semibold text-gray-700 dark:text-gray-300">{service.name}</p>
+                                    <p className="text-sm text-brand-gray">{service.duration} hours</p>
+                                </div>
+                                <div className="text-right">
+                                    <p className="font-bold text-brand-primary">${service.price}</p>
+                                    <p className="text-xs text-brand-gray">Deposit: ${service.depositAmount}</p>
+                                </div>
+                            </div>
+                        ))}
+                    </div>
+                </div>
+                )}
+
 
                 {reviews && reviews.length > 0 && (
                 <div>
@@ -226,23 +235,7 @@ export const ArtistDetailModal: React.FC<{ artist: Artist; reviews: Review[]; bo
                     </div>
                 </div>
                 )}
-
-                <div>
-                    <h4 className="font-bold text-brand-dark dark:text-white mb-2">Upcoming Availability</h4>
-                    <ul className="space-y-2">
-                        {futureBookings.length > 0 ? futureBookings.map(booking => {
-                            const shop = shops.find(s => s.id === booking.shopId);
-                            return (
-                                <li key={booking.id} className="bg-gray-100 dark:bg-gray-800 p-3 rounded-lg text-sm">
-                                    <p className="font-semibold text-gray-700 dark:text-gray-300">{shop?.name || 'Private Studio'}</p>
-                                    <p className="text-brand-gray">{shop?.location || 'Unknown City'}</p>
-                                    <p className="text-brand-gray">{new Date(booking.startDate).toLocaleDateString()} - {new Date(booking.endDate).toLocaleDateString()}</p>
-                                </li>
-                            )
-                        }) : <p className="text-brand-gray text-sm">No upcoming guest spots scheduled.</p>}
-                    </ul>
-                </div>
-
+                
                 <div className="grid grid-cols-2 gap-4 pt-4 border-t border-gray-200 dark:border-gray-800">
                      <button onClick={() => onMessageClick(artist.id)} className="w-full bg-gray-200 dark:bg-gray-700 text-brand-dark dark:text-white font-bold py-3 px-4 rounded-lg hover:bg-gray-300 dark:hover:bg-gray-600 transition-colors flex items-center justify-center space-x-2">
                         <PaperAirplaneIcon className="w-5 h-5" />
@@ -461,33 +454,76 @@ export const BookingModal: React.FC<{shop: Shop, booths: Booth[], bookings: Book
     );
 };
 
-export const ClientBookingRequestModal: React.FC<{ artist: Artist; availability: ArtistAvailability[]; onClose: () => void; onSendRequest: (request: Omit<ClientBookingRequest, 'id' | 'clientId' | 'status' | 'paymentStatus'>) => void; }> = ({ artist, availability, onClose, onSendRequest }) => {
+export const ClientBookingRequestModal: React.FC<{ artist: Artist; availability: ArtistAvailability[]; onClose: () => void; onSendRequest: (request: Omit<ClientBookingRequest, 'id' | 'clientId' | 'status' | 'paymentStatus'>, files: File[]) => void; }> = ({ artist, availability, onClose, onSendRequest }) => {
+    const { showToast } = useAppStore();
     const [startDate, setStartDate] = useState('');
     const [endDate, setEndDate] = useState('');
     const [message, setMessage] = useState('');
-    const [tattooSize, setTattooSize] = useState('');
+    const [tattooWidth, setTattooWidth] = useState<number>(0);
+    const [tattooHeight, setTattooHeight] = useState<number>(0);
     const [bodyPlacement, setBodyPlacement] = useState('');
-    const [hours, setHours] = useState(0);
-
-    const PLATFORM_FEE_PERCENT = 0.05;
-    const DEPOSIT_PERCENT = 0.25;
-
-    const { depositAmount, platformFee } = useMemo(() => {
-        if (!hours || !artist.hourlyRate) return { depositAmount: 0, platformFee: 0 };
-        const estimatedTotal = hours * artist.hourlyRate;
-        const deposit = estimatedTotal * DEPOSIT_PERCENT;
-        const fee = deposit * PLATFORM_FEE_PERCENT;
-        return { depositAmount: deposit, platformFee: fee };
-    }, [hours, artist.hourlyRate]);
+    const [serviceId, setServiceId] = useState('');
+    const [budget, setBudget] = useState<number | undefined>();
+    const [referenceFiles, setReferenceFiles] = useState<File[]>([]);
+    const [previews, setPreviews] = useState<string[]>([]);
+    const [isSuggesting, setIsSuggesting] = useState(false);
+    
+    const selectedService = useMemo(() => artist.services?.find(s => s.id === serviceId), [serviceId, artist.services]);
 
     const unavailableDates = useMemo(() => new Set(availability.filter(a => a.status === 'unavailable').map(a => a.date)), [availability]);
     const isDateUnavailable = (dateStr: string) => unavailableDates.has(dateStr);
 
-    const handleSubmit = () => {
-        if (startDate && endDate && message && tattooSize && bodyPlacement && hours > 0) {
-            onSendRequest({ artistId: artist.id, startDate, endDate, message, tattooSize, bodyPlacement, estimatedHours: hours, depositAmount, platformFee });
+    const handleSuggestDuration = async () => {
+        if (tattooWidth <= 0 || tattooHeight <= 0) {
+            showToast('Please enter valid width and height.', 'error');
+            return;
+        }
+        setIsSuggesting(true);
+        try {
+            const suggestedId = await suggestTattooService(tattooWidth, tattooHeight, artist.services || []);
+            setServiceId(suggestedId);
+            const suggestedService = artist.services?.find(s => s.id === suggestedId);
+            showToast(`Suggested service: ${suggestedService?.name || 'session'}`, 'success');
+        } catch (e) {
+            const message = e instanceof Error ? e.message : "Could not suggest a service.";
+            showToast(message, 'error');
+        } finally {
+            setIsSuggesting(false);
         }
     };
+
+    const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+        const files = Array.from(e.target.files || []);
+        if (files.length > 0) {
+            setReferenceFiles(prev => [...prev, ...files].slice(0, 5)); // Limit to 5 images
+            // Fix: Explicitly type `file` as `File` to resolve incorrect type inference.
+            const newPreviews = files.map((file: File) => URL.createObjectURL(file));
+            setPreviews(prev => [...prev, ...newPreviews].slice(0, 5));
+        }
+    };
+
+    const handleSubmit = () => {
+        if (startDate && endDate && message && tattooWidth > 0 && tattooHeight > 0 && bodyPlacement && serviceId) {
+            const platformFee = (selectedService?.depositAmount || 0) * 0.05;
+            onSendRequest({ 
+                artistId: artist.id, 
+                startDate, 
+                endDate, 
+                message, 
+                tattooWidth, 
+                tattooHeight, 
+                bodyPlacement, 
+                depositAmount: selectedService?.depositAmount, 
+                platformFee,
+                serviceId,
+                budget
+            }, referenceFiles);
+        } else {
+            showToast('Please fill out all required fields.', 'error');
+        }
+    };
+    
+    const inputClasses = "w-full bg-gray-100 dark:bg-gray-800 border-gray-300 dark:border-gray-700 rounded-lg p-2 text-brand-dark dark:text-white";
 
     return (
         <Modal onClose={onClose} title={`Request Booking with ${artist.name}`} size="lg">
@@ -497,37 +533,74 @@ export const ClientBookingRequestModal: React.FC<{ artist: Artist; availability:
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                      <div>
                         <label className="text-sm font-medium text-brand-gray mb-1 block">Availability Start</label>
-                        <input type="date" value={startDate} onChange={e => setStartDate(e.target.value)} className="w-full bg-gray-100 dark:bg-gray-800 border-gray-300 dark:border-gray-700 rounded p-2" />
+                        <input type="date" value={startDate} onChange={e => setStartDate(e.target.value)} className={inputClasses} />
                         {startDate && isDateUnavailable(startDate) && <p className="text-xs text-yellow-400 mt-1">Artist is marked as unavailable on this date.</p>}
                     </div>
                     <div>
                         <label className="text-sm font-medium text-brand-gray mb-1 block">Availability End</label>
-                        <input type="date" value={endDate} onChange={e => setEndDate(e.target.value)} className="w-full bg-gray-100 dark:bg-gray-800 border-gray-300 dark:border-gray-700 rounded p-2" />
+                        <input type="date" value={endDate} onChange={e => setEndDate(e.target.value)} className={inputClasses} />
                         {endDate && isDateUnavailable(endDate) && <p className="text-xs text-yellow-400 mt-1">Artist is marked as unavailable on this date.</p>}
                     </div>
                 </div>
 
-                <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                    <Dropdown label="Tattoo Size" value={tattooSize} onChange={e => setTattooSize(e.target.value)} options={tattooSizes} />
-                    <Dropdown label="Body Placement" value={bodyPlacement} onChange={e => setBodyPlacement(e.target.value)} options={bodyPlacements} />
-                    <Dropdown label="Estimated Hours" value={hours} onChange={e => setHours(Number(e.target.value))} options={estimatedHours} />
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <div className="md:col-span-2 grid grid-cols-3 gap-2 items-end">
+                        <div>
+                            <label className="text-sm font-medium text-brand-gray mb-1 block">Width (in)</label>
+                            <input type="number" value={tattooWidth || ''} onChange={e => setTattooWidth(parseFloat(e.target.value))} className={inputClasses} />
+                        </div>
+                        <div>
+                            <label className="text-sm font-medium text-brand-gray mb-1 block">Height (in)</label>
+                            <input type="number" value={tattooHeight || ''} onChange={e => setTattooHeight(parseFloat(e.target.value))} className={inputClasses} />
+                        </div>
+                        <button type="button" onClick={handleSuggestDuration} disabled={isSuggesting || !artist.services || artist.services.length === 0} className="bg-brand-secondary text-white font-bold py-2 px-3 rounded-lg flex items-center justify-center space-x-2 text-sm disabled:bg-gray-600 h-10">
+                            {isSuggesting ? <Loader size="sm" color="white" /> : <SparklesIcon className="w-4 h-4" />}
+                            <span>Suggest</span>
+                        </button>
+                    </div>
+                    <div>
+                        <label className="text-sm font-medium text-brand-gray mb-1 block">Service</label>
+                        <select value={serviceId} onChange={e => setServiceId(e.target.value)} className={`${inputClasses} capitalize`} required>
+                            <option value="">Select a service...</option>
+                            {(artist.services || []).map(s => <option key={s.id} value={s.id}>{s.name} ({s.duration}hr) - ${s.price}</option>)}
+                        </select>
+                    </div>
+                    <div>
+                        <label className="text-sm font-medium text-brand-gray mb-1 block">Body Placement</label>
+                        <select value={bodyPlacement} onChange={e => setBodyPlacement(e.target.value)} className={inputClasses} required>
+                            <option value="">Select placement...</option>
+                            {bodyPlacements.map(opt => <option key={opt.value} value={opt.value}>{opt.label}</option>)}
+                        </select>
+                    </div>
+                     <div>
+                        <label className="text-sm font-medium text-brand-gray mb-1 block">Budget (Optional)</label>
+                        <input type="number" value={budget || ''} placeholder="$" onChange={e => setBudget(parseFloat(e.target.value))} className={inputClasses} />
+                    </div>
                 </div>
                 
                 <div>
                     <label className="text-sm font-medium text-brand-gray mb-1 block">Tattoo Idea / Message</label>
-                    <textarea value={message} onChange={e => setMessage(e.target.value)} rows={4} className="w-full bg-gray-100 dark:bg-gray-800 border-gray-300 dark:border-gray-700 rounded p-2" placeholder={`Hi ${artist.name}, I'm interested in getting a...`}></textarea>
+                    <textarea value={message} onChange={e => setMessage(e.target.value)} rows={3} className={inputClasses} placeholder={`Hi ${artist.name}, I'm interested in getting a...`} required></textarea>
                 </div>
 
-                {artist.hourlyRate && hours > 0 && (
+                <div>
+                    <label className="text-sm font-medium text-brand-gray mb-1 block">Reference Photos (Up to 5)</label>
+                    <input type="file" multiple onChange={handleFileChange} accept="image/*" className="w-full text-sm text-gray-500 file:mr-4 file:py-2 file:px-4 file:rounded-full file:border-0 file:text-sm file:font-semibold file:bg-brand-secondary/80 file:text-white hover:file:bg-brand-secondary" />
+                    <div className="mt-2 flex flex-wrap gap-2">
+                        {previews.map((p, i) => <img key={i} src={p} className="w-20 h-20 object-cover rounded-lg" />)}
+                    </div>
+                </div>
+
+                {selectedService && (
                     <div className="bg-gray-100 dark:bg-gray-800 p-3 rounded-lg text-sm">
-                        <p className="font-semibold text-brand-dark dark:text-brand-light">Estimated Deposit: <span className="text-brand-dark dark:text-white">${depositAmount.toFixed(2)}</span> (25% of estimated cost)</p>
+                        <p className="font-semibold text-brand-dark dark:text-brand-light">Estimated Deposit: <span className="text-brand-dark dark:text-white">${selectedService.depositAmount.toFixed(2)}</span></p>
                         <p className="text-xs text-brand-gray">This will be required if the artist approves your request.</p>
                     </div>
                 )}
 
                 <button
                     onClick={handleSubmit}
-                    disabled={!startDate || !endDate || !message || !tattooSize || !bodyPlacement || !hours}
+                    disabled={!startDate || !endDate || !message || !(tattooWidth > 0) || !(tattooHeight > 0) || !bodyPlacement || !serviceId}
                     className="w-full bg-brand-secondary text-white font-bold py-3 rounded-lg disabled:bg-gray-600 disabled:cursor-not-allowed flex items-center justify-center space-x-2"
                 >
                     <PaperAirplaneIcon className="w-5 h-5" />
@@ -661,13 +734,57 @@ export const VerificationRequestModal: React.FC<{ item: Artist | Shop, type: 'ar
 
 // --- PROFILE & DASHBOARD VIEWS ---
 
+const ManageServices: React.FC<{
+    services: ArtistService[],
+    setServices: React.Dispatch<React.SetStateAction<ArtistService[]>>
+}> = ({ services, setServices }) => {
+
+    const handleAddService = () => {
+        setServices(prev => [...prev, { id: crypto.randomUUID(), name: 'New Service', duration: 1, price: 100, depositAmount: 50 }]);
+    };
+    
+    const handleUpdateService = (id: string, field: keyof Omit<ArtistService, 'id'>, value: string | number) => {
+        setServices(prev => prev.map(s => s.id === id ? { ...s, [field]: value } : s));
+    };
+
+    const handleDeleteService = (id: string) => {
+        setServices(prev => prev.filter(s => s.id !== id));
+    };
+
+    return (
+        <div>
+            <div className="flex justify-between items-center mb-2">
+                <h4 className="text-lg font-semibold text-brand-dark dark:text-white">Manage Services</h4>
+                <button onClick={handleAddService} className="text-sm bg-brand-secondary text-white font-bold py-1 px-3 rounded-lg">+ Add Service</button>
+            </div>
+            <div className="space-y-3 max-h-64 overflow-y-auto pr-2">
+            {services.map(service => (
+                <div key={service.id} className="grid grid-cols-1 md:grid-cols-4 gap-2 bg-gray-100 dark:bg-gray-800 p-3 rounded-lg">
+                    <input type="text" value={service.name} onChange={e => handleUpdateService(service.id, 'name', e.target.value)} placeholder="Service Name" className="md:col-span-2 w-full bg-white dark:bg-gray-700 p-2 rounded text-sm"/>
+                    <input type="number" value={service.duration} onChange={e => handleUpdateService(service.id, 'duration', Number(e.target.value))} placeholder="Hours" className="w-full bg-white dark:bg-gray-700 p-2 rounded text-sm"/>
+                    <input type="number" value={service.price} onChange={e => handleUpdateService(service.id, 'price', Number(e.target.value))} placeholder="Price ($)" className="w-full bg-white dark:bg-gray-700 p-2 rounded text-sm"/>
+                    <input type="number" value={service.depositAmount} onChange={e => handleUpdateService(service.id, 'depositAmount', Number(e.target.value))} placeholder="Deposit ($)" className="w-full bg-white dark:bg-gray-700 p-2 rounded text-sm"/>
+                    <button onClick={() => handleDeleteService(service.id)} className="md:col-span-4 text-xs text-red-500 hover:underline text-right">Remove Service</button>
+                </div>
+            ))}
+            </div>
+        </div>
+    );
+};
+
 export const ArtistProfileView: React.FC<{ artist: Artist, updateArtist: (id: string, data: Partial<Artist>) => void, deletePortfolioImage: (imageUrl: string) => Promise<void>, showToast: (msg: string, type?: 'success' | 'error') => void, openModal: (type: ModalState['type'], data?: any) => void }> = ({ artist, updateArtist, deletePortfolioImage, showToast, openModal }) => {
     const [isEditing, setIsEditing] = useState(false);
     const [formData, setFormData] = useState<Partial<Artist>>({ ...artist });
+    const [services, setServices] = useState<ArtistService[]>(artist.services || []);
     const [isGeneratingBio, setIsGeneratingBio] = useState(false);
+    
+    useEffect(() => {
+        setFormData(artist);
+        setServices(artist.services || []);
+    }, [artist]);
 
     const handleSave = () => {
-        updateArtist(artist.id, formData);
+        updateArtist(artist.id, { ...formData, services });
         setIsEditing(false);
     };
 
@@ -712,7 +829,6 @@ export const ArtistProfileView: React.FC<{ artist: Artist, updateArtist: (id: st
                     <div className="space-y-4">
                         <div><label className="text-sm text-brand-gray">Name</label><input type="text" value={formData.name} onChange={e => setFormData({...formData, name: e.target.value})} className="w-full bg-gray-100 dark:bg-gray-800 p-2 rounded"/></div>
                         <div><label className="text-sm text-brand-gray">Specialty</label><input type="text" value={formData.specialty} onChange={e => setFormData({...formData, specialty: e.target.value})} className="w-full bg-gray-100 dark:bg-gray-800 p-2 rounded"/></div>
-                        <div><label className="text-sm text-brand-gray">Hourly Rate ($)</label><input type="number" value={formData.hourlyRate || ''} onChange={e => setFormData({...formData, hourlyRate: Number(e.target.value)})} className="w-full bg-gray-100 dark:bg-gray-800 p-2 rounded"/></div>
                         <div className="relative">
                            <div className="flex items-center gap-2 mb-1">
                                 <label className="text-sm text-brand-gray">Bio</label>
@@ -738,26 +854,32 @@ export const ArtistProfileView: React.FC<{ artist: Artist, updateArtist: (id: st
                             <input type="text" placeholder="TikTok URL" value={formData.socials?.tiktok || ''} onChange={e => setFormData({...formData, socials: {...formData.socials, tiktok: e.target.value}})} className="w-full bg-gray-100 dark:bg-gray-800 p-2 rounded mb-2"/>
                             <input type="text" placeholder="X (Twitter) URL" value={formData.socials?.x || ''} onChange={e => setFormData({...formData, socials: {...formData.socials, x: e.target.value}})} className="w-full bg-gray-100 dark:bg-gray-800 p-2 rounded"/>
                         </div>
+                        <div className="border-t border-gray-200 dark:border-gray-700 pt-4">
+                            <ManageServices services={services} setServices={setServices} />
+                        </div>
+                         <div className="border-t border-gray-200 dark:border-gray-700 pt-4">
+                            <label className="text-sm text-brand-gray mb-1 block">Aftercare Instructions</label>
+                            <textarea value={formData.aftercareMessage} onChange={e => setFormData({...formData, aftercareMessage: e.target.value})} rows={3} className={`w-full bg-gray-100 dark:bg-gray-800 p-2 rounded transition-all`} placeholder="e.g., Keep it clean, moisturize after a few days..."/>
+                        </div>
                     </div>
                 ) : (
                     <div>
                         <p className="text-lg font-semibold text-brand-primary">{artist.specialty}</p>
-                        {artist.hourlyRate && <p className="text-brand-dark dark:text-white font-semibold">${artist.hourlyRate}/hr</p>}
                         <p className="text-gray-800 dark:text-brand-light mt-2">{artist.bio}</p>
                         {artist.socials && (artist.socials.instagram || artist.socials.tiktok || artist.socials.x) && (
                             <div className="flex items-center gap-4 mt-4">
                                 {artist.socials.instagram && (
-                                    <a href={artist.socials.instagram} target="_blank" rel="noopener noreferrer" className="text-brand-gray hover:text-brand-dark dark:hover:text-white" title="Instagram">
+                                    <a href={artist.socials.instagram} target="_blank" rel="noopener noreferrer" className="text-brand-gray hover:text-brand-primary dark:hover:text-white" title="Instagram">
                                         <InstagramIcon className="w-6 h-6"/>
                                     </a>
                                 )}
                                 {artist.socials.tiktok && (
-                                    <a href={artist.socials.tiktok} target="_blank" rel="noopener noreferrer" className="text-brand-gray hover:text-brand-dark dark:hover:text-white" title="TikTok">
+                                    <a href={artist.socials.tiktok} target="_blank" rel="noopener noreferrer" className="text-brand-gray hover:text-brand-primary dark:hover:text-white" title="TikTok">
                                         <TikTokIcon className="w-6 h-6"/>
                                     </a>
                                 )}
                                 {artist.socials.x && (
-                                    <a href={artist.socials.x} target="_blank" rel="noopener noreferrer" className="text-brand-gray hover:text-brand-dark dark:hover:text-white" title="X (Twitter)">
+                                    <a href={artist.socials.x} target="_blank" rel="noopener noreferrer" className="text-brand-gray hover:text-brand-primary dark:hover:text-white" title="X (Twitter)">
                                         <XIconSocial className="w-5 h-5"/>
                                     </a>
                                 )}
