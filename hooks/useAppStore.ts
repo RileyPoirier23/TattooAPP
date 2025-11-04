@@ -7,7 +7,7 @@ import {
 import {
   fetchInitialData, updateArtistData, uploadPortfolioImage, updateShopData, addBoothToShop, deleteBoothFromShop,
   createBookingForArtist, createClientBookingRequest, updateClientBookingRequestStatus, fetchNotificationsForUser, markUserNotificationsAsRead, createNotification, fetchAllUsers, updateUserData, updateBoothData, fetchUserConversations, fetchMessagesForConversation, sendMessage, findOrCreateConversation, setArtistAvailability, submitReview, deleteUserAsAdmin, deleteShopAsAdmin, uploadMessageAttachment, fetchArtistReviews, createShop as apiCreateShop, createVerificationRequest, updateVerificationRequest, addReviewToShop,
-  adminUpdateUserProfile, adminUpdateShopDetails,
+  adminUpdateUserProfile, adminUpdateShopDetails, deletePortfolioImageFromStorage,
 } from '../services/apiService';
 import { authService } from '../services/authService';
 
@@ -47,6 +47,7 @@ interface AppState {
   activeConversationId: string | null;
 
   // Actions
+  navigate: NavigateFunction | null;
   initialize: (navigate: NavigateFunction) => Promise<void>;
   setViewMode: (mode: ViewMode) => void;
   toggleTheme: () => void;
@@ -67,6 +68,7 @@ interface AppState {
   updateUser: (userId: string, data: Partial<User['data']>) => Promise<void>;
   updateArtist: (artistId: string, data: Partial<Artist>) => Promise<void>;
   uploadPortfolio: (file: File) => Promise<void>;
+  deletePortfolioImage: (imageUrl: string) => Promise<void>;
   updateShop: (shopId: string, data: Partial<Shop>) => Promise<void>;
   addBooth: (shopId: string, boothData: Omit<Booth, 'id' | 'shopId'>) => Promise<void>;
   updateBooth: (boothId: string, data: Partial<Booth>) => Promise<void>;
@@ -106,14 +108,18 @@ export const useAppStore = create<AppState>()(
       modal: { type: null },
       toast: null,
       activeConversationId: null,
+      navigate: null,
 
       initialize: async (navigate) => {
         try {
-          set({ isLoading: true, error: null });
-          const [initialData, currentUser] = await Promise.all([
-            fetchInitialData(),
-            authService.getCurrentUser(),
-          ]);
+          set({ isLoading: true, error: null, navigate });
+          
+          // First, wait for the authentication service to establish a stable session.
+          // This prevents race conditions where data is fetched before RLS policies can be applied.
+          const currentUser = await authService.getCurrentUser();
+          
+          // Once the user is known, fetch all initial application data.
+          const initialData = await fetchInitialData();
 
           // Enrich artists with average ratings
           const artistsWithRatings = initialData.artists.map((artist: Artist) => {
@@ -354,6 +360,31 @@ export const useAppStore = create<AppState>()(
           }
       },
 
+      deletePortfolioImage: async (imageUrl: string) => {
+        const user = get().user;
+        if (!user || (user.type !== 'artist' && user.type !== 'dual')) {
+            get().showToast('Only the artist can delete their portfolio images.', 'error');
+            return;
+        }
+
+        if (!window.confirm("Are you sure you want to permanently delete this image?")) {
+            return;
+        }
+
+        try {
+            const currentPortfolio = user.data.portfolio;
+            const newPortfolio = currentPortfolio.filter(img => img.url !== imageUrl);
+
+            await get().updateArtist(user.id, { portfolio: newPortfolio });
+            await deletePortfolioImageFromStorage(imageUrl);
+
+            get().showToast('Image deleted successfully.', 'success');
+        } catch (error) {
+            const message = error instanceof Error ? error.message : "Failed to delete image.";
+            get().showToast(message, 'error');
+        }
+      },
+
       updateShop: async (shopId, data) => {
         try {
           const updatedShop = await updateShopData(shopId, data);
@@ -438,7 +469,13 @@ export const useAppStore = create<AppState>()(
             }));
             get().closeModal();
             get().showToast("Thank you for your review!");
-            get().initialize(); // Re-initialize to update artist ratings
+            // Fix: Retrieve the navigate function from the store state to re-initialize data.
+            const navigate = get().navigate;
+            if (navigate) {
+                get().initialize(navigate); // Re-initialize to update artist ratings
+            } else {
+                console.error("submitReview could not re-initialize: navigate function not found in state.");
+            }
         } catch (e) {
             get().showToast("Failed to submit review.", 'error');
         }

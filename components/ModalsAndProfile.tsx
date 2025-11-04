@@ -3,7 +3,7 @@
 import React, { useState, useMemo, useRef, useCallback, useEffect } from 'react';
 import { useAppStore } from '../hooks/useAppStore';
 import type { Artist, Shop, Booking, Booth, Review, AuthCredentials, RegisterDetails, UserRole, ClientBookingRequest, Client, Socials, ModalState, PortfolioImage, ArtistAvailability, User } from '../types';
-import { LocationIcon, StarIcon, PriceIcon, XIcon, EditIcon, PaperAirplaneIcon, CalendarIcon, UploadIcon, CheckBadgeIcon, CreditCardIcon, SparklesIcon } from './shared/Icons';
+import { LocationIcon, StarIcon, PriceIcon, XIcon, EditIcon, PaperAirplaneIcon, CalendarIcon, UploadIcon, CheckBadgeIcon, CreditCardIcon, SparklesIcon, InstagramIcon, TikTokIcon, XIconSocial, TrashIcon } from './shared/Icons';
 import { MapEmbed } from './shared/MapEmbed';
 import { Loader } from './shared/Loader';
 import { tattooSizes, bodyPlacements, estimatedHours } from '../data/bookingOptions';
@@ -203,9 +203,9 @@ export const ArtistDetailModal: React.FC<{ artist: Artist; reviews: Review[]; bo
                     <p className="text-gray-800 dark:text-brand-light mt-2">{artist.bio}</p>
                     {artist.socials && (
                         <div className="flex items-center gap-4 mt-4">
-                            {artist.socials.instagram && <a href={artist.socials.instagram} target="_blank" rel="noopener noreferrer" className="text-brand-gray hover:text-brand-dark dark:hover:text-white">Instagram</a>}
-                            {artist.socials.tiktok && <a href={artist.socials.tiktok} target="_blank" rel="noopener noreferrer" className="text-brand-gray hover:text-brand-dark dark:hover:text-white">TikTok</a>}
-                            {artist.socials.x && <a href={artist.socials.x} target="_blank" rel="noopener noreferrer" className="text-brand-gray hover:text-brand-dark dark:hover:text-white">X</a>}
+                            {artist.socials.instagram && <a href={artist.socials.instagram} target="_blank" rel="noopener noreferrer" className="text-brand-gray hover:text-white" title="Instagram"><InstagramIcon className="w-6 h-6"/></a>}
+                            {artist.socials.tiktok && <a href={artist.socials.tiktok} target="_blank" rel="noopener noreferrer" className="text-brand-gray hover:text-white" title="TikTok"><TikTokIcon className="w-6 h-6"/></a>}
+                            {artist.socials.x && <a href={artist.socials.x} target="_blank" rel="noopener noreferrer" className="text-brand-gray hover:text-white" title="X (Twitter)"><XIconSocial className="w-5 h-5"/></a>}
                         </div>
                     )}
                 </div>
@@ -661,7 +661,7 @@ export const VerificationRequestModal: React.FC<{ item: Artist | Shop, type: 'ar
 
 // --- PROFILE & DASHBOARD VIEWS ---
 
-export const ArtistProfileView: React.FC<{ artist: Artist, updateArtist: (id: string, data: Partial<Artist>) => void, showToast: (msg: string, type?: 'success' | 'error') => void, openModal: (type: ModalState['type'], data?: any) => void }> = ({ artist, updateArtist, showToast, openModal }) => {
+export const ArtistProfileView: React.FC<{ artist: Artist, updateArtist: (id: string, data: Partial<Artist>) => void, deletePortfolioImage: (imageUrl: string) => Promise<void>, showToast: (msg: string, type?: 'success' | 'error') => void, openModal: (type: ModalState['type'], data?: any) => void }> = ({ artist, updateArtist, deletePortfolioImage, showToast, openModal }) => {
     const [isEditing, setIsEditing] = useState(false);
     const [formData, setFormData] = useState<Partial<Artist>>({ ...artist });
     const [isGeneratingBio, setIsGeneratingBio] = useState(false);
@@ -744,6 +744,25 @@ export const ArtistProfileView: React.FC<{ artist: Artist, updateArtist: (id: st
                         <p className="text-lg font-semibold text-brand-primary">{artist.specialty}</p>
                         {artist.hourlyRate && <p className="text-brand-dark dark:text-white font-semibold">${artist.hourlyRate}/hr</p>}
                         <p className="text-gray-800 dark:text-brand-light mt-2">{artist.bio}</p>
+                        {artist.socials && (artist.socials.instagram || artist.socials.tiktok || artist.socials.x) && (
+                            <div className="flex items-center gap-4 mt-4">
+                                {artist.socials.instagram && (
+                                    <a href={artist.socials.instagram} target="_blank" rel="noopener noreferrer" className="text-brand-gray hover:text-white" title="Instagram">
+                                        <InstagramIcon className="w-6 h-6"/>
+                                    </a>
+                                )}
+                                {artist.socials.tiktok && (
+                                    <a href={artist.socials.tiktok} target="_blank" rel="noopener noreferrer" className="text-brand-gray hover:text-white" title="TikTok">
+                                        <TikTokIcon className="w-6 h-6"/>
+                                    </a>
+                                )}
+                                {artist.socials.x && (
+                                    <a href={artist.socials.x} target="_blank" rel="noopener noreferrer" className="text-brand-gray hover:text-white" title="X (Twitter)">
+                                        <XIconSocial className="w-5 h-5"/>
+                                    </a>
+                                )}
+                            </div>
+                        )}
                     </div>
                 )}
             </div>
@@ -764,6 +783,15 @@ export const ArtistProfileView: React.FC<{ artist: Artist, updateArtist: (id: st
                     {artist.portfolio.map((image, index) => (
                         <div key={index} className="relative group">
                             <img src={`${image.url}?random=${artist.id}-${index}`} alt={`Portfolio piece ${index+1}`} className="w-full h-48 object-cover rounded-lg bg-gray-200 dark:bg-gray-800" />
+                             <div className="absolute inset-0 bg-black/60 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center">
+                                <button 
+                                    onClick={() => deletePortfolioImage(image.url)}
+                                    className="text-white bg-red-600/80 hover:bg-red-600 p-2 rounded-full transform scale-90 group-hover:scale-100 transition-transform"
+                                    title="Delete Image"
+                                >
+                                    <TrashIcon className="w-6 h-6"/>
+                                </button>
+                            </div>
                         </div>
                     ))}
                 </div>

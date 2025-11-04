@@ -2,8 +2,27 @@
 import { getSupabase } from './supabaseClient';
 import type { User, AuthCredentials, RegisterDetails, AdminUser } from '../types';
 import { adaptSupabaseProfileToUser } from './dataAdapters';
+import type { Session } from '@supabase/supabase-js';
 
 const USER_STORAGE_KEY = 'inkspace_user_session';
+
+// This promise resolves once the Supabase client has confirmed the initial session,
+// preventing race conditions on app load. It fires only once.
+const initialSessionPromise: Promise<Session | null> = new Promise((resolve) => {
+    try {
+        const supabase = getSupabase();
+        const { data: { subscription } } = supabase.auth.onAuthStateChange((event, session) => {
+            if (event === 'INITIAL_SESSION') {
+                subscription.unsubscribe();
+                resolve(session);
+            }
+        });
+    } catch (e) {
+        // If Supabase isn't configured, resolve with null to allow the app to load in a logged-out state.
+        resolve(null);
+    }
+});
+
 
 class AuthService {
     
@@ -16,15 +35,9 @@ class AuthService {
                 if (parsed.type === 'admin') return parsed as AdminUser;
             }
             
-            // This is a safe check before calling getSupabase() which would throw if misconfigured
-            try {
-                getSupabase();
-            } catch (e) {
-                return null;
-            }
+            // Wait for the stable, initial session state before proceeding.
+            const session = await initialSessionPromise;
 
-            const supabase = getSupabase();
-            const { data: { session } } = await supabase.auth.getSession();
             if (!session) {
                 localStorage.removeItem(USER_STORAGE_KEY);
                 return null;

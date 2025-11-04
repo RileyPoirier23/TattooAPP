@@ -69,6 +69,7 @@ function App() {
     completeBookingRequest,
     submitReview,
     updateArtist,
+    deletePortfolioImage,
     updateUser,
     uploadPortfolio,
     updateShop,
@@ -114,7 +115,7 @@ function App() {
         return <ArtistSearchView />;
       case 'profile':
         if (user?.type === 'artist' || user?.type === 'dual') {
-          return <ArtistProfileView artist={user.data} updateArtist={updateArtist} showToast={showToast} openModal={openModal} />;
+          return <ArtistProfileView artist={user.data} updateArtist={updateArtist} deletePortfolioImage={deletePortfolioImage} showToast={showToast} openModal={openModal} />;
         }
         if (user?.type === 'client') {
             const clientBookings = data.clientBookingRequests.filter(b => b.clientId === user.id);

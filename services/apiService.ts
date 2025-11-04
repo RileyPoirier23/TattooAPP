@@ -123,6 +123,28 @@ export const uploadPortfolioImage = async (userId: string, file: File): Promise<
     return newPortfolioImage;
 };
 
+export const deletePortfolioImageFromStorage = async (imageUrl: string): Promise<{ success: boolean }> => {
+    const supabase = getSupabase();
+    try {
+        const url = new URL(imageUrl);
+        const path = url.pathname.split('/portfolios/')[1];
+        
+        if (!path) {
+            throw new Error("Could not determine file path from URL.");
+        }
+
+        const { error } = await supabase.storage.from('portfolios').remove([path]);
+        
+        if (error) {
+            console.warn(`Could not delete portfolio image from storage: ${error.message}`);
+        }
+    } catch (e) {
+        console.error("Error parsing URL for storage deletion:", e);
+    }
+
+    return { success: true };
+};
+
 export const updateShopData = async (shopId: string, updatedData: Partial<Shop>): Promise<Shop> => {
     const supabase = getSupabase();
     const { data, error } = await supabase.from('shops').update(updatedData).eq('id', shopId).select().single();
