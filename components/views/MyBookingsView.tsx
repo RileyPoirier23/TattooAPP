@@ -1,8 +1,8 @@
 // @/components/views/MyBookingsView.tsx
 
 import React, { useState } from 'react';
-import type { User, Booking, ClientBookingRequest, Shop } from '../../types';
-import { CalendarIcon, LocationIcon, StarIcon } from '../shared/Icons';
+import type { User, Booking, ClientBookingRequest, Shop, ModalState } from '../../types';
+import { CalendarIcon, LocationIcon, StarIcon, CreditCardIcon } from '../shared/Icons';
 
 interface MyBookingsViewProps {
   user: User;
@@ -13,6 +13,7 @@ interface MyBookingsViewProps {
   onCompleteRequest: (requestId: string, status: 'completed' | 'rescheduled' | 'no-show') => void;
   onLeaveReview: (request: ClientBookingRequest) => void;
   onLeaveShopReview: (booking: Booking) => void;
+  openModal: (type: ModalState['type'], data?: any) => void;
 }
 
 const getStatusChip = (status: string) => {
@@ -90,7 +91,7 @@ const ArtistBookings: React.FC<Pick<MyBookingsViewProps, 'artistBookings' | 'sho
     );
 };
 
-const ClientRequests: React.FC<Pick<MyBookingsViewProps, 'user' | 'allClientBookings' | 'onRespondToRequest' | 'onCompleteRequest' | 'onLeaveReview'>> = ({ user, allClientBookings, onRespondToRequest, onCompleteRequest, onLeaveReview }) => {
+const ClientRequests: React.FC<Pick<MyBookingsViewProps, 'user' | 'allClientBookings' | 'onRespondToRequest' | 'onCompleteRequest' | 'onLeaveReview' | 'openModal'>> = ({ user, allClientBookings, onRespondToRequest, onCompleteRequest, onLeaveReview, openModal }) => {
     const myClientRequests = allClientBookings.filter(b => (user.type === 'artist' || user.type === 'dual') ? b.artistId === user.id : b.clientId === user.id);
     const pending = myClientRequests.filter(b => b.status === 'pending');
     const upcoming = myClientRequests.filter(b => b.status === 'approved' && new Date(b.endDate) >= new Date());
@@ -132,6 +133,14 @@ const ClientRequests: React.FC<Pick<MyBookingsViewProps, 'user' | 'allClientBook
                                 <button onClick={() => onCompleteRequest(req.id, 'completed')} className="bg-blue-600 text-white text-sm font-bold py-2 px-3 rounded-lg">Mark Completed</button>
                                 <button onClick={() => onCompleteRequest(req.id, 'rescheduled')} className="bg-purple-600 text-white text-sm font-bold py-2 px-3 rounded-lg">Mark Rescheduled</button>
                                 <button onClick={() => onCompleteRequest(req.id, 'no-show')} className="bg-red-600 text-white text-sm font-bold py-2 px-3 rounded-lg">Mark No-Show</button>
+                            </div>
+                        )}
+                        {!isArtistView && req.status === 'approved' && req.paymentStatus === 'unpaid' && (
+                            <div className="mt-4 pt-4 border-t border-gray-200 dark:border-gray-700">
+                                <button onClick={() => openModal('payment', req)} className="w-full bg-brand-secondary text-white font-bold py-2 px-4 rounded-lg flex items-center justify-center gap-2">
+                                    <CreditCardIcon className="w-5 h-5" />
+                                    <span>Pay Deposit (${req.depositAmount})</span>
+                                </button>
                             </div>
                         )}
                     </div>

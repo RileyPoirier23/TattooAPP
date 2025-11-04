@@ -143,6 +143,7 @@ export const adaptClientBookingRequest = (b: any): ClientBookingRequest => {
     reviewText: b.review_text,
     reviewSubmittedAt: b.review_submitted_at,
     depositAmount: b.deposit_amount,
+    depositPaidAt: b.deposit_paid_at,
     platformFee: b.platform_fee,
     serviceId: b.service_id,
     serviceName: service?.name || 'Custom Session',

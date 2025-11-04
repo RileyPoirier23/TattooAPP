@@ -7,7 +7,7 @@ import {
 import {
   fetchInitialData, updateArtistData, uploadPortfolioImage, updateShopData, addBoothToShop, deleteBoothFromShop,
   createBookingForArtist, createClientBookingRequest, updateClientBookingRequestStatus, fetchNotificationsForUser, markUserNotificationsAsRead, createNotification, fetchAllUsers, updateUserData, updateBoothData, fetchUserConversations, fetchMessagesForConversation, sendMessage, findOrCreateConversation, setArtistAvailability, submitReview, deleteUserAsAdmin, deleteShopAsAdmin, uploadMessageAttachment, fetchArtistReviews, createShop as apiCreateShop, createVerificationRequest, updateVerificationRequest, addReviewToShop,
-  adminUpdateUserProfile, adminUpdateShopDetails, deletePortfolioImageFromStorage, uploadBookingReferenceImage,
+  adminUpdateUserProfile, adminUpdateShopDetails, deletePortfolioImageFromStorage, uploadBookingReferenceImage, payClientBookingDeposit,
 } from '../services/apiService';
 import { authService } from '../services/authService';
 
@@ -64,6 +64,7 @@ interface AppState {
   sendClientBookingRequest: (requestData: Omit<ClientBookingRequest, 'id' | 'clientId' | 'status' | 'paymentStatus'>, referenceFiles: File[]) => Promise<void>;
   respondToBookingRequest: (requestId: string, status: 'approved' | 'declined') => Promise<void>;
   updateCompletionStatus: (requestId: string, status: 'completed' | 'rescheduled' | 'no-show') => Promise<void>;
+  payBookingDeposit: (requestId: string) => Promise<void>;
   submitReview: (requestId: string, rating: number, text: string) => Promise<void>;
   updateUser: (userId: string, data: Partial<User['data']>) => Promise<void>;
   updateArtist: (artistId: string, data: Partial<Artist>) => Promise<void>;
@@ -338,6 +339,25 @@ export const useAppStore = create<AppState>()(
         }
       },
       
+      payBookingDeposit: async (requestId: string) => {
+        try {
+          const updatedRequest = await payClientBookingDeposit(requestId);
+          set(state => ({
+            data: {
+              ...state.data,
+              clientBookingRequests: state.data.clientBookingRequests.map(req => 
+                req.id === requestId ? updatedRequest : req
+              ),
+            }
+          }));
+          get().closeModal();
+          get().showToast('Deposit paid successfully!', 'success');
+        } catch (e) {
+          const message = e instanceof Error ? e.message : 'Failed to process deposit payment.';
+          get().showToast(message, 'error');
+        }
+      },
+
       updateUser: async (userId, data) => {
           if (get().user?.id !== userId) return;
           try {

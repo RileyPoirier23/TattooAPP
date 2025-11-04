@@ -125,6 +125,7 @@ export interface ClientBookingRequest {
     reviewText?: string;
     reviewSubmittedAt?: string;
     depositAmount?: number;
+    depositPaidAt?: string;
     platformFee?: number;
     // New fields from spec
     serviceId: string; 
@@ -204,7 +205,7 @@ export interface MockData {
 export type ViewMode = 'artist' | 'client';
 
 export interface ModalState {
-  type: 'auth' | 'artist-detail' | 'shop-detail' | 'booking' | 'client-booking-request' | 'upload-portfolio' | 'edit-booth' | 'leave-review' | 'image-editor' | 'shop-review' | 'request-verification' | 'admin-edit-user' | 'admin-edit-shop' | null;
+  type: 'auth' | 'artist-detail' | 'shop-detail' | 'booking' | 'client-booking-request' | 'upload-portfolio' | 'edit-booth' | 'leave-review' | 'image-editor' | 'shop-review' | 'request-verification' | 'admin-edit-user' | 'admin-edit-shop' | 'payment' | null;
   data?: any;
 }
 

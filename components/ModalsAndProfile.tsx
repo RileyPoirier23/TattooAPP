@@ -3,7 +3,7 @@
 import React, { useState, useMemo, useRef, useCallback, useEffect } from 'react';
 import { useAppStore } from '../hooks/useAppStore';
 import type { Artist, Shop, Booking, Booth, Review, AuthCredentials, RegisterDetails, UserRole, ClientBookingRequest, Client, Socials, ModalState, PortfolioImage, ArtistAvailability, User, ArtistService } from '../types';
-import { LocationIcon, StarIcon, PriceIcon, XIcon, EditIcon, PaperAirplaneIcon, CalendarIcon, UploadIcon, CheckBadgeIcon, CreditCardIcon, SparklesIcon, InstagramIcon, TikTokIcon, XIconSocial, TrashIcon } from './shared/Icons';
+import { LocationIcon, StarIcon, PriceIcon, XIcon, EditIcon, PaperAirplaneIcon, CalendarIcon, UploadIcon, CheckBadgeIcon, CreditCardIcon, SparklesIcon, InstagramIcon, TikTokIcon, XIconSocial, TrashIcon, ArrowRightIcon, ArrowLeftIcon } from './shared/Icons';
 import { MapEmbed } from './shared/MapEmbed';
 import { Loader } from './shared/Loader';
 import { bodyPlacements } from '../data/bookingOptions';
@@ -454,10 +454,84 @@ export const BookingModal: React.FC<{shop: Shop, booths: Booth[], bookings: Book
     );
 };
 
+const ClientBookingCalendar: React.FC<{
+  availability: Map<string, 'available' | 'unavailable'>;
+  onDateSelect: (date: Date) => void;
+  selectedStartDate: Date | null;
+  selectedEndDate: Date | null;
+}> = ({ availability, onDateSelect, selectedStartDate, selectedEndDate }) => {
+    const [currentDate, setCurrentDate] = useState(new Date());
+  
+    const startOfMonth = new Date(currentDate.getFullYear(), currentDate.getMonth(), 1);
+    const endOfMonth = new Date(currentDate.getFullYear(), currentDate.getMonth() + 1, 0);
+    const startDay = startOfMonth.getDay();
+    const daysInMonth = endOfMonth.getDate();
+  
+    const renderDays = () => {
+      const days = [];
+      for (let i = 0; i < startDay; i++) {
+        days.push(<div key={`empty-${i}`} className="w-full h-10"></div>);
+      }
+      for (let day = 1; day <= daysInMonth; day++) {
+        const date = new Date(currentDate.getFullYear(), currentDate.getMonth(), day);
+        const dateString = date.toISOString().split('T')[0];
+        const status = availability.get(dateString);
+        const isPast = date < new Date(new Date().toDateString());
+        
+        const isSelectedStart = selectedStartDate?.toDateString() === date.toDateString();
+        const isSelectedEnd = selectedEndDate?.toDateString() === date.toDateString();
+        const isInRange = selectedStartDate && selectedEndDate && date > selectedStartDate && date < selectedEndDate;
+        
+        const isDisabled = isPast || status === 'unavailable';
+
+        let buttonClass = 'w-full h-10 rounded-full text-sm font-semibold transition-colors ';
+        if (isSelectedStart || isSelectedEnd) {
+            buttonClass += 'bg-brand-primary text-white';
+        } else if (isInRange) {
+            buttonClass += 'bg-brand-primary/50 text-white';
+        } else if (isDisabled) {
+            buttonClass += 'text-gray-400 dark:text-gray-600 cursor-not-allowed line-through';
+        } else if (status === 'available') {
+            buttonClass += 'bg-green-500/20 hover:bg-green-500/40 text-green-800 dark:text-green-300';
+        } else {
+            buttonClass += 'hover:bg-gray-200 dark:hover:bg-gray-700 text-brand-dark dark:text-white';
+        }
+
+        days.push(
+          <div key={day} className="p-1">
+            <button onClick={() => !isDisabled && onDateSelect(date)} disabled={isDisabled} className={buttonClass}>
+              {day}
+            </button>
+          </div>
+        );
+      }
+      return days;
+    };
+  
+    return (
+      <div className="bg-gray-100 dark:bg-gray-800 p-4 rounded-lg">
+        <div className="flex justify-between items-center mb-4">
+          <button type="button" onClick={() => setCurrentDate(new Date(currentDate.getFullYear(), currentDate.getMonth() - 1, 1))} className="p-1 rounded-full hover:bg-gray-200 dark:hover:bg-gray-700"><ArrowLeftIcon className="w-5 h-5"/></button>
+          <h4 className="font-bold text-brand-dark dark:text-white">{currentDate.toLocaleString('default', { month: 'long', year: 'numeric' })}</h4>
+          <button type="button" onClick={() => setCurrentDate(new Date(currentDate.getFullYear(), currentDate.getMonth() + 1, 1))} className="p-1 rounded-full hover:bg-gray-200 dark:hover:bg-gray-700"><ArrowRightIcon className="w-5 h-5"/></button>
+        </div>
+        <div className="grid grid-cols-7 gap-1 text-center text-xs text-brand-gray">
+            {['S', 'M', 'T', 'W', 'T', 'F', 'S'].map(day => <div key={day}>{day}</div>)}
+        </div>
+        <div className="grid grid-cols-7 gap-1 mt-2">{renderDays()}</div>
+        <div className="flex items-center space-x-4 mt-4 text-xs">
+            <div className="flex items-center gap-1.5"><div className="w-3 h-3 bg-green-500/20 rounded-full"></div><span>Available</span></div>
+            <div className="flex items-center gap-1.5"><div className="w-3 h-3 bg-gray-400/30 rounded-full line-through"></div><span>Unavailable</span></div>
+        </div>
+      </div>
+    );
+};
+
+
 export const ClientBookingRequestModal: React.FC<{ artist: Artist; availability: ArtistAvailability[]; onClose: () => void; onSendRequest: (request: Omit<ClientBookingRequest, 'id' | 'clientId' | 'status' | 'paymentStatus'>, files: File[]) => void; }> = ({ artist, availability, onClose, onSendRequest }) => {
     const { showToast } = useAppStore();
-    const [startDate, setStartDate] = useState('');
-    const [endDate, setEndDate] = useState('');
+    const [startDate, setStartDate] = useState<Date | null>(null);
+    const [endDate, setEndDate] = useState<Date | null>(null);
     const [message, setMessage] = useState('');
     const [tattooWidth, setTattooWidth] = useState<number>(0);
     const [tattooHeight, setTattooHeight] = useState<number>(0);
@@ -470,8 +544,19 @@ export const ClientBookingRequestModal: React.FC<{ artist: Artist; availability:
     
     const selectedService = useMemo(() => artist.services?.find(s => s.id === serviceId), [serviceId, artist.services]);
 
-    const unavailableDates = useMemo(() => new Set(availability.filter(a => a.status === 'unavailable').map(a => a.date)), [availability]);
-    const isDateUnavailable = (dateStr: string) => unavailableDates.has(dateStr);
+    const availabilityMap = useMemo(() => new Map(availability.map(a => [a.date, a.status])), [availability]);
+    
+    const handleDateSelect = (date: Date) => {
+        if (!startDate || (startDate && endDate)) {
+            setStartDate(date);
+            setEndDate(null);
+        } else if (date > startDate) {
+            setEndDate(date);
+        } else {
+            setStartDate(date);
+        }
+    };
+
 
     const handleSuggestDuration = async () => {
         if (tattooWidth <= 0 || tattooHeight <= 0) {
@@ -507,8 +592,8 @@ export const ClientBookingRequestModal: React.FC<{ artist: Artist; availability:
             const platformFee = (selectedService?.depositAmount || 0) * 0.05;
             onSendRequest({ 
                 artistId: artist.id, 
-                startDate, 
-                endDate, 
+                startDate: startDate.toISOString().split('T')[0], 
+                endDate: endDate.toISOString().split('T')[0], 
                 message, 
                 tattooWidth, 
                 tattooHeight, 
@@ -526,69 +611,69 @@ export const ClientBookingRequestModal: React.FC<{ artist: Artist; availability:
     const inputClasses = "w-full bg-gray-100 dark:bg-gray-800 border-gray-300 dark:border-gray-700 rounded-lg p-2 text-brand-dark dark:text-white";
 
     return (
-        <Modal onClose={onClose} title={`Request Booking with ${artist.name}`} size="lg">
+        <Modal onClose={onClose} title={`Request Booking with ${artist.name}`} size="xl">
             <div className="space-y-4">
-                <p className="text-sm text-brand-gray">Select your desired dates and provide details about your tattoo idea. {artist.name} will review your request and get back to you.</p>
+                <p className="text-sm text-brand-gray">Select your desired date range and provide details about your tattoo idea. {artist.name} will review your request and get back to you.</p>
                 
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                     <div>
-                        <label className="text-sm font-medium text-brand-gray mb-1 block">Availability Start</label>
-                        <input type="date" value={startDate} onChange={e => setStartDate(e.target.value)} className={inputClasses} />
-                        {startDate && isDateUnavailable(startDate) && <p className="text-xs text-yellow-400 mt-1">Artist is marked as unavailable on this date.</p>}
-                    </div>
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                     <div>
-                        <label className="text-sm font-medium text-brand-gray mb-1 block">Availability End</label>
-                        <input type="date" value={endDate} onChange={e => setEndDate(e.target.value)} className={inputClasses} />
-                        {endDate && isDateUnavailable(endDate) && <p className="text-xs text-yellow-400 mt-1">Artist is marked as unavailable on this date.</p>}
+                         <label className="text-sm font-medium text-brand-gray mb-1 block">Select Your Availability</label>
+                         <ClientBookingCalendar
+                            availability={availabilityMap}
+                            onDateSelect={handleDateSelect}
+                            selectedStartDate={startDate}
+                            selectedEndDate={endDate}
+                         />
                     </div>
-                </div>
+                    <div className="space-y-4">
+                       <div className="grid grid-cols-3 gap-2 items-end">
+                            <div>
+                                <label className="text-sm font-medium text-brand-gray mb-1 block">Width (in)</label>
+                                <input type="number" value={tattooWidth || ''} onChange={e => setTattooWidth(parseFloat(e.target.value))} className={inputClasses} />
+                            </div>
+                            <div>
+                                <label className="text-sm font-medium text-brand-gray mb-1 block">Height (in)</label>
+                                <input type="number" value={tattooHeight || ''} onChange={e => setTattooHeight(parseFloat(e.target.value))} className={inputClasses} />
+                            </div>
+                            <button type="button" onClick={handleSuggestDuration} disabled={isSuggesting || !artist.services || artist.services.length === 0} className="bg-brand-secondary text-white font-bold py-2 px-3 rounded-lg flex items-center justify-center space-x-2 text-sm disabled:bg-gray-600 h-10">
+                                {isSuggesting ? <Loader size="sm" color="white" /> : <SparklesIcon className="w-4 h-4" />}
+                                <span>Suggest</span>
+                            </button>
+                        </div>
+                        <div className="grid grid-cols-2 gap-4">
+                            <div>
+                                <label className="text-sm font-medium text-brand-gray mb-1 block">Service</label>
+                                <select value={serviceId} onChange={e => setServiceId(e.target.value)} className={`${inputClasses} capitalize`} required>
+                                    <option value="">Select a service...</option>
+                                    {(artist.services || []).map(s => <option key={s.id} value={s.id}>{s.name} ({s.duration}hr) - ${s.price}</option>)}
+                                </select>
+                            </div>
+                            <div>
+                                <label className="text-sm font-medium text-brand-gray mb-1 block">Body Placement</label>
+                                <select value={bodyPlacement} onChange={e => setBodyPlacement(e.target.value)} className={inputClasses} required>
+                                    <option value="">Select placement...</option>
+                                    {bodyPlacements.map(opt => <option key={opt.value} value={opt.value}>{opt.label}</option>)}
+                                </select>
+                            </div>
+                            <div>
+                                <label className="text-sm font-medium text-brand-gray mb-1 block">Budget (Optional)</label>
+                                <input type="number" value={budget || ''} placeholder="$" onChange={e => setBudget(parseFloat(e.target.value))} className={inputClasses} />
+                            </div>
+                        </div>
 
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                    <div className="md:col-span-2 grid grid-cols-3 gap-2 items-end">
                         <div>
-                            <label className="text-sm font-medium text-brand-gray mb-1 block">Width (in)</label>
-                            <input type="number" value={tattooWidth || ''} onChange={e => setTattooWidth(parseFloat(e.target.value))} className={inputClasses} />
+                            <label className="text-sm font-medium text-brand-gray mb-1 block">Reference Photos (Up to 5)</label>
+                            <input type="file" multiple onChange={handleFileChange} accept="image/*" className="w-full text-sm text-gray-500 file:mr-4 file:py-2 file:px-4 file:rounded-full file:border-0 file:text-sm file:font-semibold file:bg-brand-secondary/80 file:text-white hover:file:bg-brand-secondary" />
+                            <div className="mt-2 flex flex-wrap gap-2">
+                                {previews.map((p, i) => <img key={i} src={p} className="w-16 h-16 object-cover rounded-lg" />)}
+                            </div>
                         </div>
-                        <div>
-                            <label className="text-sm font-medium text-brand-gray mb-1 block">Height (in)</label>
-                            <input type="number" value={tattooHeight || ''} onChange={e => setTattooHeight(parseFloat(e.target.value))} className={inputClasses} />
-                        </div>
-                        <button type="button" onClick={handleSuggestDuration} disabled={isSuggesting || !artist.services || artist.services.length === 0} className="bg-brand-secondary text-white font-bold py-2 px-3 rounded-lg flex items-center justify-center space-x-2 text-sm disabled:bg-gray-600 h-10">
-                            {isSuggesting ? <Loader size="sm" color="white" /> : <SparklesIcon className="w-4 h-4" />}
-                            <span>Suggest</span>
-                        </button>
-                    </div>
-                    <div>
-                        <label className="text-sm font-medium text-brand-gray mb-1 block">Service</label>
-                        <select value={serviceId} onChange={e => setServiceId(e.target.value)} className={`${inputClasses} capitalize`} required>
-                            <option value="">Select a service...</option>
-                            {(artist.services || []).map(s => <option key={s.id} value={s.id}>{s.name} ({s.duration}hr) - ${s.price}</option>)}
-                        </select>
-                    </div>
-                    <div>
-                        <label className="text-sm font-medium text-brand-gray mb-1 block">Body Placement</label>
-                        <select value={bodyPlacement} onChange={e => setBodyPlacement(e.target.value)} className={inputClasses} required>
-                            <option value="">Select placement...</option>
-                            {bodyPlacements.map(opt => <option key={opt.value} value={opt.value}>{opt.label}</option>)}
-                        </select>
-                    </div>
-                     <div>
-                        <label className="text-sm font-medium text-brand-gray mb-1 block">Budget (Optional)</label>
-                        <input type="number" value={budget || ''} placeholder="$" onChange={e => setBudget(parseFloat(e.target.value))} className={inputClasses} />
                     </div>
                 </div>
                 
                 <div>
                     <label className="text-sm font-medium text-brand-gray mb-1 block">Tattoo Idea / Message</label>
                     <textarea value={message} onChange={e => setMessage(e.target.value)} rows={3} className={inputClasses} placeholder={`Hi ${artist.name}, I'm interested in getting a...`} required></textarea>
-                </div>
-
-                <div>
-                    <label className="text-sm font-medium text-brand-gray mb-1 block">Reference Photos (Up to 5)</label>
-                    <input type="file" multiple onChange={handleFileChange} accept="image/*" className="w-full text-sm text-gray-500 file:mr-4 file:py-2 file:px-4 file:rounded-full file:border-0 file:text-sm file:font-semibold file:bg-brand-secondary/80 file:text-white hover:file:bg-brand-secondary" />
-                    <div className="mt-2 flex flex-wrap gap-2">
-                        {previews.map((p, i) => <img key={i} src={p} className="w-20 h-20 object-cover rounded-lg" />)}
-                    </div>
                 </div>
 
                 {selectedService && (
@@ -731,6 +816,65 @@ export const VerificationRequestModal: React.FC<{ item: Artist | Shop, type: 'ar
         </Modal>
     );
 };
+
+export const PaymentModal: React.FC<{ request: ClientBookingRequest; onProcessPayment: (requestId: string) => Promise<void>; onClose: () => void }> = ({ request, onProcessPayment, onClose }) => {
+    const [isProcessing, setIsProcessing] = useState(false);
+
+    const handlePayment = async () => {
+        setIsProcessing(true);
+        await onProcessPayment(request.id);
+        // The modal will be closed by the store action on success
+        setIsProcessing(false);
+    };
+
+    return (
+        <Modal onClose={onClose} title="Confirm Deposit Payment" size="md" closeDisabled={isProcessing}>
+            <div className="space-y-4">
+                <div className="bg-gray-100 dark:bg-gray-800 p-4 rounded-lg text-center">
+                    <p className="text-sm text-brand-gray">You are paying a deposit for your booking with</p>
+                    <p className="font-bold text-lg text-brand-dark dark:text-white">{request.artistName}</p>
+                    <p className="text-3xl font-bold text-brand-primary mt-2">${request.depositAmount?.toFixed(2)}</p>
+                </div>
+                
+                {/* Simulated Stripe Form */}
+                <div className="space-y-3">
+                    <div>
+                        <label className="text-sm font-medium text-brand-gray">Card Information</label>
+                        <div className="mt-1 p-3 bg-gray-200 dark:bg-gray-800 rounded-lg text-gray-400">
+                            •••• •••• •••• 4242
+                        </div>
+                    </div>
+                     <div className="grid grid-cols-2 gap-3">
+                        <div>
+                             <label className="text-sm font-medium text-brand-gray">Expiry</label>
+                             <div className="mt-1 p-3 bg-gray-200 dark:bg-gray-800 rounded-lg text-gray-400">
+                                MM / YY
+                            </div>
+                        </div>
+                        <div>
+                            <label className="text-sm font-medium text-brand-gray">CVC</label>
+                             <div className="mt-1 p-3 bg-gray-200 dark:bg-gray-800 rounded-lg text-gray-400">
+                                •••
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <p className="text-xs text-brand-gray text-center">This is a simulated payment gateway for demonstration purposes. No real card is needed.</p>
+                
+                <button
+                    onClick={handlePayment}
+                    disabled={isProcessing}
+                    className="w-full bg-brand-secondary text-white font-bold py-3 rounded-lg flex items-center justify-center gap-2 disabled:bg-gray-600"
+                >
+                    {isProcessing ? <Loader size="sm" color="white" /> : <CreditCardIcon className="w-5 h-5" />}
+                    <span>{isProcessing ? 'Processing...' : `Pay $${request.depositAmount?.toFixed(2)}`}</span>
+                </button>
+            </div>
+        </Modal>
+    );
+};
+
 
 // --- PROFILE & DASHBOARD VIEWS ---
 

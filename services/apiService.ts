@@ -252,6 +252,33 @@ export const updateClientBookingRequestStatus = async (requestId: string, status
     return { success: true };
 };
 
+export const payClientBookingDeposit = async (requestId: string): Promise<ClientBookingRequest> => {
+    const supabase = getSupabase();
+
+    // 1. Fetch the request to get artist_id and client's name for the notification
+    const { data: request, error: fetchError } = await supabase
+        .from('client_booking_requests')
+        .select('artist_id, client:profiles!client_booking_requests_client_id_fkey(full_name)')
+        .eq('id', requestId)
+        .single();
+    if (fetchError) throw fetchError;
+    
+    // 2. Update the request to mark the deposit as paid
+    const { data: updatedRequest, error: updateError } = await supabase
+        .from('client_booking_requests')
+        .update({ payment_status: 'paid', deposit_paid_at: new Date().toISOString() })
+        .eq('id', requestId)
+        .select('*, client:profiles!client_booking_requests_client_id_fkey(full_name), artist:profiles!client_booking_requests_artist_id_fkey(full_name, services)')
+        .single();
+    if (updateError) throw updateError;
+    
+    // 3. Create a notification for the artist
+    const clientName = request.client?.full_name || 'A client';
+    await createNotification(request.artist_id, `${clientName} has paid the deposit for their booking.`);
+
+    return adaptClientBookingRequest(updatedRequest);
+};
+
 export const fetchNotificationsForUser = async (userId: string): Promise<Notification[]> => {
     const supabase = getSupabase();
     const { data, error } = await supabase.from('notifications').select('*').eq('user_id', userId).order('created_at', { ascending: false });
