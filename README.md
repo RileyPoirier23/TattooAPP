@@ -170,6 +170,8 @@ DROP TABLE IF EXISTS public.artist_availability CASCADE;
 DROP TABLE IF EXISTS public.verification_requests CASCADE;
 DROP TABLE IF EXISTS public.shops CASCADE;
 DROP TABLE IF EXISTS public.profiles CASCADE;
+DROP TRIGGER IF EXISTS on_auth_user_created ON auth.users;
+DROP FUNCTION IF EXISTS public.handle_new_user();
 
 
 -- =================================================================
@@ -197,12 +199,54 @@ CREATE TABLE public.profiles (
 );
 ALTER TABLE public.profiles ENABLE ROW LEVEL SECURITY;
 
+-- =================================================================
+-- 1.A. NEW USER TRIGGER
+-- This function and trigger automatically create a profile for new users,
+-- resolving the RLS issue on signup.
+-- =================================================================
+CREATE OR REPLACE FUNCTION public.handle_new_user()
+RETURNS TRIGGER
+LANGUAGE plpgsql
+SECURITY DEFINER SET search_path = public
+AS $$
+BEGIN
+  INSERT INTO public.profiles (id, username, full_name, role, city, specialty, bio)
+  VALUES (
+    new.id,
+    new.email,
+    new.raw_user_meta_data->>'full_name',
+    new.raw_user_meta_data->>'role',
+    CASE
+      WHEN new.raw_user_meta_data->>'role' IN ('artist', 'dual')
+      THEN new.raw_user_meta_data->>'city'
+      ELSE NULL
+    END,
+    CASE
+      WHEN new.raw_user_meta_data->>'role' IN ('artist', 'dual')
+      THEN 'New Artist'
+      ELSE NULL
+    END,
+    CASE
+      WHEN new.raw_user_meta_data->>'role' IN ('artist', 'dual')
+      THEN 'An artist based in ' || COALESCE(new.raw_user_meta_data->>'city', 'a new city') || '.'
+      ELSE NULL
+    END
+  );
+  RETURN new;
+END;
+$$;
+
+CREATE TRIGGER on_auth_user_created
+  AFTER INSERT ON auth.users
+  FOR EACH ROW EXECUTE PROCEDURE public.handle_new_user();
+
+-- =================================================================
+-- 1.B. PROFILES RLS POLICIES
+-- =================================================================
 -- Allow users to see all artist and dual-role profiles (for search).
 CREATE POLICY "Enable public read access for artists" ON public.profiles FOR SELECT USING (role = ANY (ARRAY['artist'::text, 'dual'::text]));
 -- Allow users to see their own profile.
 CREATE POLICY "Enable read access for authenticated user on own profile" ON public.profiles FOR SELECT USING (auth.uid() = id);
--- Allow new users to create their own profile.
-CREATE POLICY "Enable insert for new users" ON public.profiles FOR INSERT WITH CHECK (auth.uid() = id);
 -- Allow users to update their own profile.
 CREATE POLICY "Enable update for users based on user_id" ON public.profiles FOR UPDATE USING (auth.uid() = id) WITH CHECK (auth.uid() = id);
 
@@ -490,7 +534,7 @@ This is almost always a Supabase Storage policy issue.
 
 ### Authentication Errors (Login/Signup)
 1.  **Email Confirmation:** By default, Supabase requires users to confirm their email. For development, you can disable this by going to **Authentication > Providers > Email** and turning off "Confirm email".
-2.  **Check RLS for `profiles` Table:** A new user signup can fail if the RLS policy for `INSERT` on the `profiles` table is missing. The SQL Setup script above includes the correct policy (`auth.uid() = id`) to resolve this.
+2.  **RLS Policy Violation on Signup:** If you see an error about "violates row-level security policy for table 'profiles'", it means the automatic profile creation trigger is failing. Ensure you have run the **latest** version of the SQL Setup Script, as this contains the necessary function and trigger.
 
 ## Project Structure
 -   `src/components/`: Contains all React components, organized by views, shared elements, and modals.

@@ -190,6 +190,7 @@ export const useAppStore = create<AppState>()(
       register: async (details, navigate) => {
         try {
           const user = await authService.register(details);
+          // If register is successful and returns a user, it means email confirmation is off.
           set({ user });
            if (user.type === 'artist' || user.type === 'dual') {
             set({ viewMode: 'artist'});
@@ -200,10 +201,16 @@ export const useAppStore = create<AppState>()(
             navigate('/artists');
           }
           get().closeModal();
-          get().showToast('Registration successful!');
+          get().showToast('Registration successful! You are now logged in.');
         } catch (error) {
           const message = error instanceof Error ? error.message : "Registration failed.";
-          get().showToast(message, 'error');
+          // Handle the specific case where email confirmation is required.
+          if (message.includes("confirm your email")) {
+            get().closeModal();
+            get().showToast(message, 'success');
+          } else {
+            get().showToast(message, 'error');
+          }
         }
       },
       

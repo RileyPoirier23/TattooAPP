@@ -92,44 +92,44 @@ class AuthService {
 
     async register(details: RegisterDetails): Promise<User> {
         const supabase = getSupabase();
+
+        // The user's role and other details are passed as metadata to the signUp function.
+        // A database trigger will use this metadata to create the public profile automatically and securely.
+        const signUpOptions = {
+            data: {
+                full_name: details.name,
+                role: details.type,
+                city: (details.type === 'artist' || details.type === 'dual') ? details.city : undefined,
+            }
+        };
+
         const { data: authData, error: authError } = await supabase.auth.signUp({
             email: details.email,
             password: details.password!,
-            options: {
-                data: {
-                    full_name: details.name,
-                }
-            }
+            options: signUpOptions
         });
 
         if (authError) throw authError;
-        if (!authData.user) throw new Error("Registration succeeded but no user returned.");
+        if (!authData.user) throw new Error("Registration succeeded but no user was returned.");
 
-        const profileData: { [key: string]: any } = {
-            id: authData.user.id,
-            username: details.email,
-            full_name: details.name,
-            role: details.type,
-            is_verified: false,
-        };
-
-        if (details.type === 'artist' || details.type === 'dual') {
-            profileData.city = details.city || null;
-            profileData.specialty = 'New Artist';
-            profileData.bio = `An artist based in ${details.city || 'a new city'}.`;
-            profileData.portfolio = [];
-        }
-
-        const { error: profileError } = await supabase.from('profiles').insert(profileData);
-        if (profileError) {
-            console.error("Failed to create user profile:", profileError);
-            throw new Error(`User created, but profile setup failed. Please contact support. Error: ${profileError.message}`);
-        }
+        // If a session is returned, it means email confirmation is likely disabled, and the user is logged in.
+        // We can proceed to fetch their newly created profile.
+        if (authData.session) {
+            const newUser = await this.getUserProfile(authData.user.id);
+            if (!newUser) {
+                // This would mean the database trigger failed, which is a critical server-side problem.
+                throw new Error("Profile creation failed automatically. Please try logging in or contact support.");
+            }
+            localStorage.setItem(USER_STORAGE_KEY, JSON.stringify(newUser));
+            return newUser;
+        } 
         
-        const newUser = await this.getUserProfile(authData.user.id);
-        if (!newUser) throw new Error("Could not retrieve new user profile after registration.");
-        localStorage.setItem(USER_STORAGE_KEY, JSON.stringify(newUser));
-        return newUser;
+        // If no session is returned, it means email confirmation is required.
+        // The user is not logged in yet. The profile has been created by the trigger, but we cannot
+        // log them in from the client. We throw a specific message for the UI to handle.
+        else {
+            throw new Error("Registration successful! Please check your email to confirm your account before logging in.");
+        }
     }
 
     async logout(): Promise<void> {
