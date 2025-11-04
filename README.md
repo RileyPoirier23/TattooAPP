@@ -156,6 +156,23 @@ This is the complete script to set up your Supabase database.
 
 ```sql
 -- =================================================================
+-- 0. RESET SCRIPT
+-- WARNING: This script will delete all existing data in the tables.
+-- It is designed for a clean setup. Do not run on a production database with live data.
+-- =================================================================
+DROP TABLE IF EXISTS public.messages CASCADE;
+DROP TABLE IF EXISTS public.conversations CASCADE;
+DROP TABLE IF EXISTS public.notifications CASCADE;
+DROP TABLE IF EXISTS public.client_booking_requests CASCADE;
+DROP TABLE IF EXISTS public.bookings CASCADE;
+DROP TABLE IF EXISTS public.booths CASCADE;
+DROP TABLE IF EXISTS public.artist_availability CASCADE;
+DROP TABLE IF EXISTS public.verification_requests CASCADE;
+DROP TABLE IF EXISTS public.shops CASCADE;
+DROP TABLE IF EXISTS public.profiles CASCADE;
+
+
+-- =================================================================
 -- 1. USER PROFILES TABLE
 -- Stores public user data, linked to the private auth.users table.
 -- =================================================================
