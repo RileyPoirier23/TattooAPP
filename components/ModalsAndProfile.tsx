@@ -527,9 +527,18 @@ const ClientBookingCalendar: React.FC<{
     );
 };
 
+const StepContent: React.FC<{ children: React.ReactNode }> = ({ children }) => (
+    <div className="animate-[fadeIn_0.3s_ease-in-out]">
+        {children}
+    </div>
+);
 
 export const ClientBookingRequestModal: React.FC<{ artist: Artist; availability: ArtistAvailability[]; onClose: () => void; onSendRequest: (request: Omit<ClientBookingRequest, 'id' | 'clientId' | 'status' | 'paymentStatus'>, files: File[]) => void; }> = ({ artist, availability, onClose, onSendRequest }) => {
     const { showToast } = useAppStore();
+    const [step, setStep] = useState(1);
+    const totalSteps = 3;
+
+    // Form State
     const [startDate, setStartDate] = useState<Date | null>(null);
     const [endDate, setEndDate] = useState<Date | null>(null);
     const [message, setMessage] = useState('');
@@ -541,11 +550,15 @@ export const ClientBookingRequestModal: React.FC<{ artist: Artist; availability:
     const [referenceFiles, setReferenceFiles] = useState<File[]>([]);
     const [previews, setPreviews] = useState<string[]>([]);
     const [isSuggesting, setIsSuggesting] = useState(false);
-    
-    const selectedService = useMemo(() => artist.services?.find(s => s.id === serviceId), [serviceId, artist.services]);
 
+    // Derived State
+    const selectedService = useMemo(() => artist.services?.find(s => s.id === serviceId), [serviceId, artist.services]);
     const availabilityMap = useMemo(() => new Map(availability.map(a => [a.date, a.status])), [availability]);
     
+    // Navigation & Handlers
+    const nextStep = () => setStep(s => Math.min(s + 1, totalSteps));
+    const prevStep = () => setStep(s => Math.max(s - 1, 1));
+
     const handleDateSelect = (date: Date) => {
         if (!startDate || (startDate && endDate)) {
             setStartDate(date);
@@ -556,7 +569,6 @@ export const ClientBookingRequestModal: React.FC<{ artist: Artist; availability:
             setStartDate(date);
         }
     };
-
 
     const handleSuggestDuration = async () => {
         if (tattooWidth <= 0 || tattooHeight <= 0) {
@@ -581,19 +593,18 @@ export const ClientBookingRequestModal: React.FC<{ artist: Artist; availability:
         const files = Array.from(e.target.files || []);
         if (files.length > 0) {
             setReferenceFiles(prev => [...prev, ...files].slice(0, 5)); // Limit to 5 images
-            // Fix: Explicitly type `file` as `File` to resolve incorrect type inference.
             const newPreviews = files.map((file: File) => URL.createObjectURL(file));
             setPreviews(prev => [...prev, ...newPreviews].slice(0, 5));
         }
     };
 
     const handleSubmit = () => {
-        if (startDate && endDate && message && tattooWidth > 0 && tattooHeight > 0 && bodyPlacement && serviceId) {
+        if (isStep1Valid && isStep2Valid) {
             const platformFee = (selectedService?.depositAmount || 0) * 0.029;
             onSendRequest({ 
                 artistId: artist.id, 
-                startDate: startDate.toISOString().split('T')[0], 
-                endDate: endDate.toISOString().split('T')[0], 
+                startDate: startDate!.toISOString().split('T')[0], 
+                endDate: endDate!.toISOString().split('T')[0], 
                 message, 
                 tattooWidth, 
                 tattooHeight, 
@@ -608,45 +619,37 @@ export const ClientBookingRequestModal: React.FC<{ artist: Artist; availability:
         }
     };
     
+    // Validation
+    const isStep1Valid = tattooWidth > 0 && tattooHeight > 0 && bodyPlacement && message.trim() !== '';
+    const isStep2Valid = serviceId && startDate && endDate;
+    
+    // UI
     const inputClasses = "w-full bg-gray-100 dark:bg-gray-800 border-gray-300 dark:border-gray-700 rounded-lg p-2 text-brand-dark dark:text-white";
+    const stepTitles = [ "Tattoo Details", "Service & Dates", "Review & Confirm" ];
+    const currentTitle = `Request Booking: Step ${step} of ${totalSteps} - ${stepTitles[step - 1]}`;
 
     return (
-        <Modal onClose={onClose} title={`Request Booking with ${artist.name}`} size="xl">
-            <div className="space-y-4">
-                <p className="text-sm text-brand-gray">Select your desired date range and provide details about your tattoo idea. {artist.name} will review your request and get back to you.</p>
-                
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                    <div>
-                         <label className="text-sm font-medium text-brand-gray mb-1 block">Select Your Availability</label>
-                         <ClientBookingCalendar
-                            availability={availabilityMap}
-                            onDateSelect={handleDateSelect}
-                            selectedStartDate={startDate}
-                            selectedEndDate={endDate}
-                         />
-                    </div>
-                    <div className="space-y-4">
-                       <div className="grid grid-cols-3 gap-2 items-end">
-                            <div>
-                                <label className="text-sm font-medium text-brand-gray mb-1 block">Width (in)</label>
-                                <input type="number" value={tattooWidth || ''} onChange={e => setTattooWidth(parseFloat(e.target.value))} className={inputClasses} />
-                            </div>
-                            <div>
-                                <label className="text-sm font-medium text-brand-gray mb-1 block">Height (in)</label>
-                                <input type="number" value={tattooHeight || ''} onChange={e => setTattooHeight(parseFloat(e.target.value))} className={inputClasses} />
-                            </div>
-                            <button type="button" onClick={handleSuggestDuration} disabled={isSuggesting || !artist.services || artist.services.length === 0} className="bg-brand-secondary text-white font-bold py-2 px-3 rounded-lg flex items-center justify-center space-x-2 text-sm disabled:bg-gray-600 h-10">
-                                {isSuggesting ? <Loader size="sm" color="white" /> : <SparklesIcon className="w-4 h-4" />}
-                                <span>Suggest</span>
-                            </button>
-                        </div>
-                        <div className="grid grid-cols-2 gap-4">
-                            <div>
-                                <label className="text-sm font-medium text-brand-gray mb-1 block">Service</label>
-                                <select value={serviceId} onChange={e => setServiceId(e.target.value)} className={`${inputClasses} capitalize`} required>
-                                    <option value="">Select a service...</option>
-                                    {(artist.services || []).map(s => <option key={s.id} value={s.id}>{s.name} ({s.duration}hr) - ${s.price}</option>)}
-                                </select>
+        <Modal onClose={onClose} title={currentTitle} size="xl">
+             <div className="w-full bg-gray-200 dark:bg-gray-700 rounded-full h-2 mb-6">
+                <div 
+                    className="bg-brand-secondary h-2 rounded-full transition-all duration-300 ease-out" 
+                    style={{ width: `${(step / totalSteps) * 100}%` }}
+                ></div>
+            </div>
+
+            {step === 1 && (
+                <StepContent>
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                        <div className="space-y-4">
+                             <div className="grid grid-cols-2 gap-4">
+                                <div>
+                                    <label className="text-sm font-medium text-brand-gray mb-1 block">Width (in)</label>
+                                    <input type="number" value={tattooWidth || ''} onChange={e => setTattooWidth(parseFloat(e.target.value))} className={inputClasses} required />
+                                </div>
+                                <div>
+                                    <label className="text-sm font-medium text-brand-gray mb-1 block">Height (in)</label>
+                                    <input type="number" value={tattooHeight || ''} onChange={e => setTattooHeight(parseFloat(e.target.value))} className={inputClasses} required />
+                                </div>
                             </div>
                             <div>
                                 <label className="text-sm font-medium text-brand-gray mb-1 block">Body Placement</label>
@@ -660,38 +663,95 @@ export const ClientBookingRequestModal: React.FC<{ artist: Artist; availability:
                                 <input type="number" value={budget || ''} placeholder="$" onChange={e => setBudget(parseFloat(e.target.value))} className={inputClasses} />
                             </div>
                         </div>
-
-                        <div>
-                            <label className="text-sm font-medium text-brand-gray mb-1 block">Reference Photos (Up to 5)</label>
-                            <input type="file" multiple onChange={handleFileChange} accept="image/*" className="w-full text-sm text-gray-500 file:mr-4 file:py-2 file:px-4 file:rounded-full file:border-0 file:text-sm file:font-semibold file:bg-brand-secondary/80 file:text-white hover:file:bg-brand-secondary" />
-                            <div className="mt-2 flex flex-wrap gap-2">
-                                {previews.map((p, i) => <img key={i} src={p} className="w-16 h-16 object-cover rounded-lg" />)}
+                        <div className="space-y-4">
+                           <div>
+                                <label className="text-sm font-medium text-brand-gray mb-1 block">Tattoo Idea / Message</label>
+                                <textarea value={message} onChange={e => setMessage(e.target.value)} rows={3} className={inputClasses} placeholder={`Hi ${artist.name}, I'm interested in getting a...`} required></textarea>
+                            </div>
+                           <div>
+                                <label className="text-sm font-medium text-brand-gray mb-1 block">Reference Photos (Up to 5)</label>
+                                <input type="file" multiple onChange={handleFileChange} accept="image/*" className="w-full text-sm text-gray-500 file:mr-4 file:py-2 file:px-4 file:rounded-full file:border-0 file:text-sm file:font-semibold file:bg-brand-secondary/80 file:text-white hover:file:bg-brand-secondary" />
+                                <div className="mt-2 flex flex-wrap gap-2">
+                                    {previews.map((p, i) => <img key={i} src={p} className="w-16 h-16 object-cover rounded-lg" alt={`Reference preview ${i + 1}`} />)}
+                                </div>
                             </div>
                         </div>
                     </div>
-                </div>
-                
-                <div>
-                    <label className="text-sm font-medium text-brand-gray mb-1 block">Tattoo Idea / Message</label>
-                    <textarea value={message} onChange={e => setMessage(e.target.value)} rows={3} className={inputClasses} placeholder={`Hi ${artist.name}, I'm interested in getting a...`} required></textarea>
-                </div>
-
-                {selectedService && (
-                    <div className="bg-gray-100 dark:bg-gray-800 p-3 rounded-lg text-sm">
-                        <p className="font-semibold text-brand-dark dark:text-brand-light">Estimated Deposit: <span className="text-brand-dark dark:text-white">${selectedService.depositAmount.toFixed(2)}</span></p>
-                        <p className="text-xs text-brand-gray">This will be required if the artist approves your request.</p>
+                     <div className="flex justify-end mt-6 pt-4 border-t border-gray-200 dark:border-gray-800">
+                        <button onClick={nextStep} disabled={!isStep1Valid} className="bg-brand-primary text-white font-bold py-2 px-6 rounded-lg disabled:bg-gray-600">Next</button>
                     </div>
-                )}
+                </StepContent>
+            )}
 
-                <button
-                    onClick={handleSubmit}
-                    disabled={!startDate || !endDate || !message || !(tattooWidth > 0) || !(tattooHeight > 0) || !bodyPlacement || !serviceId}
-                    className="w-full bg-brand-secondary text-white font-bold py-3 rounded-lg disabled:bg-gray-600 disabled:cursor-not-allowed flex items-center justify-center space-x-2"
-                >
-                    <PaperAirplaneIcon className="w-5 h-5" />
-                    <span>Send Request</span>
-                </button>
-            </div>
+            {step === 2 && (
+                <StepContent>
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                        <div className="space-y-4">
+                            <div>
+                                <label className="text-sm font-medium text-brand-gray mb-1 block">Service</label>
+                                <div className="flex gap-2 items-start">
+                                    <select value={serviceId} onChange={e => setServiceId(e.target.value)} className={`${inputClasses} capitalize flex-grow`} required>
+                                        <option value="">Select a service...</option>
+                                        {(artist.services || []).map(s => <option key={s.id} value={s.id}>{s.name} ({s.duration}hr) - ${s.price}</option>)}
+                                    </select>
+                                    <button type="button" onClick={handleSuggestDuration} disabled={isSuggesting || !artist.services || artist.services.length === 0} className="bg-brand-secondary text-white font-bold py-2 px-3 rounded-lg flex items-center justify-center space-x-2 text-sm disabled:bg-gray-600 h-10 flex-shrink-0">
+                                        {isSuggesting ? <Loader size="sm" color="white" /> : <SparklesIcon className="w-4 h-4" />}
+                                        <span>Suggest</span>
+                                    </button>
+                                </div>
+                            </div>
+                        </div>
+                        <div>
+                             <label className="text-sm font-medium text-brand-gray mb-1 block">Select Your Availability</label>
+                             <ClientBookingCalendar availability={availabilityMap} onDateSelect={handleDateSelect} selectedStartDate={startDate} selectedEndDate={endDate} />
+                        </div>
+                    </div>
+                    <div className="flex justify-between mt-6 pt-4 border-t border-gray-200 dark:border-gray-800">
+                        <button onClick={prevStep} className="bg-gray-200 dark:bg-gray-700 text-brand-dark dark:text-white font-bold py-2 px-6 rounded-lg">Back</button>
+                        <button onClick={nextStep} disabled={!isStep2Valid} className="bg-brand-primary text-white font-bold py-2 px-6 rounded-lg disabled:bg-gray-600">Next</button>
+                    </div>
+                </StepContent>
+            )}
+
+            {step === 3 && (
+                <StepContent>
+                    <div className="space-y-4">
+                        <h3 className="text-lg font-bold text-brand-dark dark:text-white">Review Your Request</h3>
+                        <div className="bg-gray-100 dark:bg-gray-800 p-4 rounded-lg space-y-3 text-sm">
+                            <div className="grid grid-cols-2 gap-4">
+                                <div><strong className="text-brand-gray block">Service:</strong> {selectedService?.name}</div>
+                                <div><strong className="text-brand-gray block">Dates:</strong> {startDate?.toLocaleDateString()} - {endDate?.toLocaleDateString()}</div>
+                                <div><strong className="text-brand-gray block">Size:</strong> {tattooWidth}" x {tattooHeight}"</div>
+                                <div><strong className="text-brand-gray block">Placement:</strong> {bodyPlacements.find(p => p.value === bodyPlacement)?.label}</div>
+                                {budget && <div><strong className="text-brand-gray block">Budget:</strong> ${budget}</div>}
+                            </div>
+                            <div>
+                                <strong className="text-brand-gray block">Description:</strong>
+                                <p className="mt-1 whitespace-pre-wrap">{message}</p>
+                            </div>
+                            {previews.length > 0 && (
+                                <div>
+                                    <strong className="text-brand-gray block">References:</strong>
+                                    <div className="mt-2 flex flex-wrap gap-2">
+                                        {previews.map((p, i) => <img key={i} src={p} className="w-16 h-16 object-cover rounded-lg" alt={`Reference preview ${i + 1}`} />)}
+                                    </div>
+                                </div>
+                            )}
+                             <div className="pt-3 mt-3 border-t border-gray-200 dark:border-gray-700">
+                                <p className="font-semibold text-brand-dark dark:text-brand-light">Estimated Deposit: <span className="text-lg font-bold text-brand-primary">${selectedService?.depositAmount?.toFixed(2)}</span></p>
+                                <p className="text-xs text-brand-gray">This deposit will be required if the artist approves your request.</p>
+                            </div>
+                        </div>
+                    </div>
+                    <div className="flex justify-between mt-6 pt-4 border-t border-gray-200 dark:border-gray-800">
+                        <button onClick={prevStep} className="bg-gray-200 dark:bg-gray-700 text-brand-dark dark:text-white font-bold py-2 px-6 rounded-lg">Back</button>
+                        <button onClick={handleSubmit} className="bg-brand-secondary text-white font-bold py-3 px-6 rounded-lg flex items-center justify-center space-x-2">
+                            <PaperAirplaneIcon className="w-5 h-5" />
+                            <span>Send Request</span>
+                        </button>
+                    </div>
+                </StepContent>
+            )}
         </Modal>
     );
 };
