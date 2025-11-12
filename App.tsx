@@ -6,11 +6,12 @@ import { Header } from './components/Header';
 import { ArtistSearchView } from './components/views/ArtistSearchView';
 import { ClientSearchView } from './components/views/ClientSearchView';
 import { ShopOwnerDashboard } from './components/views/ShopOwnerDashboard';
+import { ArtistDashboardView } from './components/views/ArtistDashboardView';
 import { AdminDashboard } from './components/views/AdminDashboard';
 import { MyBookingsView } from './components/views/MyBookingsView';
 import { SettingsView } from './components/views/SettingsView';
 import { MessagesView } from './components/views/MessagesView';
-import { ArtistAvailabilityView } from './components/views/ArtistAvailabilityView';
+// Fix: Removed unused import for deprecated ArtistAvailabilityView
 import { ShopOwnerOnboardingView } from './components/views/ShopOwnerOnboardingView';
 import { ArtistProfileView, ClientProfileView } from './components/ModalsAndProfile';
 import { 
@@ -87,6 +88,7 @@ function App() {
     submitShopReview,
     adminUpdateUser,
     adminUpdateShop,
+    setArtistAvailability, // Added for new availability component
   } = useAppStore();
 
   useEffect(() => {
@@ -115,13 +117,28 @@ function App() {
         return <ClientSearchView />;
       case 'shops':
         return <ArtistSearchView />;
-      case 'profile':
-        if (user?.type === 'artist' || user?.type === 'dual') {
-          return <ArtistProfileView artist={user.data} updateArtist={updateArtist} deletePortfolioImage={deletePortfolioImage} showToast={showToast} openModal={openModal} />;
-        }
+      case 'profile': // This route is now deprecated for artists, handled by artist-dashboard
         if (user?.type === 'client') {
             const clientBookings = data.clientBookingRequests.filter(b => b.clientId === user.id);
             return <ClientProfileView client={user.data} bookings={clientBookings} />;
+        }
+        // Redirect artists from old profile link to new dashboard
+        if (user?.type === 'artist' || user?.type === 'dual') {
+          navigate('/artist-dashboard');
+          return null;
+        }
+        return <Hero navigate={navigate} />;
+      case 'artist-dashboard':
+        if (user?.type === 'artist' || user?.type === 'dual') {
+          return <ArtistDashboardView 
+                    artist={user.data} 
+                    updateArtist={updateArtist} 
+                    deletePortfolioImage={deletePortfolioImage} 
+                    showToast={showToast} 
+                    openModal={openModal}
+                    artistAvailability={data.artistAvailability}
+                    setArtistAvailability={setArtistAvailability}
+                 />;
         }
         return <Hero navigate={navigate} />;
       case 'dashboard':
@@ -150,8 +167,12 @@ function App() {
         return <Hero navigate={navigate} />;
       case 'messages':
         return user ? <MessagesView conversationId={pathSegments[1]} navigate={navigate} /> : <Hero navigate={navigate} />;
-      case 'availability':
-        return (user?.type === 'artist' || user?.type === 'dual') ? <ArtistAvailabilityView /> : <Hero navigate={navigate} />;
+      case 'availability': // Deprecated route, redirect to new dashboard
+        if (user?.type === 'artist' || user?.type === 'dual') {
+          navigate('/artist-dashboard/availability');
+          return null;
+        }
+        return <Hero navigate={navigate} />;
       case 'onboarding':
         return (user?.type === 'shop-owner' && !user.data.shopId) ? <ShopOwnerOnboardingView owner={user} createShop={createShop} /> : <Hero navigate={navigate} />;
       default:

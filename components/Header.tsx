@@ -39,14 +39,14 @@ const UserMenu: React.FC<{
 
       {isOpen && (
         <div className="absolute right-0 mt-2 w-48 bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-700 rounded-lg shadow-lg z-50 py-1 animate-[fadeIn_0.1s_ease-out]">
-          {(user.type === 'artist' || user.type === 'client' || user.type === 'dual') && (
-            <button onClick={() => handleNavigate('/profile')} className="w-full text-left px-4 py-2 text-sm text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-800">My Profile</button>
+          {(user.type === 'artist' || user.type === 'dual') && (
+            <button onClick={() => handleNavigate('/artist-dashboard')} className="w-full text-left px-4 py-2 text-sm text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-800">My Dashboard</button>
+          )}
+          {user.type === 'client' && (
+             <button onClick={() => handleNavigate('/profile')} className="w-full text-left px-4 py-2 text-sm text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-800">My Profile</button>
           )}
           {user.type === 'shop-owner' && (
-            <button onClick={() => handleNavigate('/dashboard')} className="w-full text-left px-4 py-2 text-sm text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-800">My Dashboard</button>
-          )}
-          {(user.type === 'artist' || user.type === 'dual') && (
-            <button onClick={() => handleNavigate('/availability')} className="w-full text-left px-4 py-2 text-sm text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-800">My Availability</button>
+            <button onClick={() => handleNavigate('/dashboard')} className="w-full text-left px-4 py-2 text-sm text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-800">Shop Dashboard</button>
           )}
           <button onClick={() => handleNavigate('/bookings')} className="w-full text-left px-4 py-2 text-sm text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-800">My Bookings</button>
           {user.type !== 'admin' && (

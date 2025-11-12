@@ -21,6 +21,22 @@ export interface ArtistService {
   depositAmount: number;
 }
 
+export interface TimeSlot {
+  start: string; // e.g., "09:00"
+  end: string;   // e.g., "17:00"
+}
+
+export interface ArtistHours {
+  [dayOfWeek: number]: TimeSlot[]; // 0 for Sunday, 1 for Monday, etc.
+}
+
+export interface IntakeFormSettings {
+  requireSize: boolean;
+  requireDescription: boolean;
+  requireLocation: boolean;
+  requireBudget: boolean;
+}
+
 export interface Artist {
   id: string; // This will be the user's auth id
   name: string;
@@ -35,6 +51,9 @@ export interface Artist {
   services?: ArtistService[];
   aftercareMessage?: string;
   requestHealedPhoto?: boolean;
+  // New granular availability
+  hours?: ArtistHours;
+  intakeSettings?: IntakeFormSettings;
 }
 
 export interface Client {
@@ -169,7 +188,7 @@ export interface ConversationWithUser extends Conversation {
 export interface ArtistAvailability {
   id: string;
   artistId: string;
-  date: string;
+  date: string; // YYYY-MM-DD for specific date overrides
   status: 'available' | 'unavailable';
 }
 
