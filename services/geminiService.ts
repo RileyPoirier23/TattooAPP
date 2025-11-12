@@ -62,6 +62,8 @@ export async function suggestTattooService(width: number, height: number, servic
   const model = "gemini-2.5-flash";
   const servicesString = services.map(s => `- ID: "${s.id}", Name: "${s.name}", Duration: ${s.duration} hours`).join('\n');
   const prompt = `A client wants a tattoo that is approximately ${width} inches wide by ${height} inches high.
+The total area is ${width * height} square inches. A rough guide for tattoo time is: 1-4 sq.in = ~1-2 hours, 5-16 sq.in = ~2-4 hours, 17-36 sq.in = ~4-6 hours, >36 sq.in = 6+ hours.
+
 Given the following list of available tattoo services, which one is the most appropriate for a tattoo of this size?
 
 ${servicesString}

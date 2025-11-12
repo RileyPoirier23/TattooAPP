@@ -10,6 +10,7 @@ import { ErrorDisplay } from '../shared/ErrorDisplay';
 import { useGoogleMaps } from '../../hooks/useGoogleMaps';
 import { getCityFromCoords } from '../../services/googlePlacesService';
 import { fetchArtistReviews } from '../../services/apiService';
+import { AboutSection } from '../shared/AboutSection';
 
 const ArtistCard: React.FC<{ artist: Artist; onSelect: (artist: Artist) => void }> = ({ artist, onSelect }) => (
     <div 
@@ -123,6 +124,7 @@ export const ClientSearchView: React.FC = () => {
 
     return (
         <div>
+            <AboutSection />
             <div className="bg-white dark:bg-gray-900/50 rounded-lg p-4 mb-8 border border-gray-200 dark:border-gray-800">
                 <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 items-center">
                     <div className="relative w-full">

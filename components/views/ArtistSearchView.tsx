@@ -9,6 +9,7 @@ import { Loader } from '../shared/Loader';
 import { ErrorDisplay } from '../shared/ErrorDisplay';
 import { useGoogleMaps } from '../../hooks/useGoogleMaps';
 import { getCityFromCoords, findTattooShops } from '../../services/googlePlacesService';
+import { AboutSection } from '../shared/AboutSection';
 
 const ShopCard: React.FC<{ shop: Partial<Shop>; onSelect: (shop: Shop) => void }> = ({ shop, onSelect }) => (
     <div 
@@ -164,6 +165,7 @@ export const ArtistSearchView: React.FC = () => {
 
     return (
         <div>
+            <AboutSection />
             <div className="bg-white dark:bg-gray-900/50 rounded-lg p-4 mb-8 border border-gray-200 dark:border-gray-800">
                 {mapsError && (
                     <div className="w-full bg-red-900/30 border border-red-500/50 rounded-lg p-3 text-center mb-4">

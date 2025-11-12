@@ -375,7 +375,7 @@ export const BookingModal: React.FC<{shop: Shop, booths: Booth[], bookings: Book
     const [startDate, setStartDate] = useState<Date | null>(null);
     const [endDate, setEndDate] = useState<Date | null>(null);
 
-    const PLATFORM_FEE_PERCENT = 0.05;
+    const PLATFORM_FEE_PERCENT = 0.029;
 
     const { totalAmount, platformFee, numberOfDays } = useMemo(() => {
         if (!startDate || !endDate || !selectedBoothId) return { totalAmount: 0, platformFee: 0, numberOfDays: 0 };
@@ -439,7 +439,7 @@ export const BookingModal: React.FC<{shop: Shop, booths: Booth[], bookings: Book
                                 <>
                                     <div className="border-t border-gray-200 dark:border-gray-700 my-2"></div>
                                     <p><strong>Number of Days:</strong> {numberOfDays}</p>
-                                    <p><strong>Platform Fee (5%):</strong> ${platformFee.toFixed(2)}</p>
+                                    <p><strong>Platform Fee (2.9%):</strong> ${platformFee.toFixed(2)}</p>
                                     <p className="text-lg font-bold"><strong>Total:</strong> ${totalAmount.toFixed(2)}</p>
                                 </>
                             )}
@@ -589,7 +589,7 @@ export const ClientBookingRequestModal: React.FC<{ artist: Artist; availability:
 
     const handleSubmit = () => {
         if (startDate && endDate && message && tattooWidth > 0 && tattooHeight > 0 && bodyPlacement && serviceId) {
-            const platformFee = (selectedService?.depositAmount || 0) * 0.05;
+            const platformFee = (selectedService?.depositAmount || 0) * 0.029;
             onSendRequest({ 
                 artistId: artist.id, 
                 startDate: startDate.toISOString().split('T')[0], 
@@ -756,16 +756,37 @@ export const EditBoothModal: React.FC<{ booth: Booth; onSave: (boothId: string, 
 };
 
 export const LeaveReviewModal: React.FC<{ request: ClientBookingRequest; onSubmit: (requestId: string, rating: number, text: string) => void; onClose: () => void }> = ({ request, onSubmit, onClose }) => {
-    const [rating, setRating] = useState(0);
+    const [cleanliness, setCleanliness] = useState(0);
+    const [professionalism, setProfessionalism] = useState(0);
+    const [satisfaction, setSatisfaction] = useState(0);
     const [text, setText] = useState('');
+
+    const handleSubmit = () => {
+        const averageRating = Math.round((cleanliness + professionalism + satisfaction) / 3);
+        onSubmit(request.id, averageRating, text);
+    };
+
+    const isSubmitDisabled = !cleanliness || !professionalism || !satisfaction || !text;
+
     return (
         <Modal onClose={onClose} title={`Review Your Session with ${request.artistName}`} size="md">
-            <div className="space-y-4">
-                <div className="flex justify-center">
-                    <StarRating rating={rating} onRate={setRating} isInteractive={true} className="w-8 h-8" />
+            <div className="space-y-6">
+                <div className="space-y-3">
+                    <div className="flex justify-between items-center">
+                        <label className="font-semibold text-brand-dark dark:text-white">Cleanliness</label>
+                        <StarRating rating={cleanliness} onRate={setCleanliness} isInteractive={true} className="w-7 h-7" />
+                    </div>
+                    <div className="flex justify-between items-center">
+                        <label className="font-semibold text-brand-dark dark:text-white">Professional Conduct</label>
+                        <StarRating rating={professionalism} onRate={setProfessionalism} isInteractive={true} className="w-7 h-7" />
+                    </div>
+                    <div className="flex justify-between items-center">
+                        <label className="font-semibold text-brand-dark dark:text-white">Overall Satisfaction</label>
+                        <StarRating rating={satisfaction} onRate={setSatisfaction} isInteractive={true} className="w-7 h-7" />
+                    </div>
                 </div>
                 <textarea value={text} onChange={e => setText(e.target.value)} rows={4} className="w-full bg-gray-100 dark:bg-gray-800 rounded p-2" placeholder="Share your experience..."></textarea>
-                <button onClick={() => onSubmit(request.id, rating, text)} disabled={!rating || !text} className="w-full bg-brand-secondary text-white font-bold py-3 rounded-lg disabled:bg-gray-600">Submit Review</button>
+                <button onClick={handleSubmit} disabled={isSubmitDisabled} className="w-full bg-brand-secondary text-white font-bold py-3 rounded-lg disabled:bg-gray-600">Submit Review</button>
             </div>
         </Modal>
     );
@@ -1004,6 +1025,12 @@ export const ArtistProfileView: React.FC<{ artist: Artist, updateArtist: (id: st
                          <div className="border-t border-gray-200 dark:border-gray-700 pt-4">
                             <label className="text-sm text-brand-gray mb-1 block">Aftercare Instructions</label>
                             <textarea value={formData.aftercareMessage} onChange={e => setFormData({...formData, aftercareMessage: e.target.value})} rows={3} className={`w-full bg-gray-100 dark:bg-gray-800 p-2 rounded transition-all`} placeholder="e.g., Keep it clean, moisturize after a few days..."/>
+                        </div>
+                         <div className="border-t border-gray-200 dark:border-gray-700 pt-4">
+                            <label className="flex items-center space-x-2 cursor-pointer">
+                                <input type="checkbox" checked={formData.requestHealedPhoto || false} onChange={e => setFormData({...formData, requestHealedPhoto: e.target.checked})} className="w-5 h-5 rounded bg-gray-200 dark:bg-gray-700 text-brand-secondary focus:ring-brand-secondary" />
+                                <span className="text-brand-gray">Automatically request a healed photo from clients 2 weeks after their session.</span>
+                            </label>
                         </div>
                     </div>
                 ) : (
