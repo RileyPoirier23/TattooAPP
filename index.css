@@ -38,6 +38,16 @@ html:not(.dark) ::-webkit-scrollbar-thumb:hover {
   background-color: #6b7280; /* gray-500 */
 }
 
+/* Utility to hide scrollbars */
+.scrollbar-hide::-webkit-scrollbar {
+  display: none;
+}
+.scrollbar-hide {
+  -ms-overflow-style: none;  /* IE and Edge */
+  scrollbar-width: none;  /* Firefox */
+}
+
+
 /* Keyframe animations used across the app for consistency */
 @keyframes fadeIn {
   from { opacity: 0; }

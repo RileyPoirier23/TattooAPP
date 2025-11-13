@@ -5,6 +5,7 @@
 export interface PortfolioImage {
   url: string;
   isAiGenerated: boolean;
+  category?: string;
 }
 
 export interface Socials {
@@ -19,6 +20,8 @@ export interface ArtistService {
   duration: number; // in hours
   price: number;
   depositAmount: number;
+  minSize?: number; // in square inches
+  maxSize?: number; // in square inches
 }
 
 export interface TimeSlot {
@@ -54,6 +57,7 @@ export interface Artist {
   // New granular availability
   hours?: ArtistHours;
   intakeSettings?: IntakeFormSettings;
+  bookingMode?: 'specific_time' | 'time_range';
 }
 
 export interface Client {
@@ -151,6 +155,7 @@ export interface ClientBookingRequest {
     serviceName?: string; // Denormalized for easier display
     budget?: number;
     referenceImageUrls?: string[];
+    preferredTime?: 'morning' | 'afternoon' | 'evening' | 'anytime';
 }
 
 export interface Notification {

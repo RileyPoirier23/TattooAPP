@@ -60,15 +60,22 @@ export async function suggestTattooService(width: number, height: number, servic
   }
 
   const model = "gemini-2.5-flash";
-  const servicesString = services.map(s => `- ID: "${s.id}", Name: "${s.name}", Duration: ${s.duration} hours`).join('\n');
-  const prompt = `A client wants a tattoo that is approximately ${width} inches wide by ${height} inches high.
-The total area is ${width * height} square inches. A rough guide for tattoo time is: 1-4 sq.in = ~1-2 hours, 5-16 sq.in = ~2-4 hours, 17-36 sq.in = ~4-6 hours, >36 sq.in = 6+ hours.
+  const area = width * height;
+
+  const servicesString = services.map(s => 
+    `- ID: "${s.id}", Name: "${s.name}", Duration: ${s.duration} hours, Size Range: ${s.minSize || 'any'} to ${s.maxSize || 'any'} sq.in.`
+  ).join('\n');
+  
+  const prompt = `A client wants a tattoo that is approximately ${width} inches wide by ${height} inches high. The total area is ${area} square inches.
 
 Given the following list of available tattoo services, which one is the most appropriate for a tattoo of this size?
 
 ${servicesString}
 
-Consider the typical time it takes to tattoo an area of this size. Choose the service that provides the most suitable duration.
+Your logic should be:
+1. First, check if the tattoo area (${area} sq.in) falls within the explicit "Size Range" of any service. If it does, that service is the best choice. Prioritize the smallest service that fits the size.
+2. If no service's size range matches, then fall back to estimating the time required. A rough guide for tattoo time is: 1-4 sq.in = ~1-2 hours, 5-16 sq.in = ~2-4 hours, 17-36 sq.in = ~4-6 hours, >36 sq.in = 6+ hours. Choose the service with the duration closest to this estimate.
+
 Return ONLY the ID string of the most appropriate service from the list. Do not add any other text, explanation, or quotation marks.`;
 
   try {
@@ -85,9 +92,13 @@ Return ONLY the ID string of the most appropriate service from the list. Do not 
       return suggestedId;
     } else {
       console.warn(`Gemini returned an invalid or unexpected service ID: "${suggestedId}". Falling back to default logic.`);
-      // Fallback logic: find the service with the duration closest to a calculated estimate.
-      const area = width * height;
-      let estimatedHours = 1;
+      // Fallback logic in case AI fails:
+      // 1. Try to match by size range first
+      const directMatch = services.find(s => area >= (s.minSize || 0) && area <= (s.maxSize || Infinity));
+      if (directMatch) return directMatch.id;
+      
+      // 2. Fallback to estimating hours
+      let estimatedHours = 1.5;
       if (area > 4 && area <= 16) estimatedHours = 3;
       else if (area > 16 && area <= 36) estimatedHours = 5;
       else if (area > 36) estimatedHours = 8;

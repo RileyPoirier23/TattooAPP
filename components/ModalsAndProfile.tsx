@@ -164,17 +164,34 @@ export const AuthModal: React.FC<{onLogin: (credentials: AuthCredentials) => voi
 
 
 // --- DETAIL & ACTION MODALS ---
+const ImageCarousel: React.FC<{ images: PortfolioImage[] }> = ({ images }) => {
+    const [currentIndex, setCurrentIndex] = useState(0);
+
+    if (images.length === 0) {
+        return <div className="w-full h-96 bg-gray-200 dark:bg-gray-800 rounded-lg flex items-center justify-center text-brand-gray">No portfolio images yet.</div>
+    }
+
+    const nextSlide = () => setCurrentIndex(prev => (prev === images.length - 1 ? 0 : prev + 1));
+    const prevSlide = () => setCurrentIndex(prev => (prev === 0 ? images.length - 1 : prev - 1));
+
+    return (
+        <div className="relative w-full">
+            <div className="w-full h-96 rounded-lg overflow-hidden relative bg-gray-200 dark:bg-gray-800">
+                <img src={`${images[currentIndex].url}?random=${currentIndex}`} alt={`Portfolio piece ${currentIndex + 1}`} className="w-full h-full object-cover transition-transform duration-500" />
+                <button onClick={prevSlide} className="absolute top-1/2 left-2 -translate-y-1/2 bg-black/50 text-white p-2 rounded-full hover:bg-black/80 transition-colors"><ArrowLeftIcon className="w-6 h-6"/></button>
+                <button onClick={nextSlide} className="absolute top-1/2 right-2 -translate-y-1/2 bg-black/50 text-white p-2 rounded-full hover:bg-black/80 transition-colors"><ArrowRightIcon className="w-6 h-6"/></button>
+            </div>
+        </div>
+    );
+};
+
 
 export const ArtistDetailModal: React.FC<{ artist: Artist; reviews: Review[]; bookings: Booking[]; shops: Shop[]; onClose: () => void; onBookRequest: () => void; showToast: (message: string, type?: 'success' | 'error') => void; onMessageClick: (artistId: string) => void; }> = ({ artist, reviews, bookings, shops, onClose, onBookRequest, onMessageClick }) => {
     
     return (
-        <Modal onClose={onClose} title={artist.name}>
+        <Modal onClose={onClose} title={artist.name} size="xl">
             <div className="space-y-6">
-                <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                    {artist.portfolio.slice(0, 3).map((image, index) => (
-                        <img key={index} src={`${image.url}?random=${artist.id}-${index}`} alt={`${artist.name}'s portfolio ${index+1}`} className="w-full h-48 object-cover rounded-lg bg-gray-200 dark:bg-gray-800" />
-                    ))}
-                </div>
+                <ImageCarousel images={artist.portfolio} />
                  <div>
                     <div className="flex justify-between items-start">
                         <div>
@@ -550,6 +567,7 @@ export const ClientBookingRequestModal: React.FC<{ artist: Artist; availability:
     const [referenceFiles, setReferenceFiles] = useState<File[]>([]);
     const [previews, setPreviews] = useState<string[]>([]);
     const [isSuggesting, setIsSuggesting] = useState(false);
+    const [preferredTime, setPreferredTime] = useState<'morning' | 'afternoon' | 'evening' | 'anytime'>('anytime');
 
     // Derived State
     const selectedService = useMemo(() => artist.services?.find(s => s.id === serviceId), [serviceId, artist.services]);
@@ -604,7 +622,7 @@ export const ClientBookingRequestModal: React.FC<{ artist: Artist; availability:
             onSendRequest({ 
                 artistId: artist.id, 
                 startDate: startDate!.toISOString().split('T')[0], 
-                endDate: endDate!.toISOString().split('T')[0], 
+                endDate: (endDate || startDate)!.toISOString().split('T')[0], 
                 message, 
                 tattooWidth, 
                 tattooHeight, 
@@ -612,7 +630,8 @@ export const ClientBookingRequestModal: React.FC<{ artist: Artist; availability:
                 depositAmount: selectedService?.depositAmount, 
                 platformFee,
                 serviceId,
-                budget
+                budget,
+                preferredTime: artist.bookingMode === 'time_range' ? preferredTime : undefined,
             }, referenceFiles);
         } else {
             showToast('Please fill out all required fields.', 'error');
@@ -621,7 +640,7 @@ export const ClientBookingRequestModal: React.FC<{ artist: Artist; availability:
     
     // Validation
     const isStep1Valid = tattooWidth > 0 && tattooHeight > 0 && bodyPlacement && message.trim() !== '';
-    const isStep2Valid = serviceId && startDate && endDate;
+    const isStep2Valid = serviceId && startDate;
     
     // UI
     const inputClasses = "w-full bg-gray-100 dark:bg-gray-800 border-gray-300 dark:border-gray-700 rounded-lg p-2 text-brand-dark dark:text-white";
@@ -700,9 +719,20 @@ export const ClientBookingRequestModal: React.FC<{ artist: Artist; availability:
                                     </button>
                                 </div>
                             </div>
+                             {artist.bookingMode === 'time_range' && (
+                                <div>
+                                    <label className="text-sm font-medium text-brand-gray mb-1 block">Preferred Time of Day</label>
+                                    <div className="grid grid-cols-2 gap-2">
+                                        {(['morning', 'afternoon', 'evening', 'anytime'] as const).map(time => (
+                                             <button type="button" key={time} onClick={() => setPreferredTime(time)} className={`p-2 rounded-lg text-sm capitalize transition-colors ${preferredTime === time ? 'bg-brand-primary text-white' : 'bg-gray-200 dark:bg-gray-800 text-gray-700 dark:text-gray-300 hover:bg-gray-300 dark:hover:bg-gray-700'}`}>{time}</button>
+                                        ))}
+                                    </div>
+                                    <p className="text-xs text-brand-gray mt-2">The artist will confirm the exact time based on your preference.</p>
+                                </div>
+                            )}
                         </div>
                         <div>
-                             <label className="text-sm font-medium text-brand-gray mb-1 block">Select Your Availability</label>
+                             <label className="text-sm font-medium text-brand-gray mb-1 block">Select Your Availability (select start and end date, or single day)</label>
                              <ClientBookingCalendar availability={availabilityMap} onDateSelect={handleDateSelect} selectedStartDate={startDate} selectedEndDate={endDate} />
                         </div>
                     </div>
@@ -720,7 +750,8 @@ export const ClientBookingRequestModal: React.FC<{ artist: Artist; availability:
                         <div className="bg-gray-100 dark:bg-gray-800 p-4 rounded-lg space-y-3 text-sm">
                             <div className="grid grid-cols-2 gap-4">
                                 <div><strong className="text-brand-gray block">Service:</strong> {selectedService?.name}</div>
-                                <div><strong className="text-brand-gray block">Dates:</strong> {startDate?.toLocaleDateString()} - {endDate?.toLocaleDateString()}</div>
+                                <div><strong className="text-brand-gray block">Dates:</strong> {startDate?.toLocaleDateString()}{endDate ? ` - ${endDate.toLocaleDateString()}`: ''}</div>
+                                {artist.bookingMode === 'time_range' && <div><strong className="text-brand-gray block">Preferred Time:</strong> <span className="capitalize">{preferredTime}</span></div>}
                                 <div><strong className="text-brand-gray block">Size:</strong> {tattooWidth}" x {tattooHeight}"</div>
                                 <div><strong className="text-brand-gray block">Placement:</strong> {bodyPlacements.find(p => p.value === bodyPlacement)?.label}</div>
                                 {budget && <div><strong className="text-brand-gray block">Budget:</strong> ${budget}</div>}
@@ -898,6 +929,78 @@ export const VerificationRequestModal: React.FC<{ item: Artist | Shop, type: 'ar
     );
 };
 
+// FIX: Add missing AdminEditUserModal component
+export const AdminEditUserModal: React.FC<{ user: User, onSave: (userId: string, data: { name: string, role: UserRole, isVerified: boolean }) => void, onClose: () => void }> = ({ user, onSave, onClose }) => {
+    const [name, setName] = useState(user.data.name);
+    const [role, setRole] = useState<UserRole>(user.type);
+    const [isVerified, setIsVerified] = useState('isVerified' in user.data ? (user.data as Artist).isVerified : false);
+
+    const handleSave = () => {
+        const canBeVerified = role === 'artist' || role === 'dual';
+        onSave(user.id, { name, role, isVerified: canBeVerified ? isVerified : false });
+    };
+
+    const canBeVerified = role === 'artist' || role === 'dual';
+
+    return (
+        <Modal onClose={onClose} title={`Edit User: ${user.data.name}`} size="md">
+            <div className="space-y-4">
+                <div>
+                    <label className="text-sm font-medium text-brand-gray mb-1 block">Full Name</label>
+                    <input type="text" value={name} onChange={e => setName(e.target.value)} className="w-full bg-gray-100 dark:bg-gray-800 rounded p-2" />
+                </div>
+                <div>
+                    <label className="text-sm font-medium text-brand-gray mb-1 block">Role</label>
+                    <select value={role} onChange={e => setRole(e.target.value as UserRole)} className="w-full bg-gray-100 dark:bg-gray-800 rounded p-2 capitalize">
+                        <option value="client">Client</option>
+                        <option value="artist">Artist</option>
+                        <option value="dual">Dual</option>
+                        <option value="shop-owner">Shop Owner</option>
+                        <option value="admin">Admin</option>
+                    </select>
+                </div>
+                {canBeVerified && (
+                    <div>
+                        <label className="flex items-center space-x-2 cursor-pointer">
+                            <input type="checkbox" checked={isVerified} onChange={e => setIsVerified(e.target.checked)} className="w-5 h-5 rounded bg-gray-200 dark:bg-gray-700 text-brand-secondary focus:ring-brand-secondary" />
+                            <span className="text-brand-gray">Is Verified</span>
+                        </label>
+                    </div>
+                )}
+                <button onClick={handleSave} className="w-full bg-brand-primary text-white font-bold py-3 rounded-lg">Save Changes</button>
+            </div>
+        </Modal>
+    );
+};
+
+// FIX: Add missing AdminEditShopModal component
+export const AdminEditShopModal: React.FC<{ shop: Shop, onSave: (shopId: string, data: { name: string, isVerified: boolean }) => void, onClose: () => void }> = ({ shop, onSave, onClose }) => {
+    const [name, setName] = useState(shop.name);
+    const [isVerified, setIsVerified] = useState(shop.isVerified);
+
+    const handleSave = () => {
+        onSave(shop.id, { name, isVerified });
+    };
+
+    return (
+        <Modal onClose={onClose} title={`Edit Shop: ${shop.name}`} size="md">
+            <div className="space-y-4">
+                <div>
+                    <label className="text-sm font-medium text-brand-gray mb-1 block">Shop Name</label>
+                    <input type="text" value={name} onChange={e => setName(e.target.value)} className="w-full bg-gray-100 dark:bg-gray-800 rounded p-2" />
+                </div>
+                <div>
+                    <label className="flex items-center space-x-2 cursor-pointer">
+                        <input type="checkbox" checked={isVerified} onChange={e => setIsVerified(e.target.checked)} className="w-5 h-5 rounded bg-gray-200 dark:bg-gray-700 text-brand-secondary focus:ring-brand-secondary" />
+                        <span className="text-brand-gray">Is Verified</span>
+                    </label>
+                </div>
+                <button onClick={handleSave} className="w-full bg-brand-primary text-white font-bold py-3 rounded-lg">Save Changes</button>
+            </div>
+        </Modal>
+    );
+};
+
 export const PaymentModal: React.FC<{ request: ClientBookingRequest; onProcessPayment: (requestId: string) => Promise<void>; onClose: () => void }> = ({ request, onProcessPayment, onClose }) => {
     const [isProcessing, setIsProcessing] = useState(false);
 
@@ -965,7 +1068,7 @@ const ManageServices: React.FC<{
 }> = ({ services, setServices }) => {
 
     const handleAddService = () => {
-        setServices(prev => [...prev, { id: crypto.randomUUID(), name: 'New Service', duration: 1, price: 100, depositAmount: 50 }]);
+        setServices(prev => [...prev, { id: crypto.randomUUID(), name: 'New Service', duration: 1, price: 100, depositAmount: 50, minSize: 0, maxSize: 0 }]);
     };
     
     const handleUpdateService = (id: string, field: keyof Omit<ArtistService, 'id'>, value: string | number) => {
@@ -976,20 +1079,49 @@ const ManageServices: React.FC<{
         setServices(prev => prev.filter(s => s.id !== id));
     };
 
+    const inputClasses = "w-full bg-white dark:bg-gray-700 p-2 rounded text-sm";
+    const labelClasses = "text-xs font-bold text-brand-gray mb-1 block";
+
     return (
         <div>
             <div className="flex justify-between items-center mb-2">
                 <h4 className="text-lg font-semibold text-brand-dark dark:text-white">Manage Services</h4>
                 <button onClick={handleAddService} className="text-sm bg-brand-secondary text-white font-bold py-1 px-3 rounded-lg">+ Add Service</button>
             </div>
-            <div className="space-y-3 max-h-64 overflow-y-auto pr-2">
+            <div className="space-y-3 max-h-96 overflow-y-auto pr-2">
             {services.map(service => (
-                <div key={service.id} className="grid grid-cols-1 md:grid-cols-4 gap-2 bg-gray-100 dark:bg-gray-800 p-3 rounded-lg">
-                    <input type="text" value={service.name} onChange={e => handleUpdateService(service.id, 'name', e.target.value)} placeholder="Service Name" className="md:col-span-2 w-full bg-white dark:bg-gray-700 p-2 rounded text-sm"/>
-                    <input type="number" value={service.duration} onChange={e => handleUpdateService(service.id, 'duration', Number(e.target.value))} placeholder="Hours" className="w-full bg-white dark:bg-gray-700 p-2 rounded text-sm"/>
-                    <input type="number" value={service.price} onChange={e => handleUpdateService(service.id, 'price', Number(e.target.value))} placeholder="Price ($)" className="w-full bg-white dark:bg-gray-700 p-2 rounded text-sm"/>
-                    <input type="number" value={service.depositAmount} onChange={e => handleUpdateService(service.id, 'depositAmount', Number(e.target.value))} placeholder="Deposit ($)" className="w-full bg-white dark:bg-gray-700 p-2 rounded text-sm"/>
-                    <button onClick={() => handleDeleteService(service.id)} className="md:col-span-4 text-xs text-red-500 hover:underline text-right">Remove Service</button>
+                <div key={service.id} className="bg-gray-100 dark:bg-gray-800 p-3 rounded-lg space-y-2">
+                    <div className="grid grid-cols-2 gap-x-4 gap-y-2">
+                        <div className="col-span-2">
+                            <label className={labelClasses}>Service Name</label>
+                            <input type="text" value={service.name} onChange={e => handleUpdateService(service.id, 'name', e.target.value)} className={inputClasses}/>
+                        </div>
+                        <div>
+                             <label className={labelClasses}>Duration (hours)</label>
+                             <input type="number" value={service.duration} onChange={e => handleUpdateService(service.id, 'duration', Number(e.target.value))} className={inputClasses}/>
+                        </div>
+                         <div>
+                             <label className={labelClasses}>Price ($)</label>
+                            <input type="number" value={service.price} onChange={e => handleUpdateService(service.id, 'price', Number(e.target.value))} className={inputClasses}/>
+                        </div>
+                         <div>
+                             <label className={labelClasses}>Deposit ($)</label>
+                            <input type="number" value={service.depositAmount} onChange={e => handleUpdateService(service.id, 'depositAmount', Number(e.target.value))} className={inputClasses}/>
+                        </div>
+                        <div className="grid grid-cols-2 gap-2">
+                             <div>
+                                 <label className={labelClasses}>Min Size (sq.in)</label>
+                                <input type="number" value={service.minSize || ''} onChange={e => handleUpdateService(service.id, 'minSize', Number(e.target.value))} placeholder="Opt." className={inputClasses}/>
+                             </div>
+                             <div>
+                                 <label className={labelClasses}>Max Size (sq.in)</label>
+                                <input type="number" value={service.maxSize || ''} onChange={e => handleUpdateService(service.id, 'maxSize', Number(e.target.value))} placeholder="Opt." className={inputClasses}/>
+                             </div>
+                        </div>
+                    </div>
+                    <div className="text-right">
+                        <button onClick={() => handleDeleteService(service.id)} className="text-xs text-red-500 hover:underline">Remove Service</button>
+                    </div>
                 </div>
             ))}
             </div>
@@ -1001,15 +1133,17 @@ export const ArtistProfileView: React.FC<{ artist: Artist, updateArtist: (id: st
     const [isEditing, setIsEditing] = useState(false);
     const [formData, setFormData] = useState<Partial<Artist>>({ ...artist });
     const [services, setServices] = useState<ArtistService[]>(artist.services || []);
+    const [portfolioData, setPortfolioData] = useState<PortfolioImage[]>(artist.portfolio || []);
     const [isGeneratingBio, setIsGeneratingBio] = useState(false);
     
     useEffect(() => {
         setFormData(artist);
         setServices(artist.services || []);
+        setPortfolioData(artist.portfolio || []);
     }, [artist]);
 
     const handleSave = () => {
-        updateArtist(artist.id, { ...formData, services });
+        updateArtist(artist.id, { ...formData, services, portfolio: portfolioData });
         setIsEditing(false);
     };
 
@@ -1030,6 +1164,12 @@ export const ArtistProfileView: React.FC<{ artist: Artist, updateArtist: (id: st
             setIsGeneratingBio(false);
         }
     };
+    
+    const handlePortfolioCategoryChange = (index: number, category: string) => {
+        const newPortfolio = [...portfolioData];
+        newPortfolio[index] = { ...newPortfolio[index], category };
+        setPortfolioData(newPortfolio);
+    }
 
 
     return (
@@ -1078,6 +1218,13 @@ export const ArtistProfileView: React.FC<{ artist: Artist, updateArtist: (id: st
                             <input type="text" placeholder="Instagram URL" value={formData.socials?.instagram || ''} onChange={e => setFormData({...formData, socials: {...formData.socials, instagram: e.target.value}})} className="w-full bg-gray-100 dark:bg-gray-800 p-2 rounded mb-2"/>
                             <input type="text" placeholder="TikTok URL" value={formData.socials?.tiktok || ''} onChange={e => setFormData({...formData, socials: {...formData.socials, tiktok: e.target.value}})} className="w-full bg-gray-100 dark:bg-gray-800 p-2 rounded mb-2"/>
                             <input type="text" placeholder="X (Twitter) URL" value={formData.socials?.x || ''} onChange={e => setFormData({...formData, socials: {...formData.socials, x: e.target.value}})} className="w-full bg-gray-100 dark:bg-gray-800 p-2 rounded"/>
+                        </div>
+                        <div className="border-t border-gray-200 dark:border-gray-700 pt-4">
+                             <h4 className="text-sm text-brand-gray mb-1">Booking Mode</h4>
+                             <div className="flex gap-4">
+                                <label className="flex items-center gap-2"><input type="radio" name="bookingMode" value="specific_time" checked={formData.bookingMode !== 'time_range'} onChange={() => setFormData({...formData, bookingMode: 'specific_time'})} /> Specific Time (Coming Soon)</label>
+                                <label className="flex items-center gap-2"><input type="radio" name="bookingMode" value="time_range" checked={formData.bookingMode === 'time_range'} onChange={() => setFormData({...formData, bookingMode: 'time_range'})} /> Time Range</label>
+                             </div>
                         </div>
                         <div className="border-t border-gray-200 dark:border-gray-700 pt-4">
                             <ManageServices services={services} setServices={setServices} />
@@ -1133,7 +1280,7 @@ export const ArtistProfileView: React.FC<{ artist: Artist, updateArtist: (id: st
                     <button onClick={() => openModal('upload-portfolio')} className="flex items-center gap-2 bg-brand-secondary text-white font-bold py-2 px-4 rounded-lg"><UploadIcon className="w-5 h-5"/> Add Image</button>
                 </div>
                 <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
-                    {artist.portfolio.map((image, index) => (
+                    {portfolioData.map((image, index) => (
                         <div key={index} className="relative group">
                             <img src={`${image.url}?random=${artist.id}-${index}`} alt={`Portfolio piece ${index+1}`} className="w-full h-48 object-cover rounded-lg bg-gray-200 dark:bg-gray-800" />
                              <div className="absolute inset-0 bg-black/60 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center">
@@ -1145,9 +1292,23 @@ export const ArtistProfileView: React.FC<{ artist: Artist, updateArtist: (id: st
                                     <TrashIcon className="w-6 h-6"/>
                                 </button>
                             </div>
+                             {isEditing && (
+                                <div className="absolute bottom-0 left-0 right-0 p-1 bg-black/50">
+                                    <input 
+                                        type="text"
+                                        placeholder="Category (e.g., B&G)"
+                                        value={image.category || ''}
+                                        onChange={(e) => handlePortfolioCategoryChange(index, e.target.value)}
+                                        className="w-full text-xs bg-gray-900/80 text-white border-none rounded p-1 text-center"
+                                    />
+                                </div>
+                            )}
                         </div>
                     ))}
                 </div>
+                 {isEditing && (
+                     <p className="text-xs text-brand-gray mt-2">Categorizing your portfolio is a premium feature. Add categories now and they'll appear when you subscribe.</p>
+                 )}
              </div>
         </div>
     );
@@ -1169,65 +1330,5 @@ export const ClientProfileView: React.FC<{ client: Client, bookings: ClientBooki
                 </div>
             </div>
         </div>
-    );
-};
-
-// --- ADMIN MODALS ---
-export const AdminEditUserModal: React.FC<{ user: User; onSave: (userId: string, data: { name: string, role: UserRole, isVerified: boolean }) => void; onClose: () => void; }> = ({ user, onSave, onClose }) => {
-    const [name, setName] = useState(user.data.name);
-    const [role, setRole] = useState<UserRole>(user.type);
-    const [isVerified, setIsVerified] = useState('isVerified' in user.data ? user.data.isVerified : false);
-
-    const handleSave = () => {
-        onSave(user.id, { name, role, isVerified });
-    };
-
-    return (
-        <Modal onClose={onClose} title={`Edit User: ${user.data.name}`} size="md">
-            <div className="space-y-4">
-                <div>
-                    <label className="text-sm font-medium text-brand-gray mb-1 block">Full Name</label>
-                    <input type="text" value={name} onChange={e => setName(e.target.value)} className="w-full bg-gray-100 dark:bg-gray-800 rounded p-2" />
-                </div>
-                <div>
-                    <label className="text-sm font-medium text-brand-gray mb-1 block">Role</label>
-                    <select value={role} onChange={e => setRole(e.target.value as UserRole)} className="w-full bg-gray-100 dark:bg-gray-800 rounded p-2 capitalize">
-                        {['client', 'artist', 'dual', 'shop-owner', 'admin'].map(r => <option key={r} value={r}>{r.replace('-', ' ')}</option>)}
-                    </select>
-                </div>
-                {role !== 'admin' && (
-                    <label className="flex items-center space-x-2 cursor-pointer">
-                        <input type="checkbox" checked={isVerified} onChange={e => setIsVerified(e.target.checked)} className="w-5 h-5 rounded bg-gray-200 dark:bg-gray-700 text-brand-secondary focus:ring-brand-secondary" />
-                        <span className="text-brand-gray">Is Verified</span>
-                    </label>
-                )}
-                <button onClick={handleSave} className="w-full bg-brand-primary text-white font-bold py-3 rounded-lg">Save Changes</button>
-            </div>
-        </Modal>
-    );
-};
-
-export const AdminEditShopModal: React.FC<{ shop: Shop; onSave: (shopId: string, data: { name: string, isVerified: boolean }) => void; onClose: () => void; }> = ({ shop, onSave, onClose }) => {
-    const [name, setName] = useState(shop.name);
-    const [isVerified, setIsVerified] = useState(shop.isVerified);
-    
-    const handleSave = () => {
-        onSave(shop.id, { name, isVerified });
-    };
-
-    return (
-        <Modal onClose={onClose} title={`Edit Shop: ${shop.name}`} size="md">
-             <div className="space-y-4">
-                <div>
-                    <label className="text-sm font-medium text-brand-gray mb-1 block">Shop Name</label>
-                    <input type="text" value={name} onChange={e => setName(e.target.value)} className="w-full bg-gray-100 dark:bg-gray-800 rounded p-2" />
-                </div>
-                <label className="flex items-center space-x-2 cursor-pointer">
-                    <input type="checkbox" checked={isVerified} onChange={e => setIsVerified(e.target.checked)} className="w-5 h-5 rounded bg-gray-200 dark:bg-gray-700 text-brand-secondary focus:ring-brand-secondary" />
-                    <span className="text-brand-gray">Is Verified</span>
-                </label>
-                <button onClick={handleSave} className="w-full bg-brand-primary text-white font-bold py-3 rounded-lg">Save Changes</button>
-            </div>
-        </Modal>
     );
 };
