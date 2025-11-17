@@ -1,12 +1,44 @@
 // @/components/views/ArtistDashboardView.tsx
 
 import React, { useState, useEffect } from 'react';
-import type { Artist, ModalState, ArtistService, TimeSlot, ArtistHours, IntakeFormSettings } from '../../types';
+import type { Artist, ModalState, ArtistService, TimeSlot, ArtistHours, IntakeFormSettings, ClientBookingRequest } from '../../types';
 import { generateArtistBio } from '../../services/geminiService';
 import { useAppStore } from '../../hooks/useAppStore';
 import { ArtistProfileView } from '../ModalsAndProfile';
-import { CheckBadgeIcon, EditIcon, SparklesIcon, UploadIcon, TrashIcon, InstagramIcon, TikTokIcon, XIconSocial, CalendarIcon, PaletteIcon, UserCircleIcon, CogIcon } from '../shared/Icons';
+import { CheckBadgeIcon, EditIcon, SparklesIcon, UploadIcon, TrashIcon, InstagramIcon, TikTokIcon, XIconSocial, CalendarIcon, PaletteIcon, UserCircleIcon, CogIcon, InboxStackIcon } from '../shared/Icons';
 import { Loader } from '../shared/Loader';
+
+
+const getStatusChip = (status: string) => {
+    switch(status) {
+        case 'paid':
+        case 'approved':
+            return 'bg-green-500/20 text-green-400';
+        case 'unpaid':
+        case 'pending':
+            return 'bg-yellow-500/20 text-yellow-400';
+        case 'declined':
+        case 'no-show':
+            return 'bg-red-500/20 text-red-400';
+        case 'completed':
+            return 'bg-blue-500/20 text-blue-400';
+        case 'rescheduled':
+            return 'bg-purple-500/20 text-purple-400';
+        default:
+            return 'bg-gray-500/20 text-gray-400';
+    }
+};
+
+const BookingSection: React.FC<{ title: string; children: React.ReactNode; count: number; }> = ({ title, children, count }) => (
+    <div className="bg-white dark:bg-gray-900/50 rounded-2xl p-6 border border-gray-200 dark:border-gray-800">
+        <h2 className="text-2xl font-bold text-brand-dark dark:text-white mb-4 flex items-center gap-2">
+            {title}
+            {count > 0 && <span className="bg-brand-primary/20 text-brand-primary text-sm font-bold w-6 h-6 flex items-center justify-center rounded-full">{count}</span>}
+        </h2>
+        <div className="space-y-4">{children}</div>
+    </div>
+);
+
 
 // --- TAB: Profile & Portfolio ---
 const ProfileTab: React.FC<{ artist: Artist; updateArtist: (id: string, data: Partial<Artist>) => void; openModal: (type: ModalState['type'], data?: any) => void; deletePortfolioImage: (url: string) => Promise<void>; }> = ({ artist, updateArtist, openModal, deletePortfolioImage }) => {
@@ -118,8 +150,75 @@ const IntakeSettingsTab: React.FC<{ artist: Artist; updateArtist: (id: string, d
 };
 
 
+// --- TAB: Booking Requests ---
+const BookingRequestsTab: React.FC<{
+    artist: Artist;
+    allClientBookings: ClientBookingRequest[];
+    onRespondToRequest: (requestId: string, status: 'approved' | 'declined') => void;
+    onCompleteRequest: (requestId: string, status: 'completed' | 'rescheduled' | 'no-show') => void;
+}> = ({ artist, allClientBookings, onRespondToRequest, onCompleteRequest }) => {
+    const myClientRequests = allClientBookings.filter(b => b.artistId === artist.id);
+    const pending = myClientRequests.filter(b => b.status === 'pending');
+    const upcoming = myClientRequests.filter(b => b.status === 'approved' && new Date(b.endDate) >= new Date());
+    const past = myClientRequests.filter(b => !pending.includes(b) && !upcoming.includes(b));
+
+    return (
+        <div className="space-y-8">
+            <BookingSection title="Pending Requests" count={pending.length}>
+                {pending.length > 0 ? pending.map(req => (
+                    <div key={req.id} className="bg-gray-100 dark:bg-gray-800 p-4 rounded-lg">
+                       <p className="font-bold text-brand-dark dark:text-white">Request from {req.clientName}</p>
+                        <p className="font-semibold text-brand-primary text-sm">{req.serviceName}</p>
+                       <p className="text-sm text-brand-gray mt-1 italic">"{req.message}"</p>
+                       <div className="flex gap-2 mt-4">
+                            <button onClick={() => onRespondToRequest(req.id, 'approved')} className="bg-green-600 text-white text-sm font-bold py-2 px-3 rounded-lg hover:bg-green-500">Approve</button>
+                            <button onClick={() => onRespondToRequest(req.id, 'declined')} className="bg-red-600 text-white text-sm font-bold py-2 px-3 rounded-lg hover:bg-red-500">Decline</button>
+                       </div>
+                    </div>
+                )) : <p className="text-brand-gray">No pending client requests.</p>}
+            </BookingSection>
+
+            <BookingSection title="Upcoming & Approved Sessions" count={upcoming.length}>
+                 {upcoming.length > 0 ? upcoming.map(req => (
+                    <div key={req.id} className="bg-gray-100 dark:bg-gray-800 p-4 rounded-lg">
+                        <div className="flex justify-between items-start">
+                            <div>
+                                <p className="font-bold text-brand-dark dark:text-white">Session with {req.clientName}</p>
+                                <p className="font-semibold text-brand-primary text-sm">{req.serviceName}</p>
+                                <p className="text-sm text-brand-gray flex items-center mt-1"><CalendarIcon className="w-4 h-4 mr-1.5"/>{new Date(req.startDate).toLocaleDateString()}</p>
+                            </div>
+                            <span className={`text-xs font-bold px-3 py-1 rounded-full capitalize ${getStatusChip(req.paymentStatus)}`}>{req.paymentStatus === 'unpaid' ? 'Deposit Due' : 'Deposit Paid'}</span>
+                        </div>
+                        <div className="mt-4 pt-4 border-t border-gray-200 dark:border-gray-700 flex flex-wrap gap-2">
+                            <button onClick={() => onCompleteRequest(req.id, 'completed')} className="bg-blue-600 text-white text-sm font-bold py-2 px-3 rounded-lg hover:bg-blue-500">Mark Completed</button>
+                            <button onClick={() => onCompleteRequest(req.id, 'rescheduled')} className="bg-purple-600 text-white text-sm font-bold py-2 px-3 rounded-lg hover:bg-purple-500">Mark Rescheduled</button>
+                            <button onClick={() => onCompleteRequest(req.id, 'no-show')} className="bg-red-600 text-white text-sm font-bold py-2 px-3 rounded-lg hover:bg-red-500">Mark No-Show</button>
+                        </div>
+                    </div>
+                 )) : <p className="text-brand-gray">No upcoming sessions.</p>}
+            </BookingSection>
+            
+            <BookingSection title="Past Sessions & Requests" count={past.length}>
+                 {past.length > 0 ? past.map(req => (
+                     <div key={req.id} className="bg-gray-100 dark:bg-gray-800 p-4 rounded-lg">
+                         <div className="flex justify-between items-center">
+                            <div>
+                                <p className="font-bold text-brand-dark dark:text-white">Session with {req.clientName}</p>
+                                <p className="font-semibold text-brand-primary text-sm">{req.serviceName}</p>
+                                <p className="text-sm text-brand-gray">{new Date(req.startDate).toLocaleDateString()}</p>
+                            </div>
+                            <span className={`text-xs font-bold px-3 py-1 rounded-full capitalize ${getStatusChip(req.status)}`}>{req.status}</span>
+                         </div>
+                     </div>
+                 )) : <p className="text-brand-gray">No past sessions.</p>}
+            </BookingSection>
+        </div>
+    );
+};
+
+
 // --- Main Dashboard Component ---
-type ArtistDashboardTab = 'profile' | 'availability' | 'settings';
+type ArtistDashboardTab = 'profile' | 'availability' | 'settings' | 'requests';
 
 export const ArtistDashboardView: React.FC<{
     artist: Artist;
@@ -129,6 +228,9 @@ export const ArtistDashboardView: React.FC<{
     openModal: (type: ModalState['type'], data?: any) => void;
     artistAvailability: any[]; // Kept for future specific date overrides
     setArtistAvailability: (date: string, status: 'available' | 'unavailable') => Promise<void>;
+    allClientBookings: ClientBookingRequest[];
+    onRespondToRequest: (requestId: string, status: 'approved' | 'declined') => void;
+    onCompleteRequest: (requestId: string, status: 'completed' | 'rescheduled' | 'no-show') => void;
 }> = (props) => {
     const [activeTab, setActiveTab] = useState<ArtistDashboardTab>('profile');
 
@@ -150,6 +252,8 @@ export const ArtistDashboardView: React.FC<{
                 return <AvailabilityTab artist={props.artist} updateArtist={props.updateArtist} />;
             case 'settings':
                 return <IntakeSettingsTab artist={props.artist} updateArtist={props.updateArtist} />;
+            case 'requests':
+                return <BookingRequestsTab artist={props.artist} allClientBookings={props.allClientBookings} onRespondToRequest={props.onRespondToRequest} onCompleteRequest={props.onCompleteRequest} />;
             default:
                 return null;
         }
@@ -160,6 +264,7 @@ export const ArtistDashboardView: React.FC<{
             <div className="lg:col-span-1">
                  <div className="bg-white dark:bg-gray-900/50 rounded-2xl p-4 border border-gray-200 dark:border-gray-800 space-y-2 sticky top-24">
                     <TabButton tabName="profile" label="Profile & Portfolio" icon={<UserCircleIcon className="w-6 h-6"/>} />
+                    <TabButton tabName="requests" label="Booking Requests" icon={<InboxStackIcon className="w-6 h-6"/>} />
                     <TabButton tabName="availability" label="Weekly Availability" icon={<CalendarIcon className="w-6 h-6"/>} />
                     <TabButton tabName="settings" label="Intake Form Settings" icon={<CogIcon className="w-6 h-6"/>} />
                  </div>

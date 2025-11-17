@@ -99,6 +99,7 @@ export const updateArtistData = async (artistId: string, updatedData: Partial<Ar
     if (updatedData.services) profileUpdate.services = updatedData.services;
     if (updatedData.aftercareMessage) profileUpdate.aftercare_message = updatedData.aftercareMessage;
     if (typeof updatedData.requestHealedPhoto === 'boolean') profileUpdate.request_healed_photo = updatedData.requestHealedPhoto;
+    if (updatedData.hours) profileUpdate.hours = updatedData.hours;
 
     const { data, error } = await supabase
         .from('profiles')

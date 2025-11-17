@@ -1088,6 +1088,7 @@ const ManageServices: React.FC<{
                 <h4 className="text-lg font-semibold text-brand-dark dark:text-white">Manage Services</h4>
                 <button onClick={handleAddService} className="text-sm bg-brand-secondary text-white font-bold py-1 px-3 rounded-lg">+ Add Service</button>
             </div>
+            <p className="text-xs text-brand-gray mb-4">Define your services below. Setting a Min/Max Size helps our AI suggestion tool guide clients to the correct service for their tattoo idea.</p>
             <div className="space-y-3 max-h-96 overflow-y-auto pr-2">
             {services.map(service => (
                 <div key={service.id} className="bg-gray-100 dark:bg-gray-800 p-3 rounded-lg space-y-2">

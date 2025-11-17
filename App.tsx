@@ -138,6 +138,9 @@ function App() {
                     openModal={openModal}
                     artistAvailability={data.artistAvailability}
                     setArtistAvailability={setArtistAvailability}
+                    allClientBookings={data.clientBookingRequests}
+                    onRespondToRequest={respondToBookingRequest}
+                    onCompleteRequest={updateCompletionStatus}
                  />;
         }
         return <Hero navigate={navigate} />;

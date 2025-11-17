@@ -174,6 +174,12 @@ export const TrashIcon: React.FC<IconProps> = ({ className, style }) => (
     </svg>
 );
 
+export const InboxStackIcon: React.FC<IconProps> = ({ className, style }) => (
+    <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor" className={className} style={style}>
+        <path strokeLinecap="round" strokeLinejoin="round" d="M2.25 13.5h3.86a2.25 2.25 0 0 1 2.25 2.25v3.86a2.25 2.25 0 0 0 2.25 2.25h3.86a2.25 2.25 0 0 0 2.25-2.25v-3.86a2.25 2.25 0 0 1 2.25-2.25h3.86m-16.5 0a2.25 2.25 0 0 0-2.25 2.25v3.86a2.25 2.25 0 0 1-2.25 2.25H2.25m16.5 0a2.25 2.25 0 0 1 2.25 2.25v3.86a2.25 2.25 0 0 0 2.25 2.25h3.86m0-16.5h-3.86a2.25 2.25 0 0 0-2.25 2.25v3.86a2.25 2.25 0 0 1-2.25 2.25H6.25a2.25 2.25 0 0 1-2.25-2.25V8.25a2.25 2.25 0 0 0-2.25-2.25H2.25m16.5 0h-16.5" />
+    </svg>
+);
+
 export const InstagramIcon: React.FC<IconProps> = ({ className, style, title }) => (
   <svg xmlns="http://www.w3.org/2000/svg" className={className} style={style} viewBox="0 0 24 24" strokeWidth="2" stroke="currentColor" fill="none" strokeLinecap="round" strokeLinejoin="round">
     {title && <title>{title}</title>}
