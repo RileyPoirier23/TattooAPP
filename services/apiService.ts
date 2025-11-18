@@ -232,11 +232,31 @@ export const createClientBookingRequest = async (requestData: Omit<ClientBooking
         service_id: requestData.serviceId,
         budget: requestData.budget,
         reference_image_urls: requestData.referenceImageUrls,
+        preferred_time: requestData.preferredTime,
     }).select(`*, client:profiles!client_booking_requests_client_id_fkey(full_name), artist:profiles!client_booking_requests_artist_id_fkey(full_name, services)`).single();
     if (error) throw error;
     
     const conversation = await findOrCreateConversation(requestData.clientId, requestData.artistId);
     await sendMessage(conversation.id, requestData.clientId, requestData.message);
+
+    return adaptClientBookingRequest(data);
+};
+
+export const updateClientBookingRequest = async (requestId: string, updates: Partial<Pick<ClientBookingRequest, 'referenceImageUrls'>>): Promise<ClientBookingRequest> => {
+    const supabase = getSupabase();
+    const updatePayload: { [key: string]: any } = {};
+    if (updates.referenceImageUrls) {
+        updatePayload.reference_image_urls = updates.referenceImageUrls;
+    }
+
+    const { data, error } = await supabase
+        .from('client_booking_requests')
+        .update(updatePayload)
+        .eq('id', requestId)
+        .select('*, client:profiles!client_booking_requests_client_id_fkey(full_name), artist:profiles!client_booking_requests_artist_id_fkey(full_name, services)')
+        .single();
+    
+    if (error) throw error;
 
     return adaptClientBookingRequest(data);
 };

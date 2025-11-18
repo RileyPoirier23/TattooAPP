@@ -589,6 +589,10 @@ export const ClientBookingRequestModal: React.FC<{ artist: Artist; availability:
     };
 
     const handleSuggestDuration = async () => {
+        if (!artist.services || artist.services.length === 0) {
+            showToast('This artist has not defined any services to suggest from.', 'error');
+            return;
+        }
         if (tattooWidth <= 0 || tattooHeight <= 0) {
             showToast('Please enter valid width and height.', 'error');
             return;
@@ -1331,5 +1335,55 @@ export const ClientProfileView: React.FC<{ client: Client, bookings: ClientBooki
                 </div>
             </div>
         </div>
+    );
+};
+
+export const BookingRequestDetailModal: React.FC<{
+    request: ClientBookingRequest;
+    onClose: () => void;
+    onRespond: (requestId: string, status: 'approved' | 'declined') => void;
+}> = ({ request, onClose, onRespond }) => {
+    
+    return (
+        <Modal onClose={onClose} title={`Request from ${request.clientName}`} size="lg">
+            <div className="space-y-4">
+                <div>
+                    <h4 className="font-bold text-brand-dark dark:text-white">Service</h4>
+                    <p className="text-brand-gray">{request.serviceName}</p>
+                </div>
+                 <div>
+                    <h4 className="font-bold text-brand-dark dark:text-white">Proposed Dates</h4>
+                    <p className="text-brand-gray">{new Date(request.startDate).toLocaleDateString()} - {new Date(request.endDate).toLocaleDateString()}</p>
+                </div>
+                <div>
+                    <h4 className="font-bold text-brand-dark dark:text-white">Tattoo Details</h4>
+                    <ul className="list-disc list-inside text-brand-gray">
+                        <li>Size: {request.tattooWidth}" x {request.tattooHeight}"</li>
+                        <li>Placement: {bodyPlacements.find(p => p.value === request.bodyPlacement)?.label || request.bodyPlacement}</li>
+                        {request.budget && <li>Budget: ${request.budget}</li>}
+                    </ul>
+                </div>
+                 <div>
+                    <h4 className="font-bold text-brand-dark dark:text-white">Message from Client</h4>
+                    <p className="text-brand-gray italic bg-gray-100 dark:bg-gray-800 p-3 rounded-lg">"{request.message}"</p>
+                </div>
+                {request.referenceImageUrls && request.referenceImageUrls.length > 0 && (
+                     <div>
+                        <h4 className="font-bold text-brand-dark dark:text-white">Reference Images</h4>
+                        <div className="flex flex-wrap gap-2 mt-2">
+                            {request.referenceImageUrls.map((url, index) => (
+                                <a key={index} href={url} target="_blank" rel="noopener noreferrer">
+                                    <img src={url} alt={`Reference ${index + 1}`} className="w-24 h-24 object-cover rounded-lg" />
+                                </a>
+                            ))}
+                        </div>
+                    </div>
+                )}
+                 <div className="flex gap-4 pt-4 border-t border-gray-200 dark:border-gray-800">
+                    <button onClick={() => onRespond(request.id, 'approved')} className="w-full bg-green-600 hover:bg-green-500 text-white text-sm font-bold py-3 px-3 rounded-lg">Approve</button>
+                    <button onClick={() => onRespond(request.id, 'declined')} className="w-full bg-red-600 hover:bg-red-500 text-white text-sm font-bold py-3 px-3 rounded-lg">Decline</button>
+                 </div>
+            </div>
+        </Modal>
     );
 };

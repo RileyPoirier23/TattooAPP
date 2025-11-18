@@ -41,14 +41,19 @@ const BookingSection: React.FC<{ title: string; children: React.ReactNode; count
 
 
 // --- TAB: Profile & Portfolio ---
-const ProfileTab: React.FC<{ artist: Artist; updateArtist: (id: string, data: Partial<Artist>) => void; openModal: (type: ModalState['type'], data?: any) => void; deletePortfolioImage: (url: string) => Promise<void>; }> = ({ artist, updateArtist, openModal, deletePortfolioImage }) => {
+const ProfileTab: React.FC<{ artist: Artist; updateArtist: (id: string, data: Partial<Artist>) => Promise<void>; openModal: (type: ModalState['type'], data?: any) => void; deletePortfolioImage: (url: string) => Promise<void>; }> = ({ artist, updateArtist, openModal, deletePortfolioImage }) => {
     return <ArtistProfileView artist={artist} updateArtist={updateArtist} deletePortfolioImage={deletePortfolioImage} showToast={useAppStore().showToast} openModal={openModal} />;
 };
 
 // --- TAB: Availability ---
-const AvailabilityTab: React.FC<{ artist: Artist; updateArtist: (id: string, data: Partial<Artist>) => void; }> = ({ artist, updateArtist }) => {
+const AvailabilityTab: React.FC<{ artist: Artist; updateArtist: (id: string, data: Partial<Artist>) => Promise<void>; }> = ({ artist, updateArtist }) => {
     const [hours, setHours] = useState<ArtistHours>(artist.hours || {});
+    const [isSaving, setIsSaving] = useState(false);
     
+    useEffect(() => {
+        setHours(artist.hours || {});
+    }, [artist.hours]);
+
     const days = ["Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"];
 
     const handleAddTimeSlot = (dayIndex: number) => {
@@ -70,16 +75,26 @@ const AvailabilityTab: React.FC<{ artist: Artist; updateArtist: (id: string, dat
         setHours(newHours);
     };
     
-    const handleSave = () => {
-        updateArtist(artist.id, { hours });
-        useAppStore.getState().showToast('Availability saved!', 'success');
+    const handleSave = async () => {
+        setIsSaving(true);
+        try {
+            await updateArtist(artist.id, { hours });
+            useAppStore.getState().showToast('Availability saved!', 'success');
+        } catch (e) {
+            console.error("Failed to save availability:", e);
+            // Error toast is handled in the store action
+        } finally {
+            setIsSaving(false);
+        }
     };
 
     return (
         <div className="bg-white dark:bg-gray-900/50 rounded-2xl p-8 border border-gray-200 dark:border-gray-800 space-y-6">
             <div className="flex justify-between items-center">
                 <h2 className="text-2xl font-bold text-brand-dark dark:text-white">Weekly Hours</h2>
-                <button onClick={handleSave} className="bg-brand-primary text-white font-bold py-2 px-6 rounded-lg">Save Availability</button>
+                <button onClick={handleSave} disabled={isSaving} className="bg-brand-primary text-white font-bold py-2 px-6 rounded-lg disabled:bg-gray-600 w-40 flex justify-center items-center">
+                    {isSaving ? <Loader size="sm" color="white" /> : 'Save Availability'}
+                </button>
             </div>
             <p className="text-brand-gray text-sm">Set your standard weekly working hours. Clients will use this to request booking dates.</p>
             <div className="space-y-4">
@@ -110,16 +125,20 @@ const AvailabilityTab: React.FC<{ artist: Artist; updateArtist: (id: string, dat
 
 
 // --- TAB: Intake Form Settings ---
-const IntakeSettingsTab: React.FC<{ artist: Artist; updateArtist: (id: string, data: Partial<Artist>) => void; }> = ({ artist, updateArtist }) => {
+const IntakeSettingsTab: React.FC<{ artist: Artist; updateArtist: (id: string, data: Partial<Artist>) => Promise<void>; }> = ({ artist, updateArtist }) => {
     const [settings, setSettings] = useState<IntakeFormSettings>(artist.intakeSettings || { requireSize: true, requireDescription: true, requireLocation: true, requireBudget: false });
 
     const handleToggle = (key: keyof IntakeFormSettings) => {
         setSettings(prev => ({ ...prev, [key]: !prev[key] }));
     };
     
-    const handleSave = () => {
-        updateArtist(artist.id, { intakeSettings: settings });
-        useAppStore.getState().showToast('Intake form settings saved!', 'success');
+    const handleSave = async () => {
+        try {
+            await updateArtist(artist.id, { intakeSettings: settings });
+            useAppStore.getState().showToast('Intake form settings saved!', 'success');
+        } catch (e) {
+             console.error("Failed to save intake settings:", e);
+        }
     };
 
     const Checkbox = ({ label, checked, onChange }: { label: string, checked: boolean, onChange: () => void }) => (
@@ -156,7 +175,8 @@ const BookingRequestsTab: React.FC<{
     allClientBookings: ClientBookingRequest[];
     onRespondToRequest: (requestId: string, status: 'approved' | 'declined') => void;
     onCompleteRequest: (requestId: string, status: 'completed' | 'rescheduled' | 'no-show') => void;
-}> = ({ artist, allClientBookings, onRespondToRequest, onCompleteRequest }) => {
+    openModal: (type: ModalState['type'], data?: any) => void;
+}> = ({ artist, allClientBookings, onRespondToRequest, onCompleteRequest, openModal }) => {
     const myClientRequests = allClientBookings.filter(b => b.artistId === artist.id);
     const pending = myClientRequests.filter(b => b.status === 'pending');
     const upcoming = myClientRequests.filter(b => b.status === 'approved' && new Date(b.endDate) >= new Date());
@@ -167,12 +187,14 @@ const BookingRequestsTab: React.FC<{
             <BookingSection title="Pending Requests" count={pending.length}>
                 {pending.length > 0 ? pending.map(req => (
                     <div key={req.id} className="bg-gray-100 dark:bg-gray-800 p-4 rounded-lg">
-                       <p className="font-bold text-brand-dark dark:text-white">Request from {req.clientName}</p>
-                        <p className="font-semibold text-brand-primary text-sm">{req.serviceName}</p>
-                       <p className="text-sm text-brand-gray mt-1 italic">"{req.message}"</p>
-                       <div className="flex gap-2 mt-4">
-                            <button onClick={() => onRespondToRequest(req.id, 'approved')} className="bg-green-600 text-white text-sm font-bold py-2 px-3 rounded-lg hover:bg-green-500">Approve</button>
-                            <button onClick={() => onRespondToRequest(req.id, 'declined')} className="bg-red-600 text-white text-sm font-bold py-2 px-3 rounded-lg hover:bg-red-500">Decline</button>
+                       <div className="flex justify-between items-center">
+                            <div>
+                               <p className="font-bold text-brand-dark dark:text-white">Request from {req.clientName}</p>
+                                <p className="font-semibold text-brand-primary text-sm">{req.serviceName}</p>
+                            </div>
+                           <button onClick={() => openModal('booking-request-detail', req)} className="bg-brand-secondary text-white text-sm font-bold py-2 px-3 rounded-lg hover:bg-opacity-80">
+                                View Details
+                           </button>
                        </div>
                     </div>
                 )) : <p className="text-brand-gray">No pending client requests.</p>}
@@ -222,7 +244,7 @@ type ArtistDashboardTab = 'profile' | 'availability' | 'settings' | 'requests';
 
 export const ArtistDashboardView: React.FC<{
     artist: Artist;
-    updateArtist: (id: string, data: Partial<Artist>) => void;
+    updateArtist: (id: string, data: Partial<Artist>) => Promise<void>;
     deletePortfolioImage: (url: string) => Promise<void>;
     showToast: (msg: string, type?: 'success' | 'error') => void;
     openModal: (type: ModalState['type'], data?: any) => void;
@@ -253,7 +275,13 @@ export const ArtistDashboardView: React.FC<{
             case 'settings':
                 return <IntakeSettingsTab artist={props.artist} updateArtist={props.updateArtist} />;
             case 'requests':
-                return <BookingRequestsTab artist={props.artist} allClientBookings={props.allClientBookings} onRespondToRequest={props.onRespondToRequest} onCompleteRequest={props.onCompleteRequest} />;
+                return <BookingRequestsTab 
+                    artist={props.artist} 
+                    allClientBookings={props.allClientBookings} 
+                    onRespondToRequest={props.onRespondToRequest} 
+                    onCompleteRequest={props.onCompleteRequest} 
+                    openModal={props.openModal} 
+                />;
             default:
                 return null;
         }

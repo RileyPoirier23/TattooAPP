@@ -229,7 +229,7 @@ export interface MockData {
 export type ViewMode = 'artist' | 'client';
 
 export interface ModalState {
-  type: 'auth' | 'artist-detail' | 'shop-detail' | 'booking' | 'client-booking-request' | 'upload-portfolio' | 'edit-booth' | 'leave-review' | 'image-editor' | 'shop-review' | 'request-verification' | 'admin-edit-user' | 'admin-edit-shop' | 'payment' | null;
+  type: 'auth' | 'artist-detail' | 'shop-detail' | 'booking' | 'client-booking-request' | 'upload-portfolio' | 'edit-booth' | 'leave-review' | 'image-editor' | 'shop-review' | 'request-verification' | 'admin-edit-user' | 'admin-edit-shop' | 'payment' | 'booking-request-detail' | null;
   data?: any;
 }
 

@@ -28,6 +28,7 @@ import {
   AdminEditUserModal,
   AdminEditShopModal,
   PaymentModal,
+  BookingRequestDetailModal,
 } from './components/ModalsAndProfile';
 import { Toast } from './components/shared/Toast';
 import { Loader } from './components/shared/Loader';
@@ -188,7 +189,19 @@ function App() {
       case 'auth':
         return <AuthModal onLogin={(creds) => login(creds, navigate)} onRegister={(details) => register(details, navigate)} onClose={closeModal} />;
       case 'artist-detail':
-        return <ArtistDetailModal artist={modal.data.artist} reviews={modal.data.reviews} bookings={data.bookings} shops={data.shops} onClose={closeModal} onBookRequest={() => openModal('client-booking-request', modal.data.artist)} showToast={showToast} onMessageClick={async (artistId) => {
+        return <ArtistDetailModal 
+          artist={modal.data.artist} 
+          reviews={modal.data.reviews} 
+          bookings={data.bookings} 
+          shops={data.shops} 
+          onClose={closeModal} 
+          onBookRequest={() => user ? openModal('client-booking-request', modal.data.artist) : openModal('auth')} 
+          showToast={showToast} 
+          onMessageClick={async (artistId) => {
+            if (!user) {
+                openModal('auth');
+                return;
+            }
             const convo = await startConversation(artistId);
             if(convo) navigate(`/messages/${convo.id}`);
         }} />;
@@ -219,6 +232,8 @@ function App() {
         return <AdminEditShopModal shop={modal.data} onSave={adminUpdateShop} onClose={closeModal} />
       case 'payment':
         return <PaymentModal request={modal.data} onProcessPayment={payBookingDeposit} onClose={closeModal} />;
+      case 'booking-request-detail':
+        return <BookingRequestDetailModal request={modal.data} onClose={closeModal} onRespond={respondToBookingRequest} />;
       default:
         return null;
     }

@@ -7,7 +7,7 @@ import {
 import {
   fetchInitialData, updateArtistData, uploadPortfolioImage, updateShopData, addBoothToShop, deleteBoothFromShop,
   createBookingForArtist, createClientBookingRequest, updateClientBookingRequestStatus, fetchNotificationsForUser, markUserNotificationsAsRead, createNotification, fetchAllUsers, updateUserData, updateBoothData, fetchUserConversations, fetchMessagesForConversation, sendMessage, findOrCreateConversation, setArtistAvailability, submitReview, deleteUserAsAdmin, deleteShopAsAdmin, uploadMessageAttachment, fetchArtistReviews, createShop as apiCreateShop, createVerificationRequest, updateVerificationRequest, addReviewToShop,
-  adminUpdateUserProfile, adminUpdateShopDetails, deletePortfolioImageFromStorage, uploadBookingReferenceImage, payClientBookingDeposit,
+  adminUpdateUserProfile, adminUpdateShopDetails, deletePortfolioImageFromStorage, uploadBookingReferenceImage, payClientBookingDeposit, updateClientBookingRequest,
 } from '../services/apiService';
 import { authService } from '../services/authService';
 
@@ -276,33 +276,55 @@ export const useAppStore = create<AppState>()(
 
       sendClientBookingRequest: async (requestData, referenceFiles) => {
         const user = get().user;
-        if (!user || user.type !== 'client' && user.type !== 'dual') {
-            get().showToast('You must be logged in as a client.', 'error');
-            return;
+        if (!user || (user.type !== 'client' && user.type !== 'dual')) {
+          get().showToast('You must be logged in as a client.', 'error');
+          return;
         }
+        let tempRequestId: string | null = null;
         try {
-            set({ isLoading: true });
-            const tempRequestId = `temp_${Date.now()}`;
-            const uploadPromises = referenceFiles.map((file, index) => 
-                uploadBookingReferenceImage(tempRequestId, file, index)
+          set({ isLoading: true });
+      
+          // Step 1: Create the booking request without image URLs to get a stable ID.
+          const initialRequestData = { ...requestData, clientId: user.id, referenceImageUrls: [] };
+          const newRequest = await createClientBookingRequest(initialRequestData);
+          tempRequestId = newRequest.id;
+
+          // Add temporary request to UI for responsiveness
+          set(state => ({ data: { ...state.data, clientBookingRequests: [...state.data.clientBookingRequests, newRequest] } }));
+
+          // Step 2: If there are files, upload them using the new request's ID.
+          let referenceImageUrls: string[] = [];
+          if (referenceFiles.length > 0) {
+            const uploadPromises = referenceFiles.map((file, index) =>
+              uploadBookingReferenceImage(newRequest.id, file, index)
             );
-            const referenceImageUrls = await Promise.all(uploadPromises);
-
-            const finalRequestData = { ...requestData, clientId: user.id, referenceImageUrls };
-
-            const newRequest = await createClientBookingRequest(finalRequestData);
-
-            set(state => ({ 
-                data: { ...state.data, clientBookingRequests: [...state.data.clientBookingRequests, newRequest] },
-                isLoading: false 
+            referenceImageUrls = await Promise.all(uploadPromises);
+          }
+      
+          // Step 3: Update the request with the image URLs.
+          if (referenceImageUrls.length > 0) {
+            const finalRequest = await updateClientBookingRequest(newRequest.id, { referenceImageUrls });
+            set(state => ({
+              data: {
+                ...state.data,
+                // Replace the temporary request with the final one
+                clientBookingRequests: state.data.clientBookingRequests.map(r => r.id === newRequest.id ? finalRequest : r),
+              }
             }));
-            await get().loadConversations();
-            get().closeModal();
-            get().showToast('Booking request sent!');
-        } catch(e) {
-            const message = e instanceof Error ? e.message : 'Failed to send request. Please try again.';
-            get().showToast(message, 'error');
-            set({ isLoading: false });
+          }
+      
+          set({ isLoading: false });
+          await get().loadConversations();
+          get().closeModal();
+          get().showToast('Booking request sent!', 'success');
+        } catch (e) {
+          // If something fails, remove the temporary request from UI state if it exists
+          if (tempRequestId) {
+            set(state => ({ data: { ...state.data, clientBookingRequests: state.data.clientBookingRequests.filter(r => r.id !== tempRequestId) }}));
+          }
+          const message = e instanceof Error ? e.message : 'Failed to send request. The artist may need to finish their profile setup.';
+          get().showToast(message, 'error');
+          set({ isLoading: false });
         }
       },
 
@@ -318,7 +340,7 @@ export const useAppStore = create<AppState>()(
                     ),
                 }
             }));
-
+            get().closeModal();
             if (status === 'approved') {
                 get().showToast(`Request has been approved. Deposit is now due.`);
             } else {
@@ -399,6 +421,7 @@ export const useAppStore = create<AppState>()(
             }));
         } catch (error) {
             get().showToast("Failed to update artist details.", 'error');
+            throw error;
         }
       },
 
