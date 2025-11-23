@@ -116,9 +116,13 @@ class AuthService {
         // If a session is returned, it means email confirmation is likely disabled, and the user is logged in.
         // We can proceed to fetch their newly created profile.
         if (authData.session) {
+            // Slight delay to ensure Trigger has run
+            await new Promise(r => setTimeout(r, 1000));
             const newUser = await this.getUserProfile(authData.user.id);
             if (!newUser) {
-                throw new Error("Profile creation failed automatically. Please try logging in or contact support.");
+                // If the trigger failed or is slow, we might return null here. 
+                // In that case, we can't auto-login, so return null to prompt login.
+                return null;
             }
             localStorage.setItem(USER_STORAGE_KEY, JSON.stringify(newUser));
             return newUser;
@@ -151,7 +155,7 @@ class AuthService {
             .single();
 
         if (error || !profile) {
-            console.error("Error fetching profile for user:", userId, error);
+            console.warn("Error fetching profile for user:", userId, error?.message);
             return null;
         }
 

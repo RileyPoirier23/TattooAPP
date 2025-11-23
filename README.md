@@ -13,24 +13,17 @@ VITE_MAPS_API_KEY=your_google_maps_api_key
 API_KEY=your_gemini_ai_api_key
 ```
 
-### 2. Backend Setup (Supabase)
+### 2. Backend Setup (Supabase) - CRITICAL STEP
 
-**A. Run the Database Script:**
+You **MUST** run the included SQL script to set up the database. The app will not work without this.
+
 1. Log in to your [Supabase Dashboard](https://supabase.com/dashboard).
-2. Go to the **SQL Editor** tab.
-3. Open the file `supabase_setup.sql` from this project.
-4. Copy the entire content and paste it into the SQL Editor.
-5. Click **Run**.
-   *This creates all tables, enables security policies, and sets up user registration triggers.*
+2. Go to the **SQL Editor** tab (icon on the left).
+3. Open the file `supabase_setup.sql` provided in this project.
+4. Copy the entire content and paste it into the Supabase SQL Editor.
+5. Click **Run** (bottom right).
 
-**B. Create Storage Buckets (Manual Step):**
-The SQL script sets up permissions, but you must create the containers manually.
-1. Go to the **Storage** tab in Supabase.
-2. Click **New Bucket**.
-3. Create the following 3 buckets (ensure "Public" is checked for all):
-   - `portfolios`
-   - `booking-references`
-   - `message_attachments`
+*This script automatically creates all Tables, Storage Buckets, and Security Policies.*
 
 ### 3. Run the App
 ```bash
@@ -48,7 +41,7 @@ npm run dev
     *   Real-time chat with artists.
 *   **For Artists:**
     *   Manage weekly availability and hours.
-    *   View and approve/decline booking requests.
+    *   View and approve/decline booking requests (with full details).
     *   Search for guest spot booths at shops.
     *   AI-powered bio generation and service suggestions.
 *   **For Shops:**
@@ -60,16 +53,13 @@ npm run dev
 ## ❓ Troubleshooting
 
 **"Bucket not found" Error:**
-*   **Cause:** The storage buckets have not been created in the Supabase dashboard.
-*   **Fix:** Follow Step 2B above exactly. The names must match case-sensitively (`portfolios`, etc.).
+*   **Cause:** Storage buckets weren't created.
+*   **Fix:** Run the `supabase_setup.sql` script again. It contains the `INSERT INTO storage.buckets` command.
 
 **"Permission denied" / RLS Error:**
-*   **Cause:** The SQL script was not run, or Row Level Security policies are missing.
-*   **Fix:** Re-run the `supabase_setup.sql` script. It is safe to run multiple times (it uses `if not exists` checks).
+*   **Cause:** Missing Row Level Security policies.
+*   **Fix:** Re-run the `supabase_setup.sql` script.
 
-**Login/Registration Issues:**
-*   **Fix:** Check your browser console. If you see "AuthApiError: Database error saving new user", ensure the `handle_new_user` trigger from the SQL script was created successfully.
-
-**Google Maps / Location Search Not Working:**
-*   **Fix:** Ensure `VITE_MAPS_API_KEY` is set in `.env` and that the "Places API" and "Maps JavaScript API" are enabled in your Google Cloud Console.
-
+**Registration - "Check your email":**
+*   **Info:** By default, Supabase requires email confirmation.
+*   **Fix:** You can disable this in Supabase Dashboard -> Authentication -> Providers -> Email -> Toggle off "Confirm email" for instant login during development.

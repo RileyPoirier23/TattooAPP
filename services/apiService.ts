@@ -1,3 +1,4 @@
+
 // @/services/apiService.ts
 import { getSupabase } from './supabaseClient';
 import type { Artist, Shop, Booth, Booking, ClientBookingRequest, Notification, User, UserRole, Review, PortfolioImage, VerificationRequest, Conversation, ConversationWithUser, Message, ArtistAvailability } from '../types';
@@ -100,6 +101,7 @@ export const updateArtistData = async (artistId: string, updatedData: Partial<Ar
     if (updatedData.aftercareMessage) profileUpdate.aftercare_message = updatedData.aftercareMessage;
     if (typeof updatedData.requestHealedPhoto === 'boolean') profileUpdate.request_healed_photo = updatedData.requestHealedPhoto;
     if (updatedData.hours) profileUpdate.hours = updatedData.hours;
+    if (updatedData.intakeSettings) profileUpdate.intake_settings = updatedData.intakeSettings;
 
     const { data, error } = await supabase
         .from('profiles')
@@ -199,7 +201,6 @@ export const createBookingForArtist = async (bookingData: Omit<Booking, 'id' | '
     
     if (shopError) {
         console.error("Failed to fetch shop details for new booking:", shopError);
-        // Proceed with adaptation but the city will be 'Unknown'
         return adaptBooking(data, []);
     }
     
@@ -210,7 +211,8 @@ export const uploadBookingReferenceImage = async (requestId: string, file: File,
     const supabase = getSupabase();
     const fileExt = file.name.split('.').pop();
     const fileName = `${requestId}/${index}.${fileExt}`;
-    const { error } = await supabase.storage.from('booking-references').upload(fileName, file);
+    // Use upsert to prevent errors if retrying
+    const { error } = await supabase.storage.from('booking-references').upload(fileName, file, { upsert: true });
     if (error) throw error;
     const { data } = supabase.storage.from('booking-references').getPublicUrl(fileName);
     return data.publicUrl;

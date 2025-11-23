@@ -1,3 +1,4 @@
+
 // @/components/views/ArtistDashboardView.tsx
 
 import React, { useState, useEffect } from 'react';
@@ -254,7 +255,7 @@ export const ArtistDashboardView: React.FC<{
     onRespondToRequest: (requestId: string, status: 'approved' | 'declined') => void;
     onCompleteRequest: (requestId: string, status: 'completed' | 'rescheduled' | 'no-show') => void;
 }> = (props) => {
-    const [activeTab, setActiveTab] = useState<ArtistDashboardTab>('profile');
+    const [activeTab, setActiveTab] = useState<ArtistDashboardTab>('requests');
 
     const TabButton: React.FC<{ tabName: ArtistDashboardTab; label: string; icon: React.ReactNode }> = ({ tabName, label, icon }) => (
         <button
@@ -291,9 +292,9 @@ export const ArtistDashboardView: React.FC<{
         <div className="max-w-7xl mx-auto grid grid-cols-1 lg:grid-cols-4 gap-8">
             <div className="lg:col-span-1">
                  <div className="bg-white dark:bg-gray-900/50 rounded-2xl p-4 border border-gray-200 dark:border-gray-800 space-y-2 sticky top-24">
-                    <TabButton tabName="profile" label="Profile & Portfolio" icon={<UserCircleIcon className="w-6 h-6"/>} />
                     <TabButton tabName="requests" label="Booking Requests" icon={<InboxStackIcon className="w-6 h-6"/>} />
-                    <TabButton tabName="availability" label="Weekly Availability" icon={<CalendarIcon className="w-6 h-6"/>} />
+                    <TabButton tabName="profile" label="Profile & Portfolio" icon={<UserCircleIcon className="w-6 h-6"/>} />
+                    <TabButton tabName="availability" label="Weekly Hours" icon={<CalendarIcon className="w-6 h-6"/>} />
                     <TabButton tabName="settings" label="Intake Form Settings" icon={<CogIcon className="w-6 h-6"/>} />
                  </div>
             </div>

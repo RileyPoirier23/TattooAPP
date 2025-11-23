@@ -116,14 +116,9 @@ export const useAppStore = create<AppState>()(
         try {
           set({ isLoading: true, error: null, navigate });
           
-          // First, wait for the authentication service to establish a stable session.
-          // This prevents race conditions where data is fetched before RLS policies can be applied.
           const currentUser = await authService.getCurrentUser();
-          
-          // Once the user is known, fetch all initial application data.
           const initialData = await fetchInitialData();
 
-          // Enrich artists with average ratings
           const artistsWithRatings = initialData.artists.map((artist: Artist) => {
               const reviews = initialData.clientBookingRequests.filter((b: ClientBookingRequest) => b.artistId === artist.id && b.reviewRating);
               const totalRating = reviews.reduce((acc: number, curr: ClientBookingRequest) => acc + (curr.reviewRating || 0), 0);
@@ -193,7 +188,6 @@ export const useAppStore = create<AppState>()(
           const user = await authService.register(details);
           
           if (user) {
-            // Email confirmation was NOT required (auto-confirmed or setting disabled)
             set({ user });
              if (user.type === 'artist' || user.type === 'dual') {
               set({ viewMode: 'artist'});
@@ -204,10 +198,10 @@ export const useAppStore = create<AppState>()(
               navigate('/artists');
             }
             get().closeModal();
-            get().showToast('Registration successful! You are now logged in.');
+            get().showToast('Registration successful!');
           } else {
-             // Email confirmation IS required. User is null.
              get().closeModal();
+             // Critical fix: Tell user to check email if no session returned
              get().showToast('Account created! Please check your email to verify before logging in.', 'success');
           }
         } catch (error) {
@@ -230,14 +224,6 @@ export const useAppStore = create<AppState>()(
         if (!user) return;
         try {
             const notifications = await fetchNotificationsForUser(user.id);
-            const currentNotifications = get().data.notifications;
-            if(notifications.length > currentNotifications.length) {
-                const newUnreadCount = notifications.filter(n => !n.read).length;
-                const oldUnreadCount = currentNotifications.filter(n => !n.read).length;
-                if (newUnreadCount > oldUnreadCount) {
-                    get().showToast('You have a new notification!');
-                }
-            }
             set(state => ({ data: { ...state.data, notifications } }));
         } catch (error) {
             console.error("Failed to fetch notifications:", error);
@@ -280,21 +266,23 @@ export const useAppStore = create<AppState>()(
         const user = get().user;
         if (!user || (user.type !== 'client' && user.type !== 'dual')) {
           get().showToast('You must be logged in as a client.', 'error');
+          get().openModal('auth'); // Prompt login if trying to book without account
           return;
         }
+
         let tempRequestId: string | null = null;
         try {
           set({ isLoading: true });
       
-          // Step 1: Create the booking request WITHOUT image URLs to get a stable ID from the database.
+          // 1. Create the booking request WITHOUT image URLs first to get a stable ID.
           const initialRequestData = { ...requestData, clientId: user.id, referenceImageUrls: [] };
           const newRequest = await createClientBookingRequest(initialRequestData);
           tempRequestId = newRequest.id;
 
-          // Optimistic UI update: Add request immediately
+          // Optimistic UI update
           set(state => ({ data: { ...state.data, clientBookingRequests: [...state.data.clientBookingRequests, newRequest] } }));
 
-          // Step 2: Upload images using the verified Request ID (folder name).
+          // 2. Upload images using the verified Request ID (so we know where to put them).
           let referenceImageUrls: string[] = [];
           if (referenceFiles.length > 0) {
             const uploadPromises = referenceFiles.map((file, index) =>
@@ -303,7 +291,7 @@ export const useAppStore = create<AppState>()(
             referenceImageUrls = await Promise.all(uploadPromises);
           }
       
-          // Step 3: Update the request record with the final image URLs if any were uploaded.
+          // 3. Update the request record with the final image URLs.
           if (referenceImageUrls.length > 0) {
             const finalRequest = await updateClientBookingRequest(newRequest.id, { referenceImageUrls });
             set(state => ({
@@ -315,13 +303,10 @@ export const useAppStore = create<AppState>()(
           }
       
           set({ isLoading: false });
-          // Ensure conversations are refreshed so the new chat shows up
-          await get().loadConversations();
-          
           get().closeModal();
           get().showToast('Booking request sent successfully!', 'success');
         } catch (e) {
-          // Rollback optimistic update on failure
+          // Rollback on failure
           if (tempRequestId) {
             set(state => ({ data: { ...state.data, clientBookingRequests: state.data.clientBookingRequests.filter(r => r.id !== tempRequestId) }}));
           }
@@ -344,9 +329,9 @@ export const useAppStore = create<AppState>()(
                     ),
                 }
             }));
-            get().closeModal();
+            get().closeModal(); // Close detail modal
             if (status === 'approved') {
-                get().showToast(`Request approved. Client notified to pay deposit.`);
+                get().showToast(`Request approved. Client notified.`);
             } else {
                 get().showToast(`Request has been ${status}.`);
             }
@@ -538,12 +523,9 @@ export const useAppStore = create<AppState>()(
             }));
             get().closeModal();
             get().showToast("Thank you for your review!");
-            // Fix: Retrieve the navigate function from the store state to re-initialize data.
             const navigate = get().navigate;
             if (navigate) {
-                get().initialize(navigate); // Re-initialize to update artist ratings
-            } else {
-                console.error("submitReview could not re-initialize: navigate function not found in state.");
+                get().initialize(navigate);
             }
         } catch (e) {
             get().showToast("Failed to submit review.", 'error');
@@ -575,7 +557,7 @@ export const useAppStore = create<AppState>()(
       adminUpdateUser: async (userId, data) => {
         try {
             await adminUpdateUserProfile(userId, data);
-            const users = await fetchAllUsers(); // Re-fetch all users to get consistent data
+            const users = await fetchAllUsers();
             set({ allUsers: users });
             get().closeModal();
             get().showToast('User updated successfully.');
@@ -596,7 +578,6 @@ export const useAppStore = create<AppState>()(
         }
       },
 
-      // --- MESSAGING ACTIONS ---
       loadConversations: async () => {
         const user = get().user;
         if (!user) return;
@@ -659,7 +640,6 @@ export const useAppStore = create<AppState>()(
         }
       },
 
-      // --- NEW ROADMAP ACTIONS ---
       createShop: async (shopData) => {
         const user = get().user;
         if (!user || user.type !== 'shop-owner') return;
