@@ -1,90 +1,75 @@
+# InkSpace - Tattoo Industry Marketplace
 
-# InkSpace Booking System — Functional Overview
+InkSpace is a dual-sided marketplace connecting tattoo artists with shops for guest spots (B2B) and clients with artists for appointments (B2C).
 
-## 1. General Description
+## 🚀 Quick Start
 
-The InkSpace booking system is designed to provide a smooth, intuitive experience for both tattoo artists and clients. It simplifies appointment scheduling, automates administrative tasks, and enhances client communication while giving artists full control over how they run their bookings.
+### 1. Environment Setup
+Create a `.env` file in the root directory:
+```
+VITE_SUPABASE_URL=your_supabase_project_url
+VITE_SUPABASE_ANON_KEY=your_supabase_anon_key
+VITE_MAPS_API_KEY=your_google_maps_api_key
+API_KEY=your_gemini_ai_api_key
+```
+
+### 2. Backend Setup (Supabase)
+
+**A. Run the Database Script:**
+1. Log in to your [Supabase Dashboard](https://supabase.com/dashboard).
+2. Go to the **SQL Editor** tab.
+3. Open the file `supabase_setup.sql` from this project.
+4. Copy the entire content and paste it into the SQL Editor.
+5. Click **Run**.
+   *This creates all tables, enables security policies, and sets up user registration triggers.*
+
+**B. Create Storage Buckets (Manual Step):**
+The SQL script sets up permissions, but you must create the containers manually.
+1. Go to the **Storage** tab in Supabase.
+2. Click **New Bucket**.
+3. Create the following 3 buckets (ensure "Public" is checked for all):
+   - `portfolios`
+   - `booking-references`
+   - `message_attachments`
+
+### 3. Run the App
+```bash
+npm install
+npm run dev
+```
 
 ---
 
-# Developer Specification (Technical / Functional Breakdown)
+## 🛠 Features
 
-## 1. Overview
-
-A booking platform for tattoo artists and clients that manages intake, scheduling, deposits, reminders, and follow-ups, with a shared backend for mobile and web interfaces.
-
-## 2. Setup Guide & Troubleshooting
-
-### **CRITICAL: Manual Setup Steps for Supabase**
-
-To prevent the **"Bucket not found"** error and ensure images load correctly, you **must** manually create storage buckets in your Supabase project dashboard.
-
-1.  **Create Storage Buckets:**
-    Go to your Supabase Dashboard -> Storage -> Buckets and create these three **Public** buckets:
-    *   `portfolios`
-    *   `booking-references`
-    *   `message_attachments`
-
-2.  **Set Storage Policies:**
-    For each bucket, click "Configuration" -> "Policies" and add a new policy to allow uploads.
-    *   **Name:** "Allow public uploads"
-    *   **Allowed Operations:** SELECT, INSERT, UPDATE, DELETE
-    *   **Target Roles:** Anon, Authenticated (check both)
-
-3.  **Database Row Level Security (RLS):**
-    Ensure you run the SQL scripts provided in the project documentation (if available) or disable RLS on the `profiles`, `shops`, and `client_booking_requests` tables temporarily if you are encountering "Permission denied" errors during development.
+*   **For Clients:**
+    *   Find artists by city, specialty, and rating.
+    *   Book appointments with a detailed intake wizard (size, placement, photos).
+    *   Real-time chat with artists.
+*   **For Artists:**
+    *   Manage weekly availability and hours.
+    *   View and approve/decline booking requests.
+    *   Search for guest spot booths at shops.
+    *   AI-powered bio generation and service suggestions.
+*   **For Shops:**
+    *   List booths for rent.
+    *   Manage incoming guest artists.
 
 ---
 
-## 3. Core Modules
+## ❓ Troubleshooting
 
-### 3.1 Client Booking Flow
-- **Intake Form:** Fields for name, phone, email, tattoo location, size, reference images, budget, and description. Data saved to `client_profiles`.
-- **Select Service:** Pulls from `artist_services`. Displays name, duration, and price.
-- **Select Date & Time:** Interactive calendar with read-only availability from `artist_schedule`. Status becomes `pending_approval`.
-- **Deposit & Confirmation:** Stripe API integration. 2.9% fee for non-subscribed artists. On success, status becomes `confirmed` and appointment is added to `artist_calendar`.
-- **Notifications Module:** 48-hour reminders and custom pre-appointment messages via Push, SMS (Twilio), and Email (SendGrid).
-- **Appointment Completion:** Artist can set status to `complete`, `rescheduled`, `no_show`, or `payment_requested`.
-- **Post-Appointment Automations:** On `complete`, trigger requests for ratings, send aftercare instructions, and (after 14 days) request healed photos.
+**"Bucket not found" Error:**
+*   **Cause:** The storage buckets have not been created in the Supabase dashboard.
+*   **Fix:** Follow Step 2B above exactly. The names must match case-sensitively (`portfolios`, etc.).
 
-### 3.2 Artist Onboarding & Control Panel
-- **Profile Setup:** Fields for name, shop info, and social links. Supports multiple locations (`artist_locations`).
-- **Hours of Operation:** Editable daily hours and custom overrides.
-- **Service Management:** Up to 10 custom services in `artist_services` with rules for duration, deposit, and availability.
-- **Intake Customization:** Artists can toggle which fields are required on their intake form.
-- **Communication Settings:** Editable templates for all automated messages stored in `artist_messages`.
+**"Permission denied" / RLS Error:**
+*   **Cause:** The SQL script was not run, or Row Level Security policies are missing.
+*   **Fix:** Re-run the `supabase_setup.sql` script. It is safe to run multiple times (it uses `if not exists` checks).
 
-### 3.3 Sharing & Marketing Integration
-- **Booking Link System:** Unique URL (`inkspace.app/artist/[username]`) with deep-linking to the app.
-- **Client Database:** Client info saved to `client_profiles`, exportable for marketing.
+**Login/Registration Issues:**
+*   **Fix:** Check your browser console. If you see "AuthApiError: Database error saving new user", ensure the `handle_new_user` trigger from the SQL script was created successfully.
 
-## 4. Monetization
-- **Free Tier:** Basic booking with a 2.9% transaction fee.
-- **Subscription:** Monthly/annual plan removes fees and unlocks advanced features.
-- **Shop Plan (Future):** Multi-artist dashboard with tiered pricing.
+**Google Maps / Location Search Not Working:**
+*   **Fix:** Ensure `VITE_MAPS_API_KEY` is set in `.env` and that the "Places API" and "Maps JavaScript API" are enabled in your Google Cloud Console.
 
-## 5. Tech Stack (Recommended)
-- **Frontend:** React / React Native
-- **Backend:** Node.js (Express)
-- **Database:** Firestore or PostgreSQL
-- **Payments:** Stripe
-- **Notifications:** Firebase / Twilio / SendGrid
-- **Hosting:** AWS Amplify or Firebase
-- **Auth:** Firebase Authentication
-
-## 6. Key Collections / Tables
-- `artists`: Account info, subscription status.
-- `artist_services`: Service definitions.
-- `artist_calendar`: Availability and bookings.
-- `artist_messages`: Automated message templates.
-- `client_profiles`: Client data.
-- `appointments`: Booking and payment records.
-- `transactions`: Payment history.
-- `ratings`: Client reviews.
-
-## 7. Triggers & Automations
-- **Deposit Paid:** Confirms appointment, adds to calendar.
-- **48 Hours Before:** Sends reminder.
-- **Appointment Complete:** Sends rating request and aftercare.
-- **14 Days After:** Sends healed photo request.
-- **Payment Requested:** Generates Stripe payment link.
