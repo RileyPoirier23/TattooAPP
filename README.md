@@ -10,7 +10,7 @@ Create a `.env` file in the root directory:
 VITE_SUPABASE_URL=your_supabase_project_url
 VITE_SUPABASE_ANON_KEY=your_supabase_anon_key
 VITE_MAPS_API_KEY=your_google_maps_api_key
-API_KEY=your_gemini_ai_api_key
+VITE_GEMINI_API_KEY=your_gemini_ai_api_key
 ```
 
 ### 2. Backend Setup (Supabase) - CRITICAL STEP
@@ -51,6 +51,10 @@ npm run dev
 ---
 
 ## ❓ Troubleshooting
+
+**"AI service not configured" Error:**
+*   **Cause:** The application cannot read your API key.
+*   **Fix:** Ensure your `.env` file uses the variable name `VITE_GEMINI_API_KEY`, not just `API_KEY`. Vite requires the `VITE_` prefix to expose variables to the browser.
 
 **"Bucket not found" Error:**
 *   **Cause:** Storage buckets weren't created.

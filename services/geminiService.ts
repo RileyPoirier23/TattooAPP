@@ -1,28 +1,23 @@
 // @/services/geminiService.ts
-import { GoogleGenAI } from "@google/genai";
+import { GoogleGenAI, Type, Schema } from "@google/genai";
 import type { ArtistService } from '../types';
 
-// The API key must be obtained exclusively from the environment variable `process.env.API_KEY`.
-const geminiApiKey = process.env.API_KEY;
+// Support both standard Node.js env (for some deployments) and Vite env (for local dev)
+const geminiApiKey = process.env.API_KEY || import.meta.env.VITE_GEMINI_API_KEY;
 
 let genAI: GoogleGenAI | null = null;
 if (!geminiApiKey) {
-    console.error("Gemini API key (API_KEY) is missing from environment variables. AI features will be disabled.");
+    console.warn("Gemini API key is missing. AI features will be disabled. Ensure VITE_GEMINI_API_KEY is set in your .env file.");
 } else {
     genAI = new GoogleGenAI({ apiKey: geminiApiKey });
 }
 
-
 /**
  * Generates a professional bio for a tattoo artist using the Gemini API.
- * @param name The artist's name.
- * @param specialty The artist's specialty.
- * @param city The artist's city.
- * @returns A promise that resolves to the generated bio string.
  */
 export async function generateArtistBio(name: string, specialty: string, city: string): Promise<string> {
   if (!genAI) {
-      throw new Error("AI service is not configured. Please check your API key in the environment variables.");
+      throw new Error("AI service is not configured. Please check your .env file for VITE_GEMINI_API_KEY.");
   }
 
   const model = "gemini-2.5-flash";
@@ -34,6 +29,7 @@ export async function generateArtistBio(name: string, specialty: string, city: s
       contents: prompt,
     });
     const text = response.text;
+    if (!text) throw new Error("Empty response from AI");
     
     // Clean up response, remove potential markdown like quotes
     return text.replace(/^"|"$/g, '').trim();
@@ -45,15 +41,11 @@ export async function generateArtistBio(name: string, specialty: string, city: s
 }
 
 /**
- * Suggests an appropriate tattoo service based on tattoo dimensions and the artist's available services.
- * @param width The width of the tattoo in inches.
- * @param height The height of the tattoo in inches.
- * @param services The list of available services from the artist.
- * @returns A promise that resolves to the ID of the suggested service.
+ * Suggests an appropriate tattoo service based on tattoo dimensions using Gemini JSON Schema.
  */
 export async function suggestTattooService(width: number, height: number, services: ArtistService[]): Promise<string> {
   if (!genAI) {
-      throw new Error("AI service is not configured.");
+      throw new Error("AI service is not configured. Please check your .env file for VITE_GEMINI_API_KEY.");
   }
    if (services.length === 0) {
     throw new Error("This artist has not defined any services to choose from.");
@@ -67,23 +59,33 @@ export async function suggestTattooService(width: number, height: number, servic
   ).join('\n');
   
   const prompt = `A client wants a tattoo that is approximately ${width} inches wide by ${height} inches high. The total area is ${area} square inches.
-
-Given the following list of available tattoo services, which one is the most appropriate for a tattoo of this size?
-
-${servicesString}
-
-Your logic should be:
-1. First, check if the tattoo area (${area} sq.in) falls within the explicit "Size Range" of any service. If it does, that service is the best choice. Prioritize the smallest service that fits the size.
-2. If no service's size range matches, then fall back to estimating the time required. A rough guide for tattoo time is: 1-4 sq.in = ~1-2 hours, 5-16 sq.in = ~2-4 hours, 17-36 sq.in = ~4-6 hours, >36 sq.in = 6+ hours. Choose the service with the duration closest to this estimate.
-
-Return ONLY the ID string of the most appropriate service from the list. Do not add any other text, explanation, or quotation marks.`;
+  
+  Available Services:
+  ${servicesString}
+  
+  Select the ID of the most appropriate service based on the size/area coverage.`;
 
   try {
     const response = await genAI.models.generateContent({
       model,
       contents: prompt,
+      config: {
+        responseMimeType: "application/json",
+        responseSchema: {
+          type: Type.OBJECT,
+          properties: {
+            serviceId: {
+              type: Type.STRING,
+              description: "The ID of the best matching service from the provided list.",
+            },
+          },
+          required: ["serviceId"],
+        } as Schema,
+      },
     });
-    const suggestedId = response.text.trim().replace(/"/g, '');
+
+    const json = JSON.parse(response.text || "{}");
+    const suggestedId = json.serviceId;
     
     // Validate that the returned ID is one of the available service IDs
     const isValidId = services.some(s => s.id === suggestedId);
@@ -91,26 +93,30 @@ Return ONLY the ID string of the most appropriate service from the list. Do not 
     if (isValidId) {
       return suggestedId;
     } else {
-      console.warn(`Gemini returned an invalid or unexpected service ID: "${suggestedId}". Falling back to default logic.`);
-      // Fallback logic in case AI fails:
-      // 1. Try to match by size range first
-      const directMatch = services.find(s => area >= (s.minSize || 0) && area <= (s.maxSize || Infinity));
-      if (directMatch) return directMatch.id;
-      
-      // 2. Fallback to estimating hours
-      let estimatedHours = 1.5;
-      if (area > 4 && area <= 16) estimatedHours = 3;
-      else if (area > 16 && area <= 36) estimatedHours = 5;
-      else if (area > 36) estimatedHours = 8;
-
-      const closestService = services.reduce((prev, curr) => 
-        Math.abs(curr.duration - estimatedHours) < Math.abs(prev.duration - estimatedHours) ? curr : prev
-      );
-      return closestService.id;
+      console.warn(`Gemini returned an invalid service ID: "${suggestedId}". Falling back to logic.`);
+      return fallbackServiceLogic(area, services);
     }
 
   } catch (error) {
     console.error("Error suggesting tattoo service with Gemini:", error);
-    throw new Error("Failed to suggest a service. The AI service may be unavailable.");
+    // Fallback to logic if AI fails
+    return fallbackServiceLogic(area, services);
   }
+}
+
+function fallbackServiceLogic(area: number, services: ArtistService[]): string {
+    // 1. Try to match by size range first
+    const directMatch = services.find(s => area >= (s.minSize || 0) && area <= (s.maxSize || Infinity));
+    if (directMatch) return directMatch.id;
+    
+    // 2. Fallback to estimating hours
+    let estimatedHours = 1.5;
+    if (area > 4 && area <= 16) estimatedHours = 3;
+    else if (area > 16 && area <= 36) estimatedHours = 5;
+    else if (area > 36) estimatedHours = 8;
+
+    const closestService = services.reduce((prev, curr) => 
+      Math.abs(curr.duration - estimatedHours) < Math.abs(prev.duration - estimatedHours) ? curr : prev
+    );
+    return closestService.id;
 }
