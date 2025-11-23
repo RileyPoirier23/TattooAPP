@@ -1,3 +1,4 @@
+
 // @/hooks/useAppStore.ts
 import { create } from 'zustand';
 import { persist } from 'zustand/middleware';
@@ -190,27 +191,28 @@ export const useAppStore = create<AppState>()(
       register: async (details, navigate) => {
         try {
           const user = await authService.register(details);
-          // If register is successful and returns a user, it means email confirmation is off.
-          set({ user });
-           if (user.type === 'artist' || user.type === 'dual') {
-            set({ viewMode: 'artist'});
-            navigate('/profile');
-          } else if (user.type === 'shop-owner') {
-            navigate('/onboarding');
+          
+          if (user) {
+            // Email confirmation was NOT required (auto-confirmed or setting disabled)
+            set({ user });
+             if (user.type === 'artist' || user.type === 'dual') {
+              set({ viewMode: 'artist'});
+              navigate('/profile');
+            } else if (user.type === 'shop-owner') {
+              navigate('/onboarding');
+            } else {
+              navigate('/artists');
+            }
+            get().closeModal();
+            get().showToast('Registration successful! You are now logged in.');
           } else {
-            navigate('/artists');
+             // Email confirmation IS required. User is null.
+             get().closeModal();
+             get().showToast('Account created! Please check your email to verify before logging in.', 'success');
           }
-          get().closeModal();
-          get().showToast('Registration successful! You are now logged in.');
         } catch (error) {
           const message = error instanceof Error ? error.message : "Registration failed.";
-          // Handle the specific case where email confirmation is required.
-          if (message.includes("confirm your email")) {
-            get().closeModal();
-            get().showToast(message, 'success');
-          } else {
-            get().showToast(message, 'error');
-          }
+          get().showToast(message, 'error');
         }
       },
       
@@ -284,15 +286,15 @@ export const useAppStore = create<AppState>()(
         try {
           set({ isLoading: true });
       
-          // Step 1: Create the booking request without image URLs to get a stable ID.
+          // Step 1: Create the booking request WITHOUT image URLs to get a stable ID from the database.
           const initialRequestData = { ...requestData, clientId: user.id, referenceImageUrls: [] };
           const newRequest = await createClientBookingRequest(initialRequestData);
           tempRequestId = newRequest.id;
 
-          // Add temporary request to UI for responsiveness
+          // Optimistic UI update: Add request immediately
           set(state => ({ data: { ...state.data, clientBookingRequests: [...state.data.clientBookingRequests, newRequest] } }));
 
-          // Step 2: If there are files, upload them using the new request's ID.
+          // Step 2: Upload images using the verified Request ID (folder name).
           let referenceImageUrls: string[] = [];
           if (referenceFiles.length > 0) {
             const uploadPromises = referenceFiles.map((file, index) =>
@@ -301,28 +303,30 @@ export const useAppStore = create<AppState>()(
             referenceImageUrls = await Promise.all(uploadPromises);
           }
       
-          // Step 3: Update the request with the image URLs.
+          // Step 3: Update the request record with the final image URLs if any were uploaded.
           if (referenceImageUrls.length > 0) {
             const finalRequest = await updateClientBookingRequest(newRequest.id, { referenceImageUrls });
             set(state => ({
               data: {
                 ...state.data,
-                // Replace the temporary request with the final one
                 clientBookingRequests: state.data.clientBookingRequests.map(r => r.id === newRequest.id ? finalRequest : r),
               }
             }));
           }
       
           set({ isLoading: false });
+          // Ensure conversations are refreshed so the new chat shows up
           await get().loadConversations();
+          
           get().closeModal();
-          get().showToast('Booking request sent!', 'success');
+          get().showToast('Booking request sent successfully!', 'success');
         } catch (e) {
-          // If something fails, remove the temporary request from UI state if it exists
+          // Rollback optimistic update on failure
           if (tempRequestId) {
             set(state => ({ data: { ...state.data, clientBookingRequests: state.data.clientBookingRequests.filter(r => r.id !== tempRequestId) }}));
           }
-          const message = e instanceof Error ? e.message : 'Failed to send request. The artist may need to finish their profile setup.';
+          console.error("Booking Error:", e);
+          const message = e instanceof Error ? e.message : 'Failed to send request.';
           get().showToast(message, 'error');
           set({ isLoading: false });
         }
@@ -342,7 +346,7 @@ export const useAppStore = create<AppState>()(
             }));
             get().closeModal();
             if (status === 'approved') {
-                get().showToast(`Request has been approved. Deposit is now due.`);
+                get().showToast(`Request approved. Client notified to pay deposit.`);
             } else {
                 get().showToast(`Request has been ${status}.`);
             }

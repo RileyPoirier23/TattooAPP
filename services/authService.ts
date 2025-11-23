@@ -1,3 +1,4 @@
+
 // @/services/authService.ts
 import { getSupabase } from './supabaseClient';
 import type { User, AuthCredentials, RegisterDetails, AdminUser } from '../types';
@@ -84,13 +85,13 @@ class AuthService {
         if (!user) throw new Error("Could not retrieve user after login.");
         
         const profile = await this.getUserProfile(user.id);
-        if (!profile) throw new Error("User profile not found.");
+        if (!profile) throw new Error("User profile not found. If you just registered, please check your email for a confirmation link.");
 
         localStorage.setItem(USER_STORAGE_KEY, JSON.stringify(profile));
         return profile;
     }
 
-    async register(details: RegisterDetails): Promise<User> {
+    async register(details: RegisterDetails): Promise<User | null> {
         const supabase = getSupabase();
 
         // The user's role and other details are passed as metadata to the signUp function.
@@ -117,7 +118,6 @@ class AuthService {
         if (authData.session) {
             const newUser = await this.getUserProfile(authData.user.id);
             if (!newUser) {
-                // This would mean the database trigger failed, which is a critical server-side problem.
                 throw new Error("Profile creation failed automatically. Please try logging in or contact support.");
             }
             localStorage.setItem(USER_STORAGE_KEY, JSON.stringify(newUser));
@@ -125,10 +125,9 @@ class AuthService {
         } 
         
         // If no session is returned, it means email confirmation is required.
-        // The user is not logged in yet. The profile has been created by the trigger, but we cannot
-        // log them in from the client. We throw a specific message for the UI to handle.
+        // We return NULL to indicate success but no active session.
         else {
-            throw new Error("Registration successful! Please check your email to confirm your account before logging in.");
+            return null;
         }
     }
 

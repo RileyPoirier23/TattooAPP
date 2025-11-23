@@ -1,3 +1,4 @@
+
 // @/components/ModalsAndProfile.tsx
 
 import React, { useState, useMemo, useRef, useCallback, useEffect } from 'react';
@@ -590,7 +591,7 @@ export const ClientBookingRequestModal: React.FC<{ artist: Artist; availability:
 
     const handleSuggestDuration = async () => {
         if (!artist.services || artist.services.length === 0) {
-            showToast('This artist has not defined any services to suggest from.', 'error');
+            showToast('This artist hasn\'t listed specific services for auto-suggestion yet. Please select one manually.', 'error');
             return;
         }
         if (tattooWidth <= 0 || tattooHeight <= 0) {
@@ -717,11 +718,19 @@ export const ClientBookingRequestModal: React.FC<{ artist: Artist; availability:
                                         <option value="">Select a service...</option>
                                         {(artist.services || []).map(s => <option key={s.id} value={s.id}>{s.name} ({s.duration}hr) - ${s.price}</option>)}
                                     </select>
-                                    <button type="button" onClick={handleSuggestDuration} disabled={isSuggesting || !artist.services || artist.services.length === 0} className="bg-brand-secondary text-white font-bold py-2 px-3 rounded-lg flex items-center justify-center space-x-2 text-sm disabled:bg-gray-600 h-10 flex-shrink-0">
+                                    <button 
+                                        type="button" 
+                                        onClick={handleSuggestDuration} 
+                                        className="bg-brand-secondary text-white font-bold py-2 px-3 rounded-lg flex items-center justify-center space-x-2 text-sm disabled:bg-gray-600 h-10 flex-shrink-0"
+                                        title={(!artist.services || artist.services.length === 0) ? "No services available to suggest from" : "Suggest a service based on size"}
+                                    >
                                         {isSuggesting ? <Loader size="sm" color="white" /> : <SparklesIcon className="w-4 h-4" />}
                                         <span>Suggest</span>
                                     </button>
                                 </div>
+                                {(!artist.services || artist.services.length === 0) && (
+                                    <p className="text-xs text-red-400 mt-1">Artist has not set up services for auto-suggestions.</p>
+                                )}
                             </div>
                              {artist.bookingMode === 'time_range' && (
                                 <div>
@@ -1353,7 +1362,7 @@ export const BookingRequestDetailModal: React.FC<{
                 </div>
                  <div>
                     <h4 className="font-bold text-brand-dark dark:text-white">Proposed Dates</h4>
-                    <p className="text-brand-gray">{new Date(request.startDate).toLocaleDateString()} - {new Date(request.endDate).toLocaleDateString()}</p>
+                    <p className="text-brand-gray">{new Date(request.startDate).toLocaleDateString()}{request.endDate ? ` - ${new Date(request.endDate).toLocaleDateString()}` : ''}</p>
                 </div>
                 <div>
                     <h4 className="font-bold text-brand-dark dark:text-white">Tattoo Details</h4>
