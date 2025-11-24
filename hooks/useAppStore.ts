@@ -264,25 +264,28 @@ export const useAppStore = create<AppState>()(
 
       sendClientBookingRequest: async (requestData, referenceFiles) => {
         const user = get().user;
-        if (!user || (user.type !== 'client' && user.type !== 'dual')) {
-          get().showToast('You must be logged in as a client.', 'error');
-          get().openModal('auth'); // Prompt login if trying to book without account
-          return;
-        }
-
+        // Updated Logic: We no longer force login here. Guest bookings are allowed.
+        
         let tempRequestId: string | null = null;
         try {
           set({ isLoading: true });
       
-          // 1. Create the booking request WITHOUT image URLs first to get a stable ID.
-          const initialRequestData = { ...requestData, clientId: user.id, referenceImageUrls: [] };
+          // 1. Create the booking request. 
+          // If user is logged in, use their ID. If not, apiService will handle guest fields.
+          const initialRequestData = { 
+            ...requestData, 
+            clientId: user ? user.id : null, 
+            referenceImageUrls: [] 
+          };
+          
           const newRequest = await createClientBookingRequest(initialRequestData);
           tempRequestId = newRequest.id;
 
           // Optimistic UI update
           set(state => ({ data: { ...state.data, clientBookingRequests: [...state.data.clientBookingRequests, newRequest] } }));
 
-          // 2. Upload images using the verified Request ID (so we know where to put them).
+          // 2. Upload images using the verified Request ID.
+          // Note: RLS policies must allow public upload to 'booking-references' for this to work for guests.
           let referenceImageUrls: string[] = [];
           if (referenceFiles.length > 0) {
             const uploadPromises = referenceFiles.map((file, index) =>
@@ -304,7 +307,12 @@ export const useAppStore = create<AppState>()(
       
           set({ isLoading: false });
           get().closeModal();
-          get().showToast('Booking request sent successfully!', 'success');
+          
+          if (!user) {
+             get().showToast('Booking request sent! The artist will contact you shortly.', 'success');
+          } else {
+             get().showToast('Booking request sent successfully!', 'success');
+          }
         } catch (e) {
           // Rollback on failure
           if (tempRequestId) {

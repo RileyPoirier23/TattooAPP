@@ -183,6 +183,11 @@ const BookingRequestsTab: React.FC<{
     const upcoming = myClientRequests.filter(b => b.status === 'approved' && new Date(b.endDate) >= new Date());
     const past = myClientRequests.filter(b => !pending.includes(b) && !upcoming.includes(b));
 
+    // Helper to get display name
+    const getClientName = (req: ClientBookingRequest) => {
+        return req.clientName !== 'Unknown Client' ? req.clientName : (req.guestName || 'Guest Client');
+    };
+
     return (
         <div className="space-y-8">
             <BookingSection title="Pending Requests" count={pending.length}>
@@ -190,7 +195,10 @@ const BookingRequestsTab: React.FC<{
                     <div key={req.id} className="bg-gray-100 dark:bg-gray-800 p-4 rounded-lg">
                        <div className="flex justify-between items-center">
                             <div>
-                               <p className="font-bold text-brand-dark dark:text-white">Request from {req.clientName}</p>
+                               <p className="font-bold text-brand-dark dark:text-white flex items-center gap-2">
+                                   Request from {getClientName(req)}
+                                   {!req.clientId && <span className="text-xs bg-blue-500/20 text-blue-400 px-2 py-0.5 rounded-full">Guest</span>}
+                               </p>
                                 <p className="font-semibold text-brand-primary text-sm">{req.serviceName}</p>
                             </div>
                            <button onClick={() => openModal('booking-request-detail', req)} className="bg-brand-secondary text-white text-sm font-bold py-2 px-3 rounded-lg hover:bg-opacity-80">
@@ -206,7 +214,7 @@ const BookingRequestsTab: React.FC<{
                     <div key={req.id} className="bg-gray-100 dark:bg-gray-800 p-4 rounded-lg">
                         <div className="flex justify-between items-start">
                             <div>
-                                <p className="font-bold text-brand-dark dark:text-white">Session with {req.clientName}</p>
+                                <p className="font-bold text-brand-dark dark:text-white">Session with {getClientName(req)}</p>
                                 <p className="font-semibold text-brand-primary text-sm">{req.serviceName}</p>
                                 <p className="text-sm text-brand-gray flex items-center mt-1"><CalendarIcon className="w-4 h-4 mr-1.5"/>{new Date(req.startDate).toLocaleDateString()}</p>
                             </div>
@@ -226,7 +234,7 @@ const BookingRequestsTab: React.FC<{
                      <div key={req.id} className="bg-gray-100 dark:bg-gray-800 p-4 rounded-lg">
                          <div className="flex justify-between items-center">
                             <div>
-                                <p className="font-bold text-brand-dark dark:text-white">Session with {req.clientName}</p>
+                                <p className="font-bold text-brand-dark dark:text-white">Session with {getClientName(req)}</p>
                                 <p className="font-semibold text-brand-primary text-sm">{req.serviceName}</p>
                                 <p className="text-sm text-brand-gray">{new Date(req.startDate).toLocaleDateString()}</p>
                             </div>

@@ -133,7 +133,7 @@ export interface Booking {
 
 export interface ClientBookingRequest {
     id: string;
-    clientId: string;
+    clientId?: string | null; // Nullable for guest bookings
     artistId: string;
     startDate: string;
     endDate: string;
@@ -143,8 +143,14 @@ export interface ClientBookingRequest {
     tattooHeight: number;
     bodyPlacement: string;
     paymentStatus: 'paid' | 'unpaid';
+    
+    // Display / Guest fields
     clientName?: string;
     artistName?: string;
+    guestName?: string;
+    guestEmail?: string;
+    guestPhone?: string;
+
     reviewRating?: number;
     reviewText?: string;
     reviewSubmittedAt?: string;

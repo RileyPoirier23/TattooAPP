@@ -220,8 +220,9 @@ export const uploadBookingReferenceImage = async (requestId: string, file: File,
 
 export const createClientBookingRequest = async (requestData: Omit<ClientBookingRequest, 'id' | 'status'|'paymentStatus'>): Promise<ClientBookingRequest> => {
     const supabase = getSupabase();
-    const { data, error } = await supabase.from('client_booking_requests').insert({ 
-        client_id: requestData.clientId, 
+    
+    // Prepare payload, handling optional guest fields
+    const payload: any = { 
         artist_id: requestData.artistId, 
         start_date: requestData.startDate, 
         end_date: requestData.endDate, 
@@ -235,11 +236,32 @@ export const createClientBookingRequest = async (requestData: Omit<ClientBooking
         budget: requestData.budget,
         reference_image_urls: requestData.referenceImageUrls,
         preferred_time: requestData.preferredTime,
-    }).select(`*, client:profiles!client_booking_requests_client_id_fkey(full_name), artist:profiles!client_booking_requests_artist_id_fkey(full_name, services)`).single();
+    };
+
+    if (requestData.clientId) {
+        payload.client_id = requestData.clientId;
+    } else {
+        // Guest Booking
+        payload.guest_name = requestData.guestName;
+        payload.guest_email = requestData.guestEmail;
+        payload.guest_phone = requestData.guestPhone;
+    }
+
+    const { data, error } = await supabase.from('client_booking_requests').insert(payload)
+        .select(`*, client:profiles!client_booking_requests_client_id_fkey(full_name), artist:profiles!client_booking_requests_artist_id_fkey(full_name, services)`)
+        .single();
+        
     if (error) throw error;
     
-    const conversation = await findOrCreateConversation(requestData.clientId, requestData.artistId);
-    await sendMessage(conversation.id, requestData.clientId, requestData.message);
+    // Only try to send an internal message if there is a registered client ID
+    if (requestData.clientId) {
+        try {
+            const conversation = await findOrCreateConversation(requestData.clientId, requestData.artistId);
+            await sendMessage(conversation.id, requestData.clientId, requestData.message);
+        } catch (msgError) {
+            console.warn("Could not send initial message for booking:", msgError);
+        }
+    }
 
     return adaptClientBookingRequest(data);
 };
@@ -276,7 +298,7 @@ export const updateClientBookingRequestStatus = async (requestId: string, status
     const { error: updateError } = await supabase.from('client_booking_requests').update(updatePayload).eq('id', requestId);
     if (updateError) throw updateError;
     
-    if (status === 'approved' || status === 'declined') {
+    if (request.client_id && (status === 'approved' || status === 'declined')) {
         const { data: artistProfile, error: profileError } = await supabase.from('profiles').select('full_name').eq('id', request.artist_id).single();
         if (profileError) throw profileError;
         await createNotification(request.client_id, `Your booking request with ${artistProfile.full_name} has been ${status}.`);
@@ -290,7 +312,7 @@ export const payClientBookingDeposit = async (requestId: string): Promise<Client
     // 1. Fetch the request to get artist_id and client's name for the notification
     const { data: request, error: fetchError } = await supabase
         .from('client_booking_requests')
-        .select('artist_id, client:profiles!client_booking_requests_client_id_fkey(full_name)')
+        .select('artist_id, client:profiles!client_booking_requests_client_id_fkey(full_name), guest_name')
         .eq('id', requestId)
         .single();
     if (fetchError) throw fetchError;
@@ -305,7 +327,7 @@ export const payClientBookingDeposit = async (requestId: string): Promise<Client
     if (updateError) throw updateError;
     
     // 3. Create a notification for the artist
-    const clientName = request.client?.full_name || 'A client';
+    const clientName = request.client?.full_name || request.guest_name || 'A client';
     await createNotification(request.artist_id, `${clientName} has paid the deposit for their booking.`);
 
     return adaptClientBookingRequest(updatedRequest);

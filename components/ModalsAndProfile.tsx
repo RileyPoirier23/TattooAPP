@@ -1,5 +1,4 @@
 
-
 // @/components/ModalsAndProfile.tsx
 
 import React, { useState, useMemo, useRef, useCallback, useEffect } from 'react';
@@ -553,9 +552,10 @@ const StepContent: React.FC<{ children: React.ReactNode }> = ({ children }) => (
 );
 
 export const ClientBookingRequestModal: React.FC<{ artist: Artist; availability: ArtistAvailability[]; onClose: () => void; onSendRequest: (request: Omit<ClientBookingRequest, 'id' | 'clientId' | 'status' | 'paymentStatus'>, files: File[]) => void; }> = ({ artist, availability, onClose, onSendRequest }) => {
-    const { showToast } = useAppStore();
+    const { user, showToast } = useAppStore();
     const [step, setStep] = useState(1);
-    const totalSteps = 3;
+    // If user is not logged in, we need an extra step for contact info
+    const totalSteps = user ? 3 : 4;
 
     // Form State
     const [startDate, setStartDate] = useState<Date | null>(null);
@@ -570,6 +570,11 @@ export const ClientBookingRequestModal: React.FC<{ artist: Artist; availability:
     const [previews, setPreviews] = useState<string[]>([]);
     const [isSuggesting, setIsSuggesting] = useState(false);
     const [preferredTime, setPreferredTime] = useState<'morning' | 'afternoon' | 'evening' | 'anytime'>('anytime');
+
+    // Guest Contact Fields
+    const [guestName, setGuestName] = useState('');
+    const [guestEmail, setGuestEmail] = useState('');
+    const [guestPhone, setGuestPhone] = useState('');
 
     // Derived State
     const selectedService = useMemo(() => artist.services?.find(s => s.id === serviceId), [serviceId, artist.services]);
@@ -623,7 +628,7 @@ export const ClientBookingRequestModal: React.FC<{ artist: Artist; availability:
     };
 
     const handleSubmit = () => {
-        if (isStep1Valid && isStep2Valid) {
+        if (isStep1Valid && isStep2Valid && (user || isGuestStepValid)) {
             const platformFee = (selectedService?.depositAmount || 0) * 0.029;
             onSendRequest({ 
                 artistId: artist.id, 
@@ -638,6 +643,10 @@ export const ClientBookingRequestModal: React.FC<{ artist: Artist; availability:
                 serviceId,
                 budget,
                 preferredTime: artist.bookingMode === 'time_range' ? preferredTime : undefined,
+                // Guest Fields
+                guestName: !user ? guestName : undefined,
+                guestEmail: !user ? guestEmail : undefined,
+                guestPhone: !user ? guestPhone : undefined,
             }, referenceFiles);
         } else {
             showToast('Please fill out all required fields.', 'error');
@@ -647,10 +656,16 @@ export const ClientBookingRequestModal: React.FC<{ artist: Artist; availability:
     // Validation
     const isStep1Valid = tattooWidth > 0 && tattooHeight > 0 && bodyPlacement && message.trim() !== '';
     const isStep2Valid = serviceId && startDate;
+    const isGuestStepValid = guestName.trim() !== '' && guestEmail.includes('@') && guestPhone.trim() !== '';
     
     // UI
     const inputClasses = "w-full bg-gray-100 dark:bg-gray-800 border-gray-300 dark:border-gray-700 rounded-lg p-2 text-brand-dark dark:text-white";
-    const stepTitles = [ "Tattoo Details", "Service & Dates", "Review & Confirm" ];
+    
+    // Determine Step Titles dynamically based on if user is logged in
+    const stepTitles = user 
+        ? [ "Tattoo Details", "Service & Dates", "Review & Confirm" ] 
+        : [ "Tattoo Details", "Service & Dates", "Contact Info", "Review & Confirm" ];
+    
     const currentTitle = `Request Booking: Step ${step} of ${totalSteps} - ${stepTitles[step - 1]}`;
 
     return (
@@ -757,7 +772,35 @@ export const ClientBookingRequestModal: React.FC<{ artist: Artist; availability:
                 </StepContent>
             )}
 
-            {step === 3 && (
+            {/* Step 3 (Only for Guests): Contact Information */}
+            {!user && step === 3 && (
+                <StepContent>
+                    <div className="space-y-4">
+                        <div className="bg-brand-secondary/10 p-4 rounded-lg border border-brand-secondary/20 mb-4">
+                            <p className="text-sm text-brand-dark dark:text-white">You are booking as a guest. Please provide your contact details so the artist can reach you.</p>
+                        </div>
+                        <div>
+                            <label className="text-sm font-medium text-brand-gray mb-1 block">Full Name</label>
+                            <input type="text" value={guestName} onChange={e => setGuestName(e.target.value)} className={inputClasses} placeholder="John Doe" required />
+                        </div>
+                        <div>
+                            <label className="text-sm font-medium text-brand-gray mb-1 block">Email Address</label>
+                            <input type="email" value={guestEmail} onChange={e => setGuestEmail(e.target.value)} className={inputClasses} placeholder="john@example.com" required />
+                        </div>
+                        <div>
+                            <label className="text-sm font-medium text-brand-gray mb-1 block">Phone Number</label>
+                            <input type="tel" value={guestPhone} onChange={e => setGuestPhone(e.target.value)} className={inputClasses} placeholder="(555) 123-4567" required />
+                        </div>
+                    </div>
+                    <div className="flex justify-between mt-6 pt-4 border-t border-gray-200 dark:border-gray-800">
+                        <button onClick={prevStep} className="bg-gray-200 dark:bg-gray-700 text-brand-dark dark:text-white font-bold py-2 px-6 rounded-lg">Back</button>
+                        <button onClick={nextStep} disabled={!isGuestStepValid} className="bg-brand-primary text-white font-bold py-2 px-6 rounded-lg disabled:bg-gray-600">Next</button>
+                    </div>
+                </StepContent>
+            )}
+
+            {/* Final Step: Review */}
+            {step === totalSteps && (
                 <StepContent>
                     <div className="space-y-4">
                         <h3 className="text-lg font-bold text-brand-dark dark:text-white">Review Your Request</h3>
@@ -769,6 +812,14 @@ export const ClientBookingRequestModal: React.FC<{ artist: Artist; availability:
                                 <div><strong className="text-brand-gray block">Size:</strong> {tattooWidth}" x {tattooHeight}"</div>
                                 <div><strong className="text-brand-gray block">Placement:</strong> {bodyPlacements.find(p => p.value === bodyPlacement)?.label}</div>
                                 {budget && <div><strong className="text-brand-gray block">Budget:</strong> ${budget}</div>}
+                                {!user && (
+                                    <>
+                                        <div className="col-span-2 mt-2 pt-2 border-t border-gray-200 dark:border-gray-700">
+                                            <strong className="text-brand-gray block">Contact Info:</strong>
+                                            <p>{guestName} • {guestEmail} • {guestPhone}</p>
+                                        </div>
+                                    </>
+                                )}
                             </div>
                             <div>
                                 <strong className="text-brand-gray block">Description:</strong>
@@ -1354,8 +1405,11 @@ export const BookingRequestDetailModal: React.FC<{
     onRespond: (requestId: string, status: 'approved' | 'declined') => void;
 }> = ({ request, onClose, onRespond }) => {
     
+    // Determine if this is a guest booking
+    const isGuest = !request.clientId && request.guestName;
+
     return (
-        <Modal onClose={onClose} title={`Request from ${request.clientName}`} size="lg">
+        <Modal onClose={onClose} title={`Request from ${isGuest ? request.guestName + ' (Guest)' : request.clientName}`} size="lg">
             <div className="space-y-4">
                 <div>
                     <h4 className="font-bold text-brand-dark dark:text-white">Service</h4>
@@ -1373,6 +1427,21 @@ export const BookingRequestDetailModal: React.FC<{
                         {request.budget && <li>Budget: ${request.budget}</li>}
                     </ul>
                 </div>
+                
+                {/* Contact Section for Guests */}
+                {isGuest && (
+                    <div className="bg-blue-500/10 border border-blue-500/30 p-3 rounded-lg">
+                        <h4 className="font-bold text-blue-400">Guest Contact Info</h4>
+                        <p className="text-sm text-brand-dark dark:text-white">{request.guestName}</p>
+                        <p className="text-sm text-brand-dark dark:text-white">{request.guestEmail}</p>
+                        <p className="text-sm text-brand-dark dark:text-white">{request.guestPhone}</p>
+                        <div className="flex gap-2 mt-2">
+                             <a href={`mailto:${request.guestEmail}`} className="text-xs bg-blue-600 text-white px-2 py-1 rounded hover:bg-blue-500">Email Client</a>
+                             <a href={`tel:${request.guestPhone}`} className="text-xs bg-green-600 text-white px-2 py-1 rounded hover:bg-green-500">Call Client</a>
+                        </div>
+                    </div>
+                )}
+
                  <div>
                     <h4 className="font-bold text-brand-dark dark:text-white">Message from Client</h4>
                     <p className="text-brand-gray italic bg-gray-100 dark:bg-gray-800 p-3 rounded-lg">"{request.message}"</p>
