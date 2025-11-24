@@ -334,7 +334,13 @@ export const createNotification = async (userId: string, message: string): Promi
 
 export const findOrCreateConversation = async (userId1: string, userId2: string): Promise<Conversation> => {
     const supabase = getSupabase();
-    const { data: existing, error: existingError } = await supabase.from('conversations').select('*').or(`(participant_one_id.eq.${userId1},participant_two_id.eq.${userId2}),(participant_one_id.eq.${userId2},participant_two_id.eq.${userId1})`).limit(1);
+    // Correctly structured PostgREST query using explicit AND grouping for the OR condition
+    const { data: existing, error: existingError } = await supabase
+        .from('conversations')
+        .select('*')
+        .or(`and(participant_one_id.eq.${userId1},participant_two_id.eq.${userId2}),and(participant_one_id.eq.${userId2},participant_two_id.eq.${userId1})`)
+        .limit(1);
+
     if (existingError) throw existingError;
     if (existing && existing.length > 0) return { ...existing[0], participantOneId: existing[0].participant_one_id, participantTwoId: existing[0].participant_two_id };
 
