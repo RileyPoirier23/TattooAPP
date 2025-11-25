@@ -101,21 +101,28 @@ const ClientRequests: React.FC<Pick<MyBookingsViewProps, 'user' | 'allClientBook
 
     return (
         <div className="space-y-8">
-            {isArtistView && (
-                <BookingSection title="Pending Requests" count={pending.length}>
-                    {pending.length > 0 ? pending.map(req => (
-                        <div key={req.id} className="bg-gray-100 dark:bg-gray-800 p-4 rounded-lg">
-                           <p className="font-bold text-brand-dark dark:text-white">Request from {req.clientName}</p>
-                            <p className="font-semibold text-brand-primary text-sm">{req.serviceName}</p>
-                           <p className="text-sm text-brand-gray mt-1 italic">"{req.message}"</p>
+            <BookingSection title="Pending Requests" count={pending.length}>
+                {pending.length > 0 ? pending.map(req => (
+                    <div key={req.id} className="bg-gray-100 dark:bg-gray-800 p-4 rounded-lg">
+                       <p className="font-bold text-brand-dark dark:text-white">
+                           {isArtistView ? `Request from ${req.clientName}` : `Request to ${req.artistName}`}
+                       </p>
+                        <p className="font-semibold text-brand-primary text-sm">{req.serviceName}</p>
+                       <p className="text-sm text-brand-gray mt-1 italic">"{req.message}"</p>
+                       
+                       {isArtistView ? (
                            <div className="flex gap-2 mt-4">
                                 <button onClick={() => onRespondToRequest(req.id, 'approved')} className="bg-green-600 text-white text-sm font-bold py-2 px-3 rounded-lg">Approve</button>
                                 <button onClick={() => onRespondToRequest(req.id, 'declined')} className="bg-red-600 text-white text-sm font-bold py-2 px-3 rounded-lg">Decline</button>
                            </div>
-                        </div>
-                    )) : <p className="text-brand-gray">No pending client requests.</p>}
-                </BookingSection>
-            )}
+                       ) : (
+                           <div className="mt-4">
+                               <span className="bg-yellow-500/20 text-yellow-400 text-xs font-bold px-3 py-1 rounded-full">Awaiting Artist Approval</span>
+                           </div>
+                       )}
+                    </div>
+                )) : <p className="text-brand-gray">No pending requests.</p>}
+            </BookingSection>
 
             <BookingSection title="Upcoming & Approved Sessions" count={upcoming.length}>
                  {upcoming.length > 0 ? upcoming.map(req => (
