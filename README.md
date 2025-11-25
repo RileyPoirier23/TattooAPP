@@ -37,7 +37,7 @@ values
   ('message_attachments', 'message_attachments', true)
 on conflict (id) do nothing;
 
--- 3. Create Tables
+-- 3. Create Tables (IF NOT EXISTS)
 create table if not exists public.profiles (
   id uuid references auth.users on delete cascade not null primary key,
   username text,
@@ -130,6 +130,23 @@ create table if not exists public.client_booking_requests (
   created_at timestamptz default now()
 );
 
+-- Ensure Guest Columns exist (idempotent alter)
+do $$
+begin
+    if not exists (select 1 from information_schema.columns where table_name = 'client_booking_requests' and column_name = 'guest_name') then
+        alter table public.client_booking_requests add column guest_name text;
+    end if;
+    if not exists (select 1 from information_schema.columns where table_name = 'client_booking_requests' and column_name = 'guest_email') then
+        alter table public.client_booking_requests add column guest_email text;
+    end if;
+    if not exists (select 1 from information_schema.columns where table_name = 'client_booking_requests' and column_name = 'guest_phone') then
+        alter table public.client_booking_requests add column guest_phone text;
+    end if;
+    -- Make client_id nullable if it isn't already
+    alter table public.client_booking_requests alter column client_id drop not null;
+end $$;
+
+
 create table if not exists public.artist_availability (
   id uuid default gen_random_uuid() primary key,
   artist_id uuid references public.profiles(id) on delete cascade,
@@ -184,52 +201,77 @@ alter table public.messages enable row level security;
 alter table public.notifications enable row level security;
 alter table public.verification_requests enable row level security;
 
--- 5. Storage Policies
+-- 5. Storage Policies (Clean up old ones first to prevent errors)
 drop policy if exists "Public Access to Portfolios" on storage.objects;
 drop policy if exists "Authenticated users can upload portfolios" on storage.objects;
 drop policy if exists "Users can delete own portfolio images" on storage.objects;
 drop policy if exists "Public Access to Booking Refs" on storage.objects;
 drop policy if exists "Authenticated users can upload refs" on storage.objects;
+drop policy if exists "Public upload refs" on storage.objects;
 drop policy if exists "Public Access to Message Attachments" on storage.objects;
 drop policy if exists "Authenticated users can upload attachments" on storage.objects;
-drop policy if exists "Public upload refs" on storage.objects;
 
+-- Re-create Storage Policies
 create policy "Public Access to Portfolios" on storage.objects for select using ( bucket_id = 'portfolios' );
 create policy "Authenticated users can upload portfolios" on storage.objects for insert with check ( bucket_id = 'portfolios' and auth.role() = 'authenticated' );
 create policy "Users can delete own portfolio images" on storage.objects for delete using ( bucket_id = 'portfolios' and auth.uid()::text = (storage.foldername(name))[1] );
 
 create policy "Public Access to Booking Refs" on storage.objects for select using ( bucket_id = 'booking-references' );
--- Allow ANYONE to upload references (needed for guest bookings)
+-- Allow ANYONE (including guests) to upload references
 create policy "Public upload refs" on storage.objects for insert with check ( bucket_id = 'booking-references' );
 
 create policy "Public Access to Message Attachments" on storage.objects for select using ( bucket_id = 'message_attachments' );
 create policy "Authenticated users can upload attachments" on storage.objects for insert with check ( bucket_id = 'message_attachments' and auth.role() = 'authenticated' );
 
--- 6. Table Policies
+-- 6. Table Policies (Clean up old ones first)
 drop policy if exists "Public profiles" on public.profiles;
+drop policy if exists "Users update own" on public.profiles;
+drop policy if exists "Users insert own" on public.profiles;
+drop policy if exists "Public profiles are viewable by everyone" on public.profiles;
+drop policy if exists "Users can update own profile" on public.profiles;
+
 create policy "Public profiles" on public.profiles for select using (true);
 create policy "Users update own" on public.profiles for update using (auth.uid() = id);
 create policy "Users insert own" on public.profiles for insert with check (auth.uid() = id);
 
 drop policy if exists "Public shops" on public.shops;
+drop policy if exists "Owners manage shops" on public.shops;
+drop policy if exists "Shops viewable by everyone" on public.shops;
+drop policy if exists "Shop owners can insert shops" on public.shops;
+drop policy if exists "Shop owners can update own shops" on public.shops;
+drop policy if exists "Shop owners can delete own shops" on public.shops;
+
 create policy "Public shops" on public.shops for select using (true);
 create policy "Owners manage shops" on public.shops for all using (auth.uid() = owner_id);
 
 drop policy if exists "Public booths" on public.booths;
+drop policy if exists "Owners manage booths" on public.booths;
+drop policy if exists "Booths viewable by everyone" on public.booths;
+drop policy if exists "Shop owners can manage booths" on public.booths;
+
 create policy "Public booths" on public.booths for select using (true);
 create policy "Owners manage booths" on public.booths for all using (
   exists (select 1 from public.shops where shops.id = booths.shop_id and shops.owner_id = auth.uid())
 );
 
 drop policy if exists "Booking visibility" on public.bookings;
+drop policy if exists "Artist create booking" on public.bookings;
+drop policy if exists "Users can see their own bookings" on public.bookings;
+drop policy if exists "Artists can insert bookings" on public.bookings;
+
 create policy "Booking visibility" on public.bookings for select using (auth.uid() = artist_id or exists (select 1 from public.shops where shops.id = bookings.shop_id and shops.owner_id = auth.uid()));
 create policy "Artist create booking" on public.bookings for insert with check (auth.uid() = artist_id);
 
+-- Client Booking Requests (Critical for Guest Booking)
 drop policy if exists "Client Request visibility" on public.client_booking_requests;
 drop policy if exists "Public request creation" on public.client_booking_requests;
+drop policy if exists "Update request" on public.client_booking_requests;
 drop policy if exists "Artist view requests" on public.client_booking_requests;
+drop policy if exists "Clients and Artists can view their requests" on public.client_booking_requests;
+drop policy if exists "Clients can insert requests" on public.client_booking_requests;
+drop policy if exists "Users can update their requests" on public.client_booking_requests;
 
--- Allow Artists to see requests where they are the artist, OR the client to see their own
+-- Allow Artists to see requests, OR the client to see their own
 create policy "Artist view requests" on public.client_booking_requests for select using (
   auth.uid() = artist_id OR auth.uid() = client_id
 );
@@ -238,23 +280,44 @@ create policy "Public request creation" on public.client_booking_requests for in
 create policy "Update request" on public.client_booking_requests for update using (auth.uid() = client_id or auth.uid() = artist_id);
 
 drop policy if exists "Conversation visibility" on public.conversations;
+drop policy if exists "Conversation create" on public.conversations;
+drop policy if exists "Users can view their conversations" on public.conversations;
+drop policy if exists "Users can insert conversations" on public.conversations;
+
 create policy "Conversation visibility" on public.conversations for select using (auth.uid() = participant_one_id or auth.uid() = participant_two_id);
 create policy "Conversation create" on public.conversations for insert with check (auth.uid() = participant_one_id or auth.uid() = participant_two_id);
 
 drop policy if exists "Message visibility" on public.messages;
+drop policy if exists "Message create" on public.messages;
+drop policy if exists "Users can view messages in their convos" on public.messages;
+drop policy if exists "Users can insert messages" on public.messages;
+
 create policy "Message visibility" on public.messages for select using (exists (select 1 from public.conversations where conversations.id = messages.conversation_id and (conversations.participant_one_id = auth.uid() or conversations.participant_two_id = auth.uid())));
 create policy "Message create" on public.messages for insert with check (auth.uid() = sender_id);
 
 drop policy if exists "Notif visibility" on public.notifications;
+drop policy if exists "Notif create" on public.notifications;
+drop policy if exists "Notif update" on public.notifications;
+drop policy if exists "Users can view own notifications" on public.notifications;
+drop policy if exists "System/Users can insert notifications" on public.notifications;
+drop policy if exists "Users can update own notifications" on public.notifications;
+
 create policy "Notif visibility" on public.notifications for select using (auth.uid() = user_id);
 create policy "Notif create" on public.notifications for insert with check (true);
 create policy "Notif update" on public.notifications for update using (auth.uid() = user_id);
 
 drop policy if exists "Availability public" on public.artist_availability;
+drop policy if exists "Artist manage avail" on public.artist_availability;
+drop policy if exists "Artists manage availability" on public.artist_availability;
+
 create policy "Availability public" on public.artist_availability for select using (true);
 create policy "Artist manage avail" on public.artist_availability for all using (auth.uid() = artist_id);
 
 drop policy if exists "Verification visibility" on public.verification_requests;
+drop policy if exists "Verification create" on public.verification_requests;
+drop policy if exists "Verification requests viewable by owner" on public.verification_requests;
+drop policy if exists "Create verification" on public.verification_requests;
+
 create policy "Verification visibility" on public.verification_requests for select using (auth.uid() = profile_id or exists (select 1 from public.shops where shops.id = verification_requests.shop_id and shops.owner_id = auth.uid()));
 create policy "Verification create" on public.verification_requests for insert with check (true);
 
