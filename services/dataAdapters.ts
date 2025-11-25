@@ -127,7 +127,10 @@ export const adaptClientBookingRequest = (b: any): ClientBookingRequest => {
   const service = artistServices.find(s => s.id === b.service_id);
 
   // Determine the display name: Profile Name OR Guest Name OR Unknown
+  // Note: The apiService uses explicit joins: client:profiles!client_booking_requests_client_id_fkey
   const clientProfileName = getJoinedProperty<{ full_name: string }>(b.client, 'full_name');
+  
+  // Fallback logic: If joined client name is null (because client_id is null or join failed), use guest_name from the request table
   const displayName = clientProfileName || b.guest_name || 'Unknown Client';
 
   return {

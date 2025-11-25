@@ -186,6 +186,7 @@ const BookingRequestsTab: React.FC<{
     // Helper to safe-guard display name
     const getClientName = (req: ClientBookingRequest) => {
         if (!req) return "Unknown";
+        // Priority: Profile Name -> Guest Name -> 'Unknown'
         if (req.clientName && req.clientName !== 'Unknown Client') return req.clientName;
         if (req.guestName) return `${req.guestName} (Guest)`;
         return "Unknown Client";

@@ -1,7 +1,7 @@
 
 // @/services/apiService.ts
 import { getSupabase } from './supabaseClient';
-import type { Artist, Shop, Booth, Booking, ClientBookingRequest, Notification, User, UserRole, Review, PortfolioImage, VerificationRequest, Conversation, ConversationWithUser, Message, ArtistAvailability } from '../types';
+import type { Artist, Shop, Booth, Booking, ClientBookingRequest, Notification, User, UserRole, Review, PortfolioImage, VerificationRequest, Conversation, ConversationWithUser, Message, ArtistAvailability, AdminUser, ArtistService } from '../types';
 import { 
     adaptProfileToArtist, adaptShop, adaptBooth, adaptBooking, adaptClientBookingRequest, adaptAvailability, 
     adaptVerificationRequest, adaptReviewFromBooking, adaptNotification, adaptConversation, adaptMessage, adaptSupabaseProfileToUser 
@@ -25,6 +25,7 @@ export const fetchInitialData = async (): Promise<any> => {
     const { data: rawShops, error: shopsError } = await supabase.from('shops').select('*');
     const { data: rawBooths, error: boothsError } = await supabase.from('booths').select('*');
     const { data: rawBookings, error: bookingsError } = await supabase.from('bookings').select('*');
+    // Updated to use explicit FK names to prevent null joins on guest data
     const { data: rawClientBookings, error: clientBookingsError } = await supabase
         .from('client_booking_requests')
         .select(`
@@ -247,6 +248,7 @@ export const createClientBookingRequest = async (requestData: Omit<ClientBooking
         payload.guest_phone = requestData.guestPhone;
     }
 
+    // Insert and select with explicit foreign keys
     const { data, error } = await supabase.from('client_booking_requests').insert(payload)
         .select(`*, client:profiles!client_booking_requests_client_id_fkey(full_name), artist:profiles!client_booking_requests_artist_id_fkey(full_name, services)`)
         .single();
@@ -443,8 +445,6 @@ export const deleteUserAsAdmin = async (userId: string): Promise<{ success: bool
     const supabase = getSupabase();
     const { error } = await supabase.from('profiles').delete().eq('id', userId);
     if (error) throw error;
-    // Note: You might want to delete the auth user as well, which requires admin privileges.
-    // const { error: authError } = await supabase.auth.admin.deleteUser(userId);
     return { success: true };
 };
 
