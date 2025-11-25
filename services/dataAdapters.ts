@@ -4,8 +4,7 @@
 import type { Artist, Shop, Booth, Booking, ClientBookingRequest, Notification, User, UserRole, Client, ShopOwner, Admin, Conversation, Message, ConversationWithUser, ArtistAvailability, Review, VerificationRequest, AdminUser, ArtistService } from '../types';
 
 /**
- * Safely extracts a property from a Supabase joined table result,
- * which can be null, a single object, or an array containing a single object.
+ * Safely extracts a property from a Supabase joined table result.
  */
 function getJoinedProperty<T extends object>(
   joinedData: unknown,
@@ -35,7 +34,7 @@ export const adaptProfileToArtist = (profile: any): Artist => ({
   services: profile.services || [],
   aftercareMessage: profile.aftercare_message || '',
   requestHealedPhoto: profile.request_healed_photo || false,
-  averageRating: 0, // This is calculated dynamically in the store
+  averageRating: 0, // Calculated in store
 });
 
 export const adaptProfileToClient = (profile: any): Client => ({
@@ -123,15 +122,23 @@ export const adaptBooking = (booking: any, shops: Shop[]): Booking => ({
 });
 
 export const adaptClientBookingRequest = (b: any): ClientBookingRequest => {
-  const artistServices = getJoinedProperty<{ services: ArtistService[] }>(b.artist, 'services') || [];
-  const service = artistServices.find(s => s.id === b.service_id);
-
-  // Determine the display name: Profile Name OR Guest Name OR Unknown
-  // Note: The apiService uses explicit joins: client:profiles!client_booking_requests_client_id_fkey
-  const clientProfileName = getJoinedProperty<{ full_name: string }>(b.client, 'full_name');
+  // The RPC return structure might wrap artist/client data differently than standard selects
+  const artistServices = b.artist?.services || 
+                         getJoinedProperty<{ services: ArtistService[] }>(b.artist, 'services') || [];
   
-  // Fallback logic: If joined client name is null (because client_id is null or join failed), use guest_name from the request table
+  const service = artistServices.find((s: any) => s.id === b.service_id);
+
+  // Display Name Priority:
+  // 1. Joined Profile Name (b.client.full_name)
+  // 2. Guest Name (b.guest_name)
+  // 3. "Unknown Client"
+  const clientProfileName = b.client?.full_name || 
+                            getJoinedProperty<{ full_name: string }>(b.client, 'full_name');
+  
   const displayName = clientProfileName || b.guest_name || 'Unknown Client';
+
+  const artistName = b.artist?.full_name ||
+                     getJoinedProperty<{ full_name: string }>(b.artist, 'full_name') || 'Unknown Artist';
 
   return {
     id: b.id,
@@ -146,7 +153,7 @@ export const adaptClientBookingRequest = (b: any): ClientBookingRequest => {
     bodyPlacement: b.body_placement,
     paymentStatus: b.payment_status,
     clientName: displayName,
-    artistName: getJoinedProperty<{ full_name: string }>(b.artist, 'full_name') || 'Unknown Artist',
+    artistName: artistName,
     reviewRating: b.review_rating,
     reviewText: b.review_text,
     reviewSubmittedAt: b.review_submitted_at,

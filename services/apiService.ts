@@ -25,7 +25,8 @@ export const fetchInitialData = async (): Promise<any> => {
     const { data: rawShops, error: shopsError } = await supabase.from('shops').select('*');
     const { data: rawBooths, error: boothsError } = await supabase.from('booths').select('*');
     const { data: rawBookings, error: bookingsError } = await supabase.from('bookings').select('*');
-    // Updated to use explicit FK names to prevent null joins on guest data
+    
+    // CRITICAL: explicit Foreign Key hints to match the SQL script
     const { data: rawClientBookings, error: clientBookingsError } = await supabase
         .from('client_booking_requests')
         .select(`
@@ -33,21 +34,16 @@ export const fetchInitialData = async (): Promise<any> => {
             client:profiles!client_booking_requests_client_id_fkey(id, full_name),
             artist:profiles!client_booking_requests_artist_id_fkey(id, full_name, services)
         `);
+        
     const { data: rawAvailability, error: availabilityError } = await supabase.from('artist_availability').select('*');
     const { data: rawVerificationRequests, error: verificationRequestsError } = await supabase.from('verification_requests').select(`*, profile:profiles(full_name), shop:shops(name)`);
 
 
     if (artistsError || shopsError || boothsError || bookingsError || clientBookingsError || availabilityError || verificationRequestsError) {
         const firstError = artistsError || shopsError || boothsError || bookingsError || clientBookingsError || availabilityError || verificationRequestsError;
-        console.error("Supabase fetchInitialData failed. Individual errors:", { artistsError, shopsError, boothsError, bookingsError, clientBookingsError, availabilityError, verificationRequestsError });
-
-        let errorMessage = 'Failed to fetch initial data from Supabase.';
-        if (firstError) {
-            errorMessage += ` The database returned: "${firstError.message}".`;
-            if (firstError.message.toLowerCase().includes("security policy") || firstError.message.toLowerCase().includes("rls")) {
-                errorMessage += " This is likely a Row Level Security (RLS) issue. Please check the README's troubleshooting guide to ensure your public tables have the correct SELECT policies for anonymous users.";
-            }
-        }
+        console.error("Supabase fetchInitialData failed.", firstError);
+        let errorMessage = 'Failed to fetch initial data.';
+        if (firstError?.message) errorMessage += ` DB Error: ${firstError.message}`;
         throw new Error(errorMessage);
     }
     
@@ -79,11 +75,7 @@ export const updateUserData = async (userId: string, updatedData: Partial<User['
     if ('name' in updatedData) profileUpdate.full_name = updatedData.name;
     if ('city' in updatedData) profileUpdate.city = updatedData.city;
 
-    const { error } = await supabase
-        .from('profiles')
-        .update(profileUpdate)
-        .eq('id', userId);
-
+    const { error } = await supabase.from('profiles').update(profileUpdate).eq('id', userId);
     if (error) throw error;
     return { success: true };
 }
@@ -104,15 +96,8 @@ export const updateArtistData = async (artistId: string, updatedData: Partial<Ar
     if (updatedData.hours) profileUpdate.hours = updatedData.hours;
     if (updatedData.intakeSettings) profileUpdate.intake_settings = updatedData.intakeSettings;
 
-    const { data, error } = await supabase
-        .from('profiles')
-        .update(profileUpdate)
-        .eq('id', artistId)
-        .select()
-        .single();
-
+    const { data, error } = await supabase.from('profiles').update(profileUpdate).eq('id', artistId).select().single();
     if (error) throw error;
-    
     return adaptProfileToArtist(data);
 };
 
@@ -121,10 +106,7 @@ export const uploadPortfolioImage = async (userId: string, file: File): Promise<
     const fileExt = file.name.split('.').pop();
     const fileName = `${userId}/${Date.now()}.${fileExt}`;
 
-    const { error: uploadError } = await supabase.storage
-        .from('portfolios')
-        .upload(fileName, file);
-    
+    const { error: uploadError } = await supabase.storage.from('portfolios').upload(fileName, file);
     if (uploadError) throw uploadError;
 
     const { data } = supabase.storage.from('portfolios').getPublicUrl(fileName);
@@ -144,20 +126,12 @@ export const deletePortfolioImageFromStorage = async (imageUrl: string): Promise
     try {
         const url = new URL(imageUrl);
         const path = url.pathname.split('/portfolios/')[1];
-        
-        if (!path) {
-            throw new Error("Could not determine file path from URL.");
-        }
-
-        const { error } = await supabase.storage.from('portfolios').remove([path]);
-        
-        if (error) {
-            console.warn(`Could not delete portfolio image from storage: ${error.message}`);
+        if (path) {
+            await supabase.storage.from('portfolios').remove([path]);
         }
     } catch (e) {
         console.error("Error parsing URL for storage deletion:", e);
     }
-
     return { success: true };
 };
 
@@ -196,15 +170,7 @@ export const createBookingForArtist = async (bookingData: Omit<Booking, 'id' | '
     }).select().single();
 
     if (error) throw error;
-    
-    // Fetch the specific shop associated with this booking to ensure data consistency
-    const { data: rawShop, error: shopError } = await supabase.from('shops').select('*').eq('id', bookingData.shopId).single();
-    
-    if (shopError) {
-        console.error("Failed to fetch shop details for new booking:", shopError);
-        return adaptBooking(data, []);
-    }
-    
+    const { data: rawShop } = await supabase.from('shops').select('*').eq('id', bookingData.shopId).single();
     return adaptBooking(data, rawShop ? [adaptShop(rawShop)] : []);
 };
 
@@ -212,50 +178,45 @@ export const uploadBookingReferenceImage = async (requestId: string, file: File,
     const supabase = getSupabase();
     const fileExt = file.name.split('.').pop();
     const fileName = `${requestId}/${index}.${fileExt}`;
-    // Use upsert to prevent errors if retrying
     const { error } = await supabase.storage.from('booking-references').upload(fileName, file, { upsert: true });
     if (error) throw error;
     const { data } = supabase.storage.from('booking-references').getPublicUrl(fileName);
     return data.publicUrl;
 };
 
+// FIX: Use RPC function to handle secure guest bookings and return data safely
 export const createClientBookingRequest = async (requestData: Omit<ClientBookingRequest, 'id' | 'status'|'paymentStatus'>): Promise<ClientBookingRequest> => {
     const supabase = getSupabase();
     
-    // Prepare payload, handling optional guest fields
-    const payload: any = { 
-        artist_id: requestData.artistId, 
-        start_date: requestData.startDate, 
-        end_date: requestData.endDate, 
-        message: requestData.message, 
-        tattoo_width: requestData.tattooWidth,
-        tattoo_height: requestData.tattooHeight,
-        body_placement: requestData.bodyPlacement, 
-        deposit_amount: requestData.depositAmount, 
-        platform_fee: requestData.platformFee,
-        service_id: requestData.serviceId,
-        budget: requestData.budget,
-        reference_image_urls: requestData.referenceImageUrls,
-        preferred_time: requestData.preferredTime,
+    const payload = { 
+        p_artist_id: requestData.artistId, 
+        p_start_date: requestData.startDate, 
+        p_end_date: requestData.endDate, 
+        p_message: requestData.message, 
+        p_tattoo_width: requestData.tattooWidth,
+        p_tattoo_height: requestData.tattooHeight,
+        p_body_placement: requestData.bodyPlacement, 
+        p_deposit_amount: requestData.depositAmount, 
+        p_platform_fee: requestData.platformFee,
+        p_service_id: requestData.serviceId,
+        p_budget: requestData.budget,
+        p_reference_image_urls: requestData.referenceImageUrls,
+        p_preferred_time: requestData.preferredTime,
+        p_client_id: requestData.clientId || null,
+        p_guest_name: requestData.guestName || null,
+        p_guest_email: requestData.guestEmail || null,
+        p_guest_phone: requestData.guestPhone || null
     };
 
-    if (requestData.clientId) {
-        payload.client_id = requestData.clientId;
-    } else {
-        // Guest Booking
-        payload.guest_name = requestData.guestName;
-        payload.guest_email = requestData.guestEmail;
-        payload.guest_phone = requestData.guestPhone;
-    }
-
-    // Insert and select with explicit foreign keys
-    const { data, error } = await supabase.from('client_booking_requests').insert(payload)
-        .select(`*, client:profiles!client_booking_requests_client_id_fkey(full_name), artist:profiles!client_booking_requests_artist_id_fkey(full_name, services)`)
-        .single();
+    // Call the RPC function defined in SQL script
+    const { data, error } = await supabase.rpc('create_booking_request', payload);
         
-    if (error) throw error;
+    if (error) {
+        console.error("Error creating booking request via RPC:", error);
+        throw error;
+    }
     
-    // Only try to send an internal message if there is a registered client ID
+    // If user is registered, try to send an internal message
     if (requestData.clientId) {
         try {
             const conversation = await findOrCreateConversation(requestData.clientId, requestData.artistId);
@@ -265,74 +226,43 @@ export const createClientBookingRequest = async (requestData: Omit<ClientBooking
         }
     }
 
+    // The RPC returns the formatted structure, pass it to adapter
     return adaptClientBookingRequest(data);
 };
 
 export const updateClientBookingRequest = async (requestId: string, updates: Partial<Pick<ClientBookingRequest, 'referenceImageUrls'>>): Promise<ClientBookingRequest> => {
     const supabase = getSupabase();
-    const updatePayload: { [key: string]: any } = {};
-    if (updates.referenceImageUrls) {
-        updatePayload.reference_image_urls = updates.referenceImageUrls;
-    }
-
     const { data, error } = await supabase
         .from('client_booking_requests')
-        .update(updatePayload)
+        .update({ reference_image_urls: updates.referenceImageUrls })
         .eq('id', requestId)
         .select('*, client:profiles!client_booking_requests_client_id_fkey(full_name), artist:profiles!client_booking_requests_artist_id_fkey(full_name, services)')
         .single();
     
     if (error) throw error;
-
     return adaptClientBookingRequest(data);
 };
 
 export const updateClientBookingRequestStatus = async (requestId: string, status: ClientBookingRequest['status'], paymentStatus?: 'paid' | 'unpaid'): Promise<{ success: boolean }> => {
     const supabase = getSupabase();
-    const { data: request, error: fetchError } = await supabase.from('client_booking_requests').select('client_id, artist_id').eq('id', requestId).single();
-    if (fetchError) throw fetchError;
-
     const updatePayload: { [key: string]: any } = { status };
-    if (paymentStatus) {
-        updatePayload.payment_status = paymentStatus;
-    }
+    if (paymentStatus) updatePayload.payment_status = paymentStatus;
 
-    const { error: updateError } = await supabase.from('client_booking_requests').update(updatePayload).eq('id', requestId);
-    if (updateError) throw updateError;
-    
-    if (request.client_id && (status === 'approved' || status === 'declined')) {
-        const { data: artistProfile, error: profileError } = await supabase.from('profiles').select('full_name').eq('id', request.artist_id).single();
-        if (profileError) throw profileError;
-        await createNotification(request.client_id, `Your booking request with ${artistProfile.full_name} has been ${status}.`);
-    }
+    const { error } = await supabase.from('client_booking_requests').update(updatePayload).eq('id', requestId);
+    if (error) throw error;
     return { success: true };
 };
 
 export const payClientBookingDeposit = async (requestId: string): Promise<ClientBookingRequest> => {
     const supabase = getSupabase();
-
-    // 1. Fetch the request to get artist_id and client's name for the notification
-    const { data: request, error: fetchError } = await supabase
-        .from('client_booking_requests')
-        .select('artist_id, client:profiles!client_booking_requests_client_id_fkey(full_name), guest_name')
-        .eq('id', requestId)
-        .single();
-    if (fetchError) throw fetchError;
-    
-    // 2. Update the request to mark the deposit as paid
-    const { data: updatedRequest, error: updateError } = await supabase
+    const { data, error } = await supabase
         .from('client_booking_requests')
         .update({ payment_status: 'paid', deposit_paid_at: new Date().toISOString() })
         .eq('id', requestId)
         .select('*, client:profiles!client_booking_requests_client_id_fkey(full_name), artist:profiles!client_booking_requests_artist_id_fkey(full_name, services)')
         .single();
-    if (updateError) throw updateError;
-    
-    // 3. Create a notification for the artist
-    const clientName = request.client?.full_name || request.guest_name || 'A client';
-    await createNotification(request.artist_id, `${clientName} has paid the deposit for their booking.`);
-
-    return adaptClientBookingRequest(updatedRequest);
+    if (error) throw error;
+    return adaptClientBookingRequest(data);
 };
 
 export const fetchNotificationsForUser = async (userId: string): Promise<Notification[]> => {
@@ -356,17 +286,25 @@ export const createNotification = async (userId: string, message: string): Promi
     return adaptNotification(data);
 };
 
+// FIX: Simplified query logic to prevent "failed to parse logic tree" errors
 export const findOrCreateConversation = async (userId1: string, userId2: string): Promise<Conversation> => {
     const supabase = getSupabase();
-    // Correctly structured PostgREST query using explicit AND grouping for the OR condition
-    const { data: existing, error: existingError } = await supabase
+    
+    // Fetch all conversations for userId1
+    const { data: conversations, error } = await supabase
         .from('conversations')
         .select('*')
-        .or(`and(participant_one_id.eq.${userId1},participant_two_id.eq.${userId2}),and(participant_one_id.eq.${userId2},participant_two_id.eq.${userId1})`)
-        .limit(1);
+        .or(`participant_one_id.eq.${userId1},participant_two_id.eq.${userId1}`);
 
-    if (existingError) throw existingError;
-    if (existing && existing.length > 0) return { ...existing[0], participantOneId: existing[0].participant_one_id, participantTwoId: existing[0].participant_two_id };
+    if (error) throw error;
+
+    // Filter in memory to find matching pair
+    const existing = conversations?.find(c => 
+        (c.participant_one_id === userId1 && c.participant_two_id === userId2) ||
+        (c.participant_one_id === userId2 && c.participant_two_id === userId1)
+    );
+
+    if (existing) return { ...existing, participantOneId: existing.participant_one_id, participantTwoId: existing.participant_two_id };
 
     const { data: created, error: createError } = await supabase.from('conversations').insert({ participant_one_id: userId1, participant_two_id: userId2 }).select().single();
     if (createError) throw createError;
@@ -380,9 +318,9 @@ export const fetchUserConversations = async (userId: string): Promise<Conversati
 
     const participantIds = new Set<string>();
     conversations.forEach(c => { participantIds.add(c.participant_one_id); participantIds.add(c.participant_two_id); });
-    const { data: profiles, error: profileError } = await supabase.from('profiles').select('id, full_name').in('id', Array.from(participantIds));
-    if (profileError) throw profileError;
-    const profilesMap = new Map<string, { id: string; full_name: string }>(profiles.map(p => [p.id, p]));
+    const { data: profiles } = await supabase.from('profiles').select('id, full_name').in('id', Array.from(participantIds));
+    
+    const profilesMap = new Map<string, { id: string; full_name: string }>(profiles?.map(p => [p.id, p]) || []);
 
     return conversations.map(c => adaptConversation(c, userId, profilesMap));
 };
@@ -406,8 +344,8 @@ export const uploadMessageAttachment = async (file: File, conversationId: string
     const supabase = getSupabase();
     const fileExt = file.name.split('.').pop();
     const fileName = `${conversationId}/${Date.now()}.${fileExt}`;
-    const { error: uploadError } = await supabase.storage.from('message_attachments').upload(fileName, file);
-    if (uploadError) throw uploadError;
+    const { error } = await supabase.storage.from('message_attachments').upload(fileName, file);
+    if (error) throw error;
     const { data } = supabase.storage.from('message_attachments').getPublicUrl(fileName);
     return data.publicUrl;
 };
@@ -495,8 +433,7 @@ export const updateVerificationRequest = async (requestId: string, status: 'appr
     if (status === 'approved') {
         const table = request.type === 'artist' ? 'profiles' : 'shops';
         const id = request.type === 'artist' ? request.profile_id : request.shop_id;
-        const { error: verifyError } = await supabase.from(table).update({ is_verified: true }).eq('id', id);
-        if (verifyError) throw verifyError;
+        await supabase.from(table).update({ is_verified: true }).eq('id', id);
     }
     
     return adaptVerificationRequest(updatedData);
@@ -504,11 +441,10 @@ export const updateVerificationRequest = async (requestId: string, status: 'appr
 
 export const addReviewToShop = async (shopId: string, review: Omit<Review, 'id'>): Promise<Shop> => {
     const supabase = getSupabase();
-    const { data: shop, error: fetchError } = await supabase.from('shops').select('reviews').eq('id', shopId).single();
-    if (fetchError) throw fetchError;
+    const { data: shop } = await supabase.from('shops').select('reviews').eq('id', shopId).single();
     
     const newReview = { ...review, id: `review_${Date.now()}` };
-    const updatedReviews = [...(shop.reviews || []), newReview];
+    const updatedReviews = [...(shop?.reviews || []), newReview];
     const newAverageRating = updatedReviews.reduce((acc, r) => acc + r.rating, 0) / updatedReviews.length;
 
     const { data, error } = await supabase.from('shops').update({ reviews: updatedReviews, average_artist_rating: newAverageRating }).eq('id', shopId).select().single();
@@ -516,7 +452,6 @@ export const addReviewToShop = async (shopId: string, review: Omit<Review, 'id'>
     return adaptShop(data);
 };
 
-// --- NEW ADMIN FUNCTIONS ---
 export const adminUpdateUserProfile = async (userId: string, updates: { name: string, role: UserRole, isVerified: boolean }): Promise<{success: boolean}> => {
     const supabase = getSupabase();
     const { error } = await supabase

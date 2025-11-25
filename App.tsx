@@ -196,7 +196,7 @@ function App() {
           bookings={data.bookings} 
           shops={data.shops} 
           onClose={closeModal} 
-          // FIX: Explicitly allow opening booking modal without auth check. Guest flow is inside the modal.
+          // FIX: Explicitly allow opening booking modal WITHOUT forcing login. Guest flow is inside the modal.
           onBookRequest={() => openModal('client-booking-request', modal.data.artist)} 
           showToast={showToast} 
           onMessageClick={async (artistId) => {
