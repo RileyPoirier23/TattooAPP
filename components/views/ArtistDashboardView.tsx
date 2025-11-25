@@ -183,9 +183,12 @@ const BookingRequestsTab: React.FC<{
     const upcoming = myClientRequests.filter(b => b.status === 'approved' && new Date(b.endDate) >= new Date());
     const past = myClientRequests.filter(b => !pending.includes(b) && !upcoming.includes(b));
 
-    // Helper to get display name
+    // Helper to safe-guard display name
     const getClientName = (req: ClientBookingRequest) => {
-        return req.clientName !== 'Unknown Client' ? req.clientName : (req.guestName || 'Guest Client');
+        if (!req) return "Unknown";
+        if (req.clientName && req.clientName !== 'Unknown Client') return req.clientName;
+        if (req.guestName) return `${req.guestName} (Guest)`;
+        return "Unknown Client";
     };
 
     return (
@@ -197,7 +200,6 @@ const BookingRequestsTab: React.FC<{
                             <div>
                                <p className="font-bold text-brand-dark dark:text-white flex items-center gap-2">
                                    Request from {getClientName(req)}
-                                   {!req.clientId && <span className="text-xs bg-blue-500/20 text-blue-400 px-2 py-0.5 rounded-full">Guest</span>}
                                </p>
                                 <p className="font-semibold text-brand-primary text-sm">{req.serviceName}</p>
                             </div>

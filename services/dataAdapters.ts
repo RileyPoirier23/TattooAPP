@@ -1,3 +1,4 @@
+
 // @/services/dataAdapters.ts
 
 import type { Artist, Shop, Booth, Booking, ClientBookingRequest, Notification, User, UserRole, Client, ShopOwner, Admin, Conversation, Message, ConversationWithUser, ArtistAvailability, Review, VerificationRequest, AdminUser, ArtistService } from '../types';
@@ -125,6 +126,10 @@ export const adaptClientBookingRequest = (b: any): ClientBookingRequest => {
   const artistServices = getJoinedProperty<{ services: ArtistService[] }>(b.artist, 'services') || [];
   const service = artistServices.find(s => s.id === b.service_id);
 
+  // Determine the display name: Profile Name OR Guest Name OR Unknown
+  const clientProfileName = getJoinedProperty<{ full_name: string }>(b.client, 'full_name');
+  const displayName = clientProfileName || b.guest_name || 'Unknown Client';
+
   return {
     id: b.id,
     clientId: b.client_id,
@@ -137,7 +142,7 @@ export const adaptClientBookingRequest = (b: any): ClientBookingRequest => {
     tattooHeight: b.tattoo_height,
     bodyPlacement: b.body_placement,
     paymentStatus: b.payment_status,
-    clientName: getJoinedProperty<{ full_name: string }>(b.client, 'full_name') || 'Unknown Client',
+    clientName: displayName,
     artistName: getJoinedProperty<{ full_name: string }>(b.artist, 'full_name') || 'Unknown Artist',
     reviewRating: b.review_rating,
     reviewText: b.review_text,
@@ -149,6 +154,10 @@ export const adaptClientBookingRequest = (b: any): ClientBookingRequest => {
     serviceName: service?.name || 'Custom Session',
     budget: b.budget,
     referenceImageUrls: b.reference_image_urls || [],
+    guestName: b.guest_name,
+    guestEmail: b.guest_email,
+    guestPhone: b.guest_phone,
+    preferredTime: b.preferred_time
   };
 };
 

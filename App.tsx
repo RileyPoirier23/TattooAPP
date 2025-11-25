@@ -196,10 +196,13 @@ function App() {
           bookings={data.bookings} 
           shops={data.shops} 
           onClose={closeModal} 
-          onBookRequest={() => user ? openModal('client-booking-request', modal.data.artist) : openModal('auth')} 
+          // FIX: Explicitly allow opening booking modal without auth check. Guest flow is inside the modal.
+          onBookRequest={() => openModal('client-booking-request', modal.data.artist)} 
           showToast={showToast} 
           onMessageClick={async (artistId) => {
             if (!user) {
+                // For messaging, we still require auth, but we can guide them to book instead
+                showToast("Please log in to chat, or use 'Request Booking' to contact the artist via email.", 'error');
                 openModal('auth');
                 return;
             }

@@ -627,6 +627,11 @@ export const ClientBookingRequestModal: React.FC<{ artist: Artist; availability:
         }
     };
 
+    // Validation
+    const isStep1Valid = tattooWidth > 0 && tattooHeight > 0 && bodyPlacement && message.trim() !== '';
+    const isStep2Valid = serviceId && startDate;
+    const isGuestStepValid = guestName.trim() !== '' && guestEmail.includes('@') && guestPhone.trim() !== '';
+
     const handleSubmit = () => {
         if (isStep1Valid && isStep2Valid && (user || isGuestStepValid)) {
             const platformFee = (selectedService?.depositAmount || 0) * 0.029;
@@ -652,11 +657,6 @@ export const ClientBookingRequestModal: React.FC<{ artist: Artist; availability:
             showToast('Please fill out all required fields.', 'error');
         }
     };
-    
-    // Validation
-    const isStep1Valid = tattooWidth > 0 && tattooHeight > 0 && bodyPlacement && message.trim() !== '';
-    const isStep2Valid = serviceId && startDate;
-    const isGuestStepValid = guestName.trim() !== '' && guestEmail.includes('@') && guestPhone.trim() !== '';
     
     // UI
     const inputClasses = "w-full bg-gray-100 dark:bg-gray-800 border-gray-300 dark:border-gray-700 rounded-lg p-2 text-brand-dark dark:text-white";
