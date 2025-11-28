@@ -35,6 +35,10 @@ export const adaptProfileToArtist = (profile: any): Artist => ({
   aftercareMessage: profile.aftercare_message || '',
   requestHealedPhoto: profile.request_healed_photo || false,
   averageRating: 0, // Calculated in store
+  // CRITICAL FIX: Map these fields so they don't disappear on refresh
+  hours: profile.hours || {},
+  intakeSettings: profile.intake_settings,
+  bookingMode: profile.booking_mode || 'time_range'
 });
 
 export const adaptProfileToClient = (profile: any): Client => ({

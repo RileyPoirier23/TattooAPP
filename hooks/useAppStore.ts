@@ -225,7 +225,20 @@ export const useAppStore = create<AppState>()(
         if (!user) return;
         try {
             const notifications = await fetchNotificationsForUser(user.id);
-            set(state => ({ data: { ...state.data, notifications } }));
+            set(state => {
+              // Check if there are new unread notifications compared to previous state
+              const prevUnread = state.data.notifications.filter(n => !n.read).map(n => n.id);
+              const newUnread = notifications.filter(n => !n.read);
+              
+              // Find new notifications that weren't in the previous list
+              newUnread.forEach(n => {
+                if (!prevUnread.includes(n.id)) {
+                   get().showToast(n.message, 'success'); // Pop up toast for new notification
+                }
+              });
+
+              return { data: { ...state.data, notifications } };
+            });
         } catch (error) {
             console.error("Failed to fetch notifications:", error);
         }

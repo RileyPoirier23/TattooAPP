@@ -98,6 +98,9 @@ export const updateArtistData = async (artistId: string, updatedData: Partial<Ar
     if (updatedData.hours) profileUpdate.hours = updatedData.hours;
     
     if (updatedData.intakeSettings) profileUpdate.intake_settings = updatedData.intakeSettings;
+    
+    // Handle Booking Mode
+    if (updatedData.bookingMode) profileUpdate.booking_mode = updatedData.bookingMode;
 
     const { data, error } = await supabase.from('profiles').update(profileUpdate).eq('id', artistId).select().single();
     if (error) {
@@ -230,6 +233,8 @@ export const uploadBookingReferenceImage = async (requestId: string, file: File,
 export const createClientBookingRequest = async (requestData: Omit<ClientBookingRequest, 'id' | 'status'|'paymentStatus'>): Promise<ClientBookingRequest> => {
     const supabase = getSupabase();
     
+    // We continue to use the RPC for creation because it handles the complex JOIN return type nicely.
+    // However, the permissions are now strictly RLS based (see README SQL).
     const payload = { 
         p_artist_id: requestData.artistId, 
         p_start_date: requestData.startDate, 
@@ -250,7 +255,6 @@ export const createClientBookingRequest = async (requestData: Omit<ClientBooking
         p_guest_phone: requestData.guestPhone || null
     };
 
-    // Call the RPC function defined in SQL script
     const { data, error } = await supabase.rpc('create_booking_request', payload);
         
     if (error) {
@@ -261,8 +265,6 @@ export const createClientBookingRequest = async (requestData: Omit<ClientBooking
     const adapted = adaptClientBookingRequest(data);
 
     // AUTO-NOTIFY ARTIST
-    // This is crucial for the "Notifications pop up" requirement.
-    // The SQL policies now allow public insert into notifications for this exact reason.
     try {
         const clientName = adapted.clientName || 'A client';
         const notificationMsg = `New Booking Request: ${clientName} wants a ${adapted.tattooWidth}x${adapted.tattooHeight}" tattoo.`;
