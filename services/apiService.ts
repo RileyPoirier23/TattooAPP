@@ -114,8 +114,8 @@ export const saveArtistHours = async (userId: string, hours: ArtistHours, name: 
     const supabase = getSupabase();
     
     // Construct the full profile object. 
-    // If the row doesn't exist, this provides all required fields (username, full_name).
-    // If it does exist, it updates everything.
+    // We removed 'updated_at' from here to let the database handle it via default/trigger if configured,
+    // or simply ignore it to prevent "Column not found" errors if the migration didn't run.
     const profileData = {
         id: userId,
         hours: hours,
@@ -123,7 +123,6 @@ export const saveArtistHours = async (userId: string, hours: ArtistHours, name: 
         city: city || '',
         username: email, // Required for new rows
         role: 'artist', // Default role if creating
-        updated_at: new Date().toISOString()
     };
 
     // Perform Upsert
