@@ -447,18 +447,24 @@ export const useAppStore = create<AppState>()(
             const city = 'city' in user.data ? user.data.city : '';
             const email = user.email;
 
-            // Use the direct upsert method
+            // 1. SAVE: Use the direct upsert method
             const updatedArtist = await saveArtistHours(user.id, hours, name, city, email);
             
+            // 2. VERIFY: Immediately fetch the profile from the database to ensure persistence.
+            // This prevents the "Success but reset on refresh" bug.
+            const verifiedProfile = await authService.getUserProfile(user.id);
+            if (!verifiedProfile) {
+                throw new Error("Data verification failed. The changes could not be read back from the database.");
+            }
+
             set(state => {
-                let newUser = state.user;
+                // Update with the VERIFIED profile from the DB
                 if (state.user?.id === user.id) {
-                    newUser = { ...state.user, data: { ...state.user.data, ...updatedArtist } };
-                    // Force update local storage to prevent revert on refresh
-                    localStorage.setItem('inkspace_user_session', JSON.stringify(newUser));
+                    // Update LocalStorage to persist across reloads
+                    localStorage.setItem('inkspace_user_session', JSON.stringify(verifiedProfile));
                 }
                 return {
-                    user: newUser,
+                    user: verifiedProfile,
                     // Also update the global artist list
                     data: { ...state.data, artists: state.data.artists.map(a => a.id === user.id ? {...a, ...updatedArtist} : a) }
                 };

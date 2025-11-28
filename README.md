@@ -28,41 +28,46 @@ You **MUST** run the SQL script below to set up the database. The app will not w
 
 ```sql
 -- 1. FIX THE MISSING COLUMN (The Root Cause of "Failed to save")
+-- If this column is missing, Supabase client updates often fail.
 alter table public.profiles 
 add column if not exists updated_at timestamptz default now();
 
--- 2. ENSURE OTHER TABLES HAVE IT
+-- 2. ENSURE OTHER TABLES HAVE IT (Prevention)
 alter table public.client_booking_requests 
 add column if not exists updated_at timestamptz default now();
 
 -- 3. REFRESH SCHEMA CACHE
--- This forces Supabase/PostgREST to recognize the new columns immediately.
+-- Forces Supabase to recognize the new columns immediately.
 NOTIFY pgrst, 'reload config';
 
--- 4. VERIFY HOURS COLUMN
--- Just double checking this is correct while we are here.
+-- 4. DATA INTEGRITY CHECK
+-- Ensure hours is JSONB so it can store the schedule structure.
 alter table public.profiles alter column hours type jsonb using hours::jsonb;
 alter table public.profiles alter column hours set default '{}'::jsonb;
 
--- 5. RE-APPLY OPEN PERMISSIONS (Safety Net)
+-- 5. RESET & OPEN PERMISSIONS
 alter table public.profiles enable row level security;
 
--- Clear old policies to avoid conflicts
 do $$
 begin
+  -- Remove potentially conflicting policies
   drop policy if exists "Profiles_Manage_Own" on public.profiles;
   drop policy if exists "Profiles_Read_All" on public.profiles;
   drop policy if exists "Profiles_Insert_Update_Own" on public.profiles;
+  drop policy if exists "Simple_Update_Own" on public.profiles;
+  drop policy if exists "Simple_Insert_Own" on public.profiles;
+  drop policy if exists "Public profiles" on public.profiles;
 exception when others then null;
 end $$;
 
--- Apply fresh rules
-create policy "Profiles_Manage_Own_V2" on public.profiles 
+-- Policy 1: Everyone can read profiles (needed for search/booking)
+create policy "Profiles_Read_All_V3" on public.profiles 
+for select 
+using (true);
+
+-- Policy 2: You can do ANYTHING to your own row (Insert, Update, Delete)
+create policy "Profiles_Manage_Own_V3" on public.profiles 
 for all 
 using (auth.uid() = id) 
 with check (auth.uid() = id);
-
-create policy "Profiles_Read_All_V2" on public.profiles 
-for select 
-using (true);
 ```
