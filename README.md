@@ -30,9 +30,8 @@ You **MUST** run the SQL script below to set up the database. The app will not w
 -- 1. EXTENSIONS
 create extension if not exists "moddatetime" schema "extensions";
 
--- 2. RESET PROFILES PERMISSIONS (The Fix)
--- We are removing complex logic and simply saying: 
--- "If you are logged in, you can insert or update your own row."
+-- 2. NUCLEAR PERMISSION RESET
+-- We drop ALL existing policies on profiles to remove conflicts.
 alter table public.profiles enable row level security;
 
 do $$
@@ -43,24 +42,31 @@ begin
   drop policy if exists "Profiles_Read_All" on public.profiles;
   drop policy if exists "Profiles_Insert_Own" on public.profiles;
   drop policy if exists "Profiles_Update_Own" on public.profiles;
-  -- Clean up previous attempts
   drop policy if exists "Profiles_Insert_Update_Own" on public.profiles;
+  drop policy if exists "Enable read access for all users" on public.profiles;
+  drop policy if exists "Enable insert for users based on user_id" on public.profiles;
+  drop policy if exists "Enable update for users based on email" on public.profiles;
 exception when others then null;
 end $$;
 
--- Allow reading everyone
+-- 3. THE GOLDEN RULES
+-- Rule 1: Public Read Access
 create policy "Profiles_Read_All" on public.profiles 
 for select using (true);
 
--- Allow Insert/Update ONLY if the ID matches your Auth ID
-create policy "Profiles_Insert_Update_Own" on public.profiles 
-for all using (auth.uid() = id) with check (auth.uid() = id);
+-- Rule 2: Owner Full Access (Insert/Update)
+-- This allows you to Create your profile if it's missing, or Update it if it exists.
+create policy "Profiles_Owner_Manage" on public.profiles 
+for all 
+using (auth.uid() = id) 
+with check (auth.uid() = id);
 
--- 3. ENSURE COLUMNS EXIST
+-- 4. ENSURE DATA INTEGRITY
+-- Make sure the hours column works correctly
 alter table public.profiles alter column hours type jsonb using hours::jsonb;
 alter table public.profiles alter column hours set default '{}'::jsonb;
 
--- 4. MESSAGING & BOOKING FUNCTIONS (Keep these as they are working logic)
+-- 5. MESSAGING & BOOKING FUNCTIONS (Preserve existing logic)
 create or replace function get_my_conversations_v2(p_user_id uuid)
 returns jsonb language plpgsql security definer set search_path = public as $$
 declare result jsonb;
@@ -96,7 +102,7 @@ begin
   return to_jsonb(new_record) || jsonb_build_object('client', to_jsonb(client_data)) || jsonb_build_object('artist', to_jsonb(artist_data));
 end; $$;
 
--- 5. PERMISSIONS
+-- 6. GRANT PERMISSIONS FOR RPCs
 grant execute on function get_my_conversations_v2 to authenticated;
 grant execute on function send_message to authenticated;
 grant execute on function get_messages to authenticated;

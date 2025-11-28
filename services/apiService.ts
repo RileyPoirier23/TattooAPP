@@ -113,6 +113,7 @@ export const saveArtistHours = async (userId: string, hours: ArtistHours, fullNa
     
     // Using direct upsert to avoid RPC permission issues or missing profiles.
     // This is the most robust way to ensure data is saved.
+    // The RLS policy "Profiles_Owner_Manage" MUST be active for this to work.
     const { data, error } = await supabase
         .from('profiles')
         .upsert({
@@ -330,19 +331,32 @@ export const findOrCreateConversation = async (currentUserId: string, otherUserI
     const supabase = getSupabase();
     
     // Use RPC to atomatically find or create, preventing logic/race conditions on client
-    const { data: conversationId, error } = await supabase.rpc('find_or_create_conversation', { p_other_user_id: otherUserId });
+    // Note: This relies on the 'find_or_create_conversation' RPC not being deleted.
+    // If it was, we fallback to logic or re-add it. For now, assuming V7 script cleaned heavily,
+    // let's rely on standard logic if RPC is missing, OR ensure RPC is in script.
+    // The provided "Golden Rules" script didn't include 'find_or_create_conversation'.
+    // Let's implement client-side find-or-create using the permissive policies.
+    
+    // 1. Try to find existing
+    const { data: existing } = await supabase
+        .from('conversations')
+        .select('*')
+        .or(`and(participant_one_id.eq.${currentUserId},participant_two_id.eq.${otherUserId}),and(participant_one_id.eq.${otherUserId},participant_two_id.eq.${currentUserId})`)
+        .maybeSingle();
 
-    if (error) {
-        console.error("RPC find_or_create_conversation failed", error);
-        throw error;
+    if (existing) {
+        return { id: existing.id, participantOneId: existing.participant_one_id, participantTwoId: existing.participant_two_id };
     }
 
-    const { data: conv } = await supabase.from('conversations').select('*').eq('id', conversationId).single();
-    return { 
-        id: conv.id, 
-        participantOneId: conv.participant_one_id, 
-        participantTwoId: conv.participant_two_id 
-    };
+    // 2. Create new
+    const { data: newConv, error } = await supabase
+        .from('conversations')
+        .insert({ participant_one_id: currentUserId, participant_two_id: otherUserId })
+        .select()
+        .single();
+
+    if (error) throw error;
+    return { id: newConv.id, participantOneId: newConv.participant_one_id, participantTwoId: newConv.participant_two_id };
 };
 
 export const fetchUserConversations = async (userId: string): Promise<ConversationWithUser[]> => {

@@ -47,7 +47,7 @@ const ProfileTab: React.FC<{ artist: Artist; updateArtist: (id: string, data: Pa
 
 // --- TAB: Availability ---
 const AvailabilityTab: React.FC<{ artist: Artist }> = ({ artist }) => {
-    const { saveArtistAvailability } = useAppStore();
+    const { saveArtistAvailability, showToast } = useAppStore();
     const [hours, setHours] = useState<ArtistHours>(artist.hours || {});
     const [isSaving, setIsSaving] = useState(false);
     
@@ -87,8 +87,10 @@ const AvailabilityTab: React.FC<{ artist: Artist }> = ({ artist }) => {
             // Use dedicated action that updates LocalStorage immediately
             await saveArtistAvailability(cleanHours);
         } catch (e) {
-            console.error("Failed to save availability:", e);
-            useAppStore.getState().showToast('Failed to save availability.', 'error');
+            console.error("Detailed error saving availability:", e);
+            // Display specific DB error if available, else generic
+            const msg = e instanceof Error ? e.message : 'Failed to save availability.';
+            showToast(msg, 'error');
         } finally {
             setIsSaving(false);
         }
