@@ -8,7 +8,7 @@ import {
 import {
   fetchInitialData, updateArtistData, uploadPortfolioImage, updateShopData, addBoothToShop, deleteBoothFromShop,
   createBookingForArtist, createClientBookingRequest, updateClientBookingRequestStatus, fetchNotificationsForUser, markUserNotificationsAsRead, createNotification, fetchAllUsers, updateUserData, updateBoothData, fetchUserConversations, fetchMessagesForConversation, sendMessage, findOrCreateConversation, setArtistAvailability, submitReview, deleteUserAsAdmin, deleteShopAsAdmin, uploadMessageAttachment, fetchArtistReviews, createShop as apiCreateShop, createVerificationRequest, updateVerificationRequest, addReviewToShop,
-  adminUpdateUserProfile, adminUpdateShopDetails, deletePortfolioImageFromStorage, uploadBookingReferenceImage, payClientBookingDeposit, updateClientBookingRequest, saveArtistHours, fetchClientBookingRequestById,
+  adminUpdateUserProfile, adminUpdateShopDetails, deletePortfolioImageFromStorage, uploadBookingReferenceImage, payClientBookingDeposit, updateClientBookingRequest, saveArtistHours, fetchClientBookingRequestById, sendSystemMessage,
 } from '../services/apiService';
 import { authService } from '../services/authService';
 import { getSupabase } from '../services/supabaseClient';
@@ -90,6 +90,10 @@ interface AppState {
   selectConversation: (conversationId: string | null) => Promise<void>;
   sendMessage: (content: string, attachmentFile?: File) => Promise<void>;
   startConversation: (otherUserId: string) => Promise<Conversation | null>;
+  
+  // Automation Actions
+  sendAftercare: (clientId: string) => Promise<void>;
+  requestHealedPhoto: (clientId: string) => Promise<void>;
 
   // New Roadmap Actions
   createShop: (shopData: Omit<Shop, 'id' | 'isVerified' | 'rating' | 'reviews' | 'averageArtistRating' | 'ownerId'>) => Promise<void>;
@@ -330,14 +334,11 @@ export const useAppStore = create<AppState>()(
 
       sendClientBookingRequest: async (requestData, referenceFiles) => {
         const user = get().user;
-        // Updated Logic: We no longer force login here. Guest bookings are allowed.
         
         let tempRequestId: string | null = null;
         try {
           set({ isLoading: true });
       
-          // 1. Create the booking request. 
-          // If user is logged in, use their ID. If not, apiService will handle guest fields.
           const initialRequestData = { 
             ...requestData, 
             clientId: user ? user.id : null, 
@@ -347,11 +348,8 @@ export const useAppStore = create<AppState>()(
           const newRequest = await createClientBookingRequest(initialRequestData);
           tempRequestId = newRequest.id;
 
-          // Optimistic UI update
           set(state => ({ data: { ...state.data, clientBookingRequests: [...state.data.clientBookingRequests, newRequest] } }));
 
-          // 2. Upload images using the verified Request ID.
-          // Note: RLS policies must allow public upload to 'booking-references' for this to work for guests.
           let referenceImageUrls: string[] = [];
           if (referenceFiles.length > 0) {
             const uploadPromises = referenceFiles.map((file, index) =>
@@ -360,7 +358,6 @@ export const useAppStore = create<AppState>()(
             referenceImageUrls = await Promise.all(uploadPromises);
           }
       
-          // 3. Update the request record with the final image URLs.
           if (referenceImageUrls.length > 0) {
             const finalRequest = await updateClientBookingRequest(newRequest.id, { referenceImageUrls });
             set(state => ({
@@ -380,7 +377,6 @@ export const useAppStore = create<AppState>()(
              get().showToast('Booking request sent successfully!', 'success');
           }
         } catch (e) {
-          // Rollback on failure
           if (tempRequestId) {
             set(state => ({ data: { ...state.data, clientBookingRequests: state.data.clientBookingRequests.filter(r => r.id !== tempRequestId) }}));
           }
@@ -477,15 +473,10 @@ export const useAppStore = create<AppState>()(
         try {
             const updatedArtist = await updateArtistData(artistId, data);
             set(state => {
-                // Update the Artists Array
                 const newArtists = state.data.artists.map(a => a.id === artistId ? {...a, ...updatedArtist} : a);
-                
-                // CRITICAL: Manually update the current user object if it matches the artist.
-                // This ensures local state reflects the DB change immediately.
                 let newUser = state.user;
                 if (state.user?.id === artistId && (state.user.type === 'artist' || state.user.type === 'dual')) {
                     newUser = { ...state.user, data: { ...state.user.data, ...updatedArtist } };
-                    // Ensure localStorage is synced so a reload doesn't show old data
                     localStorage.setItem('inkspace_user_session', JSON.stringify(newUser));
                 }
 
@@ -500,7 +491,6 @@ export const useAppStore = create<AppState>()(
         }
       },
 
-      // V11: DIRECT UPSERT
       saveArtistAvailability: async (hours) => {
         const user = get().user;
         if (!user || (user.type !== 'artist' && user.type !== 'dual')) return;
@@ -509,21 +499,16 @@ export const useAppStore = create<AppState>()(
             const name = user.data.name;
             const city = 'city' in user.data ? user.data.city : '';
             const email = user.email;
-            
-            // Pass the user role to ensure we don't accidentally demote a 'dual' user to 'artist'
             const role = user.type; 
 
-            // 1. SAVE: Use the direct upsert method
             const updatedArtist = await saveArtistHours(user.id, hours, name, city, email, role);
             
-            // 2. VERIFY: Immediately fetch the profile from the database to ensure persistence.
             const verifiedProfile = await authService.getUserProfile(user.id);
             if (!verifiedProfile) {
                 throw new Error("Data verification failed. The changes could not be read back from the database.");
             }
 
             set(state => {
-                // Update with the VERIFIED profile from the DB
                 if (state.user?.id === user.id) {
                     localStorage.setItem('inkspace_user_session', JSON.stringify(verifiedProfile));
                 }
@@ -765,6 +750,36 @@ export const useAppStore = create<AppState>()(
             set({ isLoading: false });
             return null;
         }
+      },
+      
+      // Automation Actions
+      sendAftercare: async (clientId: string) => {
+          const user = get().user;
+          if (!user || (user.type !== 'artist' && user.type !== 'dual')) return;
+          try {
+              const convo = await findOrCreateConversation(user.id, clientId);
+              const messageText = user.data.aftercareMessage 
+                  ? `📋 **AFTERCARE INSTRUCTIONS** 📋\n\n${user.data.aftercareMessage}`
+                  : `📋 **AFTERCARE INSTRUCTIONS** 📋\n\n1. Keep it clean.\n2. Moisturize lightly.\n3. Do not scratch or pick.\n4. Avoid swimming/sun for 2 weeks.`;
+                  
+              await sendSystemMessage(convo.id, user.id, messageText);
+              get().showToast('Aftercare instructions sent to client.', 'success');
+          } catch(e) {
+              get().showToast('Failed to send aftercare.', 'error');
+          }
+      },
+      
+      requestHealedPhoto: async (clientId: string) => {
+          const user = get().user;
+          if (!user || (user.type !== 'artist' && user.type !== 'dual')) return;
+          try {
+              const convo = await findOrCreateConversation(user.id, clientId);
+              const messageText = `👋 Hi there! I'd love to see how your tattoo settled in. Could you please send me a photo of your healed tattoo? Thanks!`;
+              await sendSystemMessage(convo.id, user.id, messageText);
+              get().showToast('Healed photo request sent.', 'success');
+          } catch(e) {
+              get().showToast('Failed to send request.', 'error');
+          }
       },
 
       createShop: async (shopData) => {

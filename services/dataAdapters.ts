@@ -140,8 +140,7 @@ export const adaptBooking = (booking: any, shops: Shop[]): Booking => ({
 });
 
 export const adaptClientBookingRequest = (b: any): ClientBookingRequest => {
-  // Use optional chaining and nullish coalescing to safely extract nested properties
-  // even if the joined data is null or structured unexpectedly.
+  // Safe extraction of joined data
   const artistData = b.artist || {};
   const clientData = b.client || {};
 
@@ -151,10 +150,7 @@ export const adaptClientBookingRequest = (b: any): ClientBookingRequest => {
   
   const service = artistServices.find((s: any) => s.id === b.service_id);
 
-  // Display Name Priority:
-  // 1. Joined Profile Name (from client table)
-  // 2. Guest Name (from booking table)
-  // 3. Fallback
+  // Display Name Priority: Joined Profile > Guest Name > 'Unknown'
   const clientProfileName = clientData.full_name || 
                             getJoinedProperty<{ full_name: string }>(b.client, 'full_name');
   
@@ -163,10 +159,10 @@ export const adaptClientBookingRequest = (b: any): ClientBookingRequest => {
   const artistName = artistData.full_name ||
                      getJoinedProperty<{ full_name: string }>(b.artist, 'full_name') || 'Unknown Artist';
 
-  // Robustly resolve Client ID
-  // In some RPC returns, client_id might be top-level, or nested inside 'client' object
-  // depending on how Supabase RPC constructs the JSON response.
-  // We prefer the ID from the profile relation (clientData.id) as it confirms user existence.
+  // Robust Client ID Resolution
+  // 1. Check joined profile ID
+  // 2. Check direct foreign key column
+  // 3. Null (Guest)
   const clientId = clientData.id || b.client_id || null;
 
   return {

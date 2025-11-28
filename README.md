@@ -30,52 +30,84 @@ You **MUST** run the SQL script below to set up the database. The app will not w
 -- 1. EXTENSIONS
 create extension if not exists "moddatetime" schema "extensions";
 
--- 2. REFRESH SCHEMA & PERMISSIONS
-NOTIFY pgrst, 'reload config';
+-- 2. FORCE FOREIGN KEY NAMES (The "Empty Dashboard" Fix)
+-- We find and rename the connections to match exactly what the API expects.
+DO $$
+DECLARE
+    r RECORD;
+BEGIN
+    FOR r IN (
+        SELECT constraint_name
+        FROM information_schema.table_constraints
+        WHERE table_name = 'client_booking_requests'
+        AND constraint_type = 'FOREIGN KEY'
+    ) LOOP
+        EXECUTE 'ALTER TABLE public.client_booking_requests DROP CONSTRAINT IF EXISTS "' || r.constraint_name || '"';
+    END LOOP;
+END $$;
 
--- 3. ENABLE REALTIME
-ALTER TABLE public.client_booking_requests REPLICA IDENTITY FULL;
-ALTER TABLE public.notifications REPLICA IDENTITY FULL;
-ALTER TABLE public.messages REPLICA IDENTITY FULL;
+-- Re-create with EXACT names required by apiService.ts
+ALTER TABLE public.client_booking_requests
+ADD CONSTRAINT client_booking_requests_client_id_fkey
+FOREIGN KEY (client_id) REFERENCES public.profiles(id);
+
+ALTER TABLE public.client_booking_requests
+ADD CONSTRAINT client_booking_requests_artist_id_fkey
+FOREIGN KEY (artist_id) REFERENCES public.profiles(id);
+
+-- 3. SCHEMA REPAIR
+alter table public.profiles add column if not exists updated_at timestamptz default now();
+alter table public.profiles alter column hours type jsonb using hours::jsonb;
+alter table public.profiles alter column hours set default '{}'::jsonb;
+
+alter table public.client_booking_requests add column if not exists updated_at timestamptz default now();
+alter table public.client_booking_requests add column if not exists guest_name text;
+alter table public.client_booking_requests add column if not exists guest_email text;
+alter table public.client_booking_requests add column if not exists guest_phone text;
+alter table public.client_booking_requests add column if not exists preferred_time text;
+alter table public.client_booking_requests add column if not exists budget numeric;
+alter table public.client_booking_requests add column if not exists reference_image_urls text[] default array[]::text[];
+alter table public.client_booking_requests alter column service_id type text;
+alter table public.client_booking_requests alter column client_id drop not null; -- Allow Guests
+
+-- 4. RESET PERMISSIONS
+alter table public.profiles enable row level security;
+alter table public.client_booking_requests enable row level security;
+alter table public.notifications enable row level security;
 
 do $$
 begin
-  begin alter publication supabase_realtime add table public.client_booking_requests; exception when duplicate_object then null; end;
-  begin alter publication supabase_realtime add table public.notifications; exception when duplicate_object then null; end;
-  begin alter publication supabase_realtime add table public.messages; exception when duplicate_object then null; end;
+  drop policy if exists "Profiles_Read_All" on public.profiles;
+  drop policy if exists "Profiles_Manage_Own" on public.profiles;
+  drop policy if exists "Bookings_Public_Insert" on public.client_booking_requests;
+  drop policy if exists "Bookings_View_Own" on public.client_booking_requests;
+  drop policy if exists "Bookings_Update_Own" on public.client_booking_requests;
+  drop policy if exists "Notif_View_Own" on public.notifications;
+  drop policy if exists "Notif_Create_Public" on public.notifications;
+  drop policy if exists "Notif_Update_Own" on public.notifications;
+  drop policy if exists "Public_Upload_Refs" on storage.objects;
+  drop policy if exists "Public_View_Refs" on storage.objects;
+exception when others then null;
 end $$;
 
--- 4. STORAGE SETUP (The Missing Piece for Messaging/Portfolios)
--- Ensure buckets exist
-insert into storage.buckets (id, name, public) values ('portfolios', 'portfolios', true) on conflict (id) do nothing;
-insert into storage.buckets (id, name, public) values ('message_attachments', 'message_attachments', true) on conflict (id) do nothing;
+-- Policies
+create policy "Profiles_Read_All" on public.profiles for select using (true);
+create policy "Profiles_Manage_Own" on public.profiles for all using (auth.uid() = id) with check (auth.uid() = id);
+
+create policy "Bookings_Public_Insert" on public.client_booking_requests for insert with check (true);
+create policy "Bookings_View_Own" on public.client_booking_requests for select using (auth.uid() = artist_id OR auth.uid() = client_id);
+create policy "Bookings_Update_Own" on public.client_booking_requests for update using (auth.uid() = artist_id OR auth.uid() = client_id);
+
+create policy "Notif_View_Own" on public.notifications for select using (auth.uid() = user_id);
+create policy "Notif_Create_Public" on public.notifications for insert with check (true);
+create policy "Notif_Update_Own" on public.notifications for update using (auth.uid() = user_id);
+
+-- Storage
 insert into storage.buckets (id, name, public) values ('booking-references', 'booking-references', true) on conflict (id) do nothing;
-
--- Portfolio Policies
-drop policy if exists "Public_View_Portfolios" on storage.objects;
-create policy "Public_View_Portfolios" on storage.objects for select using (bucket_id = 'portfolios');
-
-drop policy if exists "Artists_Upload_Portfolios" on storage.objects;
-create policy "Artists_Upload_Portfolios" on storage.objects for insert with check (bucket_id = 'portfolios' AND auth.role() = 'authenticated');
-
-drop policy if exists "Artists_Delete_Portfolios" on storage.objects;
-create policy "Artists_Delete_Portfolios" on storage.objects for delete using (bucket_id = 'portfolios' AND auth.uid()::text = (storage.foldername(name))[1]);
-
--- Message Attachment Policies
-drop policy if exists "Authenticated_View_Attachments" on storage.objects;
-create policy "Authenticated_View_Attachments" on storage.objects for select using (bucket_id = 'message_attachments' AND auth.role() = 'authenticated');
-
-drop policy if exists "Authenticated_Upload_Attachments" on storage.objects;
-create policy "Authenticated_Upload_Attachments" on storage.objects for insert with check (bucket_id = 'message_attachments' AND auth.role() = 'authenticated');
-
--- Booking Reference Policies
-drop policy if exists "Public_Upload_Refs" on storage.objects;
 create policy "Public_Upload_Refs" on storage.objects for insert with check (bucket_id = 'booking-references');
-drop policy if exists "Public_View_Refs" on storage.objects;
 create policy "Public_View_Refs" on storage.objects for select using (bucket_id = 'booking-references');
 
--- 5. THE FIXED BOOKING FUNCTION
--- Returns the FULL record (including client_id) + related data.
+-- 5. BOOKING RPC (Returns Full Data for Dashboard)
 create or replace function create_booking_request(
   p_artist_id uuid, p_start_date date, p_end_date date, p_message text, 
   p_tattoo_width numeric, p_tattoo_height numeric, p_body_placement text, 
@@ -90,7 +122,7 @@ declare
   artist_data record;
   display_name text;
 begin
-  -- 1. Insert Booking
+  -- Insert
   insert into public.client_booking_requests (
     artist_id, start_date, end_date, message, tattoo_width, tattoo_height, body_placement, 
     deposit_amount, platform_fee, service_id, budget, reference_image_urls, preferred_time, 
@@ -101,11 +133,11 @@ begin
     p_client_id, p_guest_name, p_guest_email, p_guest_phone, now()
   ) returning * into new_record;
   
-  -- 2. Fetch Related Data
+  -- Fetch Data
   select id, full_name from public.profiles where id = new_record.client_id into client_data;
   select id, full_name, services from public.profiles where id = new_record.artist_id into artist_data;
   
-  -- 3. Send Notification (Safe Block)
+  -- Notify
   begin
     if p_guest_name is not null and p_guest_name != '' then
       display_name := p_guest_name || ' (Guest)';
@@ -114,13 +146,11 @@ begin
     else
       display_name := 'A client';
     end if;
-
     insert into public.notifications (user_id, message, read)
     values (p_artist_id, 'New booking request from ' || display_name, false);
-  exception when others then null; 
-  end;
+  exception when others then null; end;
 
-  -- 4. Return FULL Record + Relations (The Fix)
+  -- Return Full Data
   return to_jsonb(new_record) || jsonb_build_object(
     'client', jsonb_build_object('id', client_data.id, 'full_name', client_data.full_name),
     'artist', jsonb_build_object('id', artist_data.id, 'full_name', artist_data.full_name, 'services', artist_data.services)
@@ -129,4 +159,8 @@ end; $$;
 
 grant execute on function create_booking_request to authenticated;
 grant execute on function create_booking_request to anon;
+
+-- 6. REFRESH
+NOTIFY pgrst, 'reload config';
 ```
+    

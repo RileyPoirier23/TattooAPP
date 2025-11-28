@@ -5,7 +5,7 @@ import React, { useState, useEffect } from 'react';
 import type { Artist, ModalState, ArtistHours, IntakeFormSettings, ClientBookingRequest } from '../../types';
 import { useAppStore } from '../../hooks/useAppStore';
 import { ArtistProfileView } from '../ModalsAndProfile';
-import { InboxStackIcon, UserCircleIcon, CalendarIcon, CogIcon, TrashIcon } from '../shared/Icons';
+import { InboxStackIcon, UserCircleIcon, CalendarIcon, CogIcon, TrashIcon, PaperAirplaneIcon } from '../shared/Icons';
 import { Loader } from '../shared/Loader';
 
 
@@ -190,6 +190,7 @@ const BookingRequestsTab: React.FC<{
     onCompleteRequest: (requestId: string, status: 'completed' | 'rescheduled' | 'no-show') => void;
     openModal: (type: ModalState['type'], data?: any) => void;
 }> = ({ artist, allClientBookings, onRespondToRequest, onCompleteRequest, openModal }) => {
+    const { sendAftercare, requestHealedPhoto } = useAppStore();
     const myClientRequests = allClientBookings.filter(b => b.artistId === artist.id);
     
     // Robust filtering logic using midnight normalization
@@ -268,12 +269,30 @@ const BookingRequestsTab: React.FC<{
                             </div>
                             <span className={`text-xs font-bold px-3 py-1 rounded-full capitalize ${getStatusChip(req.status)}`}>{req.status}</span>
                          </div>
+                         {req.clientId && (
+                             <div className="mt-4 flex gap-2">
+                                <button onClick={() => sendAftercare(req.clientId!)} className="flex items-center gap-1 bg-brand-secondary/20 text-brand-secondary text-xs font-bold py-1 px-3 rounded-full hover:bg-brand-secondary hover:text-white transition-colors">
+                                    <PaperAirplaneIcon className="w-3 h-3"/> Send Aftercare
+                                </button>
+                                <button onClick={() => requestHealedPhoto(req.clientId!)} className="flex items-center gap-1 bg-brand-primary/20 text-brand-primary text-xs font-bold py-1 px-3 rounded-full hover:bg-brand-primary hover:text-white transition-colors">
+                                    <CameraIcon className="w-3 h-3"/> Request Healed Photo
+                                </button>
+                             </div>
+                         )}
                      </div>
                  )) : <p className="text-brand-gray">No past sessions.</p>}
             </BookingSection>
         </div>
     );
 };
+
+// Add Camera Icon for the button above
+const CameraIcon: React.FC<{ className?: string }> = ({ className }) => (
+    <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor" className={className}>
+        <path strokeLinecap="round" strokeLinejoin="round" d="M6.827 6.175A2.31 2.31 0 0 1 5.186 7.23c-.38.054-.757.112-1.134.175C2.999 7.58 2.25 8.507 2.25 9.574V18a2.25 2.25 0 0 0 2.25 2.25h15A2.25 2.25 0 0 0 21.75 18V9.574c0-1.067-.75-1.994-1.802-2.169a47.865 47.865 0 0 0-1.134-.175 2.31 2.31 0 0 1-1.64-1.055l-.822-1.316a2.192 2.192 0 0 0-1.736-1.039 48.774 48.774 0 0 0-5.232 0 2.192 2.192 0 0 0-1.736 1.039l-.821 1.316Z" />
+        <path strokeLinecap="round" strokeLinejoin="round" d="M16.5 12.75a4.5 4.5 0 1 1-9 0 4.5 4.5 0 0 1 9 0ZM18.75 10.5h.008v.008h-.008V10.5Z" />
+    </svg>
+);
 
 
 // --- Main Dashboard Component ---

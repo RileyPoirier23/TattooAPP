@@ -453,6 +453,18 @@ export const sendMessage = async (conversationId: string, senderId: string, cont
     return adaptMessage(data);
 };
 
+// Automation helper to send system messages via chat
+export const sendSystemMessage = async (conversationId: string, senderId: string, content: string): Promise<Message> => {
+    const supabase = getSupabase();
+    const { data, error } = await supabase.rpc('send_message', {
+        p_conversation_id: conversationId,
+        p_content: content,
+        p_attachment_url: null
+    });
+    if (error) throw error;
+    return adaptMessage(data);
+};
+
 export const uploadMessageAttachment = async (file: File, conversationId: string): Promise<string> => {
     const supabase = getSupabase();
     const fileExt = file.name.split('.').pop();
