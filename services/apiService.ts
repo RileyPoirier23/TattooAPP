@@ -108,16 +108,37 @@ export const updateArtistData = async (artistId: string, updatedData: Partial<Ar
 };
 
 // NEW: Specialized function to save hours using RPC for reliability
+// Now with fallback to standard update if RPC fails
 export const saveArtistHours = async (hours: ArtistHours): Promise<Artist> => {
     const supabase = getSupabase();
-    const { data, error } = await supabase.rpc('update_artist_hours', { p_hours: hours });
     
-    if (error) {
-        console.error("Error saving artist hours via RPC:", error);
-        throw error;
+    // Try the specialized V2 function first
+    const { data, error } = await supabase.rpc('set_artist_hours_v2', { p_hours: hours });
+    
+    if (!error && data) {
+        return adaptProfileToArtist(data);
     }
-    // The RPC returns the full profile row
-    return adaptProfileToArtist(data);
+
+    console.warn("RPC set_artist_hours_v2 failed, attempting fallback update...", error);
+
+    // Fallback: Standard Update
+    // We get the current user ID first to ensure we are updating the right row
+    const { data: { user } } = await supabase.auth.getUser();
+    if (!user) throw new Error("User not authenticated");
+
+    const { data: fallbackData, error: fallbackError } = await supabase
+        .from('profiles')
+        .update({ hours: hours, updated_at: new Date().toISOString() })
+        .eq('id', user.id)
+        .select()
+        .single();
+
+    if (fallbackError) {
+        console.error("Fallback update failed:", fallbackError);
+        throw fallbackError;
+    }
+
+    return adaptProfileToArtist(fallbackData);
 };
 
 export const uploadPortfolioImage = async (userId: string, file: File): Promise<PortfolioImage> => {
