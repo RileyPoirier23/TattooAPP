@@ -108,25 +108,25 @@ export const updateArtistData = async (artistId: string, updatedData: Partial<Ar
 };
 
 // NEW: Specialized function to save hours using RPC for reliability
-export const saveArtistHours = async (hours: ArtistHours, fullName: string, city: string): Promise<Artist> => {
+export const saveArtistHours = async (hours: ArtistHours, fullName: string, city: string, email: string): Promise<Artist> => {
     const supabase = getSupabase();
     
-    // Call V5 function which uses ON CONFLICT UPSERT and JWT email extraction
-    // This is the most robust method to handle profile creation/updating.
-    const { data, error } = await supabase.rpc('save_artist_hours_v5', { 
+    // Call V6 function which accepts email directly from client
+    const { data, error } = await supabase.rpc('save_artist_hours_v6', { 
         p_hours: hours,
         p_full_name: fullName,
-        p_city: city
+        p_city: city,
+        p_email: email
     });
     
     if (error) {
-        console.error("RPC save_artist_hours_v5 failed:", error);
+        console.error("RPC save_artist_hours_v6 failed:", error);
         throw error;
     }
 
     if (!data) {
-        console.error("RPC save_artist_hours_v5 returned no data");
-        throw new Error("No data returned from save_artist_hours_v5");
+        console.error("RPC save_artist_hours_v6 returned no data");
+        throw new Error("No data returned from save_artist_hours_v6");
     }
 
     return adaptProfileToArtist(data);

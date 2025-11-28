@@ -30,32 +30,31 @@ You **MUST** run the SQL script below to set up the database. The app will not w
 -- 1. EXTENSIONS
 create extension if not exists "moddatetime" schema "extensions";
 
--- 2. AVAILABILITY: Save Hours (V5 - The Atomic Fix)
--- Uses auth.jwt() to get email (bypassing table permissions)
--- Uses ON CONFLICT to handle both Insert and Update in one atomic step.
-create or replace function save_artist_hours_v5(
+-- 2. AVAILABILITY: Save Hours (V6 - Client Authority)
+-- Explicitly accepts email from client to prevent NULL violations.
+-- Sets search_path to ensure public table visibility.
+create or replace function save_artist_hours_v6(
   p_hours jsonb,
   p_full_name text,
-  p_city text
+  p_city text,
+  p_email text
 )
 returns jsonb
 language plpgsql security definer
+set search_path = public
 as $$
 declare
   updated_profile record;
-  user_email text;
   current_uid uuid;
 begin
   current_uid := auth.uid();
-  -- Extract email directly from the active session token
-  user_email := auth.jwt() ->> 'email';
 
   insert into public.profiles (
     id, username, full_name, role, city, hours
   )
   values (
     current_uid,
-    coalesce(user_email, 'user@inkspace.app'),
+    p_email, -- Use the email passed from client
     coalesce(p_full_name, 'Artist'),
     'artist',
     coalesce(p_city, ''),
@@ -65,26 +64,51 @@ begin
   set
     hours = EXCLUDED.hours,
     updated_at = now(),
-    -- Keep profile specific data in sync
+    -- Only update these if provided, otherwise keep existing
     full_name = case when p_full_name is not null and p_full_name <> '' then EXCLUDED.full_name else public.profiles.full_name end,
-    city = case when p_city is not null and p_city <> '' then EXCLUDED.city else public.profiles.city end
+    city = case when p_city is not null and p_city <> '' then EXCLUDED.city else public.profiles.city end,
+    username = case when p_email is not null and p_email <> '' then EXCLUDED.username else public.profiles.username end
   returning * into updated_profile;
 
   return to_jsonb(updated_profile);
 end;
 $$;
 
--- 3. PERMISSIONS
-grant execute on function save_artist_hours_v5 to authenticated;
-
--- Ensure Messaging RPCs exist (just in case they were wiped)
-create or replace function get_my_conversations_v2(p_user_id uuid) returns jsonb language plpgsql security definer as $$
-declare result jsonb;
+-- 3. MESSAGING: Get Conversations (V2 - Re-apply for safety)
+create or replace function get_my_conversations_v2(p_user_id uuid)
+returns jsonb
+language plpgsql security definer
+set search_path = public
+as $$
+declare
+  result jsonb;
 begin
-  select jsonb_agg(jsonb_build_object('id', c.id, 'participantOneId', c.participant_one_id, 'participantTwoId', c.participant_two_id, 'otherUser', jsonb_build_object('id', coalesce(p.id, '00000000-0000-0000-0000-000000000000'), 'name', coalesce(p.full_name, 'Unknown User'))))
-  from public.conversations c left join public.profiles p on p.id = case when c.participant_one_id = p_user_id then c.participant_two_id else c.participant_one_id end
-  where c.participant_one_id = p_user_id or c.participant_two_id = p_user_id into result;
+  select jsonb_agg(
+    jsonb_build_object(
+      'id', c.id,
+      'participantOneId', c.participant_one_id,
+      'participantTwoId', c.participant_two_id,
+      'otherUser', jsonb_build_object(
+        'id', coalesce(p.id, '00000000-0000-0000-0000-000000000000'),
+        'name', coalesce(p.full_name, 'Unknown User')
+      )
+    )
+  )
+  from public.conversations c
+  left join public.profiles p on p.id = case 
+    when c.participant_one_id = p_user_id then c.participant_two_id 
+    else c.participant_one_id 
+  end
+  where c.participant_one_id = p_user_id or c.participant_two_id = p_user_id
+  into result;
+
   return coalesce(result, '[]'::jsonb);
-end; $$;
+end;
+$$;
+
+-- 4. PERMISSIONS
+grant execute on function save_artist_hours_v6 to authenticated;
 grant execute on function get_my_conversations_v2 to authenticated;
+grant execute on function send_message to authenticated;
+grant execute on function get_messages to authenticated;
 ```
