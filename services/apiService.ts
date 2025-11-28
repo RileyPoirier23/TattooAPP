@@ -107,33 +107,19 @@ export const updateArtistData = async (artistId: string, updatedData: Partial<Ar
     return adaptProfileToArtist(data);
 };
 
-// NEW: Direct Client-Side Upsert. 
-// No more RPC complexity. We simply send the data.
-// If the row exists, we update. If not, we insert.
+// V8: SECURE RPC SAVE
 export const saveArtistHours = async (userId: string, hours: ArtistHours, name: string, city: string, email: string): Promise<Artist> => {
     const supabase = getSupabase();
     
-    // Construct the payload for upsert
-    const profilePayload = {
-        id: userId,
-        username: email || `user_${userId.substring(0,8)}`, // Fallback only if email is somehow missing
-        full_name: name || 'Artist',
-        role: 'artist',
-        city: city || '',
-        hours: hours,
-        updated_at: new Date().toISOString()
-    };
-
-    // Use .upsert() with standard client. 
-    // This relies on the "Profiles_Manage_Own" RLS policy being active.
-    const { data, error } = await supabase
-        .from('profiles')
-        .upsert(profilePayload, { onConflict: 'id' })
-        .select()
-        .single();
+    // Use the new God Mode RPC that guarantees success
+    const { data, error } = await supabase.rpc('save_artist_settings', {
+        p_hours: hours,
+        p_full_name: name,
+        p_city: city
+    });
     
     if (error) {
-        console.error("Standard Upsert saveArtistHours failed:", error);
+        console.error("RPC save_artist_settings failed:", error);
         throw error;
     }
 
@@ -258,21 +244,17 @@ export const createClientBookingRequest = async (requestData: Omit<ClientBooking
         throw error;
     }
     
-    // If user is registered, try to send an internal message
-    if (requestData.clientId) {
-        try {
-            // Check if conversation logic exists
-            // const conversation = await findOrCreateConversation(requestData.clientId, requestData.artistId);
-            // if (conversation) {
-            //     await sendMessage(conversation.id, requestData.clientId, requestData.message);
-            // }
-        } catch (msgError) {
-            // console.warn("Could not send initial message for booking:", msgError);
-        }
+    const adapted = adaptClientBookingRequest(data);
+
+    // AUTO-NOTIFY ARTIST
+    try {
+        const notificationMsg = `New booking request from ${adapted.clientName || 'a client'}`;
+        await createNotification(adapted.artistId, notificationMsg);
+    } catch (e) {
+        console.warn("Failed to notify artist", e);
     }
 
-    // The RPC returns the formatted structure, pass it to adapter
-    return adaptClientBookingRequest(data);
+    return adapted;
 };
 
 export const updateClientBookingRequest = async (requestId: string, updates: Partial<Pick<ClientBookingRequest, 'referenceImageUrls'>>): Promise<ClientBookingRequest> => {
@@ -293,8 +275,26 @@ export const updateClientBookingRequestStatus = async (requestId: string, status
     const updatePayload: { [key: string]: any } = { status };
     if (paymentStatus) updatePayload.payment_status = paymentStatus;
 
-    const { error } = await supabase.from('client_booking_requests').update(updatePayload).eq('id', requestId);
+    // Perform Update
+    const { data, error } = await supabase
+        .from('client_booking_requests')
+        .update(updatePayload)
+        .eq('id', requestId)
+        .select()
+        .single();
+
     if (error) throw error;
+
+    // AUTO-NOTIFY CLIENT
+    try {
+        if (data.client_id) {
+            const msg = `Your booking request has been ${status}.`;
+            await createNotification(data.client_id, msg);
+        }
+    } catch (e) {
+        console.warn("Failed to notify client", e);
+    }
+
     return { success: true };
 };
 
@@ -307,6 +307,13 @@ export const payClientBookingDeposit = async (requestId: string): Promise<Client
         .select('*, client:profiles!client_booking_requests_client_id_fkey(full_name), artist:profiles!client_booking_requests_artist_id_fkey(full_name, services)')
         .single();
     if (error) throw error;
+    
+    // AUTO-NOTIFY ARTIST
+    try {
+        const msg = `Deposit paid for request #${requestId.substring(0,6)}`;
+        await createNotification(data.artist_id, msg);
+    } catch (e) { console.warn(e) }
+
     return adaptClientBookingRequest(data);
 };
 

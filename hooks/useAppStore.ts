@@ -435,7 +435,7 @@ export const useAppStore = create<AppState>()(
         }
       },
 
-      // NEW: Simplified Action for Saving Availability using Direct Upsert
+      // V8: ROBUST ACTION for Saving Availability using Secure RPC
       saveArtistAvailability: async (hours) => {
         const user = get().user;
         if (!user || (user.type !== 'artist' && user.type !== 'dual')) return;
@@ -447,6 +447,7 @@ export const useAppStore = create<AppState>()(
             const city = 'city' in user.data ? user.data.city : '';
             const email = user.email;
 
+            // Use the secure RPC function
             const updatedArtist = await saveArtistHours(user.id, hours, name, city, email);
             
             set(state => {
