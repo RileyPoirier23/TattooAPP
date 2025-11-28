@@ -27,13 +27,50 @@ You **MUST** run the SQL script below to set up the database. The app will not w
 #### 📜 SQL Script (Copy All)
 
 ```sql
--- 1. EXTENSIONS
+-- 1. ENABLE EXTENSIONS
 create extension if not exists "moddatetime" schema "extensions";
 
--- 2. AVAILABILITY: Save Hours (V6 - Client Authority)
--- Explicitly accepts email from client to prevent NULL violations.
--- Sets search_path to ensure public table visibility.
-create or replace function save_artist_hours_v6(
+-- 2. RESET PROFILES TABLE (Columns)
+-- Ensure 'hours' is JSONB.
+alter table public.profiles alter column hours type jsonb using hours::jsonb;
+alter table public.profiles alter column hours set default '{}'::jsonb;
+
+-- 3. NUCLEAR OPTION: DROP ALL POLICIES
+-- We drop everything to ensure no old, broken rules are blocking us.
+do $$
+begin
+  drop policy if exists "Public profiles" on public.profiles;
+  drop policy if exists "Users update own" on public.profiles;
+  drop policy if exists "Users insert own" on public.profiles;
+  drop policy if exists "Public_profiles_v4" on public.profiles;
+  drop policy if exists "Users_update_own_v4" on public.profiles;
+  drop policy if exists "Users_insert_own_v4" on public.profiles;
+  drop policy if exists "Public_profiles_v5" on public.profiles;
+  drop policy if exists "Users_update_own_v5" on public.profiles;
+  drop policy if exists "Users_insert_own_v5" on public.profiles;
+  -- Drop any other variations
+  drop policy if exists "Enable read access for all users" on public.profiles;
+  drop policy if exists "Enable insert for users based on user_id" on public.profiles;
+  drop policy if exists "Enable update for users based on email" on public.profiles;
+exception when others then null;
+end $$;
+
+-- 4. RE-APPLY CLEAN POLICIES (Profiles)
+alter table public.profiles enable row level security;
+
+create policy "Profiles_Read_All" on public.profiles 
+for select using (true);
+
+create policy "Profiles_Insert_Own" on public.profiles 
+for insert with check (auth.uid() = id);
+
+create policy "Profiles_Update_Own" on public.profiles 
+for update using (auth.uid() = id);
+
+-- 5. THE FIX: Save Availability Function (V7)
+-- SECURITY DEFINER: Runs as admin, bypassing RLS for the upsert.
+-- SEARCH_PATH: Fixes "relation not found" errors.
+create or replace function save_artist_hours_v7(
   p_hours jsonb,
   p_full_name text,
   p_city text,
@@ -49,13 +86,19 @@ declare
 begin
   current_uid := auth.uid();
 
+  -- Upsert: Try to insert, if ID exists, update.
   insert into public.profiles (
-    id, username, full_name, role, city, hours
+    id, 
+    username, 
+    full_name, 
+    role, 
+    city, 
+    hours
   )
   values (
     current_uid,
-    p_email, -- Use the email passed from client
-    coalesce(p_full_name, 'Artist'),
+    coalesce(p_email, 'user@inkspace.app'), -- Fallback email
+    coalesce(p_full_name, 'Artist'),        -- Fallback name
     'artist',
     coalesce(p_city, ''),
     p_hours
@@ -64,17 +107,19 @@ begin
   set
     hours = EXCLUDED.hours,
     updated_at = now(),
-    -- Only update these if provided, otherwise keep existing
+    -- Also sync name/city if provided
     full_name = case when p_full_name is not null and p_full_name <> '' then EXCLUDED.full_name else public.profiles.full_name end,
-    city = case when p_city is not null and p_city <> '' then EXCLUDED.city else public.profiles.city end,
-    username = case when p_email is not null and p_email <> '' then EXCLUDED.username else public.profiles.username end
+    city = case when p_city is not null and p_city <> '' then EXCLUDED.city else public.profiles.city end
   returning * into updated_profile;
 
   return to_jsonb(updated_profile);
 end;
 $$;
 
--- 3. MESSAGING: Get Conversations (V2 - Re-apply for safety)
+-- 6. GRANT EXECUTE PERMISSIONS
+grant execute on function save_artist_hours_v7 to authenticated;
+
+-- 7. REPAIR MESSAGING (Ensure V2 exists)
 create or replace function get_my_conversations_v2(p_user_id uuid)
 returns jsonb
 language plpgsql security definer
@@ -105,10 +150,5 @@ begin
   return coalesce(result, '[]'::jsonb);
 end;
 $$;
-
--- 4. PERMISSIONS
-grant execute on function save_artist_hours_v6 to authenticated;
 grant execute on function get_my_conversations_v2 to authenticated;
-grant execute on function send_message to authenticated;
-grant execute on function get_messages to authenticated;
 ```

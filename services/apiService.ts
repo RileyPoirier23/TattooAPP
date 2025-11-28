@@ -107,12 +107,12 @@ export const updateArtistData = async (artistId: string, updatedData: Partial<Ar
     return adaptProfileToArtist(data);
 };
 
-// NEW: Specialized function to save hours using RPC for reliability
+// NEW: Specialized function to save hours using RPC for reliability (V7)
 export const saveArtistHours = async (hours: ArtistHours, fullName: string, city: string, email: string): Promise<Artist> => {
     const supabase = getSupabase();
     
-    // Call V6 function which accepts email directly from client
-    const { data, error } = await supabase.rpc('save_artist_hours_v6', { 
+    // Call V7 function which is Security Definer and handles upsert
+    const { data, error } = await supabase.rpc('save_artist_hours_v7', { 
         p_hours: hours,
         p_full_name: fullName,
         p_city: city,
@@ -120,13 +120,13 @@ export const saveArtistHours = async (hours: ArtistHours, fullName: string, city
     });
     
     if (error) {
-        console.error("RPC save_artist_hours_v6 failed:", error);
+        console.error("RPC save_artist_hours_v7 failed:", error);
         throw error;
     }
 
     if (!data) {
-        console.error("RPC save_artist_hours_v6 returned no data");
-        throw new Error("No data returned from save_artist_hours_v6");
+        console.error("RPC save_artist_hours_v7 returned no data");
+        throw new Error("No data returned from save_artist_hours_v7");
     }
 
     return adaptProfileToArtist(data);
