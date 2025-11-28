@@ -473,11 +473,12 @@ export const BookingModal: React.FC<{shop: Shop, booths: Booth[], bookings: Book
 };
 
 const ClientBookingCalendar: React.FC<{
+  artistHours?: any;
   availability: Map<string, 'available' | 'unavailable'>;
   onDateSelect: (date: Date) => void;
   selectedStartDate: Date | null;
   selectedEndDate: Date | null;
-}> = ({ availability, onDateSelect, selectedStartDate, selectedEndDate }) => {
+}> = ({ artistHours, availability, onDateSelect, selectedStartDate, selectedEndDate }) => {
     const [currentDate, setCurrentDate] = useState(new Date());
   
     const startOfMonth = new Date(currentDate.getFullYear(), currentDate.getMonth(), 1);
@@ -496,11 +497,18 @@ const ClientBookingCalendar: React.FC<{
         const status = availability.get(dateString);
         const isPast = date < new Date(new Date().toDateString());
         
+        // Artist Working Hours Check
+        let isWorkingDay = true;
+        if (artistHours) {
+            const dayIndex = date.getDay(); // 0 = Sunday
+            isWorkingDay = artistHours[dayIndex] && artistHours[dayIndex].length > 0;
+        }
+
         const isSelectedStart = selectedStartDate?.toDateString() === date.toDateString();
         const isSelectedEnd = selectedEndDate?.toDateString() === date.toDateString();
         const isInRange = selectedStartDate && selectedEndDate && date > selectedStartDate && date < selectedEndDate;
         
-        const isDisabled = isPast || status === 'unavailable';
+        const isDisabled = isPast || status === 'unavailable' || !isWorkingDay;
 
         let buttonClass = 'w-full h-10 rounded-full text-sm font-semibold transition-colors ';
         if (isSelectedStart || isSelectedEnd) {
@@ -538,8 +546,8 @@ const ClientBookingCalendar: React.FC<{
         </div>
         <div className="grid grid-cols-7 gap-1 mt-2">{renderDays()}</div>
         <div className="flex items-center space-x-4 mt-4 text-xs">
-            <div className="flex items-center gap-1.5"><div className="w-3 h-3 bg-green-500/20 rounded-full"></div><span>Available</span></div>
-            <div className="flex items-center gap-1.5"><div className="w-3 h-3 bg-gray-400/30 rounded-full line-through"></div><span>Unavailable</span></div>
+            <div className="flex items-center gap-1.5"><div className="w-3 h-3 bg-gray-200 dark:bg-gray-700 border border-brand-primary rounded-full"></div><span>Available</span></div>
+            <div className="flex items-center gap-1.5"><div className="w-3 h-3 bg-gray-400/30 rounded-full line-through"></div><span>Unavailable/Closed</span></div>
         </div>
       </div>
     );
@@ -580,6 +588,16 @@ export const ClientBookingRequestModal: React.FC<{ artist: Artist; availability:
     const selectedService = useMemo(() => artist.services?.find(s => s.id === serviceId), [serviceId, artist.services]);
     const availabilityMap = useMemo(() => new Map(availability.map(a => [a.date, a.status])), [availability]);
     
+    // Artist Hours for selected day
+    const getHoursForDay = (date: Date) => {
+        if (!artist.hours) return null;
+        const dayIndex = date.getDay();
+        return artist.hours[dayIndex] || [];
+    };
+
+    const selectedDayHours = startDate ? getHoursForDay(startDate) : null;
+    const isArtistOpenOnSelectedDay = selectedDayHours && selectedDayHours.length > 0;
+
     // Navigation & Handlers
     const nextStep = () => setStep(s => Math.min(s + 1, totalSteps));
     const prevStep = () => setStep(s => Math.max(s - 1, 1));
@@ -629,7 +647,7 @@ export const ClientBookingRequestModal: React.FC<{ artist: Artist; availability:
 
     // Validation
     const isStep1Valid = tattooWidth > 0 && tattooHeight > 0 && bodyPlacement && message.trim() !== '';
-    const isStep2Valid = serviceId && startDate;
+    const isStep2Valid = serviceId && startDate && isArtistOpenOnSelectedDay;
     const isGuestStepValid = guestName.trim() !== '' && guestEmail.includes('@') && guestPhone.trim() !== '';
 
     const handleSubmit = () => {
@@ -759,10 +777,27 @@ export const ClientBookingRequestModal: React.FC<{ artist: Artist; availability:
                                     <p className="text-xs text-brand-gray mt-2">The artist will confirm the exact time based on your preference.</p>
                                 </div>
                             )}
+                            
+                            {startDate && (
+                                <div className={`p-3 rounded-lg border ${isArtistOpenOnSelectedDay ? 'bg-green-500/10 border-green-500/30' : 'bg-red-500/10 border-red-500/30'}`}>
+                                    <h4 className={`font-bold text-sm ${isArtistOpenOnSelectedDay ? 'text-green-600' : 'text-red-500'}`}>
+                                        {isArtistOpenOnSelectedDay ? 'Artist Availability' : 'Artist Closed'}
+                                    </h4>
+                                    {isArtistOpenOnSelectedDay ? (
+                                        <div className="mt-1 text-sm text-gray-600 dark:text-gray-300">
+                                            {selectedDayHours?.map((slot, i) => (
+                                                <div key={i}>{slot.start} - {slot.end}</div>
+                                            ))}
+                                        </div>
+                                    ) : (
+                                        <p className="mt-1 text-xs text-brand-gray">The artist is not working on {startDate.toLocaleDateString('en-US', { weekday: 'long' })}s. Please choose another date.</p>
+                                    )}
+                                </div>
+                            )}
                         </div>
                         <div>
                              <label className="text-sm font-medium text-brand-gray mb-1 block">Select Your Availability (select start and end date, or single day)</label>
-                             <ClientBookingCalendar availability={availabilityMap} onDateSelect={handleDateSelect} selectedStartDate={startDate} selectedEndDate={endDate} />
+                             <ClientBookingCalendar artistHours={artist.hours} availability={availabilityMap} onDateSelect={handleDateSelect} selectedStartDate={startDate} selectedEndDate={endDate} />
                         </div>
                     </div>
                     <div className="flex justify-between mt-6 pt-4 border-t border-gray-200 dark:border-gray-800">

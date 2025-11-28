@@ -1,7 +1,7 @@
 
 // @/services/apiService.ts
 import { getSupabase } from './supabaseClient';
-import type { Artist, Shop, Booth, Booking, ClientBookingRequest, Notification, User, UserRole, Review, PortfolioImage, VerificationRequest, Conversation, ConversationWithUser, Message, ArtistAvailability, AdminUser, ArtistService } from '../types';
+import type { Artist, Shop, Booth, Booking, ClientBookingRequest, Notification, User, PortfolioImage, VerificationRequest, Conversation, ConversationWithUser, Message, ArtistAvailability, Review, AdminUser, ArtistService, UserRole } from '../types';
 import { 
     adaptProfileToArtist, adaptShop, adaptBooth, adaptBooking, adaptClientBookingRequest, adaptAvailability, 
     adaptVerificationRequest, adaptReviewFromBooking, adaptNotification, adaptConversation, adaptMessage, adaptSupabaseProfileToUser 
@@ -220,7 +220,9 @@ export const createClientBookingRequest = async (requestData: Omit<ClientBooking
     if (requestData.clientId) {
         try {
             const conversation = await findOrCreateConversation(requestData.clientId, requestData.artistId);
-            await sendMessage(conversation.id, requestData.clientId, requestData.message);
+            if (conversation) {
+                await sendMessage(conversation.id, requestData.clientId, requestData.message);
+            }
         } catch (msgError) {
             console.warn("Could not send initial message for booking:", msgError);
         }
@@ -286,38 +288,67 @@ export const createNotification = async (userId: string, message: string): Promi
     return adaptNotification(data);
 };
 
-// FIX: Simplified query logic to prevent "failed to parse logic tree" errors
-export const findOrCreateConversation = async (userId1: string, userId2: string): Promise<Conversation> => {
+// FIX: Completely simplified conversation finding to avoid Supabase OR syntax errors
+export const findOrCreateConversation = async (currentUserId: string, otherUserId: string): Promise<Conversation> => {
     const supabase = getSupabase();
     
-    // Fetch all conversations for userId1
-    const { data: conversations, error } = await supabase
+    // 1. Fetch ALL conversations involving the current user.
+    // This avoids complex nested OR syntax which triggers the "failed to parse logic tree" error.
+    const { data: myConversations, error } = await supabase
         .from('conversations')
         .select('*')
-        .or(`participant_one_id.eq.${userId1},participant_two_id.eq.${userId1}`);
+        .or(`participant_one_id.eq.${currentUserId},participant_two_id.eq.${currentUserId}`);
 
     if (error) throw error;
 
-    // Filter in memory to find matching pair
-    const existing = conversations?.find(c => 
-        (c.participant_one_id === userId1 && c.participant_two_id === userId2) ||
-        (c.participant_one_id === userId2 && c.participant_two_id === userId1)
+    // 2. Filter in memory to find if we already have a conversation with the other user
+    const existing = myConversations?.find(c => 
+        (c.participant_one_id === otherUserId) || (c.participant_two_id === otherUserId)
     );
 
-    if (existing) return { ...existing, participantOneId: existing.participant_one_id, participantTwoId: existing.participant_two_id };
+    if (existing) {
+        return { 
+            id: existing.id, 
+            participantOneId: existing.participant_one_id, 
+            participantTwoId: existing.participant_two_id 
+        };
+    }
 
-    const { data: created, error: createError } = await supabase.from('conversations').insert({ participant_one_id: userId1, participant_two_id: userId2 }).select().single();
+    // 3. Create new conversation if none exists
+    const { data: created, error: createError } = await supabase
+        .from('conversations')
+        .insert({ participant_one_id: currentUserId, participant_two_id: otherUserId })
+        .select()
+        .single();
+        
     if (createError) throw createError;
-    return { ...created, participantOneId: created.participant_one_id, participantTwoId: created.participant_two_id };
+    return { 
+        id: created.id, 
+        participantOneId: created.participant_one_id, 
+        participantTwoId: created.participant_two_id 
+    };
 };
 
 export const fetchUserConversations = async (userId: string): Promise<ConversationWithUser[]> => {
     const supabase = getSupabase();
-    const { data: conversations, error } = await supabase.from('conversations').select('*').or(`participant_one_id.eq.${userId},participant_two_id.eq.${userId}`);
+    // Simplified fetch
+    const { data: conversations, error } = await supabase
+        .from('conversations')
+        .select('*')
+        .or(`participant_one_id.eq.${userId},participant_two_id.eq.${userId}`);
+        
     if (error) throw error;
 
+    if (!conversations || conversations.length === 0) return [];
+
     const participantIds = new Set<string>();
-    conversations.forEach(c => { participantIds.add(c.participant_one_id); participantIds.add(c.participant_two_id); });
+    conversations.forEach(c => { 
+        if(c.participant_one_id !== userId) participantIds.add(c.participant_one_id);
+        if(c.participant_two_id !== userId) participantIds.add(c.participant_two_id);
+    });
+    
+    if (participantIds.size === 0) return [];
+
     const { data: profiles } = await supabase.from('profiles').select('id, full_name').in('id', Array.from(participantIds));
     
     const profilesMap = new Map<string, { id: string; full_name: string }>(profiles?.map(p => [p.id, p]) || []);

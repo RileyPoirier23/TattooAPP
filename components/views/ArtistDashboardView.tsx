@@ -2,11 +2,10 @@
 // @/components/views/ArtistDashboardView.tsx
 
 import React, { useState, useEffect } from 'react';
-import type { Artist, ModalState, ArtistService, TimeSlot, ArtistHours, IntakeFormSettings, ClientBookingRequest } from '../../types';
-import { generateArtistBio } from '../../services/geminiService';
+import type { Artist, ModalState, ArtistHours, IntakeFormSettings, ClientBookingRequest } from '../../types';
 import { useAppStore } from '../../hooks/useAppStore';
 import { ArtistProfileView } from '../ModalsAndProfile';
-import { CheckBadgeIcon, EditIcon, SparklesIcon, UploadIcon, TrashIcon, InstagramIcon, TikTokIcon, XIconSocial, CalendarIcon, PaletteIcon, UserCircleIcon, CogIcon, InboxStackIcon } from '../shared/Icons';
+import { InboxStackIcon, UserCircleIcon, CalendarIcon, CogIcon, TrashIcon } from '../shared/Icons';
 import { Loader } from '../shared/Loader';
 
 
@@ -83,7 +82,7 @@ const AvailabilityTab: React.FC<{ artist: Artist; updateArtist: (id: string, dat
             useAppStore.getState().showToast('Availability saved!', 'success');
         } catch (e) {
             console.error("Failed to save availability:", e);
-            // Error toast is handled in the store action
+            useAppStore.getState().showToast('Failed to save availability.', 'error');
         } finally {
             setIsSaving(false);
         }
@@ -94,7 +93,7 @@ const AvailabilityTab: React.FC<{ artist: Artist; updateArtist: (id: string, dat
             <div className="flex justify-between items-center">
                 <h2 className="text-2xl font-bold text-brand-dark dark:text-white">Weekly Hours</h2>
                 <button onClick={handleSave} disabled={isSaving} className="bg-brand-primary text-white font-bold py-2 px-6 rounded-lg disabled:bg-gray-600 w-40 flex justify-center items-center">
-                    {isSaving ? <Loader size="sm" color="white" /> : 'Save Availability'}
+                    {isSaving ? <Loader size="sm" color="white" /> : 'Save Hours'}
                 </button>
             </div>
             <p className="text-brand-gray text-sm">Set your standard weekly working hours. Clients will use this to request booking dates.</p>
@@ -179,14 +178,27 @@ const BookingRequestsTab: React.FC<{
     openModal: (type: ModalState['type'], data?: any) => void;
 }> = ({ artist, allClientBookings, onRespondToRequest, onCompleteRequest, openModal }) => {
     const myClientRequests = allClientBookings.filter(b => b.artistId === artist.id);
+    
+    // Robust filtering logic using midnight normalization
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+
+    const isUpcoming = (dateString: string) => {
+        const d = new Date(dateString);
+        // We assume dateString is YYYY-MM-DD. When parsed as local time, 
+        // if it's today, we want to include it.
+        // Appending T23:59:59 ensures "today" counts as upcoming for the whole day.
+        const target = new Date(dateString + 'T23:59:59');
+        return target >= today;
+    };
+
     const pending = myClientRequests.filter(b => b.status === 'pending');
-    const upcoming = myClientRequests.filter(b => b.status === 'approved' && new Date(b.endDate) >= new Date());
+    const upcoming = myClientRequests.filter(b => b.status === 'approved' && isUpcoming(b.endDate));
     const past = myClientRequests.filter(b => !pending.includes(b) && !upcoming.includes(b));
 
     // Helper to safe-guard display name
     const getClientName = (req: ClientBookingRequest) => {
         if (!req) return "Unknown";
-        // Priority: Profile Name -> Guest Name -> 'Unknown'
         if (req.clientName && req.clientName !== 'Unknown Client') return req.clientName;
         if (req.guestName) return `${req.guestName} (Guest)`;
         return "Unknown Client";
