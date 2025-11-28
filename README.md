@@ -148,8 +148,12 @@ begin
 end;
 $$;
 
--- D. Send Message
-create or replace function send_message(p_conversation_id uuid, p_content text, p_attachment_url text)
+-- D. Send Message (FIXED: Added defaults for null parameters)
+create or replace function send_message(
+  p_conversation_id uuid, 
+  p_content text default null, 
+  p_attachment_url text default null
+)
 returns jsonb
 language plpgsql security definer
 as $$
@@ -162,6 +166,10 @@ begin
     and (participant_one_id = auth.uid() or participant_two_id = auth.uid())
   ) then
     raise exception 'Not a participant';
+  end if;
+
+  if (p_content is null or length(trim(p_content)) = 0) and p_attachment_url is null then
+     raise exception 'Message cannot be empty';
   end if;
 
   insert into public.messages (conversation_id, sender_id, content, attachment_url)
@@ -182,7 +190,7 @@ drop policy if exists "Public view refs" on storage.objects;
 create policy "Public_upload_refs_v5" on storage.objects for insert with check ( bucket_id = 'booking-references' );
 create policy "Public_view_refs_v5" on storage.objects for select using ( bucket_id = 'booking-references' );
 
--- 7. BOOKING FUNCTION
+-- 7. BOOKING FUNCTION (FIXED: Added defaults)
 create or replace function create_booking_request(
   p_artist_id uuid, p_start_date date, p_end_date date, p_message text, p_tattoo_width numeric, p_tattoo_height numeric,
   p_body_placement text, p_deposit_amount numeric, p_platform_fee numeric, p_service_id text, p_budget numeric,

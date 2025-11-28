@@ -358,10 +358,11 @@ export const sendMessage = async (conversationId: string, senderId: string, cont
     if (!content && !attachmentUrl) throw new Error("Message must have content or an attachment.");
     
     // NEW: Use RPC to safely send messages server-side
+    // IMPORTANT: Explicitly send 'null' for undefined optional parameters to match Postgres function signature.
     const { data, error } = await supabase.rpc('send_message', { 
         p_conversation_id: conversationId, 
-        p_content: content, 
-        p_attachment_url: attachmentUrl 
+        p_content: content || null, 
+        p_attachment_url: attachmentUrl || null 
     });
 
     if (error) {
