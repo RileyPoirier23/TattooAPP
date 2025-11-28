@@ -30,18 +30,19 @@ You **MUST** run the SQL script below to set up the database. The app will not w
 -- 1. EXTENSIONS
 create extension if not exists "moddatetime" schema "extensions";
 
--- 2. RESET HOURS COLUMN (The Fix)
--- We drop and recreate to ensure it is PURE JSONB, removing any corrupted state.
-alter table public.profiles drop column if exists hours;
-alter table public.profiles add column hours jsonb default '{}'::jsonb;
+-- 2. REPAIR MISSING PROFILES (The Critical Fix)
+-- This takes everyone from auth.users and ensures they have a row in public.profiles
+insert into public.profiles (id, username, full_name, role, city)
+select 
+  id, 
+  email, 
+  coalesce(raw_user_meta_data->>'full_name', 'User'), 
+  coalesce(raw_user_meta_data->>'role', 'client'),
+  coalesce(raw_user_meta_data->>'city', '')
+from auth.users
+on conflict (id) do nothing;
 
--- 3. ENSURE GUEST COLUMNS
-alter table public.client_booking_requests add column if not exists guest_name text;
-alter table public.client_booking_requests add column if not exists guest_email text;
-alter table public.client_booking_requests add column if not exists guest_phone text;
-alter table public.client_booking_requests alter column client_id drop not null;
-
--- 4. NEW ROBUST SAVE FUNCTION
+-- 3. UPDATED SAVE FUNCTION (Using Upsert)
 create or replace function set_artist_hours_v2(
   p_hours jsonb
 )
@@ -51,14 +52,27 @@ as $$
 declare
   updated_profile record;
 begin
-  update public.profiles 
-  set hours = p_hours, updated_at = now()
-  where id = auth.uid()
+  -- Try to update, if missing (shouldn't happen with backfill, but safe), insert partial
+  insert into public.profiles (id, hours, updated_at)
+  values (auth.uid(), p_hours, now())
+  on conflict (id) do update
+  set hours = EXCLUDED.hours, updated_at = EXCLUDED.updated_at
   returning * into updated_profile;
 
   return to_jsonb(updated_profile);
 end;
 $$;
+
+-- 4. ENSURE PERMISSIONS
+grant execute on function set_artist_hours_v2 to authenticated;
+
+-- Ensure RLS allows upserts
+drop policy if exists "Users insert own" on public.profiles;
+create policy "Users_insert_own_v7" on public.profiles for insert with check (auth.uid() = id);
+
+drop policy if exists "Users update own" on public.profiles;
+drop policy if exists "Users_update_own_v6" on public.profiles;
+create policy "Users_update_own_v7" on public.profiles for update using (auth.uid() = id);
 
 -- 5. MESSAGING FUNCTIONS (Ensuring they exist)
 create or replace function get_my_conversations(p_user_id uuid)
@@ -92,13 +106,8 @@ begin
 end;
 $$;
 
--- 6. PERMISSIONS (Grant Access)
-grant execute on function set_artist_hours_v2 to authenticated;
+-- 6. GRANT EXECUTE
 grant execute on function get_my_conversations to authenticated;
 grant execute on function send_message to authenticated;
 grant execute on function get_messages to authenticated;
-
--- Ensure RLS allows updates just in case RPC fails and we fallback
-drop policy if exists "Users update own" on public.profiles;
-create policy "Users_update_own_v6" on public.profiles for update using (auth.uid() = id);
 ```
