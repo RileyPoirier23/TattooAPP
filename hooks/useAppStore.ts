@@ -1,4 +1,3 @@
-
 // @/hooks/useAppStore.ts
 import { create } from 'zustand';
 import { persist } from 'zustand/middleware';
@@ -459,9 +458,12 @@ export const useAppStore = create<AppState>()(
             const name = user.data.name;
             const city = 'city' in user.data ? user.data.city : '';
             const email = user.email;
+            
+            // Pass the user role to ensure we don't accidentally demote a 'dual' user to 'artist'
+            const role = user.type; 
 
             // 1. SAVE: Use the direct upsert method
-            const updatedArtist = await saveArtistHours(user.id, hours, name, city, email);
+            const updatedArtist = await saveArtistHours(user.id, hours, name, city, email, role);
             
             // 2. VERIFY: Immediately fetch the profile from the database to ensure persistence.
             // This prevents the "Success but reset on refresh" bug.

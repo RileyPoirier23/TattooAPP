@@ -27,47 +27,89 @@ You **MUST** run the SQL script below to set up the database. The app will not w
 #### 📜 SQL Script (Copy All)
 
 ```sql
--- 1. FIX THE MISSING COLUMN (The Root Cause of "Failed to save")
--- If this column is missing, Supabase client updates often fail.
-alter table public.profiles 
-add column if not exists updated_at timestamptz default now();
+-- 1. EXTENSIONS
+create extension if not exists "moddatetime" schema "extensions";
 
--- 2. ENSURE OTHER TABLES HAVE IT (Prevention)
-alter table public.client_booking_requests 
-add column if not exists updated_at timestamptz default now();
-
--- 3. REFRESH SCHEMA CACHE
--- Forces Supabase to recognize the new columns immediately.
+-- 2. REFRESH SCHEMA & PERMISSIONS
 NOTIFY pgrst, 'reload config';
 
--- 4. DATA INTEGRITY CHECK
--- Ensure hours is JSONB so it can store the schedule structure.
-alter table public.profiles alter column hours type jsonb using hours::jsonb;
-alter table public.profiles alter column hours set default '{}'::jsonb;
-
--- 5. RESET & OPEN PERMISSIONS
 alter table public.profiles enable row level security;
+alter table public.client_booking_requests enable row level security;
+alter table public.notifications enable row level security;
 
-do $$
+-- Simple, open policies for maximum compatibility
+drop policy if exists "Profiles_Read_All_V4" on public.profiles;
+create policy "Profiles_Read_All_V4" on public.profiles for select using (true);
+
+drop policy if exists "Profiles_Manage_Own_V4" on public.profiles;
+create policy "Profiles_Manage_Own_V4" on public.profiles for all using (auth.uid() = id) with check (auth.uid() = id);
+
+drop policy if exists "Bookings_Public_Insert_V4" on public.client_booking_requests;
+create policy "Bookings_Public_Insert_V4" on public.client_booking_requests for insert with check (true);
+
+drop policy if exists "Bookings_View_Own_V4" on public.client_booking_requests;
+create policy "Bookings_View_Own_V4" on public.client_booking_requests for select using (auth.uid() = artist_id OR auth.uid() = client_id);
+
+drop policy if exists "Bookings_Update_Own_V4" on public.client_booking_requests;
+create policy "Bookings_Update_Own_V4" on public.client_booking_requests for update using (auth.uid() = artist_id OR auth.uid() = client_id);
+
+drop policy if exists "Notif_View_Own_V4" on public.notifications;
+create policy "Notif_View_Own_V4" on public.notifications for select using (auth.uid() = user_id);
+
+drop policy if exists "Notif_Insert_Public_V4" on public.notifications;
+create policy "Notif_Insert_Public_V4" on public.notifications for insert with check (true);
+
+drop policy if exists "Notif_Update_Own_V4" on public.notifications;
+create policy "Notif_Update_Own_V4" on public.notifications for update using (auth.uid() = user_id);
+
+
+-- 3. ENHANCED BOOKING FUNCTION (With Notification Trigger)
+-- This function creates the booking AND alerts the artist in one step.
+create or replace function create_booking_request(
+  p_artist_id uuid, p_start_date date, p_end_date date, p_message text, 
+  p_tattoo_width numeric, p_tattoo_height numeric, p_body_placement text, 
+  p_deposit_amount numeric, p_platform_fee numeric, p_service_id text, 
+  p_budget numeric, p_reference_image_urls text[], p_preferred_time text, 
+  p_client_id uuid default null, p_guest_name text default null, 
+  p_guest_email text default null, p_guest_phone text default null
+) returns jsonb language plpgsql security definer as $$
+declare 
+  new_record record; 
+  client_data record; 
+  artist_data record;
+  display_name text;
 begin
-  -- Remove potentially conflicting policies
-  drop policy if exists "Profiles_Manage_Own" on public.profiles;
-  drop policy if exists "Profiles_Read_All" on public.profiles;
-  drop policy if exists "Profiles_Insert_Update_Own" on public.profiles;
-  drop policy if exists "Simple_Update_Own" on public.profiles;
-  drop policy if exists "Simple_Insert_Own" on public.profiles;
-  drop policy if exists "Public profiles" on public.profiles;
-exception when others then null;
-end $$;
+  -- 1. Insert Booking
+  insert into public.client_booking_requests (
+    artist_id, start_date, end_date, message, tattoo_width, tattoo_height, body_placement, 
+    deposit_amount, platform_fee, service_id, budget, reference_image_urls, preferred_time, 
+    client_id, guest_name, guest_email, guest_phone
+  ) values (
+    p_artist_id, p_start_date, p_end_date, p_message, p_tattoo_width, p_tattoo_height, p_body_placement, 
+    p_deposit_amount, p_platform_fee, p_service_id, p_budget, p_reference_image_urls, p_preferred_time, 
+    p_client_id, p_guest_name, p_guest_email, p_guest_phone
+  ) returning * into new_record;
+  
+  -- 2. Fetch Data for Response
+  select id, full_name from public.profiles where id = new_record.client_id into client_data;
+  select id, full_name, services from public.profiles where id = new_record.artist_id into artist_data;
+  
+  -- 3. Determine Name for Notification
+  if p_guest_name is not null and p_guest_name != '' then
+    display_name := p_guest_name || ' (Guest)';
+  elsif client_data.full_name is not null then
+    display_name := client_data.full_name;
+  else
+    display_name := 'A client';
+  end if;
 
--- Policy 1: Everyone can read profiles (needed for search/booking)
-create policy "Profiles_Read_All_V3" on public.profiles 
-for select 
-using (true);
+  -- 4. Create Notification for Artist (The "Pop up" Fix)
+  insert into public.notifications (user_id, message, read)
+  values (p_artist_id, 'New booking request from ' || display_name, false);
 
--- Policy 2: You can do ANYTHING to your own row (Insert, Update, Delete)
-create policy "Profiles_Manage_Own_V3" on public.profiles 
-for all 
-using (auth.uid() = id) 
-with check (auth.uid() = id);
+  return to_jsonb(new_record) || jsonb_build_object('client', to_jsonb(client_data)) || jsonb_build_object('artist', to_jsonb(artist_data));
+end; $$;
+
+grant execute on function create_booking_request to authenticated;
+grant execute on function create_booking_request to anon;
 ```

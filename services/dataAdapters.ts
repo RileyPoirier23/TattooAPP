@@ -21,25 +21,40 @@ function getJoinedProperty<T extends object>(
 
 // --- Profile/User Adapters ---
 
-export const adaptProfileToArtist = (profile: any): Artist => ({
-  id: profile.id,
-  name: profile.full_name,
-  specialty: profile.specialty || 'Not specified',
-  portfolio: profile.portfolio || [],
-  city: profile.city || 'Unknown',
-  bio: profile.bio || '',
-  isVerified: profile.is_verified || false,
-  socials: profile.socials || {},
-  hourlyRate: profile.hourly_rate,
-  services: profile.services || [],
-  aftercareMessage: profile.aftercare_message || '',
-  requestHealedPhoto: profile.request_healed_photo || false,
-  averageRating: 0, // Calculated in store
-  // CRITICAL FIX: Map these fields so they don't disappear on refresh
-  hours: profile.hours || {},
-  intakeSettings: profile.intake_settings,
-  bookingMode: profile.booking_mode || 'time_range'
-});
+export const adaptProfileToArtist = (profile: any): Artist => {
+  let hours = {};
+  if (profile.hours) {
+      if (typeof profile.hours === 'string') {
+          try {
+              hours = JSON.parse(profile.hours);
+          } catch (e) {
+              console.error("Failed to parse hours JSON:", e);
+          }
+      } else {
+          hours = profile.hours;
+      }
+  }
+
+  return {
+    id: profile.id,
+    name: profile.full_name,
+    specialty: profile.specialty || 'Not specified',
+    portfolio: profile.portfolio || [],
+    city: profile.city || 'Unknown',
+    bio: profile.bio || '',
+    isVerified: profile.is_verified || false,
+    socials: profile.socials || {},
+    hourlyRate: profile.hourly_rate,
+    services: profile.services || [],
+    aftercareMessage: profile.aftercare_message || '',
+    requestHealedPhoto: profile.request_healed_photo || false,
+    averageRating: 0, // Calculated in store
+    // CRITICAL FIX: Robust hours handling
+    hours: hours,
+    intakeSettings: profile.intake_settings,
+    bookingMode: profile.booking_mode || 'time_range'
+  };
+};
 
 export const adaptProfileToClient = (profile: any): Client => ({
   id: profile.id,
