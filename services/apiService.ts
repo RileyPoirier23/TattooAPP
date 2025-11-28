@@ -294,7 +294,6 @@ export const createNotification = async (userId: string, message: string): Promi
     return adaptNotification(data);
 };
 
-// FIX: Completely simplified conversation finding to avoid Supabase OR syntax errors
 export const findOrCreateConversation = async (currentUserId: string, otherUserId: string): Promise<Conversation> => {
     const supabase = getSupabase();
     
@@ -348,35 +347,28 @@ export const findOrCreateConversation = async (currentUserId: string, otherUserI
 export const fetchUserConversations = async (userId: string): Promise<ConversationWithUser[]> => {
     const supabase = getSupabase();
     
-    // Split query to avoid logic tree error
-    const { data: asP1, error: e1 } = await supabase.from('conversations').select('*').eq('participant_one_id', userId);
-    const { data: asP2, error: e2 } = await supabase.from('conversations').select('*').eq('participant_two_id', userId);
+    // Use the RPC to fetch conversation data + partner details in ONE secure server-side call.
+    // This bypasses complex client-side RLS and JOIN logic that was causing failures.
+    const { data, error } = await supabase.rpc('get_my_conversations', { p_user_id: userId });
         
-    if (e1 || e2) {
-        console.error("Error fetching conversations:", e1 || e2);
-        throw (e1 || e2);
+    if (error) {
+        console.error("Error fetching conversations via RPC:", error);
+        throw error;
     }
 
-    const conversations = [...(asP1 || []), ...(asP2 || [])];
+    if (!data) return [];
 
-    if (!conversations || conversations.length === 0) return [];
-
-    // Deduplicate conversation IDs just in case
-    const uniqueConversations = Array.from(new Map(conversations.map(c => [c.id, c])).values());
-
-    const participantIds = new Set<string>();
-    uniqueConversations.forEach(c => { 
-        if(c.participant_one_id !== userId) participantIds.add(c.participant_one_id);
-        if(c.participant_two_id !== userId) participantIds.add(c.participant_two_id);
-    });
-    
-    if (participantIds.size === 0) return [];
-
-    const { data: profiles } = await supabase.from('profiles').select('id, full_name').in('id', Array.from(participantIds));
-    
-    const profilesMap = new Map<string, { id: string; full_name: string }>(profiles?.map(p => [p.id, p]) || []);
-
-    return uniqueConversations.map(c => adaptConversation(c, userId, profilesMap));
+    // The RPC returns a JSON array, we map it to our internal type.
+    // Ensure the structure matches what the RPC builds.
+    return data.map((item: any) => ({
+        id: item.id,
+        participantOneId: item.participantOneId,
+        participantTwoId: item.participantTwoId,
+        otherUser: {
+            id: item.otherUser.id,
+            name: item.otherUser.name || 'Unknown User'
+        }
+    }));
 };
 
 export const fetchMessagesForConversation = async (conversationId: string): Promise<Message[]> => {
