@@ -49,7 +49,6 @@ export const adaptProfileToArtist = (profile: any): Artist => {
     aftercareMessage: profile.aftercare_message || '',
     requestHealedPhoto: profile.request_healed_photo || false,
     averageRating: 0, // Calculated in store
-    // CRITICAL FIX: Robust hours handling
     hours: hours,
     intakeSettings: profile.intake_settings,
     bookingMode: profile.booking_mode || 'time_range'
@@ -141,22 +140,27 @@ export const adaptBooking = (booking: any, shops: Shop[]): Booking => ({
 });
 
 export const adaptClientBookingRequest = (b: any): ClientBookingRequest => {
-  // The RPC return structure might wrap artist/client data differently than standard selects
-  const artistServices = b.artist?.services || 
+  // Use optional chaining and nullish coalescing to safely extract nested properties
+  // even if the joined data is null or structured unexpectedly.
+  const artistData = b.artist || {};
+  const clientData = b.client || {};
+
+  // Handle artist services - fallback to empty array if missing
+  const artistServices = artistData.services || 
                          getJoinedProperty<{ services: ArtistService[] }>(b.artist, 'services') || [];
   
   const service = artistServices.find((s: any) => s.id === b.service_id);
 
   // Display Name Priority:
-  // 1. Joined Profile Name (b.client.full_name)
-  // 2. Guest Name (b.guest_name)
-  // 3. "Unknown Client"
-  const clientProfileName = b.client?.full_name || 
+  // 1. Joined Profile Name (from client table)
+  // 2. Guest Name (from booking table)
+  // 3. Fallback
+  const clientProfileName = clientData.full_name || 
                             getJoinedProperty<{ full_name: string }>(b.client, 'full_name');
   
   const displayName = clientProfileName || b.guest_name || 'Unknown Client';
 
-  const artistName = b.artist?.full_name ||
+  const artistName = artistData.full_name ||
                      getJoinedProperty<{ full_name: string }>(b.artist, 'full_name') || 'Unknown Artist';
 
   return {

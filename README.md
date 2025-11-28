@@ -30,7 +30,32 @@ You **MUST** run the SQL script below to set up the database. The app will not w
 -- 1. EXTENSIONS
 create extension if not exists "moddatetime" schema "extensions";
 
--- 2. SCHEMA FIXES (Aligning with InkSpace Spec)
+-- 2. FORCE RE-CREATION OF FOREIGN KEYS (Fixing "Empty Dashboard" Issue)
+-- This block searches for any existing constraints on the booking table and drops them,
+-- then recreates them with the EXACT names required by the API.
+DO $$
+DECLARE
+    r RECORD;
+BEGIN
+    FOR r IN (
+        SELECT constraint_name
+        FROM information_schema.table_constraints
+        WHERE table_name = 'client_booking_requests'
+        AND constraint_type = 'FOREIGN KEY'
+    ) LOOP
+        EXECUTE 'ALTER TABLE public.client_booking_requests DROP CONSTRAINT IF EXISTS "' || r.constraint_name || '"';
+    END LOOP;
+END $$;
+
+ALTER TABLE public.client_booking_requests
+ADD CONSTRAINT client_booking_requests_client_id_fkey
+FOREIGN KEY (client_id) REFERENCES public.profiles(id);
+
+ALTER TABLE public.client_booking_requests
+ADD CONSTRAINT client_booking_requests_artist_id_fkey
+FOREIGN KEY (artist_id) REFERENCES public.profiles(id);
+
+-- 3. SCHEMA FIXES (Aligning with InkSpace Spec)
 -- Ensure Profiles have correct columns
 alter table public.profiles add column if not exists updated_at timestamptz default now();
 alter table public.profiles alter column hours type jsonb using hours::jsonb;
@@ -47,7 +72,7 @@ alter table public.client_booking_requests add column if not exists reference_im
 alter table public.client_booking_requests alter column service_id type text;
 alter table public.client_booking_requests alter column client_id drop not null; -- Allow Guests
 
--- 3. PERMISSION RESET (The "It Just Works" Policy)
+-- 4. PERMISSION RESET (The "It Just Works" Policy)
 alter table public.profiles enable row level security;
 alter table public.client_booking_requests enable row level security;
 alter table public.notifications enable row level security;
@@ -87,7 +112,7 @@ insert into storage.buckets (id, name, public) values ('booking-references', 'bo
 create policy "Public_Upload_Refs" on storage.objects for insert with check (bucket_id = 'booking-references');
 create policy "Public_View_Refs" on storage.objects for select using (bucket_id = 'booking-references');
 
--- 4. BOOKING RPC (The Logic Engine)
+-- 5. BOOKING RPC (The Logic Engine)
 -- Handles Booking Creation + Notification Trigger atomically
 create or replace function create_booking_request(
   p_artist_id uuid, p_start_date date, p_end_date date, p_message text, 
@@ -148,4 +173,7 @@ end; $$;
 
 grant execute on function create_booking_request to authenticated;
 grant execute on function create_booking_request to anon;
+
+-- 6. REFRESH SCHEMA CACHE
+NOTIFY pgrst, 'reload config';
 ```
