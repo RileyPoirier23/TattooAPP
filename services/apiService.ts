@@ -1,7 +1,7 @@
 
 // @/services/apiService.ts
 import { getSupabase } from './supabaseClient';
-import type { Artist, Shop, Booth, Booking, ClientBookingRequest, Notification, User, UserRole, PortfolioImage, VerificationRequest, Conversation, ConversationWithUser, Message, ArtistAvailability, Review, AdminUser, ArtistService } from '../types';
+import type { Artist, Shop, Booth, Booking, ClientBookingRequest, Notification, User, UserRole, PortfolioImage, VerificationRequest, Conversation, ConversationWithUser, Message, ArtistAvailability, Review, AdminUser, ArtistService, ArtistHours } from '../types';
 import { 
     adaptProfileToArtist, adaptShop, adaptBooth, adaptBooking, adaptClientBookingRequest, adaptAvailability, 
     adaptVerificationRequest, adaptReviewFromBooking, adaptNotification, adaptConversation, adaptMessage, adaptSupabaseProfileToUser 
@@ -104,6 +104,19 @@ export const updateArtistData = async (artistId: string, updatedData: Partial<Ar
         console.error("Update Artist Error:", error);
         throw error;
     }
+    return adaptProfileToArtist(data);
+};
+
+// NEW: Specialized function to save hours using RPC for reliability
+export const saveArtistHours = async (hours: ArtistHours): Promise<Artist> => {
+    const supabase = getSupabase();
+    const { data, error } = await supabase.rpc('update_artist_hours', { p_hours: hours });
+    
+    if (error) {
+        console.error("Error saving artist hours via RPC:", error);
+        throw error;
+    }
+    // The RPC returns the full profile row
     return adaptProfileToArtist(data);
 };
 

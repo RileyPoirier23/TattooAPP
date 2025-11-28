@@ -46,7 +46,8 @@ const ProfileTab: React.FC<{ artist: Artist; updateArtist: (id: string, data: Pa
 };
 
 // --- TAB: Availability ---
-const AvailabilityTab: React.FC<{ artist: Artist; updateArtist: (id: string, data: Partial<Artist>) => Promise<void>; }> = ({ artist, updateArtist }) => {
+const AvailabilityTab: React.FC<{ artist: Artist }> = ({ artist }) => {
+    const { saveArtistAvailability } = useAppStore();
     const [hours, setHours] = useState<ArtistHours>(artist.hours || {});
     const [isSaving, setIsSaving] = useState(false);
     
@@ -81,10 +82,10 @@ const AvailabilityTab: React.FC<{ artist: Artist; updateArtist: (id: string, dat
     const handleSave = async () => {
         setIsSaving(true);
         try {
-            // Pass a clean copy of the hours object
+            // Pass a clean copy of the hours object to avoid reference issues
             const cleanHours = JSON.parse(JSON.stringify(hours));
-            await updateArtist(artist.id, { hours: cleanHours });
-            useAppStore.getState().showToast('Availability saved successfully!', 'success');
+            // Use dedicated action that updates LocalStorage immediately
+            await saveArtistAvailability(cleanHours);
         } catch (e) {
             console.error("Failed to save availability:", e);
             useAppStore.getState().showToast('Failed to save availability.', 'error');
@@ -305,7 +306,7 @@ export const ArtistDashboardView: React.FC<{
             case 'profile':
                 return <ProfileTab {...props} />;
             case 'availability':
-                return <AvailabilityTab artist={props.artist} updateArtist={props.updateArtist} />;
+                return <AvailabilityTab artist={props.artist} />;
             case 'settings':
                 return <IntakeSettingsTab artist={props.artist} updateArtist={props.updateArtist} />;
             case 'requests':

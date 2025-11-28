@@ -3,12 +3,12 @@
 import { create } from 'zustand';
 import { persist } from 'zustand/middleware';
 import {
-  Artist, Shop, Booking, Booth, User, ViewMode, AuthCredentials, RegisterDetails, MockData, ClientBookingRequest, Notification, Client, ShopOwner, Admin, Conversation, ConversationWithUser, Message, ArtistAvailability, Review, ModalState, PortfolioImage, VerificationRequest, ShopOwnerUser, UserRole,
+  Artist, Shop, Booking, Booth, User, ViewMode, AuthCredentials, RegisterDetails, MockData, ClientBookingRequest, Notification, Client, ShopOwner, Admin, Conversation, ConversationWithUser, Message, ArtistAvailability, Review, ModalState, PortfolioImage, VerificationRequest, ShopOwnerUser, UserRole, ArtistHours,
 } from '../types';
 import {
   fetchInitialData, updateArtistData, uploadPortfolioImage, updateShopData, addBoothToShop, deleteBoothFromShop,
   createBookingForArtist, createClientBookingRequest, updateClientBookingRequestStatus, fetchNotificationsForUser, markUserNotificationsAsRead, createNotification, fetchAllUsers, updateUserData, updateBoothData, fetchUserConversations, fetchMessagesForConversation, sendMessage, findOrCreateConversation, setArtistAvailability, submitReview, deleteUserAsAdmin, deleteShopAsAdmin, uploadMessageAttachment, fetchArtistReviews, createShop as apiCreateShop, createVerificationRequest, updateVerificationRequest, addReviewToShop,
-  adminUpdateUserProfile, adminUpdateShopDetails, deletePortfolioImageFromStorage, uploadBookingReferenceImage, payClientBookingDeposit, updateClientBookingRequest,
+  adminUpdateUserProfile, adminUpdateShopDetails, deletePortfolioImageFromStorage, uploadBookingReferenceImage, payClientBookingDeposit, updateClientBookingRequest, saveArtistHours,
 } from '../services/apiService';
 import { authService } from '../services/authService';
 
@@ -69,6 +69,7 @@ interface AppState {
   submitReview: (requestId: string, rating: number, text: string) => Promise<void>;
   updateUser: (userId: string, data: Partial<User['data']>) => Promise<void>;
   updateArtist: (artistId: string, data: Partial<Artist>) => Promise<void>;
+  saveArtistAvailability: (hours: ArtistHours) => Promise<void>; // New Dedicated Action
   uploadPortfolio: (file: File) => Promise<void>;
   deletePortfolioImage: (imageUrl: string) => Promise<void>;
   updateShop: (shopId: string, data: Partial<Shop>) => Promise<void>;
@@ -419,6 +420,8 @@ export const useAppStore = create<AppState>()(
                 let newUser = state.user;
                 if (state.user?.id === artistId && (state.user.type === 'artist' || state.user.type === 'dual')) {
                     newUser = { ...state.user, data: { ...state.user.data, ...updatedArtist } };
+                    // Ensure localStorage is synced so a reload doesn't show old data
+                    localStorage.setItem('inkspace_user_session', JSON.stringify(newUser));
                 }
 
                 return {
@@ -428,6 +431,33 @@ export const useAppStore = create<AppState>()(
             });
         } catch (error) {
             get().showToast("Failed to update artist details.", 'error');
+            throw error;
+        }
+      },
+
+      // NEW: Dedicated Action for Saving Availability
+      saveArtistAvailability: async (hours) => {
+        const user = get().user;
+        if (!user || (user.type !== 'artist' && user.type !== 'dual')) return;
+        
+        try {
+            const updatedArtist = await saveArtistHours(hours);
+            set(state => {
+                let newUser = state.user;
+                if (state.user?.id === user.id) {
+                    newUser = { ...state.user, data: { ...state.user.data, ...updatedArtist } };
+                    // Force update local storage to prevent revert on refresh
+                    localStorage.setItem('inkspace_user_session', JSON.stringify(newUser));
+                }
+                return {
+                    user: newUser,
+                    // Also update the global artist list
+                    data: { ...state.data, artists: state.data.artists.map(a => a.id === user.id ? {...a, ...updatedArtist} : a) }
+                };
+            });
+            get().showToast('Availability saved successfully!', 'success');
+        } catch (error) {
+            console.error("Store error saving hours:", error);
             throw error;
         }
       },
