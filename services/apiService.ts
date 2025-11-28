@@ -1,3 +1,4 @@
+
 // @/services/apiService.ts
 import { getSupabase } from './supabaseClient';
 import type { Artist, Shop, Booth, Booking, ClientBookingRequest, Notification, User, UserRole, PortfolioImage, VerificationRequest, Conversation, ConversationWithUser, Message, ArtistAvailability, Review, AdminUser, ArtistService, ArtistHours } from '../types';
@@ -140,14 +141,8 @@ export const updateArtistData = async (artistId: string, updatedData: Partial<Ar
 };
 
 // V10: DIRECT UPSERT WITH ROLE PRESERVATION
-// This fixes the bug where saving hours might overwrite a 'dual' role with 'artist'.
 export const saveArtistHours = async (userId: string, hours: ArtistHours, name: string, city: string, email: string, role: UserRole): Promise<Artist> => {
     const supabase = getSupabase();
-    
-    // Defensive check: Ensure we have at least partial data.
-    // If the profile exists, Supabase UPSERT will just update 'hours' if we only pass 'hours' and 'id',
-    // BUT if the profile is missing (ghost), we need the other fields.
-    // To be safe and compliant with Not Null constraints on insert, we send everything we know.
     
     const profileData = {
         id: userId,
@@ -155,8 +150,7 @@ export const saveArtistHours = async (userId: string, hours: ArtistHours, name: 
         full_name: name || 'Artist',
         city: city || '',
         username: email, 
-        role: role, // Use the correct role passed from the store
-        // We let DB handle updated_at
+        role: role, 
     };
 
     // Perform Upsert
@@ -267,18 +261,16 @@ export const createBookingForArtist = async (bookingData: Omit<Booking, 'id' | '
         .eq('id', bookingData.shopId)
         .single();
     
-    // Explicitly cast rawShop to avoid type errors, though adaptBooking handles it
     const bookingWithCity = { ...data, city: rawShop?.location || 'Unknown' };
     return adaptBooking(bookingWithCity, []);
 };
 
-// RPC for Guest/Client Booking
+// RPC for Guest/Client Booking - SAFE PARAMETER HANDLING
 export const createClientBookingRequest = async (requestData: any): Promise<ClientBookingRequest> => {
     const supabase = getSupabase();
     
-    // Call the V10 RPC which now inserts a notification as well
-    // CRITICAL: We must ensure undefined values are sent as NULL, or the RPC call will fail signature match
-    const { data, error } = await supabase.rpc('create_booking_request', {
+    // Convert undefined to null for RPC safety
+    const rpcParams = {
         p_artist_id: requestData.artistId,
         p_start_date: requestData.startDate,
         p_end_date: requestData.endDate,
@@ -289,16 +281,21 @@ export const createClientBookingRequest = async (requestData: any): Promise<Clie
         p_deposit_amount: requestData.depositAmount,
         p_platform_fee: requestData.platformFee,
         p_service_id: requestData.serviceId,
-        p_budget: requestData.budget || null,
-        p_reference_image_urls: requestData.referenceImageUrls || [],
-        p_preferred_time: requestData.preferredTime || null,
-        p_client_id: requestData.clientId || null,
-        p_guest_name: requestData.guestName || null,
-        p_guest_email: requestData.guestEmail || null,
-        p_guest_phone: requestData.guestPhone || null
-    });
+        p_budget: requestData.budget ?? null,
+        p_reference_image_urls: requestData.referenceImageUrls ?? [],
+        p_preferred_time: requestData.preferredTime ?? null,
+        p_client_id: requestData.clientId ?? null,
+        p_guest_name: requestData.guestName ?? null,
+        p_guest_email: requestData.guestEmail ?? null,
+        p_guest_phone: requestData.guestPhone ?? null
+    };
 
-    if (error) throw error;
+    const { data, error } = await supabase.rpc('create_booking_request', rpcParams);
+
+    if (error) {
+        console.error("RPC Error createClientBookingRequest:", error);
+        throw error;
+    }
     return adaptClientBookingRequest(data);
 };
 
@@ -318,7 +315,6 @@ export const updateClientBookingRequest = async (requestId: string, updates: Par
     const supabase = getSupabase();
     const dbUpdates: any = {};
     if (updates.referenceImageUrls) dbUpdates.reference_image_urls = updates.referenceImageUrls;
-    // Add other fields as needed
 
     const { data, error } = await supabase
         .from('client_booking_requests')
@@ -454,7 +450,6 @@ export const findOrCreateConversation = async (currentUserId: string, otherUserI
 
 export const setArtistAvailability = async (artistId: string, date: string, status: 'available' | 'unavailable'): Promise<ArtistAvailability> => {
     const supabase = getSupabase();
-    // Use upsert to handle both create and update of specific day overrides
     const { data, error } = await supabase
         .from('artist_availability')
         .upsert({ artist_id: artistId, date, status }, { onConflict: 'artist_id,date' })
@@ -495,8 +490,8 @@ export const createShop = async (shopData: any, ownerId: string): Promise<Shop> 
 export const createVerificationRequest = async (type: 'artist' | 'shop', id: string, userId: string) => {
     const supabase = getSupabase();
     const payload: any = { type, status: 'pending' };
-    if (type === 'artist') payload.profile_id = id; // id is artist/profile id
-    else payload.shop_id = id; // id is shop id
+    if (type === 'artist') payload.profile_id = id; 
+    else payload.shop_id = id; 
 
     const { error } = await supabase.from('verification_requests').insert(payload);
     if (error) throw error;
@@ -507,7 +502,6 @@ export const updateVerificationRequest = async (requestId: string, status: 'appr
     const { data, error } = await supabase.from('verification_requests').update({ status }).eq('id', requestId).select().single();
     if (error) throw error;
     
-    // If approved, update the actual profile/shop
     const req = adaptVerificationRequest(data);
     if (status === 'approved') {
         if (req.type === 'artist' && req.profileId) {
@@ -521,18 +515,15 @@ export const updateVerificationRequest = async (requestId: string, status: 'appr
 
 export const addReviewToShop = async (shopId: string, review: Omit<Review, 'id'>) => {
     const supabase = getSupabase();
-    // 1. Fetch current reviews
     const { data: shop, error: fetchError } = await supabase.from('shops').select('reviews').eq('id', shopId).single();
     if (fetchError) throw fetchError;
     
     const currentReviews = shop.reviews || [];
     const newReviews = [...currentReviews, review];
     
-    // 2. Calculate new average
     const totalRating = newReviews.reduce((acc: number, r: any) => acc + r.rating, 0);
     const avgRating = totalRating / newReviews.length;
 
-    // 3. Update shop
     const { data: updatedShop, error: updateError } = await supabase
         .from('shops')
         .update({ reviews: newReviews, average_artist_rating: avgRating })
@@ -544,12 +535,8 @@ export const addReviewToShop = async (shopId: string, review: Omit<Review, 'id'>
     return adaptShop(updatedShop);
 }
 
-// Admin Functions
 export const deleteUserAsAdmin = async (userId: string) => {
     const supabase = getSupabase();
-    // This requires a stored procedure or cascade delete in DB usually, 
-    // but auth.users deletion via client is limited. 
-    // For now, we delete the profile, which cascades to other tables.
     const { error } = await supabase.from('profiles').delete().eq('id', userId);
     if (error) throw error;
 }
