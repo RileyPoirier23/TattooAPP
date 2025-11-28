@@ -108,19 +108,26 @@ export const updateArtistData = async (artistId: string, updatedData: Partial<Ar
 };
 
 // NEW: Specialized function to save hours using RPC for reliability
-export const saveArtistHours = async (hours: ArtistHours): Promise<Artist> => {
+export const saveArtistHours = async (hours: ArtistHours, fullName: string, city: string): Promise<Artist> => {
     const supabase = getSupabase();
     
-    // Use the robust V3 function which handles missing profiles automatically
-    const { data, error } = await supabase.rpc('save_artist_hours_v3', { p_hours: hours });
+    // Call V5 function which uses ON CONFLICT UPSERT and JWT email extraction
+    // This is the most robust method to handle profile creation/updating.
+    const { data, error } = await supabase.rpc('save_artist_hours_v5', { 
+        p_hours: hours,
+        p_full_name: fullName,
+        p_city: city
+    });
     
     if (error) {
-        console.error("RPC save_artist_hours_v3 failed:", error);
-        // Fallback removed because V3 covers the missing profile case natively now.
+        console.error("RPC save_artist_hours_v5 failed:", error);
         throw error;
     }
 
-    if (!data) throw new Error("No data returned from save operation");
+    if (!data) {
+        console.error("RPC save_artist_hours_v5 returned no data");
+        throw new Error("No data returned from save_artist_hours_v5");
+    }
 
     return adaptProfileToArtist(data);
 };
@@ -208,7 +215,6 @@ export const uploadBookingReferenceImage = async (requestId: string, file: File,
     return data.publicUrl;
 };
 
-// FIX: Use RPC function to handle secure guest bookings and return data safely
 export const createClientBookingRequest = async (requestData: Omit<ClientBookingRequest, 'id' | 'status'|'paymentStatus'>): Promise<ClientBookingRequest> => {
     const supabase = getSupabase();
     
@@ -315,7 +321,7 @@ export const createNotification = async (userId: string, message: string): Promi
 export const findOrCreateConversation = async (currentUserId: string, otherUserId: string): Promise<Conversation> => {
     const supabase = getSupabase();
     
-    // NEW: Use RPC to atomatically find or create, preventing logic/race conditions on client
+    // Use RPC to atomatically find or create, preventing logic/race conditions on client
     const { data: conversationId, error } = await supabase.rpc('find_or_create_conversation', { p_other_user_id: otherUserId });
 
     if (error) {
@@ -323,9 +329,7 @@ export const findOrCreateConversation = async (currentUserId: string, otherUserI
         throw error;
     }
 
-    // Now fetch the details (safe because we know it exists)
     const { data: conv } = await supabase.from('conversations').select('*').eq('id', conversationId).single();
-    
     return { 
         id: conv.id, 
         participantOneId: conv.participant_one_id, 
@@ -336,8 +340,8 @@ export const findOrCreateConversation = async (currentUserId: string, otherUserI
 export const fetchUserConversations = async (userId: string): Promise<ConversationWithUser[]> => {
     const supabase = getSupabase();
     
-    // Use the RPC to fetch conversation data + partner details in ONE secure server-side call.
-    const { data, error } = await supabase.rpc('get_my_conversations', { p_user_id: userId });
+    // NEW: Use V2 RPC which uses LEFT JOIN to prevent missing profiles from hiding chats
+    const { data, error } = await supabase.rpc('get_my_conversations_v2', { p_user_id: userId });
         
     if (error) {
         console.error("Error fetching conversations via RPC:", error);
@@ -360,7 +364,7 @@ export const fetchUserConversations = async (userId: string): Promise<Conversati
 export const fetchMessagesForConversation = async (conversationId: string): Promise<Message[]> => {
     const supabase = getSupabase();
     
-    // NEW: Use RPC to safely fetch messages for a conversation
+    // Use RPC to safely fetch messages for a conversation
     const { data, error } = await supabase.rpc('get_messages', { p_conversation_id: conversationId });
     
     if (error) {
@@ -375,8 +379,8 @@ export const sendMessage = async (conversationId: string, senderId: string, cont
     const supabase = getSupabase();
     if (!content && !attachmentUrl) throw new Error("Message must have content or an attachment.");
     
-    // NEW: Use RPC to safely send messages server-side
-    // IMPORTANT: Explicitly send 'null' for undefined optional parameters to match Postgres function signature.
+    // Use RPC to safely send messages server-side
+    // IMPORTANT: Explicitly send 'null' for undefined optional parameters
     const { data, error } = await supabase.rpc('send_message', { 
         p_conversation_id: conversationId, 
         p_content: content || null, 

@@ -441,7 +441,11 @@ export const useAppStore = create<AppState>()(
         if (!user || (user.type !== 'artist' && user.type !== 'dual')) return;
         
         try {
-            const updatedArtist = await saveArtistHours(hours);
+            // FIX: Pass Name and City to ensure V4 function can create profile if missing
+            const fullName = user.data.name;
+            const city = 'city' in user.data ? user.data.city : '';
+
+            const updatedArtist = await saveArtistHours(hours, fullName, city);
             set(state => {
                 let newUser = state.user;
                 if (state.user?.id === user.id) {

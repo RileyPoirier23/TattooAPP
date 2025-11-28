@@ -30,94 +30,61 @@ You **MUST** run the SQL script below to set up the database. The app will not w
 -- 1. EXTENSIONS
 create extension if not exists "moddatetime" schema "extensions";
 
--- 2. SMART SAVE FUNCTION (V3 - The Fix)
-create or replace function save_artist_hours_v3(
-  p_hours jsonb
+-- 2. AVAILABILITY: Save Hours (V5 - The Atomic Fix)
+-- Uses auth.jwt() to get email (bypassing table permissions)
+-- Uses ON CONFLICT to handle both Insert and Update in one atomic step.
+create or replace function save_artist_hours_v5(
+  p_hours jsonb,
+  p_full_name text,
+  p_city text
 )
 returns jsonb
 language plpgsql security definer
 as $$
 declare
   updated_profile record;
-  user_meta jsonb;
   user_email text;
+  current_uid uuid;
 begin
-  -- 1. Try to update existing profile
-  update public.profiles 
-  set hours = p_hours, updated_at = now()
-  where id = auth.uid()
-  returning * into updated_profile;
-
-  -- 2. If update found a row, return it
-  if found then
-    return to_jsonb(updated_profile);
-  end if;
-
-  -- 3. If NO row found, we must create one. 
-  -- We fetch details from auth.users to avoid "column cannot be null" errors.
-  select raw_user_meta_data, email into user_meta, user_email
-  from auth.users
-  where id = auth.uid();
+  current_uid := auth.uid();
+  -- Extract email directly from the active session token
+  user_email := auth.jwt() ->> 'email';
 
   insert into public.profiles (
-    id, 
-    username, 
-    full_name, 
-    role, 
-    city, 
-    hours
+    id, username, full_name, role, city, hours
   )
   values (
-    auth.uid(),
-    user_email,
-    coalesce(user_meta->>'full_name', 'Artist'),
-    coalesce(user_meta->>'role', 'artist'),
-    coalesce(user_meta->>'city', ''),
+    current_uid,
+    coalesce(user_email, 'user@inkspace.app'),
+    coalesce(p_full_name, 'Artist'),
+    'artist',
+    coalesce(p_city, ''),
     p_hours
   )
+  on conflict (id) do update
+  set
+    hours = EXCLUDED.hours,
+    updated_at = now(),
+    -- Keep profile specific data in sync
+    full_name = case when p_full_name is not null and p_full_name <> '' then EXCLUDED.full_name else public.profiles.full_name end,
+    city = case when p_city is not null and p_city <> '' then EXCLUDED.city else public.profiles.city end
   returning * into updated_profile;
 
   return to_jsonb(updated_profile);
 end;
 $$;
 
--- 3. GRANT PERMISSION
-grant execute on function save_artist_hours_v3 to authenticated;
+-- 3. PERMISSIONS
+grant execute on function save_artist_hours_v5 to authenticated;
 
--- 4. ENSURE MESSAGING FUNCTIONS EXIST (Just in case)
-create or replace function get_my_conversations(p_user_id uuid)
-returns jsonb language plpgsql security definer as $$
+-- Ensure Messaging RPCs exist (just in case they were wiped)
+create or replace function get_my_conversations_v2(p_user_id uuid) returns jsonb language plpgsql security definer as $$
 declare result jsonb;
 begin
-  select jsonb_agg(jsonb_build_object('id', c.id, 'participantOneId', c.participant_one_id, 'participantTwoId', c.participant_two_id, 'otherUser', jsonb_build_object('id', p.id, 'name', p.full_name)))
-  from public.conversations c
-  join public.profiles p on p.id = case when c.participant_one_id = p_user_id then c.participant_two_id else c.participant_one_id end
-  where c.participant_one_id = p_user_id or c.participant_two_id = p_user_id
-  into result;
+  select jsonb_agg(jsonb_build_object('id', c.id, 'participantOneId', c.participant_one_id, 'participantTwoId', c.participant_two_id, 'otherUser', jsonb_build_object('id', coalesce(p.id, '00000000-0000-0000-0000-000000000000'), 'name', coalesce(p.full_name, 'Unknown User'))))
+  from public.conversations c left join public.profiles p on p.id = case when c.participant_one_id = p_user_id then c.participant_two_id else c.participant_one_id end
+  where c.participant_one_id = p_user_id or c.participant_two_id = p_user_id into result;
   return coalesce(result, '[]'::jsonb);
-end;
-$$;
-
-create or replace function send_message(p_conversation_id uuid, p_content text default null, p_attachment_url text default null)
-returns jsonb language plpgsql security definer as $$
-declare new_message record;
-begin
-  if not exists (select 1 from public.conversations where id = p_conversation_id and (participant_one_id = auth.uid() or participant_two_id = auth.uid())) then raise exception 'Not a participant'; end if;
-  insert into public.messages (conversation_id, sender_id, content, attachment_url) values (p_conversation_id, auth.uid(), p_content, p_attachment_url) returning * into new_message;
-  return to_jsonb(new_message);
-end;
-$$;
-
-create or replace function get_messages(p_conversation_id uuid)
-returns setof public.messages language plpgsql security definer as $$
-begin
-  if not exists (select 1 from public.conversations where id = p_conversation_id and (participant_one_id = auth.uid() or participant_two_id = auth.uid())) then return; end if;
-  return query select * from public.messages where conversation_id = p_conversation_id order by created_at asc;
-end;
-$$;
-
--- 5. GRANT EXECUTE
-grant execute on function get_my_conversations to authenticated;
-grant execute on function send_message to authenticated;
-grant execute on function get_messages to authenticated;
+end; $$;
+grant execute on function get_my_conversations_v2 to authenticated;
 ```
