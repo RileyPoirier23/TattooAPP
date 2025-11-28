@@ -1,10 +1,11 @@
+
 // @/components/views/ClientSearchView.tsx
 // Implemented the ClientSearchView component to display a searchable list of artists for clients.
 
 import React, { useState, useMemo, useEffect } from 'react';
 import { useAppStore } from '../../hooks/useAppStore';
 import type { Artist, Review, User } from '../../types';
-import { SearchIcon, LocationIcon, PaletteIcon, CrosshairsIcon, CheckBadgeIcon, StarIcon } from '../shared/Icons';
+import { SearchIcon, LocationIcon, PaletteIcon, CrosshairsIcon, CheckBadgeIcon, StarIcon, CalendarIcon } from '../shared/Icons';
 import { Loader } from '../shared/Loader';
 import { ErrorDisplay } from '../shared/ErrorDisplay';
 import { useGoogleMaps } from '../../hooks/useGoogleMaps';
@@ -12,9 +13,9 @@ import { getCityFromCoords } from '../../services/googlePlacesService';
 import { fetchArtistReviews } from '../../services/apiService';
 import { AboutSection } from '../shared/AboutSection';
 
-const ArtistCard: React.FC<{ artist: Artist; onSelect: (artist: Artist) => void }> = ({ artist, onSelect }) => (
+const ArtistCard: React.FC<{ artist: Artist; onSelect: (artist: Artist) => void; isGuestSpot?: boolean }> = ({ artist, onSelect, isGuestSpot }) => (
     <div 
-        className="relative bg-white dark:bg-gray-900/50 rounded-lg border border-gray-200 dark:border-gray-800 overflow-hidden cursor-pointer group transform hover:-translate-y-1 transition-transform duration-300"
+        className={`relative bg-white dark:bg-gray-900/50 rounded-lg border ${isGuestSpot ? 'border-blue-500/50 shadow-blue-500/10 shadow-lg' : 'border-gray-200 dark:border-gray-800'} overflow-hidden cursor-pointer group transform hover:-translate-y-1 transition-transform duration-300`}
         onClick={() => onSelect(artist)}
     >
         {artist.isVerified && (
@@ -23,7 +24,13 @@ const ArtistCard: React.FC<{ artist: Artist; onSelect: (artist: Artist) => void 
                 VERIFIED
             </div>
         )}
-        {artist.averageRating && artist.averageRating > 0 && (
+        {isGuestSpot && (
+            <div className="absolute top-2 left-2 bg-blue-600 text-white text-xs font-bold px-2 py-1 rounded-full flex items-center z-10 shadow-lg">
+                <CalendarIcon className="w-3 h-3 mr-1" />
+                GUEST SPOT
+            </div>
+        )}
+        {!isGuestSpot && artist.averageRating && artist.averageRating > 0 && (
             <div className="absolute top-2 left-2 bg-black/50 text-white text-xs font-bold px-2 py-1 rounded-full flex items-center z-10 backdrop-blur-sm">
                 <StarIcon className="w-4 h-4 mr-1 text-yellow-400" />
                 {artist.averageRating.toFixed(1)}
@@ -37,13 +44,20 @@ const ArtistCard: React.FC<{ artist: Artist; onSelect: (artist: Artist) => void 
         <div className="p-4">
             <h3 className="text-lg font-bold text-brand-dark dark:text-white group-hover:text-brand-primary transition-colors">{artist.name}</h3>
             <p className="text-sm text-brand-primary font-semibold">{artist.specialty}</p>
-            <p className="text-sm text-brand-gray flex items-center mt-1"><LocationIcon className="w-4 h-4 mr-1.5" />{artist.city}</p>
+            <p className="text-sm text-brand-gray flex items-center mt-1">
+                <LocationIcon className="w-4 h-4 mr-1.5" />
+                {isGuestSpot ? (
+                    <span className="text-blue-400 font-semibold">Visiting {artist.city}</span>
+                ) : (
+                    artist.city
+                )}
+            </p>
         </div>
     </div>
 );
 
 export const ClientSearchView: React.FC = () => {
-    const { user, data: { artists }, isLoading, error, openModal, showToast } = useAppStore();
+    const { user, data: { artists, bookings }, isLoading, error, openModal, showToast } = useAppStore();
     
     // Live input state
     const [searchTerm, setSearchTerm] = useState('');
@@ -109,14 +123,42 @@ export const ClientSearchView: React.FC = () => {
     };
 
     const filteredArtists = useMemo(() => {
+        const today = new Date();
         const artistsToFilter = showOnlyVerified ? artists.filter(a => a.isVerified) : artists;
-        return artistsToFilter.filter(artist => 
-            artist.name.toLowerCase().includes(searchTerm.toLowerCase()) &&
-            artist.city.toLowerCase().includes(location.toLowerCase()) &&
-            artist.specialty.toLowerCase().includes(specialty.toLowerCase()) &&
-            (artist.averageRating || 0) >= minRating
-        );
-    }, [artists, searchTerm, location, specialty, showOnlyVerified, minRating]);
+        
+        return artistsToFilter.map(artist => {
+            // Check if artist has an ACTIVE booking in another city (Guest Spot)
+            const activeGuestSpot = bookings.find(b => 
+                b.artistId === artist.id && 
+                new Date(b.startDate) <= today && 
+                new Date(b.endDate) >= today
+            );
+            
+            return {
+                ...artist,
+                activeGuestSpot, // Attach the guest spot booking if it exists
+                // Override city display if they are currently traveling
+                displayCity: activeGuestSpot ? activeGuestSpot.city : artist.city
+            };
+        }).filter(artist => {
+            // 1. Name Filter
+            const nameMatch = artist.name.toLowerCase().includes(searchTerm.toLowerCase());
+            
+            // 2. Location Filter (Matches Home City OR Active Guest Spot City)
+            const cityMatch = location 
+                ? artist.city.toLowerCase().includes(location.toLowerCase()) || 
+                  (artist.activeGuestSpot && artist.activeGuestSpot.city.toLowerCase().includes(location.toLowerCase()))
+                : true;
+
+            // 3. Specialty Filter
+            const specialtyMatch = artist.specialty.toLowerCase().includes(specialty.toLowerCase());
+            
+            // 4. Rating Filter
+            const ratingMatch = (artist.averageRating || 0) >= minRating;
+
+            return nameMatch && cityMatch && specialtyMatch && ratingMatch;
+        });
+    }, [artists, bookings, searchTerm, location, specialty, showOnlyVerified, minRating]);
     
     if (error) {
         return <ErrorDisplay message={error} />;
@@ -203,7 +245,12 @@ export const ClientSearchView: React.FC = () => {
                 <>
                     <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-6">
                         {filteredArtists.map(artist => (
-                            <ArtistCard key={artist.id} artist={artist} onSelect={handleSelectArtist} />
+                            <ArtistCard 
+                                key={artist.id} 
+                                artist={artist} 
+                                onSelect={handleSelectArtist} 
+                                isGuestSpot={!!artist.activeGuestSpot && (location ? artist.activeGuestSpot.city.toLowerCase().includes(location.toLowerCase()) : true)}
+                            />
                         ))}
                     </div>
                     {filteredArtists.length === 0 && (

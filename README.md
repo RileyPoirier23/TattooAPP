@@ -33,7 +33,36 @@ create extension if not exists "moddatetime" schema "extensions";
 -- 2. REFRESH SCHEMA & PERMISSIONS
 NOTIFY pgrst, 'reload config';
 
--- 3. THE FIXED BOOKING FUNCTION
+-- 3. STORAGE SETUP (The Missing Piece for Messaging/Portfolios)
+-- Ensure buckets exist
+insert into storage.buckets (id, name, public) values ('portfolios', 'portfolios', true) on conflict (id) do nothing;
+insert into storage.buckets (id, name, public) values ('message_attachments', 'message_attachments', true) on conflict (id) do nothing;
+insert into storage.buckets (id, name, public) values ('booking-references', 'booking-references', true) on conflict (id) do nothing;
+
+-- Portfolio Policies
+drop policy if exists "Public_View_Portfolios" on storage.objects;
+create policy "Public_View_Portfolios" on storage.objects for select using (bucket_id = 'portfolios');
+
+drop policy if exists "Artists_Upload_Portfolios" on storage.objects;
+create policy "Artists_Upload_Portfolios" on storage.objects for insert with check (bucket_id = 'portfolios' AND auth.role() = 'authenticated');
+
+drop policy if exists "Artists_Delete_Portfolios" on storage.objects;
+create policy "Artists_Delete_Portfolios" on storage.objects for delete using (bucket_id = 'portfolios' AND auth.uid()::text = (storage.foldername(name))[1]);
+
+-- Message Attachment Policies
+drop policy if exists "Authenticated_View_Attachments" on storage.objects;
+create policy "Authenticated_View_Attachments" on storage.objects for select using (bucket_id = 'message_attachments' AND auth.role() = 'authenticated');
+
+drop policy if exists "Authenticated_Upload_Attachments" on storage.objects;
+create policy "Authenticated_Upload_Attachments" on storage.objects for insert with check (bucket_id = 'message_attachments' AND auth.role() = 'authenticated');
+
+-- Booking Reference Policies
+drop policy if exists "Public_Upload_Refs" on storage.objects;
+create policy "Public_Upload_Refs" on storage.objects for insert with check (bucket_id = 'booking-references');
+drop policy if exists "Public_View_Refs" on storage.objects;
+create policy "Public_View_Refs" on storage.objects for select using (bucket_id = 'booking-references');
+
+-- 4. THE FIXED BOOKING FUNCTION
 -- Returns the FULL record (including client_id) + related data.
 create or replace function create_booking_request(
   p_artist_id uuid, p_start_date date, p_end_date date, p_message text, 
