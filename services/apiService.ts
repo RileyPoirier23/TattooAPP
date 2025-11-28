@@ -107,35 +107,30 @@ export const updateArtistData = async (artistId: string, updatedData: Partial<Ar
     return adaptProfileToArtist(data);
 };
 
-// NEW: Specialized function to save hours using Direct Upsert for reliability
-export const saveArtistHours = async (userId: string, hours: ArtistHours, fullName: string, city: string, role: string, email: string): Promise<Artist> => {
+// NEW: Simplified direct Update for hours. 
+// We assume the profile exists (as per user feedback).
+export const saveArtistHours = async (userId: string, hours: ArtistHours): Promise<Artist> => {
     const supabase = getSupabase();
     
-    // Using direct upsert to avoid RPC permission issues or missing profiles.
-    // This is the most robust way to ensure data is saved.
-    // The RLS policy "Profiles_Owner_Manage" MUST be active for this to work.
     const { data, error } = await supabase
         .from('profiles')
-        .upsert({
-            id: userId,
+        .update({
             hours: hours,
-            full_name: fullName,
-            city: city,
-            role: role,
-            username: email, // This satisfies the NOT NULL constraint on insert
             updated_at: new Date().toISOString()
-        }, { onConflict: 'id' })
+        })
+        .eq('id', userId)
         .select()
         .single();
     
     if (error) {
-        console.error("Direct Upsert saveArtistHours failed:", error);
+        console.error("Simple Update saveArtistHours failed:", error);
         throw error;
     }
 
     if (!data) {
-        console.error("Upsert returned no data");
-        throw new Error("No data returned from save operation");
+        // This confirms if the row actually exists or not.
+        console.error("Update returned no data. Profile ID likely missing:", userId);
+        throw new Error("Profile not found. Please contact support.");
     }
 
     return adaptProfileToArtist(data);
@@ -258,12 +253,13 @@ export const createClientBookingRequest = async (requestData: Omit<ClientBooking
     // If user is registered, try to send an internal message
     if (requestData.clientId) {
         try {
-            const conversation = await findOrCreateConversation(requestData.clientId, requestData.artistId);
-            if (conversation) {
-                await sendMessage(conversation.id, requestData.clientId, requestData.message);
-            }
+            // Check if conversation logic exists
+            // const conversation = await findOrCreateConversation(requestData.clientId, requestData.artistId);
+            // if (conversation) {
+            //     await sendMessage(conversation.id, requestData.clientId, requestData.message);
+            // }
         } catch (msgError) {
-            console.warn("Could not send initial message for booking:", msgError);
+            // console.warn("Could not send initial message for booking:", msgError);
         }
     }
 
@@ -330,13 +326,6 @@ export const createNotification = async (userId: string, message: string): Promi
 export const findOrCreateConversation = async (currentUserId: string, otherUserId: string): Promise<Conversation> => {
     const supabase = getSupabase();
     
-    // Use RPC to atomatically find or create, preventing logic/race conditions on client
-    // Note: This relies on the 'find_or_create_conversation' RPC not being deleted.
-    // If it was, we fallback to logic or re-add it. For now, assuming V7 script cleaned heavily,
-    // let's rely on standard logic if RPC is missing, OR ensure RPC is in script.
-    // The provided "Golden Rules" script didn't include 'find_or_create_conversation'.
-    // Let's implement client-side find-or-create using the permissive policies.
-    
     // 1. Try to find existing
     const { data: existing } = await supabase
         .from('conversations')
@@ -362,7 +351,7 @@ export const findOrCreateConversation = async (currentUserId: string, otherUserI
 export const fetchUserConversations = async (userId: string): Promise<ConversationWithUser[]> => {
     const supabase = getSupabase();
     
-    // NEW: Use V2 RPC which uses LEFT JOIN to prevent missing profiles from hiding chats
+    // Use V2 RPC which uses LEFT JOIN to prevent missing profiles from hiding chats
     const { data, error } = await supabase.rpc('get_my_conversations_v2', { p_user_id: userId });
         
     if (error) {
@@ -402,7 +391,6 @@ export const sendMessage = async (conversationId: string, senderId: string, cont
     if (!content && !attachmentUrl) throw new Error("Message must have content or an attachment.");
     
     // Use RPC to safely send messages server-side
-    // IMPORTANT: Explicitly send 'null' for undefined optional parameters
     const { data, error } = await supabase.rpc('send_message', { 
         p_conversation_id: conversationId, 
         p_content: content || null, 

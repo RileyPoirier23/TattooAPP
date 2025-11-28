@@ -30,10 +30,15 @@ You **MUST** run the SQL script below to set up the database. The app will not w
 -- 1. EXTENSIONS
 create extension if not exists "moddatetime" schema "extensions";
 
--- 2. NUCLEAR PERMISSION RESET
--- We drop ALL existing policies on profiles to remove conflicts.
+-- 2. ENSURE DATA INTEGRITY
+-- Make sure the hours column is definitely JSONB
+alter table public.profiles alter column hours type jsonb using hours::jsonb;
+alter table public.profiles alter column hours set default '{}'::jsonb;
+
+-- 3. RESET PERMISSIONS (Simplicity is key)
 alter table public.profiles enable row level security;
 
+-- Drop ALL existing policies to remove conflicts/logic errors
 do $$
 begin
   drop policy if exists "Public profiles" on public.profiles;
@@ -43,32 +48,27 @@ begin
   drop policy if exists "Profiles_Insert_Own" on public.profiles;
   drop policy if exists "Profiles_Update_Own" on public.profiles;
   drop policy if exists "Profiles_Insert_Update_Own" on public.profiles;
-  drop policy if exists "Enable read access for all users" on public.profiles;
-  drop policy if exists "Enable insert for users based on user_id" on public.profiles;
-  drop policy if exists "Enable update for users based on email" on public.profiles;
+  drop policy if exists "Profiles_Owner_Manage" on public.profiles;
+  drop policy if exists "Public_profiles_v4" on public.profiles;
+  drop policy if exists "Users_update_own_v4" on public.profiles;
 exception when others then null;
 end $$;
 
--- 3. THE GOLDEN RULES
--- Rule 1: Public Read Access
-create policy "Profiles_Read_All" on public.profiles 
+-- 4. APPLY SIMPLE RULES
+-- Rule 1: Everyone can read profiles (needed for search)
+create policy "Simple_Read_All" on public.profiles 
 for select using (true);
 
--- Rule 2: Owner Full Access (Insert/Update)
--- This allows you to Create your profile if it's missing, or Update it if it exists.
-create policy "Profiles_Owner_Manage" on public.profiles 
-for all 
-using (auth.uid() = id) 
-with check (auth.uid() = id);
+-- Rule 2: You can UPDATE your own row
+create policy "Simple_Update_Own" on public.profiles 
+for update using (auth.uid() = id);
 
--- 4. ENSURE DATA INTEGRITY
--- Make sure the hours column works correctly
-alter table public.profiles alter column hours type jsonb using hours::jsonb;
-alter table public.profiles alter column hours set default '{}'::jsonb;
+-- Rule 3: You can INSERT your own row (just in case)
+create policy "Simple_Insert_Own" on public.profiles 
+for insert with check (auth.uid() = id);
 
--- 5. MESSAGING & BOOKING FUNCTIONS (Preserve existing logic)
-create or replace function get_my_conversations_v2(p_user_id uuid)
-returns jsonb language plpgsql security definer set search_path = public as $$
+-- 5. MESSAGING & BOOKING FUNCTIONS (Ensure these remain working)
+create or replace function get_my_conversations_v2(p_user_id uuid) returns jsonb language plpgsql security definer set search_path = public as $$
 declare result jsonb;
 begin
   select jsonb_agg(jsonb_build_object('id', c.id, 'participantOneId', c.participant_one_id, 'participantTwoId', c.participant_two_id, 'otherUser', jsonb_build_object('id', coalesce(p.id, '00000000-0000-0000-0000-000000000000'), 'name', coalesce(p.full_name, 'Unknown User'))))

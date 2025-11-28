@@ -435,19 +435,14 @@ export const useAppStore = create<AppState>()(
         }
       },
 
-      // NEW: Dedicated Action for Saving Availability
+      // NEW: Simplified Action for Saving Availability
       saveArtistAvailability: async (hours) => {
         const user = get().user;
         if (!user || (user.type !== 'artist' && user.type !== 'dual')) return;
         
         try {
-            // FIX: Pass Name, City AND Email AND Role to ensure we can create profile if missing
-            const fullName = user.data.name;
-            const city = 'city' in user.data ? user.data.city : '';
-            const email = user.email || 'user@inkspace.app';
-            const role = user.type === 'dual' ? 'dual' : 'artist';
-
-            const updatedArtist = await saveArtistHours(user.id, hours, fullName, city, role, email);
+            // Simplified call: Just send hours. We assume profile exists.
+            const updatedArtist = await saveArtistHours(user.id, hours);
             set(state => {
                 let newUser = state.user;
                 if (state.user?.id === user.id) {
