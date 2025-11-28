@@ -1,3 +1,4 @@
+
 // @/hooks/useGoogleMaps.ts
 
 import { useState, useEffect } from 'react';
@@ -10,6 +11,7 @@ declare global {
     }
 }
 
+// Standard access as per user request to undo changes
 const GOOGLE_MAPS_API_KEY = import.meta.env.VITE_MAPS_API_KEY;
 const GOOGLE_MAPS_SCRIPT_ID = 'google-maps-script';
 

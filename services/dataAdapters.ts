@@ -163,9 +163,13 @@ export const adaptClientBookingRequest = (b: any): ClientBookingRequest => {
   const artistName = artistData.full_name ||
                      getJoinedProperty<{ full_name: string }>(b.artist, 'full_name') || 'Unknown Artist';
 
+  // Robustly resolve Client ID
+  // In some RPC returns, client_id might be top-level, or nested inside 'client'
+  const clientId = b.client_id || clientData.id || null;
+
   return {
     id: b.id,
-    clientId: b.client_id,
+    clientId: clientId, 
     artistId: b.artist_id,
     startDate: b.start_date,
     endDate: b.end_date,
