@@ -30,95 +30,82 @@ You **MUST** run the SQL script below to set up the database. The app will not w
 -- 1. EXTENSIONS
 create extension if not exists "moddatetime" schema "extensions";
 
--- 2. CLEANUP (Remove all previous attempts)
+-- 2. RESET ALL POLICIES (Scorched Earth Policy)
+-- We drop everything to ensure no conflicting logic remains.
 do $$
 begin
-  -- Drop policies
+  -- Drop Profile Policies
   drop policy if exists "Public profiles" on public.profiles;
   drop policy if exists "Users update own" on public.profiles;
   drop policy if exists "Profiles_Read_All" on public.profiles;
   drop policy if exists "Profiles_Manage_Own" on public.profiles;
   drop policy if exists "Profiles_Insert_Update_Own" on public.profiles;
+  drop policy if exists "Simple_Read_All" on public.profiles;
+  drop policy if exists "Simple_Update_Own" on public.profiles;
+  drop policy if exists "Simple_Insert_Own" on public.profiles;
   
+  -- Drop Booking Policies
   drop policy if exists "Bookings_Create_Public" on public.client_booking_requests;
   drop policy if exists "Bookings_View_Own" on public.client_booking_requests;
   drop policy if exists "Bookings_Update_Own" on public.client_booking_requests;
 
+  -- Drop Notification Policies
   drop policy if exists "Notif_Read_Own" on public.notifications;
   drop policy if exists "Notif_Create_Public" on public.notifications;
   drop policy if exists "Notif_Update_Own" on public.notifications;
 exception when others then null;
 end $$;
 
--- 3. APPLY CLEAN POLICIES
--- Profiles
+-- 3. PROFILE POLICIES (The Availability Fix)
 alter table public.profiles enable row level security;
+
+-- Everyone can read profiles
 create policy "Profiles_Read_All" on public.profiles for select using (true);
-create policy "Profiles_Manage_Own" on public.profiles for all using (auth.uid() = id) with check (auth.uid() = id);
 
--- Bookings
+-- You can Insert/Update your own profile.
+create policy "Profiles_Manage_Own" on public.profiles 
+for all 
+using (auth.uid() = id) 
+with check (auth.uid() = id);
+
+-- 4. BOOKING POLICIES (Guest Support)
 alter table public.client_booking_requests enable row level security;
-create policy "Bookings_Create_Public" on public.client_booking_requests for insert with check (true);
-create policy "Bookings_View_Own" on public.client_booking_requests for select using (auth.uid() = artist_id OR auth.uid() = client_id);
-create policy "Bookings_Update_Own" on public.client_booking_requests for update using (auth.uid() = artist_id OR auth.uid() = client_id);
 
--- Notifications
+-- ANYONE (Guest or User) can create a booking request
+create policy "Bookings_Create_Public" on public.client_booking_requests 
+for insert 
+with check (true);
+
+-- Artists/Clients can view their own
+create policy "Bookings_View_Own" on public.client_booking_requests 
+for select 
+using (auth.uid() = artist_id OR auth.uid() = client_id);
+
+-- Artists/Clients can update status
+create policy "Bookings_Update_Own" on public.client_booking_requests 
+for update 
+using (auth.uid() = artist_id OR auth.uid() = client_id);
+
+-- 5. NOTIFICATION POLICIES (The "Pop up" Fix)
 alter table public.notifications enable row level security;
+
+-- Users can see their own notifications
 create policy "Notif_Read_Own" on public.notifications for select using (auth.uid() = user_id);
-create policy "Notif_Create_Public" on public.notifications for insert with check (true);
+
+-- ANYONE can create a notification (Critical for Client -> Artist alerts)
+create policy "Notif_Create_Public" on public.notifications 
+for insert 
+with check (true);
+
+-- Users can mark as read
 create policy "Notif_Update_Own" on public.notifications for update using (auth.uid() = user_id);
 
--- 4. THE FIX: 'Save Settings' RPC
--- This function runs with ADMIN privileges (SECURITY DEFINER)
--- It guarantees the data is saved, creating the profile if needed.
-create or replace function save_artist_settings(
-  p_hours jsonb,
-  p_full_name text,
-  p_city text
-)
-returns jsonb
-language plpgsql
-security definer -- This bypasses RLS
-set search_path = public
-as $$
-declare
-  current_uid uuid;
-  user_email text;
-  result_row record;
-begin
-  current_uid := auth.uid();
-  user_email := auth.jwt() ->> 'email';
+-- 6. DATA INTEGRITY
+alter table public.profiles alter column hours type jsonb using hours::jsonb;
+alter table public.profiles alter column hours set default '{}'::jsonb;
 
-  -- Upsert Logic
-  insert into public.profiles (
-    id, username, full_name, role, city, hours, updated_at
-  )
-  values (
-    current_uid,
-    coalesce(user_email, 'user@inkspace.app'),
-    coalesce(p_full_name, 'Artist'),
-    'artist',
-    coalesce(p_city, ''),
-    p_hours,
-    now()
-  )
-  on conflict (id) do update
-  set
-    hours = EXCLUDED.hours,
-    updated_at = now(),
-    -- Keep name/city in sync if provided
-    full_name = case when p_full_name is not null and p_full_name <> '' then EXCLUDED.full_name else public.profiles.full_name end,
-    city = case when p_city is not null and p_city <> '' then EXCLUDED.city else public.profiles.city end
-  returning * into result_row;
-
-  return to_jsonb(result_row);
-end;
-$$;
-
--- 5. GRANT PERMISSIONS
-grant execute on function save_artist_settings to authenticated;
-
--- Ensure Booking/Messaging RPCs exist
+-- 7. KEEP RPCs ONLY FOR COMPLEX JOINS (Messaging/Booking)
+-- We keep these because they handle complex data joining that is hard to do client-side.
 create or replace function get_my_conversations_v2(p_user_id uuid) returns jsonb language plpgsql security definer set search_path = public as $$
 declare result jsonb;
 begin select jsonb_agg(jsonb_build_object('id', c.id, 'participantOneId', c.participant_one_id, 'participantTwoId', c.participant_two_id, 'otherUser', jsonb_build_object('id', coalesce(p.id, '00000000-0000-0000-0000-000000000000'), 'name', coalesce(p.full_name, 'Unknown User')))) from public.conversations c left join public.profiles p on p.id = case when c.participant_one_id = p_user_id then c.participant_two_id else c.participant_one_id end where c.participant_one_id = p_user_id or c.participant_two_id = p_user_id into result; return coalesce(result, '[]'::jsonb); end; $$;

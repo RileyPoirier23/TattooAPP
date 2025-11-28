@@ -107,20 +107,35 @@ export const updateArtistData = async (artistId: string, updatedData: Partial<Ar
     return adaptProfileToArtist(data);
 };
 
-// V8: SECURE RPC SAVE
+// V9: DIRECT UPSERT - MOST RELIABLE METHOD
+// We abandon RPCs for this and simply write directly to the table.
+// The SQL policies now allow "Insert/Update Own Row" which makes this work.
 export const saveArtistHours = async (userId: string, hours: ArtistHours, name: string, city: string, email: string): Promise<Artist> => {
     const supabase = getSupabase();
     
-    // Use the new God Mode RPC that guarantees success
-    const { data, error } = await supabase.rpc('save_artist_settings', {
-        p_hours: hours,
-        p_full_name: name,
-        p_city: city
-    });
+    // Construct the full profile object. 
+    // If the row doesn't exist, this provides all required fields (username, full_name).
+    // If it does exist, it updates everything.
+    const profileData = {
+        id: userId,
+        hours: hours,
+        full_name: name || 'Artist',
+        city: city || '',
+        username: email, // Required for new rows
+        role: 'artist', // Default role if creating
+        updated_at: new Date().toISOString()
+    };
+
+    // Perform Upsert
+    const { data, error } = await supabase
+        .from('profiles')
+        .upsert(profileData, { onConflict: 'id' })
+        .select()
+        .single();
     
     if (error) {
-        console.error("RPC save_artist_settings failed:", error);
-        throw error;
+        console.error("Direct Upsert saveArtistHours failed:", error);
+        throw new Error(error.message); // Propagate actual DB error
     }
 
     if (!data) {
@@ -247,11 +262,14 @@ export const createClientBookingRequest = async (requestData: Omit<ClientBooking
     const adapted = adaptClientBookingRequest(data);
 
     // AUTO-NOTIFY ARTIST
+    // This is crucial for the "Notifications pop up" requirement.
+    // The SQL policies now allow public insert into notifications for this exact reason.
     try {
-        const notificationMsg = `New booking request from ${adapted.clientName || 'a client'}`;
+        const clientName = adapted.clientName || 'A client';
+        const notificationMsg = `New Booking Request: ${clientName} wants a ${adapted.tattooWidth}x${adapted.tattooHeight}" tattoo.`;
         await createNotification(adapted.artistId, notificationMsg);
     } catch (e) {
-        console.warn("Failed to notify artist", e);
+        console.warn("Failed to notify artist (check RLS policies for notifications):", e);
     }
 
     return adapted;
@@ -288,7 +306,7 @@ export const updateClientBookingRequestStatus = async (requestId: string, status
     // AUTO-NOTIFY CLIENT
     try {
         if (data.client_id) {
-            const msg = `Your booking request has been ${status}.`;
+            const msg = `Booking Update: Your request has been ${status} by the artist.`;
             await createNotification(data.client_id, msg);
         }
     } catch (e) {
@@ -310,7 +328,7 @@ export const payClientBookingDeposit = async (requestId: string): Promise<Client
     
     // AUTO-NOTIFY ARTIST
     try {
-        const msg = `Deposit paid for request #${requestId.substring(0,6)}`;
+        const msg = `Deposit PAID for request #${requestId.substring(0,6)}.`;
         await createNotification(data.artist_id, msg);
     } catch (e) { console.warn(e) }
 

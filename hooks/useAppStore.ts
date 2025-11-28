@@ -435,7 +435,7 @@ export const useAppStore = create<AppState>()(
         }
       },
 
-      // V8: ROBUST ACTION for Saving Availability using Secure RPC
+      // V9: DIRECT UPSERT - MOST RELIABLE METHOD
       saveArtistAvailability: async (hours) => {
         const user = get().user;
         if (!user || (user.type !== 'artist' && user.type !== 'dual')) return;
@@ -447,7 +447,7 @@ export const useAppStore = create<AppState>()(
             const city = 'city' in user.data ? user.data.city : '';
             const email = user.email;
 
-            // Use the secure RPC function
+            // Use the direct upsert method
             const updatedArtist = await saveArtistHours(user.id, hours, name, city, email);
             
             set(state => {
@@ -466,6 +466,8 @@ export const useAppStore = create<AppState>()(
             get().showToast('Availability saved successfully!', 'success');
         } catch (error) {
             console.error("Store error saving hours:", error);
+            const msg = error instanceof Error ? error.message : "Failed to save hours";
+            get().showToast(`Failed to save: ${msg}`, 'error');
             throw error;
         }
       },
