@@ -30,74 +30,75 @@ You **MUST** run the SQL script below to set up the database. The app will not w
 -- 1. EXTENSIONS
 create extension if not exists "moddatetime" schema "extensions";
 
--- 2. STORAGE (Idempotent)
-insert into storage.buckets (id, name, public)
-values 
-  ('portfolios', 'portfolios', true),
-  ('booking-references', 'booking-references', true),
-  ('message_attachments', 'message_attachments', true)
-on conflict (id) do nothing;
-
--- 3. SCHEMA FIXES (Columns)
--- Ensure guest columns and hours exist
+-- 2. SCHEMA: Ensure hours column is correct type
+-- We safely add it if missing. If it exists as text, we leave it (or you can manually drop it if issues persist).
 alter table public.profiles add column if not exists hours jsonb default '{}'::jsonb;
+
+-- 3. SCHEMA: Ensure guest columns
 alter table public.client_booking_requests add column if not exists guest_name text;
 alter table public.client_booking_requests add column if not exists guest_email text;
 alter table public.client_booking_requests add column if not exists guest_phone text;
 alter table public.client_booking_requests alter column client_id drop not null;
 
--- 4. CLEANUP POLICIES (Aggressive Reset)
+-- 4. PERMISSIONS: Reset Policies (Using v2 names to avoid conflict errors)
+-- We attempt to drop old conflicting policies just in case
 drop policy if exists "Public profiles" on public.profiles;
 drop policy if exists "Users update own" on public.profiles;
 drop policy if exists "Users insert own" on public.profiles;
-drop policy if exists "Public request creation" on public.client_booking_requests;
-drop policy if exists "View requests" on public.client_booking_requests;
-drop policy if exists "Update requests" on public.client_booking_requests;
 drop policy if exists "Conversation visibility" on public.conversations;
 drop policy if exists "Conversation create" on public.conversations;
 drop policy if exists "Message visibility" on public.messages;
 drop policy if exists "Message create" on public.messages;
-drop policy if exists "Public upload refs" on storage.objects;
-drop policy if exists "Public view refs" on storage.objects;
 
--- 5. APPLY ROBUST POLICIES
+-- 5. APPLY ROBUST POLICIES (v2)
 
 -- Profiles
-create policy "Public profiles" on public.profiles for select using (true);
-create policy "Users update own" on public.profiles for update using (auth.uid() = id);
-create policy "Users insert own" on public.profiles for insert with check (auth.uid() = id);
+create policy "Public_profiles_v2" on public.profiles for select using (true);
+create policy "Users_update_own_v2" on public.profiles for update using (auth.uid() = id);
+create policy "Users_insert_own_v2" on public.profiles for insert with check (auth.uid() = id);
 
 -- Booking Requests
-create policy "Public request creation" on public.client_booking_requests for insert with check (true);
-create policy "View requests" on public.client_booking_requests for select using (
+drop policy if exists "Public request creation" on public.client_booking_requests;
+drop policy if exists "View requests" on public.client_booking_requests;
+drop policy if exists "Update requests" on public.client_booking_requests;
+
+create policy "Public_request_creation_v2" on public.client_booking_requests for insert with check (true);
+create policy "View_requests_v2" on public.client_booking_requests for select using (
   auth.uid() = artist_id OR auth.uid() = client_id
 );
-create policy "Update requests" on public.client_booking_requests for update using (
+create policy "Update_requests_v2" on public.client_booking_requests for update using (
   auth.uid() = artist_id OR auth.uid() = client_id
 );
 
--- Messaging (Simplified)
-create policy "Conversation visibility" on public.conversations for select using (
+-- Messaging (Simplified Logic)
+create policy "Conversation_visibility_v2" on public.conversations for select using (
   auth.uid() = participant_one_id OR auth.uid() = participant_two_id
 );
-create policy "Conversation create" on public.conversations for insert with check (
+create policy "Conversation_create_v2" on public.conversations for insert with check (
   auth.uid() = participant_one_id OR auth.uid() = participant_two_id
 );
 
-create policy "Message visibility" on public.messages for select using (
+create policy "Message_visibility_v2" on public.messages for select using (
   exists (
     select 1 from public.conversations 
     where id = messages.conversation_id 
     and (participant_one_id = auth.uid() or participant_two_id = auth.uid())
   )
 );
-create policy "Message create" on public.messages for insert with check (auth.uid() = sender_id);
+create policy "Message_create_v2" on public.messages for insert with check (auth.uid() = sender_id);
 
 -- Storage
-create policy "Public upload refs" on storage.objects for insert with check ( bucket_id = 'booking-references' );
-create policy "Public view refs" on storage.objects for select using ( bucket_id = 'booking-references' );
+insert into storage.buckets (id, name, public) values ('booking-references', 'booking-references', true) on conflict (id) do nothing;
+insert into storage.buckets (id, name, public) values ('portfolios', 'portfolios', true) on conflict (id) do nothing;
+insert into storage.buckets (id, name, public) values ('message_attachments', 'message_attachments', true) on conflict (id) do nothing;
 
--- 6. RPC FUNCTION (The Booking Engine)
+drop policy if exists "Public upload refs" on storage.objects;
+drop policy if exists "Public view refs" on storage.objects;
+
+create policy "Public_upload_refs_v2" on storage.objects for insert with check ( bucket_id = 'booking-references' );
+create policy "Public_view_refs_v2" on storage.objects for select using ( bucket_id = 'booking-references' );
+
+-- 6. RPC FUNCTION (Booking Engine)
 create or replace function create_booking_request(
   p_artist_id uuid,
   p_start_date date,
@@ -134,7 +135,6 @@ begin
     p_client_id, p_guest_name, p_guest_email, p_guest_phone
   ) returning * into new_record;
 
-  -- Fetch relations manually to construct the response
   select id, full_name from public.profiles where id = new_record.client_id into client_data;
   select id, full_name, services from public.profiles where id = new_record.artist_id into artist_data;
 

@@ -1,7 +1,7 @@
 
 // @/services/apiService.ts
 import { getSupabase } from './supabaseClient';
-import type { Artist, Shop, Booth, Booking, ClientBookingRequest, Notification, User, PortfolioImage, VerificationRequest, Conversation, ConversationWithUser, Message, ArtistAvailability, Review, AdminUser, ArtistService, UserRole } from '../types';
+import type { Artist, Shop, Booth, Booking, ClientBookingRequest, Notification, User, UserRole, PortfolioImage, VerificationRequest, Conversation, ConversationWithUser, Message, ArtistAvailability, Review, AdminUser, ArtistService } from '../types';
 import { 
     adaptProfileToArtist, adaptShop, adaptBooth, adaptBooking, adaptClientBookingRequest, adaptAvailability, 
     adaptVerificationRequest, adaptReviewFromBooking, adaptNotification, adaptConversation, adaptMessage, adaptSupabaseProfileToUser 
@@ -292,17 +292,21 @@ export const createNotification = async (userId: string, message: string): Promi
 export const findOrCreateConversation = async (currentUserId: string, otherUserId: string): Promise<Conversation> => {
     const supabase = getSupabase();
     
-    // 1. Fetch ALL conversations involving the current user.
-    // This avoids complex nested OR syntax which triggers the "failed to parse logic tree" error.
-    const { data: myConversations, error } = await supabase
+    // 1. Fetch conversations for the current user safely
+    const { data: myConversations } = await supabase
         .from('conversations')
         .select('*')
-        .or(`participant_one_id.eq.${currentUserId},participant_two_id.eq.${currentUserId}`);
+        .eq('participant_one_id', currentUserId);
+        
+    const { data: myConversations2 } = await supabase
+        .from('conversations')
+        .select('*')
+        .eq('participant_two_id', currentUserId);
 
-    if (error) throw error;
+    const allMyConversations = [...(myConversations || []), ...(myConversations2 || [])];
 
     // 2. Filter in memory to find if we already have a conversation with the other user
-    const existing = myConversations?.find(c => 
+    const existing = allMyConversations.find(c => 
         (c.participant_one_id === otherUserId) || (c.participant_two_id === otherUserId)
     );
 
@@ -331,18 +335,25 @@ export const findOrCreateConversation = async (currentUserId: string, otherUserI
 
 export const fetchUserConversations = async (userId: string): Promise<ConversationWithUser[]> => {
     const supabase = getSupabase();
-    // Simplified fetch
-    const { data: conversations, error } = await supabase
-        .from('conversations')
-        .select('*')
-        .or(`participant_one_id.eq.${userId},participant_two_id.eq.${userId}`);
+    
+    // Split query to avoid logic tree error
+    const { data: asP1, error: e1 } = await supabase.from('conversations').select('*').eq('participant_one_id', userId);
+    const { data: asP2, error: e2 } = await supabase.from('conversations').select('*').eq('participant_two_id', userId);
         
-    if (error) throw error;
+    if (e1 || e2) {
+        console.error("Error fetching conversations:", e1 || e2);
+        throw (e1 || e2);
+    }
+
+    const conversations = [...(asP1 || []), ...(asP2 || [])];
 
     if (!conversations || conversations.length === 0) return [];
 
+    // Deduplicate conversation IDs just in case
+    const uniqueConversations = Array.from(new Map(conversations.map(c => [c.id, c])).values());
+
     const participantIds = new Set<string>();
-    conversations.forEach(c => { 
+    uniqueConversations.forEach(c => { 
         if(c.participant_one_id !== userId) participantIds.add(c.participant_one_id);
         if(c.participant_two_id !== userId) participantIds.add(c.participant_two_id);
     });
@@ -353,7 +364,7 @@ export const fetchUserConversations = async (userId: string): Promise<Conversati
     
     const profilesMap = new Map<string, { id: string; full_name: string }>(profiles?.map(p => [p.id, p]) || []);
 
-    return conversations.map(c => adaptConversation(c, userId, profilesMap));
+    return uniqueConversations.map(c => adaptConversation(c, userId, profilesMap));
 };
 
 export const fetchMessagesForConversation = async (conversationId: string): Promise<Message[]> => {

@@ -516,7 +516,7 @@ const ClientBookingCalendar: React.FC<{
         } else if (isInRange) {
             buttonClass += 'bg-brand-primary/50 text-white';
         } else if (isDisabled) {
-            buttonClass += 'text-gray-400 dark:text-gray-600 cursor-not-allowed line-through';
+            buttonClass += 'text-gray-400 dark:text-gray-600 cursor-not-allowed line-through opacity-50';
         } else if (status === 'available') {
             buttonClass += 'bg-green-500/20 hover:bg-green-500/40 text-green-800 dark:text-green-300';
         } else {

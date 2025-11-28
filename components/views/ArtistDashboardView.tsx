@@ -50,8 +50,11 @@ const AvailabilityTab: React.FC<{ artist: Artist; updateArtist: (id: string, dat
     const [hours, setHours] = useState<ArtistHours>(artist.hours || {});
     const [isSaving, setIsSaving] = useState(false);
     
+    // Ensure state syncs if props update (e.g. after a fetch)
     useEffect(() => {
-        setHours(artist.hours || {});
+        if (artist.hours) {
+            setHours(artist.hours);
+        }
     }, [artist.hours]);
 
     const days = ["Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"];
@@ -78,8 +81,10 @@ const AvailabilityTab: React.FC<{ artist: Artist; updateArtist: (id: string, dat
     const handleSave = async () => {
         setIsSaving(true);
         try {
-            await updateArtist(artist.id, { hours });
-            useAppStore.getState().showToast('Availability saved!', 'success');
+            // Pass a clean copy of the hours object
+            const cleanHours = JSON.parse(JSON.stringify(hours));
+            await updateArtist(artist.id, { hours: cleanHours });
+            useAppStore.getState().showToast('Availability saved successfully!', 'success');
         } catch (e) {
             console.error("Failed to save availability:", e);
             useAppStore.getState().showToast('Failed to save availability.', 'error');
@@ -96,11 +101,16 @@ const AvailabilityTab: React.FC<{ artist: Artist; updateArtist: (id: string, dat
                     {isSaving ? <Loader size="sm" color="white" /> : 'Save Hours'}
                 </button>
             </div>
-            <p className="text-brand-gray text-sm">Set your standard weekly working hours. Clients will use this to request booking dates.</p>
+            <p className="text-brand-gray text-sm">Set your standard weekly working hours. Clients will use this to request booking dates. <br/> Days with no hours added are considered <strong>Closed</strong>.</p>
             <div className="space-y-4">
                 {days.map((day, dayIndex) => (
                     <div key={dayIndex} className="grid grid-cols-1 md:grid-cols-4 gap-4 items-start border-b border-gray-200 dark:border-gray-800 pb-4">
-                        <h3 className="font-semibold text-lg text-brand-dark dark:text-white md:col-span-1">{day}</h3>
+                        <div className="md:col-span-1">
+                            <h3 className="font-semibold text-lg text-brand-dark dark:text-white">{day}</h3>
+                            {(!hours[dayIndex] || hours[dayIndex].length === 0) && (
+                                <span className="text-xs font-bold text-red-400 uppercase tracking-wider bg-red-400/10 px-2 py-1 rounded mt-1 inline-block">Closed</span>
+                            )}
+                        </div>
                         <div className="md:col-span-3 space-y-2">
                             {hours[dayIndex] && hours[dayIndex].length > 0 ? (
                                 hours[dayIndex].map((slot, slotIndex) => (
@@ -112,7 +122,7 @@ const AvailabilityTab: React.FC<{ artist: Artist; updateArtist: (id: string, dat
                                     </div>
                                 ))
                             ) : (
-                                <p className="text-brand-gray italic">Unavailable</p>
+                                <p className="text-brand-gray italic text-sm py-2">No hours set</p>
                             )}
                              <button onClick={() => handleAddTimeSlot(dayIndex)} className="text-sm text-brand-secondary font-semibold hover:underline">+ Add hours</button>
                         </div>
