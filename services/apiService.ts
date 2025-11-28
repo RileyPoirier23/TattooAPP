@@ -297,50 +297,21 @@ export const createNotification = async (userId: string, message: string): Promi
 export const findOrCreateConversation = async (currentUserId: string, otherUserId: string): Promise<Conversation> => {
     const supabase = getSupabase();
     
-    // 1. Try finding conversation where current user is participant 1
-    const { data: convAsOne } = await supabase
-        .from('conversations')
-        .select('*')
-        .eq('participant_one_id', currentUserId)
-        .eq('participant_two_id', otherUserId)
-        .single();
+    // NEW: Use RPC to atomatically find or create, preventing logic/race conditions on client
+    const { data: conversationId, error } = await supabase.rpc('find_or_create_conversation', { p_other_user_id: otherUserId });
 
-    if (convAsOne) {
-        return { 
-            id: convAsOne.id, 
-            participantOneId: convAsOne.participant_one_id, 
-            participantTwoId: convAsOne.participant_two_id 
-        };
+    if (error) {
+        console.error("RPC find_or_create_conversation failed", error);
+        throw error;
     }
 
-    // 2. Try finding conversation where current user is participant 2
-    const { data: convAsTwo } = await supabase
-        .from('conversations')
-        .select('*')
-        .eq('participant_one_id', otherUserId)
-        .eq('participant_two_id', currentUserId)
-        .single();
-
-    if (convAsTwo) {
-        return { 
-            id: convAsTwo.id, 
-            participantOneId: convAsTwo.participant_one_id, 
-            participantTwoId: convAsTwo.participant_two_id 
-        };
-    }
-
-    // 3. Create new conversation if none exists
-    const { data: created, error: createError } = await supabase
-        .from('conversations')
-        .insert({ participant_one_id: currentUserId, participant_two_id: otherUserId })
-        .select()
-        .single();
-        
-    if (createError) throw createError;
+    // Now fetch the details (safe because we know it exists)
+    const { data: conv } = await supabase.from('conversations').select('*').eq('id', conversationId).single();
+    
     return { 
-        id: created.id, 
-        participantOneId: created.participant_one_id, 
-        participantTwoId: created.participant_two_id 
+        id: conv.id, 
+        participantOneId: conv.participant_one_id, 
+        participantTwoId: conv.participant_two_id 
     };
 };
 
@@ -348,7 +319,6 @@ export const fetchUserConversations = async (userId: string): Promise<Conversati
     const supabase = getSupabase();
     
     // Use the RPC to fetch conversation data + partner details in ONE secure server-side call.
-    // This bypasses complex client-side RLS and JOIN logic that was causing failures.
     const { data, error } = await supabase.rpc('get_my_conversations', { p_user_id: userId });
         
     if (error) {
@@ -358,8 +328,6 @@ export const fetchUserConversations = async (userId: string): Promise<Conversati
 
     if (!data) return [];
 
-    // The RPC returns a JSON array, we map it to our internal type.
-    // Ensure the structure matches what the RPC builds.
     return data.map((item: any) => ({
         id: item.id,
         participantOneId: item.participantOneId,
@@ -373,16 +341,34 @@ export const fetchUserConversations = async (userId: string): Promise<Conversati
 
 export const fetchMessagesForConversation = async (conversationId: string): Promise<Message[]> => {
     const supabase = getSupabase();
-    const { data, error } = await supabase.from('messages').select('*').eq('conversation_id', conversationId).order('created_at', { ascending: true });
-    if (error) throw error;
+    
+    // NEW: Use RPC to safely fetch messages for a conversation
+    const { data, error } = await supabase.rpc('get_messages', { p_conversation_id: conversationId });
+    
+    if (error) {
+        console.error("RPC get_messages failed", error);
+        throw error;
+    }
+    
     return data.map(adaptMessage);
 };
 
 export const sendMessage = async (conversationId: string, senderId: string, content?: string, attachmentUrl?: string): Promise<Message> => {
     const supabase = getSupabase();
     if (!content && !attachmentUrl) throw new Error("Message must have content or an attachment.");
-    const { data, error } = await supabase.from('messages').insert({ conversation_id: conversationId, sender_id: senderId, content, attachment_url: attachmentUrl }).select().single();
-    if (error) throw error;
+    
+    // NEW: Use RPC to safely send messages server-side
+    const { data, error } = await supabase.rpc('send_message', { 
+        p_conversation_id: conversationId, 
+        p_content: content, 
+        p_attachment_url: attachmentUrl 
+    });
+
+    if (error) {
+        console.error("RPC send_message failed", error);
+        throw error;
+    }
+    
     return adaptMessage(data);
 };
 
