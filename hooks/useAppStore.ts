@@ -1,3 +1,4 @@
+
 // @/hooks/useAppStore.ts
 import { create } from 'zustand';
 import { persist } from 'zustand/middleware';
@@ -7,9 +8,10 @@ import {
 import {
   fetchInitialData, updateArtistData, uploadPortfolioImage, updateShopData, addBoothToShop, deleteBoothFromShop,
   createBookingForArtist, createClientBookingRequest, updateClientBookingRequestStatus, fetchNotificationsForUser, markUserNotificationsAsRead, createNotification, fetchAllUsers, updateUserData, updateBoothData, fetchUserConversations, fetchMessagesForConversation, sendMessage, findOrCreateConversation, setArtistAvailability, submitReview, deleteUserAsAdmin, deleteShopAsAdmin, uploadMessageAttachment, fetchArtistReviews, createShop as apiCreateShop, createVerificationRequest, updateVerificationRequest, addReviewToShop,
-  adminUpdateUserProfile, adminUpdateShopDetails, deletePortfolioImageFromStorage, uploadBookingReferenceImage, payClientBookingDeposit, updateClientBookingRequest, saveArtistHours,
+  adminUpdateUserProfile, adminUpdateShopDetails, deletePortfolioImageFromStorage, uploadBookingReferenceImage, payClientBookingDeposit, updateClientBookingRequest, saveArtistHours, fetchClientBookingRequestById,
 } from '../services/apiService';
 import { authService } from '../services/authService';
+import { getSupabase } from '../services/supabaseClient';
 
 type NavigateFunction = (path: string) => void;
 
@@ -139,6 +141,49 @@ export const useAppStore = create<AppState>()(
             get().fetchNotifications();
             get().loadConversations();
             
+            // SETUP REALTIME SUBSCRIPTION
+            const supabase = getSupabase();
+            const channel = supabase.channel('db-changes')
+              .on(
+                'postgres_changes',
+                { event: 'INSERT', schema: 'public', table: 'client_booking_requests' },
+                async (payload) => {
+                  const newRequest = await fetchClientBookingRequestById(payload.new.id);
+                  if (newRequest) {
+                    set(state => ({
+                      data: { ...state.data, clientBookingRequests: [...state.data.clientBookingRequests, newRequest] }
+                    }));
+                    if (currentUser.id === newRequest.artistId) {
+                      get().showToast(`New booking request from ${newRequest.clientName}!`, 'success');
+                    }
+                  }
+                }
+              )
+              .on(
+                'postgres_changes',
+                { event: 'UPDATE', schema: 'public', table: 'client_booking_requests' },
+                async (payload) => {
+                   // Refresh the request list to reflect status changes
+                   set(state => ({
+                     data: {
+                        ...state.data,
+                        clientBookingRequests: state.data.clientBookingRequests.map(r => r.id === payload.new.id ? { ...r, ...payload.new } : r)
+                     }
+                   }));
+                }
+              )
+              .on(
+                'postgres_changes',
+                { event: 'INSERT', schema: 'public', table: 'notifications' },
+                (payload) => {
+                  if (payload.new.user_id === currentUser.id) {
+                    // Refresh notifications logic handled by fetchNotifications, but let's do a quick update
+                    get().fetchNotifications();
+                  }
+                }
+              )
+              .subscribe();
+
             if (notificationInterval) clearInterval(notificationInterval);
             notificationInterval = window.setInterval(() => get().fetchNotifications(), 30000);
           }
@@ -174,9 +219,10 @@ export const useAppStore = create<AppState>()(
           get().fetchNotifications();
           get().loadConversations();
           get().showToast('Login successful!');
+          
+          // Re-trigger initialize to setup Realtime
+          get().initialize(navigate);
 
-          if (notificationInterval) clearInterval(notificationInterval);
-          notificationInterval = window.setInterval(() => get().fetchNotifications(), 30000);
         } catch (error) {
           const message = error instanceof Error ? error.message : "Login failed.";
           get().showToast(message, 'error');
@@ -199,6 +245,9 @@ export const useAppStore = create<AppState>()(
             }
             get().closeModal();
             get().showToast('Registration successful!');
+            
+            // Re-trigger initialize to setup Realtime
+            get().initialize(navigate);
           } else {
              get().closeModal();
              // Critical fix: Tell user to check email if no session returned
@@ -215,6 +264,10 @@ export const useAppStore = create<AppState>()(
         if (notificationInterval) clearInterval(notificationInterval);
         notificationInterval = null;
         set({ user: null, viewMode: 'client', data: {...get().data, notifications: [], conversations: [], messages: []}, activeConversationId: null });
+        
+        // Remove realtime subscriptions
+        getSupabase().removeAllChannels();
+        
         navigate('/');
         get().showToast('Logged out successfully.');
       },
@@ -447,14 +500,12 @@ export const useAppStore = create<AppState>()(
         }
       },
 
-      // V9: DIRECT UPSERT - MOST RELIABLE METHOD
+      // V11: DIRECT UPSERT
       saveArtistAvailability: async (hours) => {
         const user = get().user;
         if (!user || (user.type !== 'artist' && user.type !== 'dual')) return;
         
         try {
-            // We pass the explicit data needed to CREATE a profile if it's missing (ghost fix)
-            // or UPDATE if it exists.
             const name = user.data.name;
             const city = 'city' in user.data ? user.data.city : '';
             const email = user.email;
@@ -466,7 +517,6 @@ export const useAppStore = create<AppState>()(
             const updatedArtist = await saveArtistHours(user.id, hours, name, city, email, role);
             
             // 2. VERIFY: Immediately fetch the profile from the database to ensure persistence.
-            // This prevents the "Success but reset on refresh" bug.
             const verifiedProfile = await authService.getUserProfile(user.id);
             if (!verifiedProfile) {
                 throw new Error("Data verification failed. The changes could not be read back from the database.");
@@ -475,12 +525,10 @@ export const useAppStore = create<AppState>()(
             set(state => {
                 // Update with the VERIFIED profile from the DB
                 if (state.user?.id === user.id) {
-                    // Update LocalStorage to persist across reloads
                     localStorage.setItem('inkspace_user_session', JSON.stringify(verifiedProfile));
                 }
                 return {
                     user: verifiedProfile,
-                    // Also update the global artist list
                     data: { ...state.data, artists: state.data.artists.map(a => a.id === user.id ? {...a, ...updatedArtist} : a) }
                 };
             });

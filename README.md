@@ -33,7 +33,19 @@ create extension if not exists "moddatetime" schema "extensions";
 -- 2. REFRESH SCHEMA & PERMISSIONS
 NOTIFY pgrst, 'reload config';
 
--- 3. STORAGE SETUP (The Missing Piece for Messaging/Portfolios)
+-- 3. ENABLE REALTIME
+ALTER TABLE public.client_booking_requests REPLICA IDENTITY FULL;
+ALTER TABLE public.notifications REPLICA IDENTITY FULL;
+ALTER TABLE public.messages REPLICA IDENTITY FULL;
+
+do $$
+begin
+  begin alter publication supabase_realtime add table public.client_booking_requests; exception when duplicate_object then null; end;
+  begin alter publication supabase_realtime add table public.notifications; exception when duplicate_object then null; end;
+  begin alter publication supabase_realtime add table public.messages; exception when duplicate_object then null; end;
+end $$;
+
+-- 4. STORAGE SETUP (The Missing Piece for Messaging/Portfolios)
 -- Ensure buckets exist
 insert into storage.buckets (id, name, public) values ('portfolios', 'portfolios', true) on conflict (id) do nothing;
 insert into storage.buckets (id, name, public) values ('message_attachments', 'message_attachments', true) on conflict (id) do nothing;
@@ -62,7 +74,7 @@ create policy "Public_Upload_Refs" on storage.objects for insert with check (buc
 drop policy if exists "Public_View_Refs" on storage.objects;
 create policy "Public_View_Refs" on storage.objects for select using (bucket_id = 'booking-references');
 
--- 4. THE FIXED BOOKING FUNCTION
+-- 5. THE FIXED BOOKING FUNCTION
 -- Returns the FULL record (including client_id) + related data.
 create or replace function create_booking_request(
   p_artist_id uuid, p_start_date date, p_end_date date, p_message text, 

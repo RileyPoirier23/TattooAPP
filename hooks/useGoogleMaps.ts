@@ -11,64 +11,58 @@ declare global {
     }
 }
 
-// Standard access as per user request to undo changes
-const GOOGLE_MAPS_API_KEY = import.meta.env.VITE_MAPS_API_KEY;
+const GOOGLE_MAPS_API_KEY = import.meta.env.VITE_MAPS_API_KEY || '';
 const GOOGLE_MAPS_SCRIPT_ID = 'google-maps-script';
 
-// This ensures callbacks and the script are only attached once, even if the hook is used in multiple components.
 let isMapsApiAttached = false;
 
 export const useGoogleMaps = () => {
-  const [isLoaded, setIsLoaded] = useState(window.google?.maps ? true : false);
+  const [isLoaded, setIsLoaded] = useState(false);
   const [error, setError] = useState<Error | null>(null);
 
   useEffect(() => {
-    // If the API is already loaded or the script has been attached, don't do anything.
-    if (isLoaded || isMapsApiAttached) {
-      if(window.google?.maps) setIsLoaded(true); // Ensure state is correct on re-mount
-      return;
+    // Check if Google Maps is already loaded globally
+    if (window.google?.maps) {
+        setIsLoaded(true);
+        return;
     }
-    
-    isMapsApiAttached = true; // Set flag to prevent re-attachment on subsequent hook mounts.
 
-    // If no API key, set a clear, developer-focused error and stop.
+    if (isLoaded || isMapsApiAttached) return;
+    
+    isMapsApiAttached = true;
+
     if (!GOOGLE_MAPS_API_KEY) {
-      const errorMsg = "Configuration Issue: The Google Maps API key is missing. Please provide VITE_MAPS_API_KEY as an environment variable. Location features will be disabled.";
+      const errorMsg = "Configuration Issue: VITE_MAPS_API_KEY is missing in .env file.";
       console.error(errorMsg);
       setError(new Error(errorMsg));
       return;
     }
 
-    // This is the official Google Maps callback for authentication failures (e.g., bad API key).
     window.gm_authFailure = () => {
-      const errorMsg = "Google Maps Authentication Failed: The provided API key is invalid, expired, or has incorrect restrictions. Please check your Google Cloud Console settings. Location features are disabled.";
+      const errorMsg = "Google Maps Authentication Failed: Invalid API key.";
       console.error(errorMsg);
       setError(new Error(errorMsg));
     };
 
-    // This callback is triggered by the script URL when it loads successfully.
     window.inkspaceGoogleMapsLoaded = () => {
       setIsLoaded(true);
     };
 
-    // Create and append the script element.
     const script = document.createElement('script');
     script.id = GOOGLE_MAPS_SCRIPT_ID;
-    // Add libraries=places and the callback parameter for robust loading.
     script.src = `https://maps.googleapis.com/maps/api/js?key=${GOOGLE_MAPS_API_KEY}&libraries=places&callback=inkspaceGoogleMapsLoaded`;
     script.async = true;
     script.defer = true;
 
     script.onerror = (e) => {
-      // This handles general network errors, script blocking by extensions, etc.
-      const errorMsg = "Could not load the Google Maps script. This might be due to a network issue, ad-blocker, or Content Security Policy. Please check your network connection and browser console for more details.";
+      const errorMsg = "Network Error: Could not load Google Maps script.";
       console.error(errorMsg, e);
       setError(new Error(errorMsg));
     };
 
     document.head.appendChild(script);
 
-  }, [isLoaded]); // Depend on isLoaded to ensure effect logic doesn't re-run unnecessarily.
+  }, [isLoaded]);
 
   return { isLoaded, error };
 };

@@ -99,6 +99,23 @@ export const fetchInitialData = async (): Promise<any> => {
     };
 };
 
+// Helper to fetch a single booking by ID for Realtime updates
+export const fetchClientBookingRequestById = async (id: string): Promise<ClientBookingRequest | null> => {
+    const supabase = getSupabase();
+    const { data, error } = await supabase
+        .from('client_booking_requests')
+        .select(`
+            *,
+            client:profiles!client_booking_requests_client_id_fkey(id, full_name),
+            artist:profiles!client_booking_requests_artist_id_fkey(id, full_name, services)
+        `)
+        .eq('id', id)
+        .single();
+    
+    if (error || !data) return null;
+    return adaptClientBookingRequest(data);
+};
+
 export const updateUserData = async (userId: string, updatedData: Partial<User['data']>) => {
     const supabase = getSupabase();
     const profileUpdate: { [key: string]: any } = {};
@@ -144,27 +161,46 @@ export const updateArtistData = async (artistId: string, updatedData: Partial<Ar
 export const saveArtistHours = async (userId: string, hours: ArtistHours, name: string, city: string, email: string, role: UserRole): Promise<Artist> => {
     const supabase = getSupabase();
     
-    const profileData = {
-        id: userId,
+    // Use the role provided if it's 'artist' or 'dual', otherwise default to 'artist' if we are creating a new one.
+    // Ideally we fetch the existing profile to check the role, but Upsert requires us to provide it if inserting.
+    // If the row exists, the role won't be overwritten unless we specify it.
+    // We will attempt to UPDATE first to avoid overwriting role.
+    
+    const updatePayload = {
         hours: hours,
-        // We only provide defaults if creating new; Upsert will handle this.
-        full_name: name || 'Artist',
-        city: city || '',
-        username: email, 
-        role: role, 
         updated_at: new Date().toISOString()
     };
 
-    // Perform Upsert
-    const { data, error } = await supabase
+    let { data, error } = await supabase
         .from('profiles')
-        .upsert(profileData, { onConflict: 'id' })
+        .update(updatePayload)
+        .eq('id', userId)
         .select()
         .single();
-    
-    if (error) {
-        console.error("Direct Upsert saveArtistHours failed:", error);
-        throw new Error(error.message);
+
+    // If update failed (row doesn't exist), then we Insert with full defaults
+    if (error || !data) {
+        const insertPayload = {
+            id: userId,
+            hours: hours,
+            full_name: name || 'Artist',
+            city: city || '',
+            username: email,
+            role: role === 'dual' ? 'dual' : 'artist', // Respect 'dual' role if passed
+            updated_at: new Date().toISOString()
+        };
+        
+        const insertResult = await supabase
+            .from('profiles')
+            .insert(insertPayload)
+            .select()
+            .single();
+            
+        if (insertResult.error) {
+             console.error("Save Hours Insert Error:", insertResult.error);
+             throw new Error(insertResult.error.message);
+        }
+        data = insertResult.data;
     }
 
     if (!data) {

@@ -164,8 +164,10 @@ export const adaptClientBookingRequest = (b: any): ClientBookingRequest => {
                      getJoinedProperty<{ full_name: string }>(b.artist, 'full_name') || 'Unknown Artist';
 
   // Robustly resolve Client ID
-  // In some RPC returns, client_id might be top-level, or nested inside 'client'
-  const clientId = b.client_id || clientData.id || null;
+  // In some RPC returns, client_id might be top-level, or nested inside 'client' object
+  // depending on how Supabase RPC constructs the JSON response.
+  // We prefer the ID from the profile relation (clientData.id) as it confirms user existence.
+  const clientId = clientData.id || b.client_id || null;
 
   return {
     id: b.id,
