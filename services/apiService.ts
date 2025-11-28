@@ -1,4 +1,3 @@
-
 // @/services/apiService.ts
 import { getSupabase } from './supabaseClient';
 import type { Artist, Shop, Booth, Booking, ClientBookingRequest, Notification, User, UserRole, PortfolioImage, VerificationRequest, Conversation, ConversationWithUser, Message, ArtistAvailability, Review, AdminUser, ArtistService, ArtistHours } from '../types';
@@ -107,26 +106,34 @@ export const updateArtistData = async (artistId: string, updatedData: Partial<Ar
     return adaptProfileToArtist(data);
 };
 
-// NEW: Specialized function to save hours using RPC for reliability (V7)
-export const saveArtistHours = async (hours: ArtistHours, fullName: string, city: string, email: string): Promise<Artist> => {
+// NEW: Specialized function to save hours using Direct Upsert for reliability
+export const saveArtistHours = async (userId: string, hours: ArtistHours, fullName: string, city: string, role: string, email: string): Promise<Artist> => {
     const supabase = getSupabase();
     
-    // Call V7 function which is Security Definer and handles upsert
-    const { data, error } = await supabase.rpc('save_artist_hours_v7', { 
-        p_hours: hours,
-        p_full_name: fullName,
-        p_city: city,
-        p_email: email
-    });
+    // Using direct upsert to avoid RPC permission issues or missing profiles.
+    // This is the most robust way to ensure data is saved.
+    const { data, error } = await supabase
+        .from('profiles')
+        .upsert({
+            id: userId,
+            hours: hours,
+            full_name: fullName,
+            city: city,
+            role: role,
+            username: email,
+            updated_at: new Date().toISOString()
+        }, { onConflict: 'id' })
+        .select()
+        .single();
     
     if (error) {
-        console.error("RPC save_artist_hours_v7 failed:", error);
+        console.error("Direct Upsert saveArtistHours failed:", error);
         throw error;
     }
 
     if (!data) {
-        console.error("RPC save_artist_hours_v7 returned no data");
-        throw new Error("No data returned from save_artist_hours_v7");
+        console.error("Upsert returned no data");
+        throw new Error("No data returned from save operation");
     }
 
     return adaptProfileToArtist(data);

@@ -1,4 +1,3 @@
-
 // @/hooks/useAppStore.ts
 import { create } from 'zustand';
 import { persist } from 'zustand/middleware';
@@ -441,12 +440,13 @@ export const useAppStore = create<AppState>()(
         if (!user || (user.type !== 'artist' && user.type !== 'dual')) return;
         
         try {
-            // FIX: Pass Name, City AND Email to ensure V6 function can create profile if missing
+            // FIX: Pass Name, City AND Email AND Role to ensure we can create profile if missing
             const fullName = user.data.name;
             const city = 'city' in user.data ? user.data.city : '';
             const email = user.email || 'user@inkspace.app';
+            const role = user.type === 'dual' ? 'dual' : 'artist';
 
-            const updatedArtist = await saveArtistHours(hours, fullName, city, email);
+            const updatedArtist = await saveArtistHours(user.id, hours, fullName, city, role, email);
             set(state => {
                 let newUser = state.user;
                 if (state.user?.id === user.id) {

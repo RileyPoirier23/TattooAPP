@@ -27,128 +27,73 @@ You **MUST** run the SQL script below to set up the database. The app will not w
 #### 📜 SQL Script (Copy All)
 
 ```sql
--- 1. ENABLE EXTENSIONS
+-- 1. EXTENSIONS
 create extension if not exists "moddatetime" schema "extensions";
 
--- 2. RESET PROFILES TABLE (Columns)
--- Ensure 'hours' is JSONB.
-alter table public.profiles alter column hours type jsonb using hours::jsonb;
-alter table public.profiles alter column hours set default '{}'::jsonb;
+-- 2. RESET PROFILES PERMISSIONS (The Fix)
+-- We are removing complex logic and simply saying: 
+-- "If you are logged in, you can insert or update your own row."
+alter table public.profiles enable row level security;
 
--- 3. NUCLEAR OPTION: DROP ALL POLICIES
--- We drop everything to ensure no old, broken rules are blocking us.
 do $$
 begin
   drop policy if exists "Public profiles" on public.profiles;
   drop policy if exists "Users update own" on public.profiles;
   drop policy if exists "Users insert own" on public.profiles;
-  drop policy if exists "Public_profiles_v4" on public.profiles;
-  drop policy if exists "Users_update_own_v4" on public.profiles;
-  drop policy if exists "Users_insert_own_v4" on public.profiles;
-  drop policy if exists "Public_profiles_v5" on public.profiles;
-  drop policy if exists "Users_update_own_v5" on public.profiles;
-  drop policy if exists "Users_insert_own_v5" on public.profiles;
-  -- Drop any other variations
-  drop policy if exists "Enable read access for all users" on public.profiles;
-  drop policy if exists "Enable insert for users based on user_id" on public.profiles;
-  drop policy if exists "Enable update for users based on email" on public.profiles;
+  drop policy if exists "Profiles_Read_All" on public.profiles;
+  drop policy if exists "Profiles_Insert_Own" on public.profiles;
+  drop policy if exists "Profiles_Update_Own" on public.profiles;
 exception when others then null;
 end $$;
-
--- 4. RE-APPLY CLEAN POLICIES (Profiles)
-alter table public.profiles enable row level security;
 
 create policy "Profiles_Read_All" on public.profiles 
 for select using (true);
 
-create policy "Profiles_Insert_Own" on public.profiles 
-for insert with check (auth.uid() = id);
+create policy "Profiles_Insert_Update_Own" on public.profiles 
+for all using (auth.uid() = id) with check (auth.uid() = id);
 
-create policy "Profiles_Update_Own" on public.profiles 
-for update using (auth.uid() = id);
+-- 3. ENSURE COLUMNS EXIST
+alter table public.profiles alter column hours type jsonb using hours::jsonb;
+alter table public.profiles alter column hours set default '{}'::jsonb;
 
--- 5. THE FIX: Save Availability Function (V7)
--- SECURITY DEFINER: Runs as admin, bypassing RLS for the upsert.
--- SEARCH_PATH: Fixes "relation not found" errors.
-create or replace function save_artist_hours_v7(
-  p_hours jsonb,
-  p_full_name text,
-  p_city text,
-  p_email text
-)
-returns jsonb
-language plpgsql security definer
-set search_path = public
-as $$
-declare
-  updated_profile record;
-  current_uid uuid;
-begin
-  current_uid := auth.uid();
-
-  -- Upsert: Try to insert, if ID exists, update.
-  insert into public.profiles (
-    id, 
-    username, 
-    full_name, 
-    role, 
-    city, 
-    hours
-  )
-  values (
-    current_uid,
-    coalesce(p_email, 'user@inkspace.app'), -- Fallback email
-    coalesce(p_full_name, 'Artist'),        -- Fallback name
-    'artist',
-    coalesce(p_city, ''),
-    p_hours
-  )
-  on conflict (id) do update
-  set
-    hours = EXCLUDED.hours,
-    updated_at = now(),
-    -- Also sync name/city if provided
-    full_name = case when p_full_name is not null and p_full_name <> '' then EXCLUDED.full_name else public.profiles.full_name end,
-    city = case when p_city is not null and p_city <> '' then EXCLUDED.city else public.profiles.city end
-  returning * into updated_profile;
-
-  return to_jsonb(updated_profile);
-end;
-$$;
-
--- 6. GRANT EXECUTE PERMISSIONS
-grant execute on function save_artist_hours_v7 to authenticated;
-
--- 7. REPAIR MESSAGING (Ensure V2 exists)
+-- 4. MESSAGING & BOOKING FUNCTIONS (Keep these as they are working logic)
 create or replace function get_my_conversations_v2(p_user_id uuid)
-returns jsonb
-language plpgsql security definer
-set search_path = public
-as $$
-declare
-  result jsonb;
+returns jsonb language plpgsql security definer set search_path = public as $$
+declare result jsonb;
 begin
-  select jsonb_agg(
-    jsonb_build_object(
-      'id', c.id,
-      'participantOneId', c.participant_one_id,
-      'participantTwoId', c.participant_two_id,
-      'otherUser', jsonb_build_object(
-        'id', coalesce(p.id, '00000000-0000-0000-0000-000000000000'),
-        'name', coalesce(p.full_name, 'Unknown User')
-      )
-    )
-  )
-  from public.conversations c
-  left join public.profiles p on p.id = case 
-    when c.participant_one_id = p_user_id then c.participant_two_id 
-    else c.participant_one_id 
-  end
-  where c.participant_one_id = p_user_id or c.participant_two_id = p_user_id
-  into result;
-
+  select jsonb_agg(jsonb_build_object('id', c.id, 'participantOneId', c.participant_one_id, 'participantTwoId', c.participant_two_id, 'otherUser', jsonb_build_object('id', coalesce(p.id, '00000000-0000-0000-0000-000000000000'), 'name', coalesce(p.full_name, 'Unknown User'))))
+  from public.conversations c left join public.profiles p on p.id = case when c.participant_one_id = p_user_id then c.participant_two_id else c.participant_one_id end
+  where c.participant_one_id = p_user_id or c.participant_two_id = p_user_id into result;
   return coalesce(result, '[]'::jsonb);
-end;
-$$;
+end; $$;
+
+create or replace function send_message(p_conversation_id uuid, p_content text default null, p_attachment_url text default null)
+returns jsonb language plpgsql security definer as $$
+declare new_message record;
+begin
+  if not exists (select 1 from public.conversations where id = p_conversation_id and (participant_one_id = auth.uid() or participant_two_id = auth.uid())) then raise exception 'Not a participant'; end if;
+  insert into public.messages (conversation_id, sender_id, content, attachment_url) values (p_conversation_id, auth.uid(), p_content, p_attachment_url) returning * into new_message;
+  return to_jsonb(new_message);
+end; $$;
+
+create or replace function get_messages(p_conversation_id uuid)
+returns setof public.messages language plpgsql security definer as $$
+begin
+  if not exists (select 1 from public.conversations where id = p_conversation_id and (participant_one_id = auth.uid() or participant_two_id = auth.uid())) then return; end if;
+  return query select * from public.messages where conversation_id = p_conversation_id order by created_at asc;
+end; $$;
+
+create or replace function create_booking_request(p_artist_id uuid, p_start_date date, p_end_date date, p_message text, p_tattoo_width numeric, p_tattoo_height numeric, p_body_placement text, p_deposit_amount numeric, p_platform_fee numeric, p_service_id text, p_budget numeric, p_reference_image_urls text[], p_preferred_time text, p_client_id uuid default null, p_guest_name text default null, p_guest_email text default null, p_guest_phone text default null) returns jsonb language plpgsql security definer as $$
+declare new_record record; client_data record; artist_data record;
+begin
+  insert into public.client_booking_requests (artist_id, start_date, end_date, message, tattoo_width, tattoo_height, body_placement, deposit_amount, platform_fee, service_id, budget, reference_image_urls, preferred_time, client_id, guest_name, guest_email, guest_phone) values (p_artist_id, p_start_date, p_end_date, p_message, p_tattoo_width, p_tattoo_height, p_body_placement, p_deposit_amount, p_platform_fee, p_service_id, p_budget, p_reference_image_urls, p_preferred_time, p_client_id, p_guest_name, p_guest_email, p_guest_phone) returning * into new_record;
+  select id, full_name from public.profiles where id = new_record.client_id into client_data;
+  select id, full_name, services from public.profiles where id = new_record.artist_id into artist_data;
+  return to_jsonb(new_record) || jsonb_build_object('client', to_jsonb(client_data)) || jsonb_build_object('artist', to_jsonb(artist_data));
+end; $$;
+
+-- 5. PERMISSIONS
 grant execute on function get_my_conversations_v2 to authenticated;
+grant execute on function send_message to authenticated;
+grant execute on function get_messages to authenticated;
 ```
