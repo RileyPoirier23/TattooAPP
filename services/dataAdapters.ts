@@ -158,7 +158,7 @@ export const adaptClientBookingRequest = (b: any): ClientBookingRequest => {
   const clientProfileName = clientData.full_name || 
                             getJoinedProperty<{ full_name: string }>(b.client, 'full_name');
   
-  const displayName = clientProfileName || b.guest_name || 'Unknown Client';
+  const displayName = clientProfileName || (b.guest_name ? `${b.guest_name} (Guest)` : 'Unknown Client');
 
   const artistName = artistData.full_name ||
                      getJoinedProperty<{ full_name: string }>(b.artist, 'full_name') || 'Unknown Artist';

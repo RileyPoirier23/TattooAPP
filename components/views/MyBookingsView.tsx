@@ -1,3 +1,4 @@
+
 // @/components/views/MyBookingsView.tsx
 
 import React, { useState } from 'react';
@@ -91,13 +92,16 @@ const ArtistBookings: React.FC<Pick<MyBookingsViewProps, 'artistBookings' | 'sho
     );
 };
 
-const ClientRequests: React.FC<Pick<MyBookingsViewProps, 'user' | 'allClientBookings' | 'onRespondToRequest' | 'onCompleteRequest' | 'onLeaveReview' | 'openModal'>> = ({ user, allClientBookings, onRespondToRequest, onCompleteRequest, onLeaveReview, openModal }) => {
-    const myClientRequests = allClientBookings.filter(b => (user.type === 'artist' || user.type === 'dual') ? b.artistId === user.id : b.clientId === user.id);
+const ClientRequests: React.FC<Pick<MyBookingsViewProps, 'user' | 'allClientBookings' | 'onRespondToRequest' | 'onCompleteRequest' | 'onLeaveReview' | 'openModal'> & { viewAs: 'artist' | 'client' }> = ({ user, allClientBookings, onRespondToRequest, onCompleteRequest, onLeaveReview, openModal, viewAs }) => {
+    
+    // CORE LOGIC FIX: Filter based on View Mode (Artist vs Client)
+    const myClientRequests = allClientBookings.filter(b => 
+        viewAs === 'artist' ? b.artistId === user.id : b.clientId === user.id
+    );
+
     const pending = myClientRequests.filter(b => b.status === 'pending');
     const upcoming = myClientRequests.filter(b => b.status === 'approved' && new Date(b.endDate) >= new Date());
     const past = myClientRequests.filter(b => !pending.includes(b) && !upcoming.includes(b));
-
-    const isArtistView = user.type === 'artist' || user.type === 'dual';
 
     return (
         <div className="space-y-8">
@@ -105,12 +109,12 @@ const ClientRequests: React.FC<Pick<MyBookingsViewProps, 'user' | 'allClientBook
                 {pending.length > 0 ? pending.map(req => (
                     <div key={req.id} className="bg-gray-100 dark:bg-gray-800 p-4 rounded-lg">
                        <p className="font-bold text-brand-dark dark:text-white">
-                           {isArtistView ? `Request from ${req.clientName}` : `Request to ${req.artistName}`}
+                           {viewAs === 'artist' ? `Request from ${req.clientName}` : `Request to ${req.artistName}`}
                        </p>
                         <p className="font-semibold text-brand-primary text-sm">{req.serviceName}</p>
                        <p className="text-sm text-brand-gray mt-1 italic">"{req.message}"</p>
                        
-                       {isArtistView ? (
+                       {viewAs === 'artist' ? (
                            <div className="flex gap-2 mt-4">
                                 <button onClick={() => onRespondToRequest(req.id, 'approved')} className="bg-green-600 text-white text-sm font-bold py-2 px-3 rounded-lg">Approve</button>
                                 <button onClick={() => onRespondToRequest(req.id, 'declined')} className="bg-red-600 text-white text-sm font-bold py-2 px-3 rounded-lg">Decline</button>
@@ -129,20 +133,20 @@ const ClientRequests: React.FC<Pick<MyBookingsViewProps, 'user' | 'allClientBook
                     <div key={req.id} className="bg-gray-100 dark:bg-gray-800 p-4 rounded-lg">
                         <div className="flex justify-between items-start">
                             <div>
-                                <p className="font-bold text-brand-dark dark:text-white">Session with {isArtistView ? req.clientName : req.artistName}</p>
+                                <p className="font-bold text-brand-dark dark:text-white">Session with {viewAs === 'artist' ? req.clientName : req.artistName}</p>
                                 <p className="font-semibold text-brand-primary text-sm">{req.serviceName}</p>
                                 <p className="text-sm text-brand-gray flex items-center mt-1"><CalendarIcon className="w-4 h-4 mr-1.5"/>{new Date(req.startDate).toLocaleDateString()}</p>
                             </div>
                             <span className={`text-xs font-bold px-3 py-1 rounded-full capitalize ${getStatusChip(req.paymentStatus)}`}>{req.paymentStatus === 'unpaid' ? 'Deposit Due' : 'Deposit Paid'}</span>
                         </div>
-                         {isArtistView && req.status === 'approved' && (
+                         {viewAs === 'artist' && req.status === 'approved' && (
                              <div className="mt-4 pt-4 border-t border-gray-200 dark:border-gray-700 flex flex-wrap gap-2">
                                 <button onClick={() => onCompleteRequest(req.id, 'completed')} className="bg-blue-600 text-white text-sm font-bold py-2 px-3 rounded-lg">Mark Completed</button>
                                 <button onClick={() => onCompleteRequest(req.id, 'rescheduled')} className="bg-purple-600 text-white text-sm font-bold py-2 px-3 rounded-lg">Mark Rescheduled</button>
                                 <button onClick={() => onCompleteRequest(req.id, 'no-show')} className="bg-red-600 text-white text-sm font-bold py-2 px-3 rounded-lg">Mark No-Show</button>
                             </div>
                         )}
-                        {!isArtistView && req.status === 'approved' && req.paymentStatus === 'unpaid' && (
+                        {viewAs !== 'artist' && req.status === 'approved' && req.paymentStatus === 'unpaid' && (
                             <div className="mt-4 pt-4 border-t border-gray-200 dark:border-gray-700">
                                 <button onClick={() => openModal('payment', req)} className="w-full bg-brand-secondary text-white font-bold py-2 px-4 rounded-lg flex items-center justify-center gap-2">
                                     <CreditCardIcon className="w-5 h-5" />
@@ -159,13 +163,13 @@ const ClientRequests: React.FC<Pick<MyBookingsViewProps, 'user' | 'allClientBook
                      <div key={req.id} className="bg-gray-100 dark:bg-gray-800 p-4 rounded-lg">
                          <div className="flex justify-between items-center">
                             <div>
-                                <p className="font-bold text-brand-dark dark:text-white">Session with {isArtistView ? req.clientName : req.artistName}</p>
+                                <p className="font-bold text-brand-dark dark:text-white">Session with {viewAs === 'artist' ? req.clientName : req.artistName}</p>
                                 <p className="font-semibold text-brand-primary text-sm">{req.serviceName}</p>
                                 <p className="text-sm text-brand-gray">{new Date(req.startDate).toLocaleDateString()}</p>
                             </div>
                             <span className={`text-xs font-bold px-3 py-1 rounded-full capitalize ${getStatusChip(req.status)}`}>{req.status}</span>
                          </div>
-                         {!isArtistView && req.status === 'completed' && !req.reviewRating && (
+                         {viewAs !== 'artist' && req.status === 'completed' && !req.reviewRating && (
                              <button onClick={() => onLeaveReview(req)} className="mt-4 flex items-center gap-2 bg-brand-secondary text-white text-sm font-bold py-2 px-3 rounded-lg"><StarIcon className="w-4 h-4"/> Leave a Review</button>
                          )}
                      </div>
@@ -177,19 +181,22 @@ const ClientRequests: React.FC<Pick<MyBookingsViewProps, 'user' | 'allClientBook
 
 export const MyBookingsView: React.FC<MyBookingsViewProps> = (props) => {
     const { user } = props;
-    const [activeTab, setActiveTab] = useState(user.type === 'dual' ? 'artist' : (user.type === 'artist' ? 'artist' : 'client'));
+    // Default dual users to their 'artist' dashboard, but clients/others to 'client'
+    const [activeTab, setActiveTab] = useState<'artist' | 'client'>(
+        user.type === 'artist' || user.type === 'dual' ? 'artist' : 'client'
+    );
 
     const renderContent = () => {
         if (activeTab === 'artist') {
             return (
                 <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
                     <ArtistBookings {...props} />
-                    <ClientRequests {...props} user={{...user, type: 'artist'}} />
+                    <ClientRequests {...props} viewAs="artist" />
                 </div>
             );
         }
         if (activeTab === 'client') {
-            return <ClientRequests {...props} />;
+            return <ClientRequests {...props} viewAs="client" />;
         }
         return null;
     };

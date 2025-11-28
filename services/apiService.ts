@@ -140,17 +140,19 @@ export const updateArtistData = async (artistId: string, updatedData: Partial<Ar
     return adaptProfileToArtist(data);
 };
 
-// V10: DIRECT UPSERT WITH ROLE PRESERVATION
+// V11: DIRECT UPSERT - FIXES RESET BUG
 export const saveArtistHours = async (userId: string, hours: ArtistHours, name: string, city: string, email: string, role: UserRole): Promise<Artist> => {
     const supabase = getSupabase();
     
     const profileData = {
         id: userId,
         hours: hours,
+        // We only provide defaults if creating new; Upsert will handle this.
         full_name: name || 'Artist',
         city: city || '',
         username: email, 
         role: role, 
+        updated_at: new Date().toISOString()
     };
 
     // Perform Upsert
@@ -265,11 +267,11 @@ export const createBookingForArtist = async (bookingData: Omit<Booking, 'id' | '
     return adaptBooking(bookingWithCity, []);
 };
 
-// RPC for Guest/Client Booking - SAFE PARAMETER HANDLING
+// RPC for Guest/Client Booking - SAFE PARAMETER HANDLING (NULLs instead of Undefined)
 export const createClientBookingRequest = async (requestData: any): Promise<ClientBookingRequest> => {
     const supabase = getSupabase();
     
-    // Convert undefined to null for RPC safety
+    // Explicitly convert undefined to null to prevent RPC signature mismatch
     const rpcParams = {
         p_artist_id: requestData.artistId,
         p_start_date: requestData.startDate,
