@@ -108,41 +108,21 @@ export const updateArtistData = async (artistId: string, updatedData: Partial<Ar
 };
 
 // NEW: Specialized function to save hours using RPC for reliability
-// Now with fallback to standard update if RPC fails
 export const saveArtistHours = async (hours: ArtistHours): Promise<Artist> => {
     const supabase = getSupabase();
     
-    // Try the specialized V2 function first (which now uses UPSERT logic in SQL)
-    const { data, error } = await supabase.rpc('set_artist_hours_v2', { p_hours: hours });
+    // Use the robust V3 function which handles missing profiles automatically
+    const { data, error } = await supabase.rpc('save_artist_hours_v3', { p_hours: hours });
     
-    if (!error && data) {
-        return adaptProfileToArtist(data);
+    if (error) {
+        console.error("RPC save_artist_hours_v3 failed:", error);
+        // Fallback removed because V3 covers the missing profile case natively now.
+        throw error;
     }
 
-    console.warn("RPC set_artist_hours_v2 failed, attempting fallback upsert...", error);
+    if (!data) throw new Error("No data returned from save operation");
 
-    // Fallback: Standard UPSERT
-    // We get the current user ID first to ensure we are updating the right row
-    const { data: { user } } = await supabase.auth.getUser();
-    if (!user) throw new Error("User not authenticated");
-
-    // We use .upsert instead of .update to handle cases where the profile row might be missing
-    const { data: fallbackData, error: fallbackError } = await supabase
-        .from('profiles')
-        .upsert({ 
-            id: user.id, 
-            hours: hours, 
-            updated_at: new Date().toISOString() 
-        }, { onConflict: 'id' })
-        .select()
-        .single();
-
-    if (fallbackError) {
-        console.error("Fallback upsert failed:", fallbackError);
-        throw fallbackError;
-    }
-
-    return adaptProfileToArtist(fallbackData);
+    return adaptProfileToArtist(data);
 };
 
 export const uploadPortfolioImage = async (userId: string, file: File): Promise<PortfolioImage> => {

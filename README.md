@@ -30,20 +30,8 @@ You **MUST** run the SQL script below to set up the database. The app will not w
 -- 1. EXTENSIONS
 create extension if not exists "moddatetime" schema "extensions";
 
--- 2. REPAIR MISSING PROFILES (The Critical Fix)
--- This takes everyone from auth.users and ensures they have a row in public.profiles
-insert into public.profiles (id, username, full_name, role, city)
-select 
-  id, 
-  email, 
-  coalesce(raw_user_meta_data->>'full_name', 'User'), 
-  coalesce(raw_user_meta_data->>'role', 'client'),
-  coalesce(raw_user_meta_data->>'city', '')
-from auth.users
-on conflict (id) do nothing;
-
--- 3. UPDATED SAVE FUNCTION (Using Upsert)
-create or replace function set_artist_hours_v2(
+-- 2. SMART SAVE FUNCTION (V3 - The Fix)
+create or replace function save_artist_hours_v3(
   p_hours jsonb
 )
 returns jsonb
@@ -51,30 +39,52 @@ language plpgsql security definer
 as $$
 declare
   updated_profile record;
+  user_meta jsonb;
+  user_email text;
 begin
-  -- Try to update, if missing (shouldn't happen with backfill, but safe), insert partial
-  insert into public.profiles (id, hours, updated_at)
-  values (auth.uid(), p_hours, now())
-  on conflict (id) do update
-  set hours = EXCLUDED.hours, updated_at = EXCLUDED.updated_at
+  -- 1. Try to update existing profile
+  update public.profiles 
+  set hours = p_hours, updated_at = now()
+  where id = auth.uid()
+  returning * into updated_profile;
+
+  -- 2. If update found a row, return it
+  if found then
+    return to_jsonb(updated_profile);
+  end if;
+
+  -- 3. If NO row found, we must create one. 
+  -- We fetch details from auth.users to avoid "column cannot be null" errors.
+  select raw_user_meta_data, email into user_meta, user_email
+  from auth.users
+  where id = auth.uid();
+
+  insert into public.profiles (
+    id, 
+    username, 
+    full_name, 
+    role, 
+    city, 
+    hours
+  )
+  values (
+    auth.uid(),
+    user_email,
+    coalesce(user_meta->>'full_name', 'Artist'),
+    coalesce(user_meta->>'role', 'artist'),
+    coalesce(user_meta->>'city', ''),
+    p_hours
+  )
   returning * into updated_profile;
 
   return to_jsonb(updated_profile);
 end;
 $$;
 
--- 4. ENSURE PERMISSIONS
-grant execute on function set_artist_hours_v2 to authenticated;
+-- 3. GRANT PERMISSION
+grant execute on function save_artist_hours_v3 to authenticated;
 
--- Ensure RLS allows upserts
-drop policy if exists "Users insert own" on public.profiles;
-create policy "Users_insert_own_v7" on public.profiles for insert with check (auth.uid() = id);
-
-drop policy if exists "Users update own" on public.profiles;
-drop policy if exists "Users_update_own_v6" on public.profiles;
-create policy "Users_update_own_v7" on public.profiles for update using (auth.uid() = id);
-
--- 5. MESSAGING FUNCTIONS (Ensuring they exist)
+-- 4. ENSURE MESSAGING FUNCTIONS EXIST (Just in case)
 create or replace function get_my_conversations(p_user_id uuid)
 returns jsonb language plpgsql security definer as $$
 declare result jsonb;
@@ -106,7 +116,7 @@ begin
 end;
 $$;
 
--- 6. GRANT EXECUTE
+-- 5. GRANT EXECUTE
 grant execute on function get_my_conversations to authenticated;
 grant execute on function send_message to authenticated;
 grant execute on function get_messages to authenticated;
