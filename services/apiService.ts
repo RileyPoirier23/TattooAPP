@@ -93,11 +93,17 @@ export const updateArtistData = async (artistId: string, updatedData: Partial<Ar
     if (updatedData.services) profileUpdate.services = updatedData.services;
     if (updatedData.aftercareMessage) profileUpdate.aftercare_message = updatedData.aftercareMessage;
     if (typeof updatedData.requestHealedPhoto === 'boolean') profileUpdate.request_healed_photo = updatedData.requestHealedPhoto;
+    
+    // Explicitly handle hours to ensure they are saved as JSON
     if (updatedData.hours) profileUpdate.hours = updatedData.hours;
+    
     if (updatedData.intakeSettings) profileUpdate.intake_settings = updatedData.intakeSettings;
 
     const { data, error } = await supabase.from('profiles').update(profileUpdate).eq('id', artistId).select().single();
-    if (error) throw error;
+    if (error) {
+        console.error("Update Artist Error:", error);
+        throw error;
+    }
     return adaptProfileToArtist(data);
 };
 
@@ -292,29 +298,35 @@ export const createNotification = async (userId: string, message: string): Promi
 export const findOrCreateConversation = async (currentUserId: string, otherUserId: string): Promise<Conversation> => {
     const supabase = getSupabase();
     
-    // 1. Fetch conversations for the current user safely
-    const { data: myConversations } = await supabase
+    // 1. Try finding conversation where current user is participant 1
+    const { data: convAsOne } = await supabase
         .from('conversations')
         .select('*')
-        .eq('participant_one_id', currentUserId);
-        
-    const { data: myConversations2 } = await supabase
-        .from('conversations')
-        .select('*')
-        .eq('participant_two_id', currentUserId);
+        .eq('participant_one_id', currentUserId)
+        .eq('participant_two_id', otherUserId)
+        .single();
 
-    const allMyConversations = [...(myConversations || []), ...(myConversations2 || [])];
-
-    // 2. Filter in memory to find if we already have a conversation with the other user
-    const existing = allMyConversations.find(c => 
-        (c.participant_one_id === otherUserId) || (c.participant_two_id === otherUserId)
-    );
-
-    if (existing) {
+    if (convAsOne) {
         return { 
-            id: existing.id, 
-            participantOneId: existing.participant_one_id, 
-            participantTwoId: existing.participant_two_id 
+            id: convAsOne.id, 
+            participantOneId: convAsOne.participant_one_id, 
+            participantTwoId: convAsOne.participant_two_id 
+        };
+    }
+
+    // 2. Try finding conversation where current user is participant 2
+    const { data: convAsTwo } = await supabase
+        .from('conversations')
+        .select('*')
+        .eq('participant_one_id', otherUserId)
+        .eq('participant_two_id', currentUserId)
+        .single();
+
+    if (convAsTwo) {
+        return { 
+            id: convAsTwo.id, 
+            participantOneId: convAsTwo.participant_one_id, 
+            participantTwoId: convAsTwo.participant_two_id 
         };
     }
 

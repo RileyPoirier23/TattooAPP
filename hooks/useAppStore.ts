@@ -410,12 +410,22 @@ export const useAppStore = create<AppState>()(
       updateArtist: async (artistId, data) => {
         try {
             const updatedArtist = await updateArtistData(artistId, data);
-            set(state => ({
-                data: { ...state.data, artists: state.data.artists.map(a => a.id === artistId ? {...a, ...updatedArtist} : a) },
-                user: (state.user?.id === artistId && (state.user.type === 'artist' || state.user.type === 'dual')) 
-                    ? { ...state.user, data: {...state.user.data, ...updatedArtist} } 
-                    : state.user
-            }));
+            set(state => {
+                // Update the Artists Array
+                const newArtists = state.data.artists.map(a => a.id === artistId ? {...a, ...updatedArtist} : a);
+                
+                // CRITICAL: Manually update the current user object if it matches the artist.
+                // This ensures local state reflects the DB change immediately.
+                let newUser = state.user;
+                if (state.user?.id === artistId && (state.user.type === 'artist' || state.user.type === 'dual')) {
+                    newUser = { ...state.user, data: { ...state.user.data, ...updatedArtist } };
+                }
+
+                return {
+                    data: { ...state.data, artists: newArtists },
+                    user: newUser
+                };
+            });
         } catch (error) {
             get().showToast("Failed to update artist details.", 'error');
             throw error;
