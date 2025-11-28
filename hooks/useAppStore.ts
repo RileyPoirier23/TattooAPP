@@ -435,14 +435,20 @@ export const useAppStore = create<AppState>()(
         }
       },
 
-      // NEW: Simplified Action for Saving Availability
+      // NEW: Simplified Action for Saving Availability using Direct Upsert
       saveArtistAvailability: async (hours) => {
         const user = get().user;
         if (!user || (user.type !== 'artist' && user.type !== 'dual')) return;
         
         try {
-            // Simplified call: Just send hours. We assume profile exists.
-            const updatedArtist = await saveArtistHours(user.id, hours);
+            // We pass the explicit data needed to CREATE a profile if it's missing (ghost fix)
+            // or UPDATE if it exists.
+            const name = user.data.name;
+            const city = 'city' in user.data ? user.data.city : '';
+            const email = user.email;
+
+            const updatedArtist = await saveArtistHours(user.id, hours, name, city, email);
+            
             set(state => {
                 let newUser = state.user;
                 if (state.user?.id === user.id) {

@@ -107,30 +107,38 @@ export const updateArtistData = async (artistId: string, updatedData: Partial<Ar
     return adaptProfileToArtist(data);
 };
 
-// NEW: Simplified direct Update for hours. 
-// We assume the profile exists (as per user feedback).
-export const saveArtistHours = async (userId: string, hours: ArtistHours): Promise<Artist> => {
+// NEW: Direct Client-Side Upsert. 
+// No more RPC complexity. We simply send the data.
+// If the row exists, we update. If not, we insert.
+export const saveArtistHours = async (userId: string, hours: ArtistHours, name: string, city: string, email: string): Promise<Artist> => {
     const supabase = getSupabase();
     
+    // Construct the payload for upsert
+    const profilePayload = {
+        id: userId,
+        username: email || `user_${userId.substring(0,8)}`, // Fallback only if email is somehow missing
+        full_name: name || 'Artist',
+        role: 'artist',
+        city: city || '',
+        hours: hours,
+        updated_at: new Date().toISOString()
+    };
+
+    // Use .upsert() with standard client. 
+    // This relies on the "Proiles_Insert_Update_Own" RLS policy being active.
     const { data, error } = await supabase
         .from('profiles')
-        .update({
-            hours: hours,
-            updated_at: new Date().toISOString()
-        })
-        .eq('id', userId)
+        .upsert(profilePayload, { onConflict: 'id' })
         .select()
         .single();
     
     if (error) {
-        console.error("Simple Update saveArtistHours failed:", error);
+        console.error("Standard Upsert saveArtistHours failed:", error);
         throw error;
     }
 
     if (!data) {
-        // This confirms if the row actually exists or not.
-        console.error("Update returned no data. Profile ID likely missing:", userId);
-        throw new Error("Profile not found. Please contact support.");
+        throw new Error("Save succeeded but no data returned.");
     }
 
     return adaptProfileToArtist(data);
