@@ -144,6 +144,11 @@ export const updateArtistData = async (artistId: string, updatedData: Partial<Ar
 export const saveArtistHours = async (userId: string, hours: ArtistHours, name: string, city: string, email: string, role: UserRole): Promise<Artist> => {
     const supabase = getSupabase();
     
+    // Defensive check: Ensure we have at least partial data.
+    // If the profile exists, Supabase UPSERT will just update 'hours' if we only pass 'hours' and 'id',
+    // BUT if the profile is missing (ghost), we need the other fields.
+    // To be safe and compliant with Not Null constraints on insert, we send everything we know.
+    
     const profileData = {
         id: userId,
         hours: hours,
@@ -151,6 +156,7 @@ export const saveArtistHours = async (userId: string, hours: ArtistHours, name: 
         city: city || '',
         username: email, 
         role: role, // Use the correct role passed from the store
+        // We let DB handle updated_at
     };
 
     // Perform Upsert
@@ -271,6 +277,7 @@ export const createClientBookingRequest = async (requestData: any): Promise<Clie
     const supabase = getSupabase();
     
     // Call the V10 RPC which now inserts a notification as well
+    // CRITICAL: We must ensure undefined values are sent as NULL, or the RPC call will fail signature match
     const { data, error } = await supabase.rpc('create_booking_request', {
         p_artist_id: requestData.artistId,
         p_start_date: requestData.startDate,
@@ -282,13 +289,13 @@ export const createClientBookingRequest = async (requestData: any): Promise<Clie
         p_deposit_amount: requestData.depositAmount,
         p_platform_fee: requestData.platformFee,
         p_service_id: requestData.serviceId,
-        p_budget: requestData.budget,
-        p_reference_image_urls: requestData.referenceImageUrls,
-        p_preferred_time: requestData.preferredTime,
-        p_client_id: requestData.clientId,
-        p_guest_name: requestData.guestName,
-        p_guest_email: requestData.guestEmail,
-        p_guest_phone: requestData.guestPhone
+        p_budget: requestData.budget || null,
+        p_reference_image_urls: requestData.referenceImageUrls || [],
+        p_preferred_time: requestData.preferredTime || null,
+        p_client_id: requestData.clientId || null,
+        p_guest_name: requestData.guestName || null,
+        p_guest_email: requestData.guestEmail || null,
+        p_guest_phone: requestData.guestPhone || null
     });
 
     if (error) throw error;
