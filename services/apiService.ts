@@ -125,7 +125,7 @@ export const saveArtistHours = async (userId: string, hours: ArtistHours, name: 
     };
 
     // Use .upsert() with standard client. 
-    // This relies on the "Proiles_Insert_Update_Own" RLS policy being active.
+    // This relies on the "Profiles_Manage_Own" RLS policy being active.
     const { data, error } = await supabase
         .from('profiles')
         .upsert(profilePayload, { onConflict: 'id' })
