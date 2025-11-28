@@ -43,12 +43,16 @@ begin
   drop policy if exists "Profiles_Read_All" on public.profiles;
   drop policy if exists "Profiles_Insert_Own" on public.profiles;
   drop policy if exists "Profiles_Update_Own" on public.profiles;
+  -- Clean up previous attempts
+  drop policy if exists "Profiles_Insert_Update_Own" on public.profiles;
 exception when others then null;
 end $$;
 
+-- Allow reading everyone
 create policy "Profiles_Read_All" on public.profiles 
 for select using (true);
 
+-- Allow Insert/Update ONLY if the ID matches your Auth ID
 create policy "Profiles_Insert_Update_Own" on public.profiles 
 for all using (auth.uid() = id) with check (auth.uid() = id);
 

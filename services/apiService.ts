@@ -1,3 +1,4 @@
+
 // @/services/apiService.ts
 import { getSupabase } from './supabaseClient';
 import type { Artist, Shop, Booth, Booking, ClientBookingRequest, Notification, User, UserRole, PortfolioImage, VerificationRequest, Conversation, ConversationWithUser, Message, ArtistAvailability, Review, AdminUser, ArtistService, ArtistHours } from '../types';
@@ -120,7 +121,7 @@ export const saveArtistHours = async (userId: string, hours: ArtistHours, fullNa
             full_name: fullName,
             city: city,
             role: role,
-            username: email,
+            username: email, // This satisfies the NOT NULL constraint on insert
             updated_at: new Date().toISOString()
         }, { onConflict: 'id' })
         .select()
