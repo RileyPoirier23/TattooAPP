@@ -1,4 +1,3 @@
-
 // @/components/views/SettingsView.tsx
 
 import React, { useState } from 'react';
@@ -14,7 +13,7 @@ interface SettingsViewProps {
 export const SettingsView: React.FC<SettingsViewProps> = ({ user, onUpdateUser, showToast }) => {
     const [name, setName] = useState(user.data.name);
     const [city, setCity] = useState('city' in user.data ? user.data.city : '');
-    const { toggleArtistSubscription } = useAppStore(); // Add hook
+    const { openModal } = useAppStore();
     
     const handleSave = () => {
         const updatedData: Partial<User['data']> = { name };
@@ -86,10 +85,10 @@ export const SettingsView: React.FC<SettingsViewProps> = ({ user, onUpdateUser, 
                             </p>
                         </div>
                         <button 
-                            onClick={() => toggleArtistSubscription(user.id)} 
+                            onClick={() => openModal('subscription-modal')} 
                             className={`px-4 py-2 rounded-lg font-bold text-white transition-colors ${(user.data as Artist).subscriptionTier === 'pro' ? 'bg-gray-500' : 'bg-brand-secondary'}`}
                         >
-                            {(user.data as Artist).subscriptionTier === 'pro' ? 'Downgrade to Free' : 'Upgrade to Pro'}
+                            {(user.data as Artist).subscriptionTier === 'pro' ? 'Manage Plan' : 'Upgrade to Pro'}
                         </button>
                     </div>
                 </div>

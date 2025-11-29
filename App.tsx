@@ -31,6 +31,7 @@ import {
   BookingRequestDetailModal,
   ReportModal,
   RescheduleModal,
+  SubscriptionModal,
 } from './components/ModalsAndProfile';
 import { Toast } from './components/shared/Toast';
 import { Loader } from './components/shared/Loader';
@@ -94,6 +95,8 @@ function App() {
     setArtistAvailability, // Added for new availability component
     submitReport,
     resolveReport,
+    archiveBookingRequest,
+    processSubscriptionUpgrade,
   } = useAppStore();
 
   useEffect(() => {
@@ -146,6 +149,7 @@ function App() {
                     allClientBookings={data.clientBookingRequests}
                     onRespondToRequest={respondToBookingRequest}
                     onCompleteRequest={updateCompletionStatus}
+                    onArchiveRequest={archiveBookingRequest}
                  />;
         }
         return <Hero navigate={navigate} />;
@@ -247,6 +251,8 @@ function App() {
         return <ReportModal targetId={modal.data} type="booking" onSubmit={submitReport} onClose={closeModal} />;
       case 'reschedule-booking':
         return <RescheduleModal request={modal.data} onConfirm={updateCompletionStatus} onClose={closeModal} />;
+      case 'subscription-modal':
+        return <SubscriptionModal onConfirm={processSubscriptionUpgrade} onClose={closeModal} />;
       default:
         return null;
     }

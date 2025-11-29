@@ -36,7 +36,9 @@ alter table public.profiles alter column hours type jsonb using hours::jsonb;
 alter table public.profiles alter column hours set default '{}'::jsonb;
 alter table public.profiles add column if not exists subscription_tier text default 'free';
 
--- Ensure Booking Requests have correct columns for Guest Flow
+-- Ensure Booking Requests have correct columns for Guest Flow and Archiving
+-- The status column is TEXT, so we don't need to alter it to add 'archived'.
+-- This is just a safety check for other columns.
 alter table public.client_booking_requests add column if not exists updated_at timestamptz default now();
 alter table public.client_booking_requests add column if not exists guest_name text;
 alter table public.client_booking_requests add column if not exists guest_email text;

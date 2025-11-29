@@ -18,6 +18,7 @@ const getStatusChip = (status: string) => {
             return 'bg-yellow-500/20 text-yellow-400';
         case 'declined':
         case 'no-show':
+        case 'archived':
             return 'bg-red-500/20 text-red-400';
         case 'completed':
             return 'bg-blue-500/20 text-blue-400';
@@ -181,10 +182,12 @@ const BookingRequestsTab: React.FC<{
     allClientBookings: ClientBookingRequest[];
     onRespondToRequest: (requestId: string, status: 'approved' | 'declined') => void;
     onCompleteRequest: (requestId: string, status: 'completed' | 'rescheduled' | 'no-show', newDate?: string, newTime?: string) => void;
+    onArchiveRequest: (requestId: string) => void;
     openModal: (type: ModalState['type'], data?: any) => void;
-}> = ({ artist, allClientBookings, onRespondToRequest, onCompleteRequest, openModal }) => {
+}> = ({ artist, allClientBookings, onRespondToRequest, onCompleteRequest, onArchiveRequest, openModal }) => {
     const { sendAftercare, requestHealedPhoto } = useAppStore();
     const myClientRequests = allClientBookings.filter(b => b.artistId === artist.id);
+    const [activeSubTab, setActiveSubTab] = useState<'current' | 'archived'>('current');
     
     const today = new Date();
     today.setHours(0, 0, 0, 0);
@@ -195,9 +198,12 @@ const BookingRequestsTab: React.FC<{
         return target >= today;
     };
 
-    const pending = myClientRequests.filter(b => b.status === 'pending');
-    const upcoming = myClientRequests.filter(b => b.status === 'approved' && isUpcoming(b.endDate));
-    const past = myClientRequests.filter(b => !pending.includes(b) && !upcoming.includes(b));
+    const activeBookings = myClientRequests.filter(b => b.status !== 'archived');
+    const archivedBookings = myClientRequests.filter(b => b.status === 'archived');
+
+    const pending = activeBookings.filter(b => b.status === 'pending');
+    const upcoming = activeBookings.filter(b => b.status === 'approved' && isUpcoming(b.endDate));
+    const past = activeBookings.filter(b => !pending.includes(b) && !upcoming.includes(b));
 
     const getClientName = (req: ClientBookingRequest) => {
         if (!req) return "Unknown";
@@ -208,68 +214,93 @@ const BookingRequestsTab: React.FC<{
 
     return (
         <div className="space-y-8">
-            <BookingSection title="Pending Requests" count={pending.length}>
-                {pending.length > 0 ? pending.map(req => (
-                    <div key={req.id} className="bg-gray-100 dark:bg-gray-800 p-4 rounded-lg">
-                       <div className="flex justify-between items-center">
-                            <div>
-                               <p className="font-bold text-brand-dark dark:text-white flex items-center gap-2">
-                                   Request from {getClientName(req)}
-                               </p>
-                                <p className="font-semibold text-brand-primary text-sm">{req.serviceName}</p>
-                            </div>
-                           <button onClick={() => openModal('booking-request-detail', req)} className="bg-brand-secondary text-white text-sm font-bold py-2 px-3 rounded-lg hover:bg-opacity-80">
-                                View Details
-                           </button>
-                       </div>
-                    </div>
-                )) : <p className="text-brand-gray">No pending client requests.</p>}
-            </BookingSection>
+             <div className="flex border-b border-gray-200 dark:border-gray-800">
+                <button onClick={() => setActiveSubTab('current')} className={`px-4 py-2 font-semibold ${activeSubTab === 'current' ? 'text-brand-primary border-b-2 border-brand-primary' : 'text-brand-gray'}`}>Current</button>
+                <button onClick={() => setActiveSubTab('archived')} className={`px-4 py-2 font-semibold ${activeSubTab === 'archived' ? 'text-brand-primary border-b-2 border-brand-primary' : 'text-brand-gray'}`}>Archived</button>
+            </div>
+            {activeSubTab === 'current' ? (
+            <>
+                <BookingSection title="Pending Requests" count={pending.length}>
+                    {pending.length > 0 ? pending.map(req => (
+                        <div key={req.id} className="bg-gray-100 dark:bg-gray-800 p-4 rounded-lg">
+                           <div className="flex justify-between items-center">
+                                <div>
+                                   <p className="font-bold text-brand-dark dark:text-white flex items-center gap-2">
+                                       Request from {getClientName(req)}
+                                   </p>
+                                    <p className="font-semibold text-brand-primary text-sm">{req.serviceName}</p>
+                                </div>
+                               <button onClick={() => openModal('booking-request-detail', req)} className="bg-brand-secondary text-white text-sm font-bold py-2 px-3 rounded-lg hover:bg-opacity-80">
+                                    View Details
+                               </button>
+                           </div>
+                        </div>
+                    )) : <p className="text-brand-gray">No pending client requests.</p>}
+                </BookingSection>
 
-            <BookingSection title="Upcoming & Approved Sessions" count={upcoming.length}>
-                 {upcoming.length > 0 ? upcoming.map(req => (
-                    <div key={req.id} className="bg-gray-100 dark:bg-gray-800 p-4 rounded-lg">
-                        <div className="flex justify-between items-start">
-                            <div>
-                                <p className="font-bold text-brand-dark dark:text-white">Session with {getClientName(req)}</p>
-                                <p className="font-semibold text-brand-primary text-sm">{req.serviceName}</p>
-                                <p className="text-sm text-brand-gray flex items-center mt-1"><CalendarIcon className="w-4 h-4 mr-1.5"/>{new Date(req.startDate).toLocaleDateString()}</p>
+                <BookingSection title="Upcoming & Approved Sessions" count={upcoming.length}>
+                     {upcoming.length > 0 ? upcoming.map(req => (
+                        <div key={req.id} className="bg-gray-100 dark:bg-gray-800 p-4 rounded-lg">
+                            <div className="flex justify-between items-start">
+                                <div>
+                                    <p className="font-bold text-brand-dark dark:text-white">Session with {getClientName(req)}</p>
+                                    <p className="font-semibold text-brand-primary text-sm">{req.serviceName}</p>
+                                    <p className="text-sm text-brand-gray flex items-center mt-1"><CalendarIcon className="w-4 h-4 mr-1.5"/>{new Date(req.startDate).toLocaleDateString()}</p>
+                                </div>
+                                <span className={`text-xs font-bold px-3 py-1 rounded-full capitalize ${getStatusChip(req.paymentStatus)}`}>{req.paymentStatus === 'unpaid' ? 'Deposit Due' : 'Deposit Paid'}</span>
                             </div>
-                            <span className={`text-xs font-bold px-3 py-1 rounded-full capitalize ${getStatusChip(req.paymentStatus)}`}>{req.paymentStatus === 'unpaid' ? 'Deposit Due' : 'Deposit Paid'}</span>
-                        </div>
-                        <div className="mt-4 pt-4 border-t border-gray-200 dark:border-gray-700 flex flex-wrap gap-2">
-                            <button onClick={() => onCompleteRequest(req.id, 'completed')} className="bg-blue-600 text-white text-sm font-bold py-2 px-3 rounded-lg hover:bg-blue-500">Mark Completed</button>
-                            <button onClick={() => openModal('reschedule-booking', req)} className="bg-purple-600 text-white text-sm font-bold py-2 px-3 rounded-lg hover:bg-purple-500">Mark Rescheduled</button>
-                            <button onClick={() => onCompleteRequest(req.id, 'no-show')} className="bg-red-600 text-white text-sm font-bold py-2 px-3 rounded-lg hover:bg-red-500">Mark No-Show</button>
-                        </div>
-                    </div>
-                 )) : <p className="text-brand-gray">No upcoming sessions.</p>}
-            </BookingSection>
-            
-            <BookingSection title="Past Sessions & Requests" count={past.length}>
-                 {past.length > 0 ? past.map(req => (
-                     <div key={req.id} className="bg-gray-100 dark:bg-gray-800 p-4 rounded-lg">
-                         <div className="flex justify-between items-center">
-                            <div>
-                                <p className="font-bold text-brand-dark dark:text-white">Session with {getClientName(req)}</p>
-                                <p className="font-semibold text-brand-primary text-sm">{req.serviceName}</p>
-                                <p className="text-sm text-brand-gray">{new Date(req.startDate).toLocaleDateString()}</p>
+                            <div className="mt-4 pt-4 border-t border-gray-200 dark:border-gray-700 flex flex-wrap gap-2">
+                                <button onClick={() => onCompleteRequest(req.id, 'completed')} className="bg-blue-600 text-white text-sm font-bold py-2 px-3 rounded-lg hover:bg-blue-500">Mark Completed</button>
+                                <button onClick={() => openModal('reschedule-booking', req)} className="bg-purple-600 text-white text-sm font-bold py-2 px-3 rounded-lg hover:bg-purple-500">Mark Rescheduled</button>
+                                <button onClick={() => onCompleteRequest(req.id, 'no-show')} className="bg-red-600 text-white text-sm font-bold py-2 px-3 rounded-lg hover:bg-red-500">Mark No-Show</button>
                             </div>
-                            <span className={`text-xs font-bold px-3 py-1 rounded-full capitalize ${getStatusChip(req.status)}`}>{req.status}</span>
-                         </div>
-                         {req.clientId && req.status === 'completed' && (
-                             <div className="mt-4 flex gap-2">
-                                <button onClick={() => sendAftercare(req.clientId!)} className="flex items-center gap-1 bg-brand-secondary/20 text-brand-secondary text-xs font-bold py-1 px-3 rounded-full hover:bg-brand-secondary hover:text-white transition-colors">
-                                    <PaperAirplaneIcon className="w-3 h-3"/> Send Aftercare
-                                </button>
-                                <button onClick={() => requestHealedPhoto(req.clientId!)} className="flex items-center gap-1 bg-brand-primary/20 text-brand-primary text-xs font-bold py-1 px-3 rounded-full hover:bg-brand-primary hover:text-white transition-colors">
-                                    <CameraIcon className="w-3 h-3"/> Request Healed Photo
-                                </button>
+                        </div>
+                     )) : <p className="text-brand-gray">No upcoming sessions.</p>}
+                </BookingSection>
+                
+                <BookingSection title="Past Sessions & Requests" count={past.length}>
+                     {past.length > 0 ? past.map(req => (
+                         <div key={req.id} className="bg-gray-100 dark:bg-gray-800 p-4 rounded-lg">
+                             <div className="flex justify-between items-center">
+                                <div>
+                                    <p className="font-bold text-brand-dark dark:text-white">Session with {getClientName(req)}</p>
+                                    <p className="font-semibold text-brand-primary text-sm">{req.serviceName}</p>
+                                    <p className="text-sm text-brand-gray">{new Date(req.startDate).toLocaleDateString()}</p>
+                                </div>
+                                <span className={`text-xs font-bold px-3 py-1 rounded-full capitalize ${getStatusChip(req.status)}`}>{req.status}</span>
                              </div>
-                         )}
-                     </div>
-                 )) : <p className="text-brand-gray">No past sessions.</p>}
-            </BookingSection>
+                             <div className="mt-4 pt-4 border-t border-gray-200 dark:border-gray-700 flex flex-wrap gap-2">
+                                 {req.clientId && req.status === 'completed' && (
+                                     <>
+                                        <button onClick={() => sendAftercare(req.clientId!)} className="flex items-center gap-1 bg-brand-secondary/20 text-brand-secondary text-xs font-bold py-1 px-3 rounded-full hover:bg-brand-secondary hover:text-white transition-colors">
+                                            <PaperAirplaneIcon className="w-3 h-3"/> Send Aftercare
+                                        </button>
+                                        <button onClick={() => requestHealedPhoto(req.clientId!)} className="flex items-center gap-1 bg-brand-primary/20 text-brand-primary text-xs font-bold py-1 px-3 rounded-full hover:bg-brand-primary hover:text-white transition-colors">
+                                            <CameraIcon className="w-3 h-3"/> Request Healed Photo
+                                        </button>
+                                     </>
+                                 )}
+                                 <button onClick={() => onArchiveRequest(req.id)} className="ml-auto text-xs text-brand-gray hover:underline">Archive</button>
+                             </div>
+                         </div>
+                     )) : <p className="text-brand-gray">No past sessions.</p>}
+                </BookingSection>
+            </>
+            ) : (
+                 <BookingSection title="Archived Requests" count={archivedBookings.length}>
+                    {archivedBookings.length > 0 ? archivedBookings.map(req => (
+                        <div key={req.id} className="bg-gray-100 dark:bg-gray-800 p-4 rounded-lg opacity-60">
+                            <div className="flex justify-between items-center">
+                                <div>
+                                    <p className="font-bold text-brand-dark dark:text-white">Session with {getClientName(req)}</p>
+                                    <p className="text-sm text-brand-gray">{new Date(req.startDate).toLocaleDateString()}</p>
+                                </div>
+                                <span className={`text-xs font-bold px-3 py-1 rounded-full capitalize ${getStatusChip(req.status)}`}>{req.status}</span>
+                            </div>
+                        </div>
+                    )) : <p className="text-brand-gray">No archived bookings.</p>}
+                </BookingSection>
+            )}
         </div>
     );
 };
@@ -297,6 +328,7 @@ export const ArtistDashboardView: React.FC<{
     allClientBookings: ClientBookingRequest[];
     onRespondToRequest: (requestId: string, status: 'approved' | 'declined') => void;
     onCompleteRequest: (requestId: string, status: 'completed' | 'rescheduled' | 'no-show', newDate?: string, newTime?: string) => void;
+    onArchiveRequest: (requestId: string) => void;
 }> = (props) => {
     const [activeTab, setActiveTab] = useState<ArtistDashboardTab>('requests');
 
@@ -324,6 +356,7 @@ export const ArtistDashboardView: React.FC<{
                     allClientBookings={props.allClientBookings} 
                     onRespondToRequest={props.onRespondToRequest} 
                     onCompleteRequest={props.onCompleteRequest} 
+                    onArchiveRequest={props.onArchiveRequest}
                     openModal={props.openModal} 
                 />;
             default:

@@ -869,6 +869,41 @@ export const BookingRequestDetailModal: React.FC<{ request: ClientBookingRequest
     </Modal>
 );
 
+// FIX: Add and export the missing SubscriptionModal component
+export const SubscriptionModal: React.FC<{ onConfirm: () => void; onClose: () => void; }> = ({ onConfirm, onClose }) => {
+    const [isProcessing, setIsProcessing] = useState(false);
+    
+    const handleConfirm = async () => {
+        setIsProcessing(true);
+        await onConfirm();
+        // The modal will be closed by the store action after success/failure.
+        setIsProcessing(false);
+    };
+
+    return (
+        <Modal onClose={onClose} title="Upgrade to InkSpace Pro" size="md">
+            <div className="space-y-4 text-center">
+                <SparklesIcon className="w-16 h-16 text-brand-secondary mx-auto" />
+                <h3 className="text-2xl font-bold text-brand-dark dark:text-white">Unlock Your Potential</h3>
+                <p className="text-brand-gray">Go Pro to remove all platform fees on deposits, get a verified badge, and access automated marketing tools.</p>
+                
+                <div className="bg-gray-100 dark:bg-gray-800 p-4 rounded-lg">
+                    <p className="text-4xl font-extrabold text-brand-dark dark:text-white">$19<span className="text-lg font-medium text-brand-gray">/month</span></p>
+                </div>
+
+                <button
+                    onClick={handleConfirm}
+                    disabled={isProcessing}
+                    className="w-full bg-brand-secondary text-white font-bold py-3 rounded-lg flex items-center justify-center gap-2 disabled:bg-gray-600"
+                >
+                    {isProcessing ? <Loader size="sm" color="white" /> : <CheckBadgeIcon className="w-5 h-5" />}
+                    <span>{isProcessing ? 'Processing...' : 'Confirm Upgrade'}</span>
+                </button>
+            </div>
+        </Modal>
+    );
+};
+
 export const ClientProfileView: React.FC<{ client: Client; bookings: ClientBookingRequest[] }> = ({ client, bookings }) => {
     const active = bookings.filter(b => b.status === 'approved' || b.status === 'pending');
     

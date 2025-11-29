@@ -65,6 +65,7 @@ interface AppState {
   sendClientBookingRequest: (requestData: Omit<ClientBookingRequest, 'id' | 'clientId' | 'status' | 'paymentStatus'>, referenceFiles: File[]) => Promise<void>;
   respondToBookingRequest: (requestId: string, status: 'approved' | 'declined') => Promise<void>;
   updateCompletionStatus: (requestId: string, status: 'completed' | 'rescheduled' | 'no-show', newDate?: string, newTime?: string) => Promise<void>;
+  archiveBookingRequest: (requestId: string) => Promise<void>;
   payBookingDeposit: (requestId: string) => Promise<void>;
   submitReview: (requestId: string, rating: number, text: string) => Promise<void>;
   updateUser: (userId: string, data: Partial<User['data']>) => Promise<void>;
@@ -103,7 +104,7 @@ interface AppState {
   
   // Report & Subscription Actions
   submitReport: (targetId: string, type: 'user' | 'booking', reason: string) => Promise<void>;
-  toggleArtistSubscription: (artistId: string) => Promise<void>;
+  processSubscriptionUpgrade: () => Promise<void>;
   checkPendingAutomations: () => Promise<void>;
 }
 
@@ -438,6 +439,23 @@ export const useAppStore = create<AppState>()(
             }
         } catch (e) {
             get().showToast(`Failed to update booking status.`, 'error');
+        }
+      },
+
+      archiveBookingRequest: async (requestId) => {
+        try {
+            await updateClientBookingRequestStatus(requestId, 'archived');
+            set(state => ({
+                data: {
+                    ...state.data,
+                    clientBookingRequests: state.data.clientBookingRequests.map(req => 
+                        req.id === requestId ? { ...req, status: 'archived' } : req
+                    ),
+                }
+            }));
+            get().showToast('Booking archived.');
+        } catch(e) {
+            get().showToast('Failed to archive booking.', 'error');
         }
       },
       
@@ -839,6 +857,18 @@ export const useAppStore = create<AppState>()(
           } catch(e) {
               get().showToast("Failed to submit report.", 'error');
           }
+      },
+      processSubscriptionUpgrade: async () => {
+        const user = get().user;
+        if (!user || (user.type !== 'artist' && user.type !== 'dual')) return;
+        try {
+            // This would normally involve Stripe. Here we simulate success.
+            await get().updateArtist(user.id, { subscriptionTier: 'pro' });
+            get().closeModal();
+            get().showToast("Upgrade successful! You're now on the Pro plan.", 'success');
+        } catch(e) {
+            get().showToast("Failed to upgrade subscription.", 'error');
+        }
       },
       toggleArtistSubscription: async (artistId) => {
           const user = get().user;

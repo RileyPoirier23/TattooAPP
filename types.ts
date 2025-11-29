@@ -140,7 +140,7 @@ export interface ClientBookingRequest {
     startDate: string;
     endDate: string;
     message: string;
-    status: 'pending' | 'approved' | 'declined' | 'completed' | 'rescheduled' | 'no-show';
+    status: 'pending' | 'approved' | 'declined' | 'completed' | 'rescheduled' | 'no-show' | 'archived';
     tattooWidth: number;
     tattooHeight: number;
     bodyPlacement: string;
@@ -251,7 +251,7 @@ export interface MockData {
 export type ViewMode = 'artist' | 'client';
 
 export interface ModalState {
-  type: 'auth' | 'artist-detail' | 'shop-detail' | 'booking' | 'client-booking-request' | 'upload-portfolio' | 'edit-booth' | 'leave-review' | 'image-editor' | 'shop-review' | 'request-verification' | 'admin-edit-user' | 'admin-edit-shop' | 'payment' | 'booking-request-detail' | 'report-user' | 'report-booking' | 'reschedule-booking' | null;
+  type: 'auth' | 'artist-detail' | 'shop-detail' | 'booking' | 'client-booking-request' | 'upload-portfolio' | 'edit-booth' | 'leave-review' | 'image-editor' | 'shop-review' | 'request-verification' | 'admin-edit-user' | 'admin-edit-shop' | 'payment' | 'booking-request-detail' | 'report-user' | 'report-booking' | 'reschedule-booking' | 'subscription-modal' | null;
   data?: any;
 }
 
