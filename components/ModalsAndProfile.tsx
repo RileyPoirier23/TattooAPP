@@ -8,7 +8,7 @@ import { LocationIcon, StarIcon, PriceIcon, XIcon, EditIcon, PaperAirplaneIcon, 
 import { MapEmbed } from './shared/MapEmbed';
 import { Loader } from './shared/Loader';
 import { bodyPlacements } from '../data/bookingOptions';
-import { generateArtistBio, suggestTattooService } from '../services/geminiService';
+import { generateArtistBio } from '../services/geminiService';
 
 declare global {
     interface Window {
@@ -455,38 +455,30 @@ export const BookingModal: React.FC<{ shop: Shop; booths: Booth[]; bookings: Boo
 export const ClientBookingRequestModal: React.FC<{ artist: Artist; availability: ArtistAvailability[]; onClose: () => void; onSendRequest: (data: any, files: File[]) => void; }> = ({ artist, availability, onClose, onSendRequest }) => {
     const { user } = useAppStore();
     const [step, setStep] = useState(1);
-    const [serviceId, setServiceId] = useState('');
-    const [date, setDate] = useState('');
+    
+    // Core details
     const [description, setDescription] = useState('');
     const [width, setWidth] = useState<number>(3);
     const [height, setHeight] = useState<number>(3);
     const [placement, setPlacement] = useState('arm_upper');
-    const [budget, setBudget] = useState<number | ''>('');
     const [files, setFiles] = useState<File[]>([]);
-    const [isSuggesting, setIsSuggesting] = useState(false);
     
-    // Guest Fields
+    // Service & Budget
+    const [serviceId, setServiceId] = useState('');
+    const [budget, setBudget] = useState<number | ''>('');
+    
+    // Time & Contact
+    const [date, setDate] = useState('');
+    const [preferredTime, setPreferredTime] = useState('anytime');
     const [guestName, setGuestName] = useState('');
     const [guestEmail, setGuestEmail] = useState('');
+    const [guestPhone, setGuestPhone] = useState('');
 
     const intakeSettings = artist.intakeSettings || { requireSize: true, requireDescription: true, requireLocation: true, requireBudget: false };
 
     const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
         if (e.target.files) {
             setFiles(Array.from(e.target.files));
-        }
-    };
-
-    const handleSuggestService = async () => {
-        if (!width || !height) return;
-        setIsSuggesting(true);
-        try {
-            const suggestedId = await suggestTattooService(width, height, artist.services || []);
-            if (suggestedId) setServiceId(suggestedId);
-        } catch (error) {
-            console.error("Failed to suggest service", error);
-        } finally {
-            setIsSuggesting(false);
         }
     };
 
@@ -503,17 +495,27 @@ export const ClientBookingRequestModal: React.FC<{ artist: Artist; availability:
             tattooHeight: height,
             bodyPlacement: placement,
             depositAmount: deposit,
-            platformFee: deposit * 0.05,
+            platformFee: deposit * 0.029, // 2.9% fee
             budget: budget ? Number(budget) : null,
-            status: 'pending'
+            status: 'pending',
+            preferredTime
         };
 
         if (!user) {
             payload.guestName = guestName;
             payload.guestEmail = guestEmail;
+            payload.guestPhone = guestPhone;
         }
 
         onSendRequest(payload, files);
+    };
+
+    // Check blocked dates (simplified logic for robustness)
+    const isDateDisabled = (d: string) => {
+        const day = new Date(d).getDay(); // 0 = Sunday
+        const hours = artist.hours?.[day];
+        // If hours is undefined or empty array, it's closed
+        return !hours || hours.length === 0;
     };
 
     return (
@@ -522,53 +524,31 @@ export const ClientBookingRequestModal: React.FC<{ artist: Artist; availability:
                  {/* Step 1: Project Details */}
                  {step === 1 && (
                      <div className="space-y-4 animate-[fadeIn_0.3s_ease-out]">
-                        <h3 className="font-bold text-lg text-brand-dark dark:text-white">Tell us about your tattoo</h3>
+                        <h3 className="font-bold text-lg text-brand-dark dark:text-white">1. Tattoo Details</h3>
                         
-                        {intakeSettings.requireDescription && (
-                            <div>
-                                <label className="block text-sm font-medium text-brand-gray mb-1">Description</label>
-                                <textarea value={description} onChange={e => setDescription(e.target.value)} className="w-full bg-gray-100 dark:bg-gray-800 rounded p-2 text-brand-dark dark:text-white" rows={3} placeholder="What do you want to get done?" />
-                            </div>
-                        )}
+                        <div>
+                            <label className="block text-sm font-medium text-brand-gray mb-1">Description {intakeSettings.requireDescription && '*'}</label>
+                            <textarea value={description} onChange={e => setDescription(e.target.value)} className="w-full bg-gray-100 dark:bg-gray-800 rounded p-2 text-brand-dark dark:text-white" rows={3} placeholder="Describe your tattoo idea..." />
+                        </div>
 
                         <div className="grid grid-cols-2 gap-4">
-                            {intakeSettings.requireSize && (
-                                <>
-                                    <div>
-                                        <label className="block text-sm font-medium text-brand-gray mb-1">Width (inches)</label>
-                                        <input type="number" value={width} onChange={e => setWidth(Number(e.target.value))} className="w-full bg-gray-100 dark:bg-gray-800 rounded p-2 text-brand-dark dark:text-white" />
-                                    </div>
-                                    <div>
-                                        <label className="block text-sm font-medium text-brand-gray mb-1">Height (inches)</label>
-                                        <input type="number" value={height} onChange={e => setHeight(Number(e.target.value))} className="w-full bg-gray-100 dark:bg-gray-800 rounded p-2 text-brand-dark dark:text-white" />
-                                    </div>
-                                </>
-                            )}
-                        </div>
-                        
-                        {artist.services && artist.services.length > 0 && (
-                             <div className="flex items-end gap-2">
-                                <div className="flex-grow">
-                                    <label className="block text-sm font-medium text-brand-gray mb-1">Service Type</label>
-                                    <select value={serviceId} onChange={e => setServiceId(e.target.value)} className="w-full bg-gray-100 dark:bg-gray-800 rounded p-2 text-brand-dark dark:text-white">
-                                        <option value="">-- Select Service --</option>
-                                        {artist.services.map(s => <option key={s.id} value={s.id}>{s.name} (${s.price}+)</option>)}
-                                    </select>
-                                </div>
-                                <button onClick={handleSuggestService} disabled={isSuggesting || !width || !height} className="bg-brand-secondary/20 text-brand-secondary p-2 rounded-lg hover:bg-brand-secondary hover:text-white transition-colors" title="AI Suggest Service">
-                                    {isSuggesting ? <Loader size="sm" /> : <SparklesIcon className="w-6 h-6" />}
-                                </button>
-                             </div>
-                        )}
-
-                         {intakeSettings.requireLocation && (
-                             <div>
+                            <div>
                                 <label className="block text-sm font-medium text-brand-gray mb-1">Placement</label>
                                 <select value={placement} onChange={e => setPlacement(e.target.value)} className="w-full bg-gray-100 dark:bg-gray-800 rounded p-2 text-brand-dark dark:text-white">
                                     {bodyPlacements.map(p => <option key={p.value} value={p.value}>{p.label}</option>)}
                                 </select>
                             </div>
-                         )}
+                            <div className="flex gap-2">
+                                <div className="flex-1">
+                                    <label className="block text-sm font-medium text-brand-gray mb-1">W (in)</label>
+                                    <input type="number" value={width} onChange={e => setWidth(Number(e.target.value))} className="w-full bg-gray-100 dark:bg-gray-800 rounded p-2 text-brand-dark dark:text-white" />
+                                </div>
+                                <div className="flex-1">
+                                    <label className="block text-sm font-medium text-brand-gray mb-1">H (in)</label>
+                                    <input type="number" value={height} onChange={e => setHeight(Number(e.target.value))} className="w-full bg-gray-100 dark:bg-gray-800 rounded p-2 text-brand-dark dark:text-white" />
+                                </div>
+                            </div>
+                        </div>
                          
                          <div>
                             <label className="block text-sm font-medium text-brand-gray mb-1">Reference Images</label>
@@ -579,25 +559,66 @@ export const ClientBookingRequestModal: React.FC<{ artist: Artist; availability:
                      </div>
                  )}
 
-                 {/* Step 2: Date & Guest Info */}
+                 {/* Step 2: Service & Budget */}
                  {step === 2 && (
                      <div className="space-y-4 animate-[fadeIn_0.3s_ease-out]">
-                         <h3 className="font-bold text-lg text-brand-dark dark:text-white">When are you available?</h3>
+                         <h3 className="font-bold text-lg text-brand-dark dark:text-white">2. Service & Budget</h3>
+                         
+                         {artist.services && artist.services.length > 0 ? (
+                            <div>
+                                <label className="block text-sm font-medium text-brand-gray mb-1">Select Service</label>
+                                <select value={serviceId} onChange={e => setServiceId(e.target.value)} className="w-full bg-gray-100 dark:bg-gray-800 rounded p-2 text-brand-dark dark:text-white">
+                                    <option value="">-- Choose a service --</option>
+                                    {artist.services.map(s => <option key={s.id} value={s.id}>{s.name} (${s.price}+) - {s.duration} hrs</option>)}
+                                </select>
+                            </div>
+                         ) : <p className="text-brand-gray italic">Artist has no services listed. A custom request will be sent.</p>}
+
                          <div>
-                             <label className="block text-sm font-medium text-brand-gray mb-1">Preferred Date</label>
-                             <input type="date" value={date} onChange={e => setDate(e.target.value)} className="w-full bg-gray-100 dark:bg-gray-800 rounded p-2 text-brand-dark dark:text-white" />
+                             <label className="block text-sm font-medium text-brand-gray mb-1">Budget Estimate ($)</label>
+                             <input type="number" value={budget} onChange={e => setBudget(Number(e.target.value))} className="w-full bg-gray-100 dark:bg-gray-800 rounded p-2 text-brand-dark dark:text-white" placeholder="e.g. 300" />
+                         </div>
+
+                         <div className="flex gap-4">
+                             <button onClick={() => setStep(1)} className="w-1/3 bg-gray-200 dark:bg-gray-700 text-brand-dark dark:text-white font-bold py-3 rounded-lg">Back</button>
+                             <button onClick={() => setStep(3)} className="w-2/3 bg-brand-primary text-white font-bold py-3 rounded-lg">Next</button>
+                         </div>
+                     </div>
+                 )}
+
+                 {/* Step 3: Scheduling */}
+                 {step === 3 && (
+                     <div className="space-y-4 animate-[fadeIn_0.3s_ease-out]">
+                         <h3 className="font-bold text-lg text-brand-dark dark:text-white">3. Schedule</h3>
+                         
+                         <div className="grid grid-cols-2 gap-4">
+                             <div>
+                                 <label className="block text-sm font-medium text-brand-gray mb-1">Preferred Date</label>
+                                 <input type="date" value={date} onChange={e => setDate(e.target.value)} className="w-full bg-gray-100 dark:bg-gray-800 rounded p-2 text-brand-dark dark:text-white" />
+                                 {date && isDateDisabled(date) && <p className="text-red-500 text-xs mt-1">Artist is typically closed on this day.</p>}
+                             </div>
+                             <div>
+                                 <label className="block text-sm font-medium text-brand-gray mb-1">Time Preference</label>
+                                 <select value={preferredTime} onChange={e => setPreferredTime(e.target.value)} className="w-full bg-gray-100 dark:bg-gray-800 rounded p-2 text-brand-dark dark:text-white">
+                                     <option value="anytime">Anytime</option>
+                                     <option value="morning">Morning (9am - 12pm)</option>
+                                     <option value="afternoon">Afternoon (12pm - 4pm)</option>
+                                     <option value="evening">Evening (4pm+)</option>
+                                 </select>
+                             </div>
                          </div>
                          
                          {!user && (
                              <div className="p-4 bg-brand-primary/10 rounded-lg space-y-3">
-                                 <h4 className="font-semibold text-brand-primary">Guest Information</h4>
-                                 <input type="text" placeholder="Your Name" value={guestName} onChange={e => setGuestName(e.target.value)} className="w-full bg-white dark:bg-gray-800 rounded p-2 border border-gray-300 dark:border-gray-700" />
-                                 <input type="email" placeholder="Your Email" value={guestEmail} onChange={e => setGuestEmail(e.target.value)} className="w-full bg-white dark:bg-gray-800 rounded p-2 border border-gray-300 dark:border-gray-700" />
+                                 <h4 className="font-semibold text-brand-primary">Guest Contact Info</h4>
+                                 <input type="text" placeholder="Full Name" value={guestName} onChange={e => setGuestName(e.target.value)} className="w-full bg-white dark:bg-gray-800 rounded p-2 border border-gray-300 dark:border-gray-700" />
+                                 <input type="email" placeholder="Email Address" value={guestEmail} onChange={e => setGuestEmail(e.target.value)} className="w-full bg-white dark:bg-gray-800 rounded p-2 border border-gray-300 dark:border-gray-700" />
+                                 <input type="tel" placeholder="Phone Number" value={guestPhone} onChange={e => setGuestPhone(e.target.value)} className="w-full bg-white dark:bg-gray-800 rounded p-2 border border-gray-300 dark:border-gray-700" />
                              </div>
                          )}
 
-                         <div className="flex gap-4">
-                             <button onClick={() => setStep(1)} className="w-1/3 bg-gray-200 dark:bg-gray-700 text-brand-dark dark:text-white font-bold py-3 rounded-lg">Back</button>
+                         <div className="flex gap-4 pt-2">
+                             <button onClick={() => setStep(2)} className="w-1/3 bg-gray-200 dark:bg-gray-700 text-brand-dark dark:text-white font-bold py-3 rounded-lg">Back</button>
                              <button onClick={handleSubmit} disabled={!date || (!user && (!guestName || !guestEmail))} className="w-2/3 bg-brand-secondary text-white font-bold py-3 rounded-lg disabled:bg-gray-600">Send Request</button>
                          </div>
                      </div>
@@ -757,6 +778,7 @@ export const BookingRequestDetailModal: React.FC<{ request: ClientBookingRequest
                 <p className="text-brand-gray text-sm">Client</p>
                 <p className="font-bold text-lg text-brand-dark dark:text-white">{request.clientName || request.guestName}</p>
                 {request.guestEmail && <p className="text-sm text-brand-gray">{request.guestEmail}</p>}
+                {request.guestPhone && <p className="text-sm text-brand-gray">{request.guestPhone}</p>}
             </div>
             <div className="grid grid-cols-2 gap-4">
                 <div className="bg-gray-100 dark:bg-gray-800 p-4 rounded-lg">

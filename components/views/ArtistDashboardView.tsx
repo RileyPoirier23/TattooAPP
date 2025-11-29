@@ -51,7 +51,6 @@ const AvailabilityTab: React.FC<{ artist: Artist }> = ({ artist }) => {
     const [hours, setHours] = useState<ArtistHours>(artist.hours || {});
     const [isSaving, setIsSaving] = useState(false);
     
-    // Ensure state syncs if props update (e.g. after a fetch)
     useEffect(() => {
         if (artist.hours) {
             setHours(artist.hours);
@@ -82,13 +81,9 @@ const AvailabilityTab: React.FC<{ artist: Artist }> = ({ artist }) => {
     const handleSave = async () => {
         setIsSaving(true);
         try {
-            // Pass a clean copy of the hours object to avoid reference issues
             const cleanHours = JSON.parse(JSON.stringify(hours));
-            // Use dedicated action that updates LocalStorage immediately
             await saveArtistAvailability(cleanHours);
         } catch (e) {
-            console.error("Detailed error saving availability:", e);
-            // Display specific DB error if available, else generic
             const msg = e instanceof Error ? e.message : 'Failed to save availability.';
             showToast(msg, 'error');
         } finally {
@@ -170,12 +165,12 @@ const IntakeSettingsTab: React.FC<{ artist: Artist; updateArtist: (id: string, d
                 <h2 className="text-2xl font-bold text-brand-dark dark:text-white">Client Intake Form</h2>
                 <button onClick={handleSave} className="bg-brand-primary text-white font-bold py-2 px-6 rounded-lg">Save Settings</button>
             </div>
-            <p className="text-brand-gray text-sm">Choose which fields are required when a client sends you a booking request. Less requirements can lead to more inquiries, but more requirements can lead to better quality leads.</p>
+            <p className="text-brand-gray text-sm">Choose which fields are required when a client sends you a booking request.</p>
             <div className="space-y-3">
-                <Checkbox label="Require Tattoo Size (Width & Height)" checked={settings.requireSize} onChange={() => handleToggle('requireSize')} />
+                <Checkbox label="Require Tattoo Size" checked={settings.requireSize} onChange={() => handleToggle('requireSize')} />
                 <Checkbox label="Require Body Placement" checked={settings.requireLocation} onChange={() => handleToggle('requireLocation')} />
-                <Checkbox label="Require Tattoo Description" checked={settings.requireDescription} onChange={() => handleToggle('requireDescription')} />
-                <Checkbox label="Require Budget Estimate" checked={settings.requireBudget} onChange={() => handleToggle('requireBudget')} />
+                <Checkbox label="Require Description" checked={settings.requireDescription} onChange={() => handleToggle('requireDescription')} />
+                <Checkbox label="Require Budget" checked={settings.requireBudget} onChange={() => handleToggle('requireBudget')} />
             </div>
         </div>
     );
@@ -193,15 +188,10 @@ const BookingRequestsTab: React.FC<{
     const { sendAftercare, requestHealedPhoto } = useAppStore();
     const myClientRequests = allClientBookings.filter(b => b.artistId === artist.id);
     
-    // Robust filtering logic using midnight normalization
     const today = new Date();
     today.setHours(0, 0, 0, 0);
 
     const isUpcoming = (dateString: string) => {
-        const d = new Date(dateString);
-        // We assume dateString is YYYY-MM-DD. When parsed as local time, 
-        // if it's today, we want to include it.
-        // Appending T23:59:59 ensures "today" counts as upcoming for the whole day.
         const target = new Date(dateString + 'T23:59:59');
         return target >= today;
     };
@@ -210,7 +200,6 @@ const BookingRequestsTab: React.FC<{
     const upcoming = myClientRequests.filter(b => b.status === 'approved' && isUpcoming(b.endDate));
     const past = myClientRequests.filter(b => !pending.includes(b) && !upcoming.includes(b));
 
-    // Helper to safe-guard display name
     const getClientName = (req: ClientBookingRequest) => {
         if (!req) return "Unknown";
         if (req.clientName && req.clientName !== 'Unknown Client') return req.clientName;
