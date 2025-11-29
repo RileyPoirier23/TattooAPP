@@ -471,6 +471,7 @@ export const uploadMessageAttachment = async (file: File, conversationId: string
 
 export const findOrCreateConversation = async (currentUserId: string, otherUserId: string): Promise<Conversation> => {
     const supabase = getSupabase();
+    
     const { data: existing } = await supabase
         .from('conversations')
         .select('*')
@@ -608,7 +609,7 @@ export const adminUpdateShopDetails = async (shopId: string, data: { name: strin
     return adaptShop(updatedShop);
 }
 
-// --- Report System ---
+// Report System
 export const createReport = async (reportData: { reporterId: string, targetId: string, type: 'user' | 'booking', reason: string }) => {
     const supabase = getSupabase();
     const { error } = await supabase.from('reports').insert({
