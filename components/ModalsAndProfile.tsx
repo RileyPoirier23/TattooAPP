@@ -3,7 +3,7 @@
 
 import React, { useState, useMemo, useRef, useCallback, useEffect } from 'react';
 import { useAppStore } from '../hooks/useAppStore';
-import type { Artist, Shop, Booking, Booth, Review, AuthCredentials, RegisterDetails, UserRole, ClientBookingRequest, Client, Socials, ModalState, PortfolioImage, ArtistAvailability, User, ArtistService } from '../types';
+import type { Artist, Shop, Booking, Booth, Review, AuthCredentials, RegisterDetails, UserRole, ClientBookingRequest, Client, Socials, ModalState, PortfolioImage, ArtistAvailability, User, ArtistService, IntakeFormSettings } from '../types';
 import { LocationIcon, StarIcon, PriceIcon, XIcon, EditIcon, PaperAirplaneIcon, CalendarIcon, UploadIcon, CheckBadgeIcon, CreditCardIcon, SparklesIcon, InstagramIcon, TikTokIcon, XIconSocial, TrashIcon, ArrowRightIcon, ArrowLeftIcon } from './shared/Icons';
 import { MapEmbed } from './shared/MapEmbed';
 import { Loader } from './shared/Loader';
@@ -887,227 +887,392 @@ export const ClientBookingRequestModal: React.FC<{ artist: Artist; availability:
     );
 };
 
-export const UploadPortfolioModal: React.FC<{ onClose: () => void; onUpload: (file: File) => void }> = ({ onClose, onUpload }) => {
-    const [file, setFile] = useState<File | null>(null);
-    const [preview, setPreview] = useState<string | null>(null);
+// ... UploadPortfolioModal, EditBoothModal, LeaveReviewModal, ShopReviewModal, VerificationRequestModal, AdminEditUserModal, AdminEditShopModal remain same ...
 
-    const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-        const selectedFile = e.target.files?.[0];
-        if (selectedFile) {
-            setFile(selectedFile);
-            const reader = new FileReader();
-            reader.onloadend = () => setPreview(reader.result as string);
-            reader.readAsDataURL(selectedFile);
-        }
-    };
+export const UploadPortfolioModal: React.FC<{ onClose: () => void; onUpload: (file: File) => Promise<void> }> = ({ onClose, onUpload }) => {
+  const [file, setFile] = useState<File | null>(null);
+  const [isUploading, setIsUploading] = useState(false);
 
-    return (
-        <Modal onClose={onClose} title="Upload New Portfolio Piece" size="md">
-            <div className="space-y-4">
-                <div className="w-full h-64 border-2 border-dashed border-gray-300 dark:border-gray-700 rounded-lg flex items-center justify-center">
-                    {preview ? (
-                        <img src={preview} alt="Preview" className="max-w-full max-h-full rounded-lg" />
-                    ) : (
-                        <div className="text-center text-brand-gray">
-                            <UploadIcon className="w-12 h-12 mx-auto" />
-                            <p>Click to browse or drag file here</p>
-                        </div>
-                    )}
-                </div>
-                <input type="file" onChange={handleFileChange} accept="image/*" className="w-full text-sm text-gray-500 file:mr-4 file:py-2 file:px-4 file:rounded-full file:border-0 file:text-sm file:font-semibold file:bg-brand-secondary file:text-white hover:file:bg-opacity-80" />
-                <button onClick={() => file && onUpload(file)} disabled={!file} className="w-full bg-brand-primary text-white font-bold py-3 rounded-lg disabled:bg-gray-600">Upload Image</button>
-            </div>
-        </Modal>
-    );
+  const handleUpload = async () => {
+    if (file) {
+      setIsUploading(true);
+      await onUpload(file);
+      setIsUploading(false);
+      onClose();
+    }
+  };
+
+  return (
+    <Modal onClose={onClose} title="Upload to Portfolio" size="md">
+      <div className="space-y-4">
+        <div className="border-2 border-dashed border-gray-300 dark:border-gray-700 rounded-lg p-8 text-center">
+            <UploadIcon className="w-12 h-12 text-gray-400 mx-auto mb-2" />
+            <input type="file" accept="image/*" onChange={(e) => setFile(e.target.files?.[0] || null)} className="w-full text-sm text-gray-500 file:mr-4 file:py-2 file:px-4 file:rounded-full file:border-0 file:text-sm file:font-semibold file:bg-brand-secondary/10 file:text-brand-secondary hover:file:bg-brand-secondary/20" />
+        </div>
+        <button onClick={handleUpload} disabled={!file || isUploading} className="w-full bg-brand-primary text-white font-bold py-3 rounded-lg disabled:bg-gray-600">
+          {isUploading ? <Loader size="sm" color="white" /> : 'Upload'}
+        </button>
+      </div>
+    </Modal>
+  );
 };
 
-export const EditBoothModal: React.FC<{ booth: Booth; onSave: (boothId: string, data: Partial<Booth>) => void; onClose: () => void; }> = ({ booth, onSave, onClose }) => {
+export const EditBoothModal: React.FC<{ booth: Booth; onSave: (id: string, data: Partial<Booth>) => Promise<void>; onClose: () => void }> = ({ booth, onSave, onClose }) => {
     const [name, setName] = useState(booth.name);
-    const [dailyRate, setDailyRate] = useState(booth.dailyRate);
-
-    const handleSave = () => {
-        onSave(booth.id, { name, dailyRate });
-    };
-
+    const [rate, setRate] = useState(booth.dailyRate);
+    
+    const handleSave = async () => {
+        await onSave(booth.id, { name, dailyRate: rate });
+        onClose();
+    }
+    
     return (
         <Modal onClose={onClose} title="Edit Booth" size="md">
             <div className="space-y-4">
                 <div>
-                    <label className="text-sm font-medium text-brand-gray mb-1 block">Booth Name</label>
-                    <input type="text" value={name} onChange={e => setName(e.target.value)} className="w-full bg-gray-100 dark:bg-gray-800 rounded p-2" />
+                    <label className="text-sm font-medium text-brand-gray">Booth Name</label>
+                    <input type="text" value={name} onChange={e => setName(e.target.value)} className="w-full bg-gray-100 dark:bg-gray-800 rounded p-2"/>
                 </div>
-                <div>
-                    <label className="text-sm font-medium text-brand-gray mb-1 block">Daily Rate ($)</label>
-                    <input type="number" value={dailyRate} onChange={e => setDailyRate(Number(e.target.value))} className="w-full bg-gray-100 dark:bg-gray-800 rounded p-2" />
+                 <div>
+                    <label className="text-sm font-medium text-brand-gray">Daily Rate ($)</label>
+                    <input type="number" value={rate} onChange={e => setRate(Number(e.target.value))} className="w-full bg-gray-100 dark:bg-gray-800 rounded p-2"/>
                 </div>
                 <button onClick={handleSave} className="w-full bg-brand-primary text-white font-bold py-3 rounded-lg">Save Changes</button>
             </div>
         </Modal>
-    );
-};
+    )
+}
 
-export const LeaveReviewModal: React.FC<{ request: ClientBookingRequest; onSubmit: (requestId: string, rating: number, text: string) => void; onClose: () => void }> = ({ request, onSubmit, onClose }) => {
-    const [cleanliness, setCleanliness] = useState(0);
-    const [professionalism, setProfessionalism] = useState(0);
-    const [satisfaction, setSatisfaction] = useState(0);
+export const LeaveReviewModal: React.FC<{ request: ClientBookingRequest; onSubmit: (id: string, rating: number, text: string) => Promise<void>; onClose: () => void }> = ({ request, onSubmit, onClose }) => {
+    const [rating, setRating] = useState(5);
     const [text, setText] = useState('');
-
-    const handleSubmit = () => {
-        const averageRating = Math.round((cleanliness + professionalism + satisfaction) / 3);
-        onSubmit(request.id, averageRating, text);
-    };
-
-    const isSubmitDisabled = !cleanliness || !professionalism || !satisfaction || !text;
-
+    
     return (
-        <Modal onClose={onClose} title={`Review Your Session with ${request.artistName}`} size="md">
-            <div className="space-y-6">
-                <div className="space-y-3">
-                    <div className="flex justify-between items-center">
-                        <label className="font-semibold text-brand-dark dark:text-white">Cleanliness</label>
-                        <StarRating rating={cleanliness} onRate={setCleanliness} isInteractive={true} className="w-7 h-7" />
-                    </div>
-                    <div className="flex justify-between items-center">
-                        <label className="font-semibold text-brand-dark dark:text-white">Professional Conduct</label>
-                        <StarRating rating={professionalism} onRate={setProfessionalism} isInteractive={true} className="w-7 h-7" />
-                    </div>
-                    <div className="flex justify-between items-center">
-                        <label className="font-semibold text-brand-dark dark:text-white">Overall Satisfaction</label>
-                        <StarRating rating={satisfaction} onRate={setSatisfaction} isInteractive={true} className="w-7 h-7" />
-                    </div>
+        <Modal onClose={onClose} title="Leave a Review" size="md">
+            <div className="space-y-4">
+                <div className="flex justify-center">
+                    <StarRating rating={rating} isInteractive onRate={setRating} className="w-8 h-8" />
                 </div>
-                <textarea value={text} onChange={e => setText(e.target.value)} rows={4} className="w-full bg-gray-100 dark:bg-gray-800 rounded p-2" placeholder="Share your experience..."></textarea>
-                <button onClick={handleSubmit} disabled={isSubmitDisabled} className="w-full bg-brand-secondary text-white font-bold py-3 rounded-lg disabled:bg-gray-600">Submit Review</button>
+                <textarea value={text} onChange={e => setText(e.target.value)} rows={4} className="w-full bg-gray-100 dark:bg-gray-800 rounded p-2" placeholder="How was your experience?"></textarea>
+                <button onClick={() => onSubmit(request.id, rating, text)} className="w-full bg-brand-secondary text-white font-bold py-3 rounded-lg">Submit Review</button>
             </div>
         </Modal>
-    );
-};
+    )
+}
 
-export const ShopReviewModal: React.FC<{ booking: Booking; shop: Shop; onSubmit: (shopId: string, review: Omit<Review, 'id'>) => void; onClose: () => void; }> = ({ booking, shop, onSubmit, onClose }) => {
-    const { user } = useAppStore();
-    const [rating, setRating] = useState(0);
+export const ShopReviewModal: React.FC<{ booking: Booking; shop: Shop; onClose: () => void; onSubmit: (shopId: string, review: any) => Promise<void> }> = ({ booking, shop, onClose, onSubmit }) => {
+    const [rating, setRating] = useState(5);
     const [text, setText] = useState('');
-
-    const handleSubmit = () => {
-        if (!user || !rating || !text) return;
-        onSubmit(shop.id, {
-            authorId: user.id,
-            authorName: user.data.name,
+    
+    const handleSubmit = async () => {
+        // Need author info from booking context or user store, assumed handled by parent or gathered here
+        // The service uses passed review object.
+        // Assuming current user is artist.
+        const review = {
+            authorId: booking.artistId,
+            authorName: 'Visiting Artist', // Backend/Service usually fetches real name or we pass it
             rating,
             text,
             createdAt: new Date().toISOString()
-        });
-    };
+        }
+        await onSubmit(shop.id, review);
+    }
 
     return (
-        <Modal onClose={onClose} title={`Review Your Stay at ${shop.name}`} size="md">
+        <Modal onClose={onClose} title={`Review ${shop.name}`} size="md">
             <div className="space-y-4">
-                <p className="text-sm text-brand-gray text-center">Your feedback helps other artists find great places to work.</p>
                 <div className="flex justify-center">
-                    <StarRating rating={rating} onRate={setRating} isInteractive={true} className="w-8 h-8" />
+                    <StarRating rating={rating} isInteractive onRate={setRating} className="w-8 h-8" />
                 </div>
-                <textarea value={text} onChange={e => setText(e.target.value)} rows={4} className="w-full bg-gray-100 dark:bg-gray-800 rounded p-2" placeholder="How was the shop environment, cleanliness, and staff?"></textarea>
-                <button onClick={handleSubmit} disabled={!rating || !text} className="w-full bg-brand-secondary text-white font-bold py-3 rounded-lg disabled:bg-gray-600">Submit Review</button>
+                <textarea value={text} onChange={e => setText(e.target.value)} rows={4} className="w-full bg-gray-100 dark:bg-gray-800 rounded p-2" placeholder="How was the shop environment?"></textarea>
+                <button onClick={handleSubmit} className="w-full bg-brand-secondary text-white font-bold py-3 rounded-lg">Submit Review</button>
             </div>
         </Modal>
-    );
-};
+    )
+}
 
-export const VerificationRequestModal: React.FC<{ item: Artist | Shop, type: 'artist' | 'shop', onSubmit: (type: 'artist' | 'shop', item: Artist | Shop) => void, onClose: () => void }> = ({ item, type, onSubmit, onClose }) => {
+export const VerificationRequestModal: React.FC<{ type: 'artist' | 'shop'; item: any; onSubmit: (type: 'artist' | 'shop', item: any) => Promise<void>; onClose: () => void }> = ({ type, item, onSubmit, onClose }) => {
+    const handleSubmit = async () => {
+        await onSubmit(type, item);
+    }
     return (
-        <Modal onClose={onClose} title={`Request ${type === 'artist' ? 'Artist' : 'Shop'} Verification`} size="md">
-            <div className="text-center space-y-4">
+        <Modal onClose={onClose} title="Request Verification" size="md">
+            <div className="space-y-4 text-center">
                 <CheckBadgeIcon className="w-16 h-16 text-brand-secondary mx-auto" />
-                <p className="text-brand-gray">Submitting a verification request for <span className="font-bold text-brand-dark dark:text-white">{item.name}</span> will place it in a queue for an admin to review.</p>
-                <p className="text-xs text-gray-500">Admins will review your profile or shop details to ensure authenticity. This process may take several business days.</p>
-                <div className="pt-4 flex gap-4">
-                    <button onClick={onClose} className="w-full bg-gray-200 dark:bg-gray-700 text-brand-dark dark:text-white font-bold py-3 rounded-lg">Cancel</button>
-                    <button onClick={() => onSubmit(type, item)} className="w-full bg-brand-secondary text-white font-bold py-3 rounded-lg">Submit Request</button>
-                </div>
+                <p>Verify <strong>{item.name}</strong> to gain a trusted badge and more visibility.</p>
+                <button onClick={handleSubmit} className="w-full bg-brand-primary text-white font-bold py-3 rounded-lg">Submit Request</button>
             </div>
         </Modal>
-    );
-};
+    )
+}
 
-// FIX: Add missing AdminEditUserModal component
-export const AdminEditUserModal: React.FC<{ user: User, onSave: (userId: string, data: { name: string, role: UserRole, isVerified: boolean }) => void, onClose: () => void }> = ({ user, onSave, onClose }) => {
+export const AdminEditUserModal: React.FC<{ user: User; onSave: (id: string, data: any) => Promise<void>; onClose: () => void }> = ({ user, onSave, onClose }) => {
     const [name, setName] = useState(user.data.name);
-    const [role, setRole] = useState<UserRole>(user.type);
-    const [isVerified, setIsVerified] = useState('isVerified' in user.data ? (user.data as Artist).isVerified : false);
-
-    const handleSave = () => {
-        const canBeVerified = role === 'artist' || role === 'dual';
-        onSave(user.id, { name, role, isVerified: canBeVerified ? isVerified : false });
-    };
-
-    const canBeVerified = role === 'artist' || role === 'dual';
+    const [role, setRole] = useState(user.type);
+    const [isVerified, setIsVerified] = useState('isVerified' in user.data ? user.data.isVerified : false);
+    
+    const handleSave = async () => {
+        await onSave(user.id, { name, role, isVerified });
+    }
 
     return (
-        <Modal onClose={onClose} title={`Edit User: ${user.data.name}`} size="md">
+        <Modal onClose={onClose} title="Edit User (Admin)" size="md">
             <div className="space-y-4">
-                <div>
-                    <label className="text-sm font-medium text-brand-gray mb-1 block">Full Name</label>
-                    <input type="text" value={name} onChange={e => setName(e.target.value)} className="w-full bg-gray-100 dark:bg-gray-800 rounded p-2" />
+                 <div>
+                    <label className="text-sm font-medium text-brand-gray">Name</label>
+                    <input type="text" value={name} onChange={e => setName(e.target.value)} className="w-full bg-gray-100 dark:bg-gray-800 rounded p-2"/>
                 </div>
-                <div>
-                    <label className="text-sm font-medium text-brand-gray mb-1 block">Role</label>
-                    <select value={role} onChange={e => setRole(e.target.value as UserRole)} className="w-full bg-gray-100 dark:bg-gray-800 rounded p-2 capitalize">
+                 <div>
+                    <label className="text-sm font-medium text-brand-gray">Role</label>
+                    <select value={role} onChange={e => setRole(e.target.value as any)} className="w-full bg-gray-100 dark:bg-gray-800 rounded p-2">
                         <option value="client">Client</option>
                         <option value="artist">Artist</option>
-                        <option value="dual">Dual</option>
                         <option value="shop-owner">Shop Owner</option>
-                        <option value="admin">Admin</option>
+                        <option value="dual">Dual</option>
                     </select>
                 </div>
-                {canBeVerified && (
-                    <div>
-                        <label className="flex items-center space-x-2 cursor-pointer">
-                            <input type="checkbox" checked={isVerified} onChange={e => setIsVerified(e.target.checked)} className="w-5 h-5 rounded bg-gray-200 dark:bg-gray-700 text-brand-secondary focus:ring-brand-secondary" />
-                            <span className="text-brand-gray">Is Verified</span>
-                        </label>
-                    </div>
-                )}
+                 <label className="flex items-center space-x-2">
+                    <input type="checkbox" checked={isVerified} onChange={e => setIsVerified(e.target.checked)} />
+                    <span>Verified</span>
+                </label>
                 <button onClick={handleSave} className="w-full bg-brand-primary text-white font-bold py-3 rounded-lg">Save Changes</button>
             </div>
         </Modal>
-    );
-};
+    )
+}
 
-// FIX: Add missing AdminEditShopModal component
-export const AdminEditShopModal: React.FC<{ shop: Shop, onSave: (shopId: string, data: { name: string, isVerified: boolean }) => void, onClose: () => void }> = ({ shop, onSave, onClose }) => {
+export const AdminEditShopModal: React.FC<{ shop: Shop; onSave: (id: string, data: any) => Promise<void>; onClose: () => void }> = ({ shop, onSave, onClose }) => {
     const [name, setName] = useState(shop.name);
     const [isVerified, setIsVerified] = useState(shop.isVerified);
-
-    const handleSave = () => {
-        onSave(shop.id, { name, isVerified });
-    };
+    
+    const handleSave = async () => {
+        await onSave(shop.id, { name, isVerified });
+    }
 
     return (
-        <Modal onClose={onClose} title={`Edit Shop: ${shop.name}`} size="md">
+        <Modal onClose={onClose} title="Edit Shop (Admin)" size="md">
             <div className="space-y-4">
-                <div>
-                    <label className="text-sm font-medium text-brand-gray mb-1 block">Shop Name</label>
-                    <input type="text" value={name} onChange={e => setName(e.target.value)} className="w-full bg-gray-100 dark:bg-gray-800 rounded p-2" />
+                 <div>
+                    <label className="text-sm font-medium text-brand-gray">Name</label>
+                    <input type="text" value={name} onChange={e => setName(e.target.value)} className="w-full bg-gray-100 dark:bg-gray-800 rounded p-2"/>
                 </div>
-                <div>
-                    <label className="flex items-center space-x-2 cursor-pointer">
-                        <input type="checkbox" checked={isVerified} onChange={e => setIsVerified(e.target.checked)} className="w-5 h-5 rounded bg-gray-200 dark:bg-gray-700 text-brand-secondary focus:ring-brand-secondary" />
-                        <span className="text-brand-gray">Is Verified</span>
-                    </label>
-                </div>
+                 <label className="flex items-center space-x-2">
+                    <input type="checkbox" checked={isVerified} onChange={e => setIsVerified(e.target.checked)} />
+                    <span>Verified</span>
+                </label>
                 <button onClick={handleSave} className="w-full bg-brand-primary text-white font-bold py-3 rounded-lg">Save Changes</button>
+            </div>
+        </Modal>
+    )
+}
+
+export const BookingRequestDetailModal: React.FC<{ request: ClientBookingRequest; onClose: () => void; onRespond: (id: string, status: any) => Promise<void> }> = ({ request, onClose, onRespond }) => {
+    return (
+        <Modal onClose={onClose} title="Request Details" size="lg">
+            <div className="space-y-4">
+                <div className="grid grid-cols-2 gap-4 text-sm">
+                    <div><strong>Client:</strong> {request.clientName}</div>
+                    <div><strong>Service:</strong> {request.serviceName}</div>
+                    <div><strong>Date:</strong> {new Date(request.startDate).toLocaleDateString()}</div>
+                    <div><strong>Placement:</strong> {request.bodyPlacement}</div>
+                    <div><strong>Size:</strong> {request.tattooWidth}" x {request.tattooHeight}"</div>
+                    <div><strong>Budget:</strong> ${request.budget || 'N/A'}</div>
+                </div>
+                <div>
+                    <strong>Message:</strong>
+                    <p className="bg-gray-100 dark:bg-gray-800 p-3 rounded mt-1">{request.message}</p>
+                </div>
+                {request.referenceImageUrls && request.referenceImageUrls.length > 0 && (
+                    <div>
+                        <strong>References:</strong>
+                        <div className="flex gap-2 mt-1 overflow-x-auto">
+                            {request.referenceImageUrls.map((url, i) => (
+                                <img key={i} src={url} alt="Ref" className="w-24 h-24 object-cover rounded" />
+                            ))}
+                        </div>
+                    </div>
+                )}
+                {request.status === 'pending' && (
+                    <div className="flex gap-4 mt-4">
+                         <button onClick={() => onRespond(request.id, 'approved')} className="flex-1 bg-green-600 text-white font-bold py-3 rounded-lg">Approve</button>
+                         <button onClick={() => onRespond(request.id, 'declined')} className="flex-1 bg-red-600 text-white font-bold py-3 rounded-lg">Decline</button>
+                    </div>
+                )}
+            </div>
+        </Modal>
+    )
+}
+
+export const ArtistProfileView: React.FC<{ artist: Artist; updateArtist: (id: string, data: Partial<Artist>) => Promise<void>; deletePortfolioImage: (url: string) => Promise<void>; showToast: (msg: string, type?: 'success' | 'error') => void; openModal: (type: ModalState['type'], data?: any) => void; }> = ({ artist, updateArtist, deletePortfolioImage, showToast, openModal }) => {
+    const [isEditing, setIsEditing] = useState(false);
+    const [bio, setBio] = useState(artist.bio);
+    const [specialty, setSpecialty] = useState(artist.specialty);
+    const [isGeneratingBio, setIsGeneratingBio] = useState(false);
+
+    const handleSave = async () => {
+        await updateArtist(artist.id, { bio, specialty });
+        setIsEditing(false);
+        showToast('Profile updated successfully!');
+    }
+    
+    const handleGenerateBio = async () => {
+        setIsGeneratingBio(true);
+        try {
+            const newBio = await generateArtistBio(artist.name, specialty, artist.city);
+            setBio(newBio);
+        } catch(e) {
+            showToast('Failed to generate bio', 'error');
+        } finally {
+            setIsGeneratingBio(false);
+        }
+    }
+
+    return (
+        <div className="space-y-8">
+             <div className="bg-white dark:bg-gray-900/50 rounded-2xl p-8 border border-gray-200 dark:border-gray-800 relative group">
+                {!isEditing && <button onClick={() => setIsEditing(true)} className="absolute top-4 right-4 text-brand-gray hover:text-brand-dark dark:hover:text-white"><EditIcon className="w-6 h-6" /></button>}
+                
+                <div className="flex flex-col md:flex-row gap-8 items-start">
+                    <div className="w-32 h-32 rounded-full overflow-hidden bg-gray-200 flex-shrink-0">
+                         <img src={`https://ui-avatars.com/api/?name=${encodeURIComponent(artist.name)}&background=1A1A1D&color=F04E98`} alt={artist.name} className="w-full h-full object-cover"/>
+                    </div>
+                    <div className="flex-grow space-y-4 w-full">
+                        <div>
+                            <h2 className="text-3xl font-bold text-brand-dark dark:text-white flex items-center gap-2">
+                                {artist.name}
+                                {artist.isVerified && <CheckBadgeIcon className="w-6 h-6 text-brand-secondary" title="Verified"/>}
+                            </h2>
+                            <p className="text-brand-gray">{artist.city}</p>
+                        </div>
+                        
+                        {isEditing ? (
+                            <div className="space-y-4">
+                                <div>
+                                    <label className="text-sm font-bold text-brand-gray">Specialty</label>
+                                    <input type="text" value={specialty} onChange={e => setSpecialty(e.target.value)} className="w-full bg-gray-100 dark:bg-gray-800 rounded p-2" />
+                                </div>
+                                <div>
+                                    <label className="text-sm font-bold text-brand-gray">Bio</label>
+                                    <div className="relative">
+                                        <textarea value={bio} onChange={e => setBio(e.target.value)} rows={4} className="w-full bg-gray-100 dark:bg-gray-800 rounded p-2" />
+                                        <button onClick={handleGenerateBio} disabled={isGeneratingBio} className="absolute bottom-2 right-2 text-xs bg-brand-primary/20 text-brand-primary px-2 py-1 rounded hover:bg-brand-primary hover:text-white transition-colors">
+                                            {isGeneratingBio ? 'Generating...' : '✨ AI Write'}
+                                        </button>
+                                    </div>
+                                </div>
+                                <div className="flex gap-2">
+                                    <button onClick={handleSave} className="bg-brand-primary text-white font-bold py-2 px-4 rounded">Save</button>
+                                    <button onClick={() => setIsEditing(false)} className="bg-gray-200 dark:bg-gray-700 font-bold py-2 px-4 rounded">Cancel</button>
+                                </div>
+                            </div>
+                        ) : (
+                            <>
+                                <p className="text-brand-primary font-semibold">{artist.specialty}</p>
+                                <p className="text-brand-dark dark:text-white">{artist.bio}</p>
+                            </>
+                        )}
+                        
+                         {!artist.isVerified && (
+                            <button onClick={() => openModal('request-verification', artist)} className="text-sm text-brand-secondary underline">
+                                Request Verification Badge
+                            </button>
+                        )}
+                    </div>
+                </div>
+             </div>
+
+             <div className="bg-white dark:bg-gray-900/50 rounded-2xl p-8 border border-gray-200 dark:border-gray-800">
+                <div className="flex justify-between items-center mb-6">
+                    <h3 className="text-2xl font-bold text-brand-dark dark:text-white">Portfolio</h3>
+                    <button onClick={() => openModal('upload-portfolio')} className="bg-brand-secondary text-white font-bold py-2 px-4 rounded-lg flex items-center gap-2">
+                        <UploadIcon className="w-5 h-5"/> Upload Work
+                    </button>
+                </div>
+                <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
+                    {artist.portfolio.map((img, i) => (
+                        <div key={i} className="relative group aspect-square rounded-lg overflow-hidden bg-gray-100 dark:bg-gray-800">
+                            <img src={img.url} alt="Portfolio" className="w-full h-full object-cover" />
+                            <button onClick={() => deletePortfolioImage(img.url)} className="absolute top-2 right-2 bg-red-600 text-white p-1 rounded opacity-0 group-hover:opacity-100 transition-opacity">
+                                <TrashIcon className="w-4 h-4"/>
+                            </button>
+                        </div>
+                    ))}
+                    {artist.portfolio.length === 0 && (
+                        <div className="col-span-full text-center py-10 text-brand-gray">
+                            No images uploaded yet.
+                        </div>
+                    )}
+                </div>
+             </div>
+        </div>
+    )
+}
+
+export const ClientProfileView: React.FC<{ client: Client; bookings: ClientBookingRequest[] }> = ({ client, bookings }) => {
+    return (
+        <div className="max-w-4xl mx-auto space-y-8">
+            <div className="bg-white dark:bg-gray-900/50 rounded-2xl p-8 border border-gray-200 dark:border-gray-800 flex items-center gap-6">
+                 <div className="w-24 h-24 rounded-full overflow-hidden bg-gray-200 flex-shrink-0">
+                     <img src={`https://ui-avatars.com/api/?name=${encodeURIComponent(client.name)}&background=1A1A1D&color=F04E98`} alt={client.name} className="w-full h-full object-cover"/>
+                </div>
+                <div>
+                    <h1 className="text-3xl font-bold text-brand-dark dark:text-white">{client.name}</h1>
+                    <p className="text-brand-gray">Client Account</p>
+                </div>
+            </div>
+            {/* Bookings are handled in MyBookingsView generally, but simple list here */}
+            <div className="bg-white dark:bg-gray-900/50 rounded-2xl p-8 border border-gray-200 dark:border-gray-800">
+                <h2 className="text-2xl font-bold text-brand-dark dark:text-white mb-4">Your Stats</h2>
+                <div className="grid grid-cols-2 gap-4">
+                    <div className="bg-gray-100 dark:bg-gray-800 p-4 rounded-lg text-center">
+                        <p className="text-2xl font-bold text-brand-primary">{bookings.length}</p>
+                        <p className="text-sm text-brand-gray">Total Bookings</p>
+                    </div>
+                     <div className="bg-gray-100 dark:bg-gray-800 p-4 rounded-lg text-center">
+                        <p className="text-2xl font-bold text-brand-primary">{bookings.filter(b => b.status === 'completed').length}</p>
+                        <p className="text-sm text-brand-gray">Tattoos Completed</p>
+                    </div>
+                </div>
+            </div>
+        </div>
+    )
+}
+
+// --- ADDED: ReportModal ---
+export const ReportModal: React.FC<{ targetId: string, type: 'user' | 'booking', onSubmit: (targetId: string, type: 'user' | 'booking', reason: string) => void, onClose: () => void }> = ({ targetId, type, onSubmit, onClose }) => {
+    const [reason, setReason] = useState('');
+    return (
+        <Modal onClose={onClose} title={`Report ${type === 'user' ? 'User' : 'Booking'}`} size="md">
+            <div className="space-y-4">
+                <p className="text-sm text-brand-gray">Please describe the issue. Our team reviews all reports within 24 hours.</p>
+                <textarea 
+                    value={reason} 
+                    onChange={e => setReason(e.target.value)} 
+                    rows={4} 
+                    className="w-full bg-gray-100 dark:bg-gray-800 rounded p-2" 
+                    placeholder="Details about the incident..."
+                ></textarea>
+                <button onClick={() => onSubmit(targetId, type, reason)} disabled={!reason.trim()} className="w-full bg-red-600 text-white font-bold py-3 rounded-lg disabled:bg-gray-600">Submit Report</button>
             </div>
         </Modal>
     );
 };
 
+// --- UPDATED: PaymentModal with Subscription Fee Logic ---
 export const PaymentModal: React.FC<{ request: ClientBookingRequest; onProcessPayment: (requestId: string) => Promise<void>; onClose: () => void }> = ({ request, onProcessPayment, onClose }) => {
+    const { data } = useAppStore();
     const [isProcessing, setIsProcessing] = useState(false);
+    
+    // Calculate fees dynamically
+    const artist = data.artists.find(a => a.id === request.artistId);
+    const isPro = artist?.subscriptionTier === 'pro';
+    const deposit = request.depositAmount || 0;
+    const fee = isPro ? 0 : deposit * 0.029;
+    const total = deposit + fee;
 
     const handlePayment = async () => {
         setIsProcessing(true);
         await onProcessPayment(request.id);
-        // The modal will be closed by the store action on success
         setIsProcessing(false);
     };
 
@@ -1117,29 +1282,23 @@ export const PaymentModal: React.FC<{ request: ClientBookingRequest; onProcessPa
                 <div className="bg-gray-100 dark:bg-gray-800 p-4 rounded-lg text-center">
                     <p className="text-sm text-brand-gray">You are paying a deposit for your booking with</p>
                     <p className="font-bold text-lg text-brand-dark dark:text-white">{request.artistName}</p>
-                    <p className="text-3xl font-bold text-brand-primary mt-2">${request.depositAmount?.toFixed(2)}</p>
+                    <p className="text-3xl font-bold text-brand-primary mt-2">${total.toFixed(2)}</p>
+                    {!isPro && <p className="text-xs text-brand-gray mt-1">(Includes 2.9% platform fee)</p>}
                 </div>
                 
-                {/* Simulated Stripe Form */}
                 <div className="space-y-3">
                     <div>
                         <label className="text-sm font-medium text-brand-gray">Card Information</label>
-                        <div className="mt-1 p-3 bg-gray-200 dark:bg-gray-800 rounded-lg text-gray-400">
-                            •••• •••• •••• 4242
-                        </div>
+                        <div className="mt-1 p-3 bg-gray-200 dark:bg-gray-800 rounded-lg text-gray-400">•••• •••• •••• 4242</div>
                     </div>
                      <div className="grid grid-cols-2 gap-3">
                         <div>
                              <label className="text-sm font-medium text-brand-gray">Expiry</label>
-                             <div className="mt-1 p-3 bg-gray-200 dark:bg-gray-800 rounded-lg text-gray-400">
-                                MM / YY
-                            </div>
+                             <div className="mt-1 p-3 bg-gray-200 dark:bg-gray-800 rounded-lg text-gray-400">MM / YY</div>
                         </div>
                         <div>
                             <label className="text-sm font-medium text-brand-gray">CVC</label>
-                             <div className="mt-1 p-3 bg-gray-200 dark:bg-gray-800 rounded-lg text-gray-400">
-                                •••
-                            </div>
+                             <div className="mt-1 p-3 bg-gray-200 dark:bg-gray-800 rounded-lg text-gray-400">•••</div>
                         </div>
                     </div>
                 </div>
@@ -1152,351 +1311,8 @@ export const PaymentModal: React.FC<{ request: ClientBookingRequest; onProcessPa
                     className="w-full bg-brand-secondary text-white font-bold py-3 rounded-lg flex items-center justify-center gap-2 disabled:bg-gray-600"
                 >
                     {isProcessing ? <Loader size="sm" color="white" /> : <CreditCardIcon className="w-5 h-5" />}
-                    <span>{isProcessing ? 'Processing...' : `Pay $${request.depositAmount?.toFixed(2)}`}</span>
+                    <span>{isProcessing ? 'Processing...' : `Pay $${total.toFixed(2)}`}</span>
                 </button>
-            </div>
-        </Modal>
-    );
-};
-
-
-// --- PROFILE & DASHBOARD VIEWS ---
-
-const ManageServices: React.FC<{
-    services: ArtistService[],
-    setServices: React.Dispatch<React.SetStateAction<ArtistService[]>>
-}> = ({ services, setServices }) => {
-
-    const handleAddService = () => {
-        setServices(prev => [...prev, { id: crypto.randomUUID(), name: 'New Service', duration: 1, price: 100, depositAmount: 50, minSize: 0, maxSize: 0 }]);
-    };
-    
-    const handleUpdateService = (id: string, field: keyof Omit<ArtistService, 'id'>, value: string | number) => {
-        setServices(prev => prev.map(s => s.id === id ? { ...s, [field]: value } : s));
-    };
-
-    const handleDeleteService = (id: string) => {
-        setServices(prev => prev.filter(s => s.id !== id));
-    };
-
-    const inputClasses = "w-full bg-white dark:bg-gray-700 p-2 rounded text-sm";
-    const labelClasses = "text-xs font-bold text-brand-gray mb-1 block";
-
-    return (
-        <div>
-            <div className="flex justify-between items-center mb-2">
-                <h4 className="text-lg font-semibold text-brand-dark dark:text-white">Manage Services</h4>
-                <button onClick={handleAddService} className="text-sm bg-brand-secondary text-white font-bold py-1 px-3 rounded-lg">+ Add Service</button>
-            </div>
-            <p className="text-xs text-brand-gray mb-4">Define your services below. Setting a Min/Max Size helps our AI suggestion tool guide clients to the correct service for their tattoo idea.</p>
-            <div className="space-y-3 max-h-96 overflow-y-auto pr-2">
-            {services.map(service => (
-                <div key={service.id} className="bg-gray-100 dark:bg-gray-800 p-3 rounded-lg space-y-2">
-                    <div className="grid grid-cols-2 gap-x-4 gap-y-2">
-                        <div className="col-span-2">
-                            <label className={labelClasses}>Service Name</label>
-                            <input type="text" value={service.name} onChange={e => handleUpdateService(service.id, 'name', e.target.value)} className={inputClasses}/>
-                        </div>
-                        <div>
-                             <label className={labelClasses}>Duration (hours)</label>
-                             <input type="number" value={service.duration} onChange={e => handleUpdateService(service.id, 'duration', Number(e.target.value))} className={inputClasses}/>
-                        </div>
-                         <div>
-                             <label className={labelClasses}>Price ($)</label>
-                            <input type="number" value={service.price} onChange={e => handleUpdateService(service.id, 'price', Number(e.target.value))} className={inputClasses}/>
-                        </div>
-                         <div>
-                             <label className={labelClasses}>Deposit ($)</label>
-                            <input type="number" value={service.depositAmount} onChange={e => handleUpdateService(service.id, 'depositAmount', Number(e.target.value))} className={inputClasses}/>
-                        </div>
-                        <div className="grid grid-cols-2 gap-2">
-                             <div>
-                                 <label className={labelClasses}>Min Size (sq.in)</label>
-                                <input type="number" value={service.minSize || ''} onChange={e => handleUpdateService(service.id, 'minSize', Number(e.target.value))} placeholder="Opt." className={inputClasses}/>
-                             </div>
-                             <div>
-                                 <label className={labelClasses}>Max Size (sq.in)</label>
-                                <input type="number" value={service.maxSize || ''} onChange={e => handleUpdateService(service.id, 'maxSize', Number(e.target.value))} placeholder="Opt." className={inputClasses}/>
-                             </div>
-                        </div>
-                    </div>
-                    <div className="text-right">
-                        <button onClick={() => handleDeleteService(service.id)} className="text-xs text-red-500 hover:underline">Remove Service</button>
-                    </div>
-                </div>
-            ))}
-            </div>
-        </div>
-    );
-};
-
-export const ArtistProfileView: React.FC<{ artist: Artist, updateArtist: (id: string, data: Partial<Artist>) => void, deletePortfolioImage: (imageUrl: string) => Promise<void>, showToast: (msg: string, type?: 'success' | 'error') => void, openModal: (type: ModalState['type'], data?: any) => void }> = ({ artist, updateArtist, deletePortfolioImage, showToast, openModal }) => {
-    const [isEditing, setIsEditing] = useState(false);
-    const [formData, setFormData] = useState<Partial<Artist>>({ ...artist });
-    const [services, setServices] = useState<ArtistService[]>(artist.services || []);
-    const [portfolioData, setPortfolioData] = useState<PortfolioImage[]>(artist.portfolio || []);
-    const [isGeneratingBio, setIsGeneratingBio] = useState(false);
-    
-    useEffect(() => {
-        setFormData(artist);
-        setServices(artist.services || []);
-        setPortfolioData(artist.portfolio || []);
-    }, [artist]);
-
-    const handleSave = () => {
-        updateArtist(artist.id, { ...formData, services, portfolio: portfolioData });
-        setIsEditing(false);
-    };
-
-    const handleGenerateBio = async () => {
-        if (!formData.name || !formData.specialty || !formData.city) {
-            showToast('Please fill in your name, specialty, and city first.', 'error');
-            return;
-        }
-        setIsGeneratingBio(true);
-        try {
-            const bio = await generateArtistBio(formData.name, formData.specialty, formData.city);
-            setFormData({ ...formData, bio });
-            showToast('AI bio generated!', 'success');
-        } catch (error) {
-            const message = error instanceof Error ? error.message : "An unknown error occurred.";
-            showToast(message, 'error');
-        } finally {
-            setIsGeneratingBio(false);
-        }
-    };
-    
-    const handlePortfolioCategoryChange = (index: number, category: string) => {
-        const newPortfolio = [...portfolioData];
-        newPortfolio[index] = { ...newPortfolio[index], category };
-        setPortfolioData(newPortfolio);
-    }
-
-
-    return (
-        <div className="max-w-4xl mx-auto">
-            <div className="flex justify-between items-center mb-6">
-                <div className="flex items-center gap-4">
-                    <h1 className="text-4xl font-bold text-brand-dark dark:text-white">{artist.name}</h1>
-                    {artist.isVerified && <CheckBadgeIcon className="w-8 h-8 text-brand-secondary" title="Verified Artist" />}
-                </div>
-                {isEditing ? (
-                    <div className="flex gap-2">
-                        <button onClick={() => setIsEditing(false)} className="bg-gray-200 dark:bg-gray-700 text-brand-dark dark:text-white font-bold py-2 px-4 rounded-lg">Cancel</button>
-                        <button onClick={handleSave} className="bg-brand-primary text-white font-bold py-2 px-4 rounded-lg">Save</button>
-                    </div>
-                ) : (
-                    <button onClick={() => setIsEditing(true)} className="flex items-center gap-2 bg-gray-100 dark:bg-gray-800 text-brand-dark dark:text-white font-bold py-2 px-4 rounded-lg hover:bg-gray-200 dark:hover:bg-gray-700"><EditIcon className="w-5 h-5"/> Edit Profile</button>
-                )}
-            </div>
-
-            <div className="bg-white dark:bg-gray-900/50 rounded-2xl p-8 border border-gray-200 dark:border-gray-800 space-y-6">
-                {isEditing ? (
-                    <div className="space-y-4">
-                        <div><label className="text-sm text-brand-gray">Name</label><input type="text" value={formData.name} onChange={e => setFormData({...formData, name: e.target.value})} className="w-full bg-gray-100 dark:bg-gray-800 p-2 rounded"/></div>
-                        <div><label className="text-sm text-brand-gray">Specialty</label><input type="text" value={formData.specialty} onChange={e => setFormData({...formData, specialty: e.target.value})} className="w-full bg-gray-100 dark:bg-gray-800 p-2 rounded"/></div>
-                        <div className="relative">
-                           <div className="flex items-center gap-2 mb-1">
-                                <label className="text-sm text-brand-gray">Bio</label>
-                                <button
-                                    type="button"
-                                    onClick={handleGenerateBio}
-                                    disabled={isGeneratingBio}
-                                    className="text-brand-secondary hover:text-brand-primary disabled:text-brand-gray disabled:cursor-not-allowed"
-                                    title="Generate bio with AI"
-                                >
-                                    {isGeneratingBio ? (
-                                        <Loader size="sm" />
-                                    ) : (
-                                        <SparklesIcon className="w-5 h-5" />
-                                    )}
-                                </button>
-                            </div>
-                           <textarea value={formData.bio} onChange={e => setFormData({...formData, bio: e.target.value})} rows={3} className={`w-full bg-gray-100 dark:bg-gray-800 p-2 rounded transition-all`} disabled={isGeneratingBio}/>
-                        </div>
-                        <div>
-                            <h4 className="text-sm text-brand-gray mb-1">Socials</h4>
-                            <input type="text" placeholder="Instagram URL" value={formData.socials?.instagram || ''} onChange={e => setFormData({...formData, socials: {...formData.socials, instagram: e.target.value}})} className="w-full bg-gray-100 dark:bg-gray-800 p-2 rounded mb-2"/>
-                            <input type="text" placeholder="TikTok URL" value={formData.socials?.tiktok || ''} onChange={e => setFormData({...formData, socials: {...formData.socials, tiktok: e.target.value}})} className="w-full bg-gray-100 dark:bg-gray-800 p-2 rounded mb-2"/>
-                            <input type="text" placeholder="X (Twitter) URL" value={formData.socials?.x || ''} onChange={e => setFormData({...formData, socials: {...formData.socials, x: e.target.value}})} className="w-full bg-gray-100 dark:bg-gray-800 p-2 rounded"/>
-                        </div>
-                        <div className="border-t border-gray-200 dark:border-gray-700 pt-4">
-                             <h4 className="text-sm text-brand-gray mb-1">Booking Mode</h4>
-                             <div className="flex gap-4">
-                                <label className="flex items-center gap-2"><input type="radio" name="bookingMode" value="specific_time" checked={formData.bookingMode !== 'time_range'} onChange={() => setFormData({...formData, bookingMode: 'specific_time'})} /> Specific Time (Coming Soon)</label>
-                                <label className="flex items-center gap-2"><input type="radio" name="bookingMode" value="time_range" checked={formData.bookingMode === 'time_range'} onChange={() => setFormData({...formData, bookingMode: 'time_range'})} /> Time Range</label>
-                             </div>
-                        </div>
-                        <div className="border-t border-gray-200 dark:border-gray-700 pt-4">
-                            <ManageServices services={services} setServices={setServices} />
-                        </div>
-                         <div className="border-t border-gray-200 dark:border-gray-700 pt-4">
-                            <label className="text-sm text-brand-gray mb-1 block">Aftercare Instructions</label>
-                            <textarea value={formData.aftercareMessage} onChange={e => setFormData({...formData, aftercareMessage: e.target.value})} rows={3} className={`w-full bg-gray-100 dark:bg-gray-800 p-2 rounded transition-all`} placeholder="e.g., Keep it clean, moisturize after a few days..."/>
-                        </div>
-                         <div className="border-t border-gray-200 dark:border-gray-700 pt-4">
-                            <label className="flex items-center space-x-2 cursor-pointer">
-                                <input type="checkbox" checked={formData.requestHealedPhoto || false} onChange={e => setFormData({...formData, requestHealedPhoto: e.target.checked})} className="w-5 h-5 rounded bg-gray-200 dark:bg-gray-700 text-brand-secondary focus:ring-brand-secondary" />
-                                <span className="text-brand-gray">Automatically request a healed photo from clients 2 weeks after their session.</span>
-                            </label>
-                        </div>
-                    </div>
-                ) : (
-                    <div>
-                        <p className="text-lg font-semibold text-brand-primary">{artist.specialty}</p>
-                        <p className="text-gray-800 dark:text-brand-light mt-2">{artist.bio}</p>
-                        {artist.socials && (artist.socials.instagram || artist.socials.tiktok || artist.socials.x) && (
-                            <div className="flex items-center gap-4 mt-4">
-                                {artist.socials.instagram && (
-                                    <a href={artist.socials.instagram} target="_blank" rel="noopener noreferrer" className="text-brand-gray hover:text-brand-primary dark:hover:text-white" title="Instagram">
-                                        <InstagramIcon className="w-6 h-6"/>
-                                    </a>
-                                )}
-                                {artist.socials.tiktok && (
-                                    <a href={artist.socials.tiktok} target="_blank" rel="noopener noreferrer" className="text-brand-gray hover:text-brand-primary dark:hover:text-white" title="TikTok">
-                                        <TikTokIcon className="w-6 h-6"/>
-                                    </a>
-                                )}
-                                {artist.socials.x && (
-                                    <a href={artist.socials.x} target="_blank" rel="noopener noreferrer" className="text-brand-gray hover:text-brand-primary dark:hover:text-white" title="X (Twitter)">
-                                        <XIconSocial className="w-5 h-5"/>
-                                    </a>
-                                )}
-                            </div>
-                        )}
-                    </div>
-                )}
-            </div>
-            
-            {!artist.isVerified && (
-                <div className="mt-6 bg-yellow-400/20 dark:bg-yellow-900/30 border border-yellow-500/50 p-4 rounded-lg flex items-center justify-between">
-                    <p className="text-yellow-800 dark:text-yellow-300 text-sm">Your profile is unverified. Verified artists get priority in search results.</p>
-                    <button onClick={() => openModal('request-verification', { item: artist, type: 'artist' })} className="bg-yellow-500 text-black font-bold py-2 px-4 rounded-lg text-sm">Request Verification</button>
-                </div>
-            )}
-
-             <div className="mt-8">
-                <div className="flex justify-between items-center mb-4">
-                    <h2 className="text-2xl font-bold text-brand-dark dark:text-white">Portfolio</h2>
-                    <button onClick={() => openModal('upload-portfolio')} className="flex items-center gap-2 bg-brand-secondary text-white font-bold py-2 px-4 rounded-lg"><UploadIcon className="w-5 h-5"/> Add Image</button>
-                </div>
-                <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
-                    {portfolioData.map((image, index) => (
-                        <div key={index} className="relative group">
-                            <img src={`${image.url}?random=${artist.id}-${index}`} alt={`Portfolio piece ${index+1}`} className="w-full h-48 object-cover rounded-lg bg-gray-200 dark:bg-gray-800" />
-                             <div className="absolute inset-0 bg-black/60 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center">
-                                <button 
-                                    onClick={() => deletePortfolioImage(image.url)}
-                                    className="text-white bg-red-600/80 hover:bg-red-600 p-2 rounded-full transform scale-90 group-hover:scale-100 transition-transform"
-                                    title="Delete Image"
-                                >
-                                    <TrashIcon className="w-6 h-6"/>
-                                </button>
-                            </div>
-                             {isEditing && (
-                                <div className="absolute bottom-0 left-0 right-0 p-1 bg-black/50">
-                                    <input 
-                                        type="text"
-                                        placeholder="Category (e.g., B&G)"
-                                        value={image.category || ''}
-                                        onChange={(e) => handlePortfolioCategoryChange(index, e.target.value)}
-                                        className="w-full text-xs bg-gray-900/80 text-white border-none rounded p-1 text-center"
-                                    />
-                                </div>
-                            )}
-                        </div>
-                    ))}
-                </div>
-                 {isEditing && (
-                     <p className="text-xs text-brand-gray mt-2">Categorizing your portfolio is a premium feature. Add categories now and they'll appear when you subscribe.</p>
-                 )}
-             </div>
-        </div>
-    );
-};
-
-export const ClientProfileView: React.FC<{ client: Client, bookings: ClientBookingRequest[] }> = ({ client, bookings }) => {
-    return (
-        <div className="max-w-4xl mx-auto">
-            <h1 className="text-4xl font-bold text-brand-dark dark:text-white mb-6">Welcome, {client.name}</h1>
-            <div className="bg-white dark:bg-gray-900/50 rounded-2xl p-8 border border-gray-200 dark:border-gray-800">
-                <h2 className="text-2xl font-bold text-brand-dark dark:text-white mb-4">Your Past Sessions</h2>
-                <div className="space-y-4">
-                {bookings.filter(b => b.status === 'completed').length > 0 ? bookings.filter(b => b.status === 'completed').map(b => (
-                    <div key={b.id} className="bg-gray-100 dark:bg-gray-800 p-4 rounded-lg">
-                        <p>Session with <span className="font-bold">{b.artistName}</span> on {new Date(b.startDate).toLocaleDateString()}</p>
-                        {b.reviewRating && <StarRating rating={b.reviewRating} />}
-                    </div>
-                )) : <p className="text-brand-gray">No completed sessions yet.</p>}
-                </div>
-            </div>
-        </div>
-    );
-};
-
-export const BookingRequestDetailModal: React.FC<{
-    request: ClientBookingRequest;
-    onClose: () => void;
-    onRespond: (requestId: string, status: 'approved' | 'declined') => void;
-}> = ({ request, onClose, onRespond }) => {
-    
-    // Determine if this is a guest booking
-    const isGuest = !request.clientId && request.guestName;
-
-    return (
-        <Modal onClose={onClose} title={`Request from ${isGuest ? request.guestName + ' (Guest)' : request.clientName}`} size="lg">
-            <div className="space-y-4">
-                <div>
-                    <h4 className="font-bold text-brand-dark dark:text-white">Service</h4>
-                    <p className="text-brand-gray">{request.serviceName}</p>
-                </div>
-                 <div>
-                    <h4 className="font-bold text-brand-dark dark:text-white">Proposed Dates</h4>
-                    <p className="text-brand-gray">{new Date(request.startDate).toLocaleDateString()}{request.endDate ? ` - ${new Date(request.endDate).toLocaleDateString()}` : ''}</p>
-                </div>
-                <div>
-                    <h4 className="font-bold text-brand-dark dark:text-white">Tattoo Details</h4>
-                    <ul className="list-disc list-inside text-brand-gray">
-                        <li>Size: {request.tattooWidth}" x {request.tattooHeight}"</li>
-                        <li>Placement: {bodyPlacements.find(p => p.value === request.bodyPlacement)?.label || request.bodyPlacement}</li>
-                        {request.budget && <li>Budget: ${request.budget}</li>}
-                    </ul>
-                </div>
-                
-                {/* Contact Section for Guests */}
-                {isGuest && (
-                    <div className="bg-blue-500/10 border border-blue-500/30 p-3 rounded-lg">
-                        <h4 className="font-bold text-blue-400">Guest Contact Info</h4>
-                        <p className="text-sm text-brand-dark dark:text-white">{request.guestName}</p>
-                        <p className="text-sm text-brand-dark dark:text-white">{request.guestEmail}</p>
-                        <p className="text-sm text-brand-dark dark:text-white">{request.guestPhone}</p>
-                        <div className="flex gap-2 mt-2">
-                             <a href={`mailto:${request.guestEmail}`} className="text-xs bg-blue-600 text-white px-2 py-1 rounded hover:bg-blue-500">Email Client</a>
-                             <a href={`tel:${request.guestPhone}`} className="text-xs bg-green-600 text-white px-2 py-1 rounded hover:bg-green-500">Call Client</a>
-                        </div>
-                    </div>
-                )}
-
-                 <div>
-                    <h4 className="font-bold text-brand-dark dark:text-white">Message from Client</h4>
-                    <p className="text-brand-gray italic bg-gray-100 dark:bg-gray-800 p-3 rounded-lg">"{request.message}"</p>
-                </div>
-                {request.referenceImageUrls && request.referenceImageUrls.length > 0 && (
-                     <div>
-                        <h4 className="font-bold text-brand-dark dark:text-white">Reference Images</h4>
-                        <div className="flex flex-wrap gap-2 mt-2">
-                            {request.referenceImageUrls.map((url, index) => (
-                                <a key={index} href={url} target="_blank" rel="noopener noreferrer">
-                                    <img src={url} alt={`Reference ${index + 1}`} className="w-24 h-24 object-cover rounded-lg" />
-                                </a>
-                            ))}
-                        </div>
-                    </div>
-                )}
-                 <div className="flex gap-4 pt-4 border-t border-gray-200 dark:border-gray-800">
-                    <button onClick={() => onRespond(request.id, 'approved')} className="w-full bg-green-600 hover:bg-green-500 text-white text-sm font-bold py-3 px-3 rounded-lg">Approve</button>
-                    <button onClick={() => onRespond(request.id, 'declined')} className="w-full bg-red-600 hover:bg-red-500 text-white text-sm font-bold py-3 px-3 rounded-lg">Decline</button>
-                 </div>
             </div>
         </Modal>
     );

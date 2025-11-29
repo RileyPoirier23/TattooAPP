@@ -59,6 +59,7 @@ FOREIGN KEY (artist_id) REFERENCES public.profiles(id);
 alter table public.profiles add column if not exists updated_at timestamptz default now();
 alter table public.profiles alter column hours type jsonb using hours::jsonb;
 alter table public.profiles alter column hours set default '{}'::jsonb;
+alter table public.profiles add column if not exists subscription_tier text default 'free';
 
 alter table public.client_booking_requests add column if not exists updated_at timestamptz default now();
 alter table public.client_booking_requests add column if not exists guest_name text;
@@ -70,10 +71,23 @@ alter table public.client_booking_requests add column if not exists reference_im
 alter table public.client_booking_requests alter column service_id type text;
 alter table public.client_booking_requests alter column client_id drop not null; -- Allow Guests
 
--- 4. RESET PERMISSIONS
+-- 4. CREATE REPORTS TABLE
+create table if not exists public.reports (
+  id uuid default gen_random_uuid() primary key,
+  reporter_id uuid references public.profiles(id),
+  target_id text not null, -- Can be a User ID or Booking ID
+  type text check (type in ('user', 'booking')),
+  reason text,
+  status text default 'pending', -- pending, resolved, dismissed
+  details text,
+  created_at timestamptz default now()
+);
+
+-- 5. RESET PERMISSIONS
 alter table public.profiles enable row level security;
 alter table public.client_booking_requests enable row level security;
 alter table public.notifications enable row level security;
+alter table public.reports enable row level security;
 
 do $$
 begin
@@ -87,6 +101,9 @@ begin
   drop policy if exists "Notif_Update_Own" on public.notifications;
   drop policy if exists "Public_Upload_Refs" on storage.objects;
   drop policy if exists "Public_View_Refs" on storage.objects;
+  drop policy if exists "Reports_Insert_Authenticated" on public.reports;
+  drop policy if exists "Reports_View_All" on public.reports;
+  drop policy if exists "Reports_Update_All" on public.reports;
 exception when others then null;
 end $$;
 
@@ -102,12 +119,17 @@ create policy "Notif_View_Own" on public.notifications for select using (auth.ui
 create policy "Notif_Create_Public" on public.notifications for insert with check (true);
 create policy "Notif_Update_Own" on public.notifications for update using (auth.uid() = user_id);
 
+-- Reports Policies
+create policy "Reports_Insert_Authenticated" on public.reports for insert with check (auth.role() = 'authenticated');
+create policy "Reports_View_All" on public.reports for select using (true); 
+create policy "Reports_Update_All" on public.reports for update using (true);
+
 -- Storage
 insert into storage.buckets (id, name, public) values ('booking-references', 'booking-references', true) on conflict (id) do nothing;
 create policy "Public_Upload_Refs" on storage.objects for insert with check (bucket_id = 'booking-references');
 create policy "Public_View_Refs" on storage.objects for select using (bucket_id = 'booking-references');
 
--- 5. BOOKING RPC (Returns Full Data for Dashboard)
+-- 6. BOOKING RPC (Returns Full Data for Dashboard)
 create or replace function create_booking_request(
   p_artist_id uuid, p_start_date date, p_end_date date, p_message text, 
   p_tattoo_width numeric, p_tattoo_height numeric, p_body_placement text, 
@@ -160,7 +182,6 @@ end; $$;
 grant execute on function create_booking_request to authenticated;
 grant execute on function create_booking_request to anon;
 
--- 6. REFRESH
+-- 7. REFRESH
 NOTIFY pgrst, 'reload config';
 ```
-    

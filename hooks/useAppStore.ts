@@ -3,12 +3,12 @@
 import { create } from 'zustand';
 import { persist } from 'zustand/middleware';
 import {
-  Artist, Shop, Booking, Booth, User, ViewMode, AuthCredentials, RegisterDetails, MockData, ClientBookingRequest, Notification, Client, ShopOwner, Admin, Conversation, ConversationWithUser, Message, ArtistAvailability, Review, ModalState, PortfolioImage, VerificationRequest, ShopOwnerUser, UserRole, ArtistHours,
+  Artist, Shop, Booking, Booth, User, ViewMode, AuthCredentials, RegisterDetails, MockData, ClientBookingRequest, Notification, Client, ShopOwner, Admin, Conversation, ConversationWithUser, Message, ArtistAvailability, Review, ModalState, PortfolioImage, VerificationRequest, ShopOwnerUser, UserRole, ArtistHours, Report
 } from '../types';
 import {
   fetchInitialData, updateArtistData, uploadPortfolioImage, updateShopData, addBoothToShop, deleteBoothFromShop,
   createBookingForArtist, createClientBookingRequest, updateClientBookingRequestStatus, fetchNotificationsForUser, markUserNotificationsAsRead, createNotification, fetchAllUsers, updateUserData, updateBoothData, fetchUserConversations, fetchMessagesForConversation, sendMessage, findOrCreateConversation, setArtistAvailability, submitReview, deleteUserAsAdmin, deleteShopAsAdmin, uploadMessageAttachment, fetchArtistReviews, createShop as apiCreateShop, createVerificationRequest, updateVerificationRequest, addReviewToShop,
-  adminUpdateUserProfile, adminUpdateShopDetails, deletePortfolioImageFromStorage, uploadBookingReferenceImage, payClientBookingDeposit, updateClientBookingRequest, saveArtistHours, fetchClientBookingRequestById, sendSystemMessage,
+  adminUpdateUserProfile, adminUpdateShopDetails, deletePortfolioImageFromStorage, uploadBookingReferenceImage, payClientBookingDeposit, updateClientBookingRequest, saveArtistHours, fetchClientBookingRequestById, sendSystemMessage, createReport, resolveReport,
 } from '../services/apiService';
 import { authService } from '../services/authService';
 import { getSupabase } from '../services/supabaseClient';
@@ -70,7 +70,7 @@ interface AppState {
   submitReview: (requestId: string, rating: number, text: string) => Promise<void>;
   updateUser: (userId: string, data: Partial<User['data']>) => Promise<void>;
   updateArtist: (artistId: string, data: Partial<Artist>) => Promise<void>;
-  saveArtistAvailability: (hours: ArtistHours) => Promise<void>; // New Dedicated Action
+  saveArtistAvailability: (hours: ArtistHours) => Promise<void>;
   uploadPortfolio: (file: File) => Promise<void>;
   deletePortfolioImage: (imageUrl: string) => Promise<void>;
   updateShop: (shopId: string, data: Partial<Shop>) => Promise<void>;
@@ -84,6 +84,7 @@ interface AppState {
   deleteShop: (shopId: string) => Promise<void>;
   adminUpdateUser: (userId: string, data: { name: string, role: UserRole, isVerified: boolean }) => Promise<void>;
   adminUpdateShop: (shopId: string, data: { name: string, isVerified: boolean }) => Promise<void>;
+  resolveReport: (reportId: string, status: 'resolved' | 'dismissed') => Promise<void>;
   
   // Messaging Actions
   loadConversations: () => Promise<void>;
@@ -95,17 +96,22 @@ interface AppState {
   sendAftercare: (clientId: string) => Promise<void>;
   requestHealedPhoto: (clientId: string) => Promise<void>;
 
-  // New Roadmap Actions
+  // Roadmap Actions
   createShop: (shopData: Omit<Shop, 'id' | 'isVerified' | 'rating' | 'reviews' | 'averageArtistRating' | 'ownerId'>) => Promise<void>;
   requestVerification: (type: 'artist' | 'shop', item: Artist | Shop) => Promise<void>;
   respondToVerificationRequest: (requestId: string, status: 'approved' | 'rejected') => Promise<void>;
   submitShopReview: (shopId: string, review: Omit<Review, 'id'>) => Promise<void>;
+  
+  // Report & Subscription Actions
+  submitReport: (targetId: string, type: 'user' | 'booking', reason: string) => Promise<void>;
+  toggleArtistSubscription: (artistId: string) => Promise<void>;
+  checkPendingAutomations: () => Promise<void>;
 }
 
 export const useAppStore = create<AppState>()(
   persist(
     (set, get) => ({
-      data: { artists: [], shops: [], booths: [], bookings: [], clientBookingRequests: [], notifications: [], conversations: [], messages: [], artistAvailability: [], verificationRequests: [] },
+      data: { artists: [], shops: [], booths: [], bookings: [], clientBookingRequests: [], notifications: [], conversations: [], messages: [], artistAvailability: [], verificationRequests: [], reports: [] },
       allUsers: [],
       isInitialized: false,
       isLoading: true,
@@ -136,7 +142,10 @@ export const useAppStore = create<AppState>()(
 
           set({ data: initialData, user: currentUser, isInitialized: true, isLoading: false });
           if (currentUser) {
-            if (currentUser.type === 'artist' || currentUser.type === 'dual') set({ viewMode: 'artist' });
+            if (currentUser.type === 'artist' || currentUser.type === 'dual') {
+                set({ viewMode: 'artist' });
+                get().checkPendingAutomations(); // Check for lazy automation tasks
+            }
             if (currentUser.type === 'admin') {
               navigate('/admin');
               const users = await fetchAllUsers();
@@ -167,7 +176,6 @@ export const useAppStore = create<AppState>()(
                 'postgres_changes',
                 { event: 'UPDATE', schema: 'public', table: 'client_booking_requests' },
                 async (payload) => {
-                   // Refresh the request list to reflect status changes
                    set(state => ({
                      data: {
                         ...state.data,
@@ -181,7 +189,6 @@ export const useAppStore = create<AppState>()(
                 { event: 'INSERT', schema: 'public', table: 'notifications' },
                 (payload) => {
                   if (payload.new.user_id === currentUser.id) {
-                    // Refresh notifications logic handled by fetchNotifications, but let's do a quick update
                     get().fetchNotifications();
                   }
                 }
@@ -224,7 +231,6 @@ export const useAppStore = create<AppState>()(
           get().loadConversations();
           get().showToast('Login successful!');
           
-          // Re-trigger initialize to setup Realtime
           get().initialize(navigate);
 
         } catch (error) {
@@ -250,11 +256,9 @@ export const useAppStore = create<AppState>()(
             get().closeModal();
             get().showToast('Registration successful!');
             
-            // Re-trigger initialize to setup Realtime
             get().initialize(navigate);
           } else {
              get().closeModal();
-             // Critical fix: Tell user to check email if no session returned
              get().showToast('Account created! Please check your email to verify before logging in.', 'success');
           }
         } catch (error) {
@@ -268,10 +272,7 @@ export const useAppStore = create<AppState>()(
         if (notificationInterval) clearInterval(notificationInterval);
         notificationInterval = null;
         set({ user: null, viewMode: 'client', data: {...get().data, notifications: [], conversations: [], messages: []}, activeConversationId: null });
-        
-        // Remove realtime subscriptions
         getSupabase().removeAllChannels();
-        
         navigate('/');
         get().showToast('Logged out successfully.');
       },
@@ -282,17 +283,13 @@ export const useAppStore = create<AppState>()(
         try {
             const notifications = await fetchNotificationsForUser(user.id);
             set(state => {
-              // Check if there are new unread notifications compared to previous state
               const prevUnread = state.data.notifications.filter(n => !n.read).map(n => n.id);
               const newUnread = notifications.filter(n => !n.read);
-              
-              // Find new notifications that weren't in the previous list
               newUnread.forEach(n => {
                 if (!prevUnread.includes(n.id)) {
-                   get().showToast(n.message, 'success'); // Pop up toast for new notification
+                   get().showToast(n.message, 'success');
                 }
               });
-
               return { data: { ...state.data, notifications } };
             });
         } catch (error) {
@@ -334,11 +331,9 @@ export const useAppStore = create<AppState>()(
 
       sendClientBookingRequest: async (requestData, referenceFiles) => {
         const user = get().user;
-        
         let tempRequestId: string | null = null;
         try {
           set({ isLoading: true });
-      
           const initialRequestData = { 
             ...requestData, 
             clientId: user ? user.id : null, 
@@ -399,7 +394,7 @@ export const useAppStore = create<AppState>()(
                     ),
                 }
             }));
-            get().closeModal(); // Close detail modal
+            get().closeModal();
             if (status === 'approved') {
                 get().showToast(`Request approved. Client notified.`);
             } else {
@@ -427,7 +422,7 @@ export const useAppStore = create<AppState>()(
         }
       },
       
-      payBookingDeposit: async (requestId: string) => {
+      payBookingDeposit: async (requestId) => {
         try {
           const updatedRequest = await payClientBookingDeposit(requestId);
           set(state => ({
@@ -454,14 +449,9 @@ export const useAppStore = create<AppState>()(
                 const user = state.user;
                 if (!user) return {};
                 const newUserData = { ...user.data, ...data };
-                
-                if (user.type === 'artist' || user.type === 'dual') {
-                    return { user: { ...user, data: newUserData as Artist } };
-                } else if (user.type === 'client') {
-                    return { user: { ...user, data: newUserData as Client } };
-                } else if (user.type === 'shop-owner') {
-                    return { user: { ...user, data: newUserData as ShopOwner } };
-                }
+                if (user.type === 'artist' || user.type === 'dual') return { user: { ...user, data: newUserData as Artist } };
+                if (user.type === 'client') return { user: { ...user, data: newUserData as Client } };
+                if (user.type === 'shop-owner') return { user: { ...user, data: newUserData as ShopOwner } };
                 return {};
             });
           } catch(error) {
@@ -479,11 +469,7 @@ export const useAppStore = create<AppState>()(
                     newUser = { ...state.user, data: { ...state.user.data, ...updatedArtist } };
                     localStorage.setItem('inkspace_user_session', JSON.stringify(newUser));
                 }
-
-                return {
-                    data: { ...state.data, artists: newArtists },
-                    user: newUser
-                };
+                return { data: { ...state.data, artists: newArtists }, user: newUser };
             });
         } catch (error) {
             get().showToast("Failed to update artist details.", 'error');
@@ -494,20 +480,13 @@ export const useAppStore = create<AppState>()(
       saveArtistAvailability: async (hours) => {
         const user = get().user;
         if (!user || (user.type !== 'artist' && user.type !== 'dual')) return;
-        
         try {
             const name = user.data.name;
             const city = 'city' in user.data ? user.data.city : '';
             const email = user.email;
             const role = user.type; 
-
             const updatedArtist = await saveArtistHours(user.id, hours, name, city, email, role);
-            
             const verifiedProfile = await authService.getUserProfile(user.id);
-            if (!verifiedProfile) {
-                throw new Error("Data verification failed. The changes could not be read back from the database.");
-            }
-
             set(state => {
                 if (state.user?.id === user.id) {
                     localStorage.setItem('inkspace_user_session', JSON.stringify(verifiedProfile));
@@ -519,7 +498,6 @@ export const useAppStore = create<AppState>()(
             });
             get().showToast('Availability saved successfully!', 'success');
         } catch (error) {
-            console.error("Store error saving hours:", error);
             const msg = error instanceof Error ? error.message : "Failed to save hours";
             get().showToast(`Failed to save: ${msg}`, 'error');
             throw error;
@@ -546,31 +524,22 @@ export const useAppStore = create<AppState>()(
             get().showToast('Only the artist can delete their portfolio images.', 'error');
             return;
         }
-
-        if (!window.confirm("Are you sure you want to permanently delete this image?")) {
-            return;
-        }
-
+        if (!window.confirm("Are you sure you want to permanently delete this image?")) return;
         try {
             const currentPortfolio = user.data.portfolio;
             const newPortfolio = currentPortfolio.filter(img => img.url !== imageUrl);
-
             await get().updateArtist(user.id, { portfolio: newPortfolio });
             await deletePortfolioImageFromStorage(imageUrl);
-
             get().showToast('Image deleted successfully.', 'success');
         } catch (error) {
-            const message = error instanceof Error ? error.message : "Failed to delete image.";
-            get().showToast(message, 'error');
+            get().showToast("Failed to delete image.", 'error');
         }
       },
 
       updateShop: async (shopId, data) => {
         try {
           const updatedShop = await updateShopData(shopId, data);
-          set(state => ({
-              data: { ...state.data, shops: state.data.shops.map(s => s.id === shopId ? updatedShop : s) }
-          }));
+          set(state => ({ data: { ...state.data, shops: state.data.shops.map(s => s.id === shopId ? updatedShop : s) } }));
           get().showToast('Shop details updated.');
         } catch(e) {
             get().showToast("Failed to update shop.", 'error');
@@ -579,9 +548,7 @@ export const useAppStore = create<AppState>()(
       addBooth: async (shopId, boothData) => {
         try {
           const newBooth = await addBoothToShop(shopId, boothData);
-          set(state => ({
-              data: { ...state.data, booths: [...state.data.booths, newBooth] }
-          }));
+          set(state => ({ data: { ...state.data, booths: [...state.data.booths, newBooth] } }));
         } catch (e) {
             get().showToast("Failed to add booth.", 'error');
         }
@@ -589,9 +556,7 @@ export const useAppStore = create<AppState>()(
       updateBooth: async (boothId, data) => {
         try {
           const updatedBooth = await updateBoothData(boothId, data);
-          set(state => ({
-              data: { ...state.data, booths: state.data.booths.map(b => b.id === boothId ? updatedBooth : b) }
-          }));
+          set(state => ({ data: { ...state.data, booths: state.data.booths.map(b => b.id === boothId ? updatedBooth : b) } }));
           get().closeModal();
         } catch (e) {
             get().showToast("Failed to update booth.", 'error');
@@ -600,9 +565,7 @@ export const useAppStore = create<AppState>()(
       deleteBooth: async (boothId) => {
         try {
           await deleteBoothFromShop(boothId);
-          set(state => ({
-              data: { ...state.data, booths: state.data.booths.filter(b => b.id !== boothId) }
-          }));
+          set(state => ({ data: { ...state.data, booths: state.data.booths.filter(b => b.id !== boothId) } }));
         } catch (e) {
             get().showToast("Failed to delete booth.", 'error');
         }
@@ -628,17 +591,12 @@ export const useAppStore = create<AppState>()(
         try {
             const updatedRequest = await submitReview(requestId, rating, text);
             set(state => ({
-                data: {
-                    ...state.data,
-                    clientBookingRequests: state.data.clientBookingRequests.map(req => req.id === requestId ? updatedRequest : req),
-                }
+                data: { ...state.data, clientBookingRequests: state.data.clientBookingRequests.map(req => req.id === requestId ? updatedRequest : req) }
             }));
             get().closeModal();
             get().showToast("Thank you for your review!");
             const navigate = get().navigate;
-            if (navigate) {
-                get().initialize(navigate);
-            }
+            if (navigate) get().initialize(navigate);
         } catch (e) {
             get().showToast("Failed to submit review.", 'error');
         }
@@ -658,9 +616,7 @@ export const useAppStore = create<AppState>()(
       deleteShop: async (shopId) => {
         try {
             await deleteShopAsAdmin(shopId);
-            set(state => ({
-                data: { ...state.data, shops: state.data.shops.filter(s => s.id !== shopId) }
-            }));
+            set(state => ({ data: { ...state.data, shops: state.data.shops.filter(s => s.id !== shopId) } }));
             get().showToast("Shop deleted.");
         } catch (e) {
             get().showToast("Failed to delete shop.", 'error');
@@ -680,12 +636,10 @@ export const useAppStore = create<AppState>()(
       adminUpdateShop: async (shopId, data) => {
         try {
             const updatedShop = await adminUpdateShopDetails(shopId, data);
-            set(state => ({
-                data: { ...state.data, shops: state.data.shops.map(s => s.id === shopId ? updatedShop : s) }
-            }));
+            set(state => ({ data: { ...state.data, shops: state.data.shops.map(s => s.id === shopId ? updatedShop : s) } }));
             get().closeModal();
             get().showToast('Shop updated successfully.');
-        } catch(e) {
+        } catch (e) {
             get().showToast("Failed to update shop.", 'error');
         }
       },
@@ -716,17 +670,13 @@ export const useAppStore = create<AppState>()(
       sendMessage: async (content, attachmentFile) => {
         const { activeConversationId, user } = get();
         if (!activeConversationId || !user || (!content.trim() && !attachmentFile)) return;
-
         try {
             let attachmentUrl: string | undefined = undefined;
             if (attachmentFile) {
                 attachmentUrl = await uploadMessageAttachment(attachmentFile, activeConversationId);
             }
-
             const newMessage = await sendMessage(activeConversationId, user.id, content.trim(), attachmentUrl);
-            set(state => ({
-              data: { ...state.data, messages: [...state.data.messages, newMessage] }
-            }));
+            set(state => ({ data: { ...state.data, messages: [...state.data.messages, newMessage] } }));
         } catch (e) {
             get().showToast("Failed to send message.", 'error');
         }
@@ -761,7 +711,6 @@ export const useAppStore = create<AppState>()(
               const messageText = user.data.aftercareMessage 
                   ? `📋 **AFTERCARE INSTRUCTIONS** 📋\n\n${user.data.aftercareMessage}`
                   : `📋 **AFTERCARE INSTRUCTIONS** 📋\n\n1. Keep it clean.\n2. Moisturize lightly.\n3. Do not scratch or pick.\n4. Avoid swimming/sun for 2 weeks.`;
-                  
               await sendSystemMessage(convo.id, user.id, messageText);
               get().showToast('Aftercare instructions sent to client.', 'success');
           } catch(e) {
@@ -803,8 +752,7 @@ export const useAppStore = create<AppState>()(
         const user = get().user;
         if (!user) return;
         try {
-            const id = item.id;
-            await createVerificationRequest(type, id, user.id);
+            await createVerificationRequest(type, item.id, user.id);
             get().closeModal();
             get().showToast('Verification request submitted.');
         } catch (e) {
@@ -849,6 +797,60 @@ export const useAppStore = create<AppState>()(
         } catch (e) {
             get().showToast('Failed to submit review.', 'error');
         }
+      },
+      
+      resolveReport: async (reportId, status) => {
+          try {
+              await resolveReport(reportId, status);
+              set(state => ({
+                  data: { ...state.data, reports: state.data.reports.map(r => r.id === reportId ? { ...r, status } : r) }
+              }));
+              get().showToast(`Report marked as ${status}.`);
+          } catch(e) {
+              get().showToast("Failed to update report.", 'error');
+          }
+      },
+      submitReport: async (targetId, type, reason) => {
+          const user = get().user;
+          if (!user) return;
+          try {
+              await createReport({ reporterId: user.id, targetId, type, reason });
+              get().closeModal();
+              get().showToast("Report submitted. An admin will review it shortly.");
+          } catch(e) {
+              get().showToast("Failed to submit report.", 'error');
+          }
+      },
+      toggleArtistSubscription: async (artistId) => {
+          const user = get().user;
+          const artist = get().data.artists.find(a => a.id === artistId);
+          if (!artist) return;
+          
+          const newTier = artist.subscriptionTier === 'pro' ? 'free' : 'pro';
+          try {
+              await updateArtistData(artistId, { subscriptionTier: newTier });
+              set(state => ({
+                  data: { ...state.data, artists: state.data.artists.map(a => a.id === artistId ? { ...a, subscriptionTier: newTier } : a) },
+                  user: state.user?.id === artistId && (state.user.type === 'artist' || state.user.type === 'dual') ? 
+                        { ...state.user, data: { ...state.user.data, subscriptionTier: newTier } as Artist } : state.user
+              }));
+              get().showToast(`Subscription switched to ${newTier.toUpperCase()}.`);
+          } catch (e) {
+              get().showToast("Failed to update subscription.", 'error');
+          }
+      },
+      checkPendingAutomations: async () => {
+          const user = get().user;
+          if (!user || (user.type !== 'artist' && user.type !== 'dual')) return;
+          
+          const completed = get().data.clientBookingRequests.filter(b => b.artistId === user.id && b.status === 'completed');
+          const twoWeeksAgo = new Date();
+          twoWeeksAgo.setDate(twoWeeksAgo.getDate() - 14);
+          const needsFollowUp = completed.filter(b => new Date(b.endDate) < twoWeeksAgo);
+          
+          if (needsFollowUp.length > 0) {
+              console.log("Pending healed photo requests:", needsFollowUp.length);
+          }
       },
     }),
     {

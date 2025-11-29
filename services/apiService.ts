@@ -1,10 +1,10 @@
 
 // @/services/apiService.ts
 import { getSupabase } from './supabaseClient';
-import type { Artist, Shop, Booth, Booking, ClientBookingRequest, Notification, User, UserRole, PortfolioImage, VerificationRequest, Conversation, ConversationWithUser, Message, ArtistAvailability, Review, AdminUser, ArtistService, ArtistHours } from '../types';
+import type { Artist, Shop, Booth, Booking, ClientBookingRequest, Notification, User, UserRole, PortfolioImage, VerificationRequest, Conversation, ConversationWithUser, Message, ArtistAvailability, Review, AdminUser, ArtistService, ArtistHours, Report } from '../types';
 import { 
     adaptProfileToArtist, adaptShop, adaptBooth, adaptBooking, adaptClientBookingRequest, adaptAvailability, 
-    adaptVerificationRequest, adaptReviewFromBooking, adaptNotification, adaptConversation, adaptMessage, adaptSupabaseProfileToUser 
+    adaptVerificationRequest, adaptReviewFromBooking, adaptNotification, adaptConversation, adaptMessage, adaptSupabaseProfileToUser, adaptReport 
 } from './dataAdapters';
 
 
@@ -56,7 +56,6 @@ export const fetchInitialData = async (): Promise<any> => {
     const { data: rawBooths, error: boothsError } = await supabase.from('booths').select('*');
     const { data: rawBookings, error: bookingsError } = await supabase.from('bookings').select('*');
     
-    // CRITICAL: explicit Foreign Key hints to match the SQL script
     const { data: rawClientBookings, error: clientBookingsError } = await supabase
         .from('client_booking_requests')
         .select(`
@@ -67,7 +66,17 @@ export const fetchInitialData = async (): Promise<any> => {
         
     const { data: rawAvailability, error: availabilityError } = await supabase.from('artist_availability').select('*');
     const { data: rawVerificationRequests, error: verificationRequestsError } = await supabase.from('verification_requests').select(`*, profile:profiles(full_name), shop:shops(name)`);
-
+    
+    // Attempt to fetch reports. This might fail if the table doesn't exist or RLS blocks it, so we handle it gracefully.
+    let reports: Report[] = [];
+    try {
+        const { data: rawReports, error: reportsError } = await supabase.from('reports').select('*, reporter:profiles(full_name)');
+        if (!reportsError && rawReports) {
+            reports = rawReports.map(adaptReport);
+        }
+    } catch (e) {
+        console.warn("Reports table might not exist yet.", e);
+    }
 
     if (artistsError || shopsError || boothsError || bookingsError || clientBookingsError || availabilityError || verificationRequestsError) {
         const firstError = artistsError || shopsError || boothsError || bookingsError || clientBookingsError || availabilityError || verificationRequestsError;
@@ -96,10 +105,10 @@ export const fetchInitialData = async (): Promise<any> => {
         notifications: [],
         conversations: [],
         messages: [],
+        reports // Added reports to return
     };
 };
 
-// Helper to fetch a single booking by ID for Realtime updates
 export const fetchClientBookingRequestById = async (id: string): Promise<ClientBookingRequest | null> => {
     const supabase = getSupabase();
     const { data, error } = await supabase
@@ -140,14 +149,10 @@ export const updateArtistData = async (artistId: string, updatedData: Partial<Ar
     if (updatedData.services) profileUpdate.services = updatedData.services;
     if (updatedData.aftercareMessage) profileUpdate.aftercare_message = updatedData.aftercareMessage;
     if (typeof updatedData.requestHealedPhoto === 'boolean') profileUpdate.request_healed_photo = updatedData.requestHealedPhoto;
-    
-    // Explicitly handle hours to ensure they are saved as JSON
     if (updatedData.hours) profileUpdate.hours = updatedData.hours;
-    
     if (updatedData.intakeSettings) profileUpdate.intake_settings = updatedData.intakeSettings;
-    
-    // Handle Booking Mode
     if (updatedData.bookingMode) profileUpdate.booking_mode = updatedData.bookingMode;
+    if (updatedData.subscriptionTier) profileUpdate.subscription_tier = updatedData.subscriptionTier;
 
     const { data, error } = await supabase.from('profiles').update(profileUpdate).eq('id', artistId).select().single();
     if (error) {
@@ -157,14 +162,8 @@ export const updateArtistData = async (artistId: string, updatedData: Partial<Ar
     return adaptProfileToArtist(data);
 };
 
-// V11: DIRECT UPSERT - FIXES RESET BUG
 export const saveArtistHours = async (userId: string, hours: ArtistHours, name: string, city: string, email: string, role: UserRole): Promise<Artist> => {
     const supabase = getSupabase();
-    
-    // Use the role provided if it's 'artist' or 'dual', otherwise default to 'artist' if we are creating a new one.
-    // Ideally we fetch the existing profile to check the role, but Upsert requires us to provide it if inserting.
-    // If the row exists, the role won't be overwritten unless we specify it.
-    // We will attempt to UPDATE first to avoid overwriting role.
     
     const updatePayload = {
         hours: hours,
@@ -178,7 +177,6 @@ export const saveArtistHours = async (userId: string, hours: ArtistHours, name: 
         .select()
         .single();
 
-    // If update failed (row doesn't exist), then we Insert with full defaults
     if (error || !data) {
         const insertPayload = {
             id: userId,
@@ -186,7 +184,7 @@ export const saveArtistHours = async (userId: string, hours: ArtistHours, name: 
             full_name: name || 'Artist',
             city: city || '',
             username: email,
-            role: role === 'dual' ? 'dual' : 'artist', // Respect 'dual' role if passed
+            role: role === 'dual' ? 'dual' : 'artist',
             updated_at: new Date().toISOString()
         };
         
@@ -303,11 +301,9 @@ export const createBookingForArtist = async (bookingData: Omit<Booking, 'id' | '
     return adaptBooking(bookingWithCity, []);
 };
 
-// RPC for Guest/Client Booking - SAFE PARAMETER HANDLING (NULLs instead of Undefined)
 export const createClientBookingRequest = async (requestData: any): Promise<ClientBookingRequest> => {
     const supabase = getSupabase();
     
-    // Explicitly convert undefined to null to prevent RPC signature mismatch
     const rpcParams = {
         p_artist_id: requestData.artistId,
         p_start_date: requestData.startDate,
@@ -426,7 +422,6 @@ export const fetchUserConversations = async (userId: string): Promise<Conversati
         return [];
     }
     
-    // Map RPC result to app type
     return (data || []).map((c: any) => ({
         id: c.id,
         participantOneId: c.participantOneId,
@@ -446,14 +441,13 @@ export const sendMessage = async (conversationId: string, senderId: string, cont
     const supabase = getSupabase();
     const { data, error } = await supabase.rpc('send_message', {
         p_conversation_id: conversationId,
-        p_content: content || null, // Send explicit null for empty strings if attachment exists
+        p_content: content || null,
         p_attachment_url: attachmentUrl || null
     });
     if (error) throw error;
     return adaptMessage(data);
 };
 
-// Automation helper to send system messages via chat
 export const sendSystemMessage = async (conversationId: string, senderId: string, content: string): Promise<Message> => {
     const supabase = getSupabase();
     const { data, error } = await supabase.rpc('send_message', {
@@ -477,9 +471,7 @@ export const uploadMessageAttachment = async (file: File, conversationId: string
 
 export const findOrCreateConversation = async (currentUserId: string, otherUserId: string): Promise<Conversation> => {
     const supabase = getSupabase();
-    
-    // Check for existing conversation
-    const { data: existing, error: fetchError } = await supabase
+    const { data: existing } = await supabase
         .from('conversations')
         .select('*')
         .or(`and(participant_one_id.eq.${currentUserId},participant_two_id.eq.${otherUserId}),and(participant_one_id.eq.${otherUserId},participant_two_id.eq.${currentUserId})`)
@@ -487,7 +479,6 @@ export const findOrCreateConversation = async (currentUserId: string, otherUserI
 
     if (existing) return { id: existing.id, participantOneId: existing.participant_one_id, participantTwoId: existing.participant_two_id };
 
-    // Create new
     const { data: newConvo, error: createError } = await supabase
         .from('conversations')
         .insert({ participant_one_id: currentUserId, participant_two_id: otherUserId })
@@ -615,4 +606,23 @@ export const adminUpdateShopDetails = async (shopId: string, data: { name: strin
     }).eq('id', shopId).select().single();
     if (error) throw error;
     return adaptShop(updatedShop);
+}
+
+// --- Report System ---
+export const createReport = async (reportData: { reporterId: string, targetId: string, type: 'user' | 'booking', reason: string }) => {
+    const supabase = getSupabase();
+    const { error } = await supabase.from('reports').insert({
+        reporter_id: reportData.reporterId,
+        target_id: reportData.targetId,
+        type: reportData.type,
+        reason: reportData.reason,
+        status: 'pending'
+    });
+    if (error) throw error;
+}
+
+export const resolveReport = async (reportId: string, status: 'resolved' | 'dismissed') => {
+    const supabase = getSupabase();
+    const { error } = await supabase.from('reports').update({ status }).eq('id', reportId);
+    if (error) throw error;
 }

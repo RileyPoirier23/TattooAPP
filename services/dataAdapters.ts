@@ -1,7 +1,7 @@
 
 // @/services/dataAdapters.ts
 
-import type { Artist, Shop, Booth, Booking, ClientBookingRequest, Notification, User, UserRole, Client, ShopOwner, Admin, Conversation, Message, ConversationWithUser, ArtistAvailability, Review, VerificationRequest, AdminUser, ArtistService } from '../types';
+import type { Artist, Shop, Booth, Booking, ClientBookingRequest, Notification, User, UserRole, Client, ShopOwner, Admin, Conversation, Message, ConversationWithUser, ArtistAvailability, Review, VerificationRequest, AdminUser, ArtistService, Report } from '../types';
 
 /**
  * Safely extracts a property from a Supabase joined table result.
@@ -51,7 +51,8 @@ export const adaptProfileToArtist = (profile: any): Artist => {
     averageRating: 0, // Calculated in store
     hours: hours,
     intakeSettings: profile.intake_settings,
-    bookingMode: profile.booking_mode || 'time_range'
+    bookingMode: profile.booking_mode || 'time_range',
+    subscriptionTier: profile.subscription_tier || 'free'
   };
 };
 
@@ -160,9 +161,6 @@ export const adaptClientBookingRequest = (b: any): ClientBookingRequest => {
                      getJoinedProperty<{ full_name: string }>(b.artist, 'full_name') || 'Unknown Artist';
 
   // Robust Client ID Resolution
-  // 1. Check joined profile ID
-  // 2. Check direct foreign key column
-  // 3. Null (Guest)
   const clientId = clientData.id || b.client_id || null;
 
   return {
@@ -220,6 +218,18 @@ export const adaptVerificationRequest = (v: any): VerificationRequest => ({
   createdAt: v.created_at,
   requesterName: v.profile?.full_name,
   itemName: v.type === 'artist' ? v.profile?.full_name : v.shop?.name,
+});
+
+export const adaptReport = (r: any): Report => ({
+    id: r.id,
+    reporterId: r.reporter_id,
+    targetId: r.target_id,
+    type: r.type,
+    reason: r.reason,
+    status: r.status,
+    createdAt: r.created_at,
+    details: r.details,
+    reporterName: r.reporter?.full_name || 'Unknown'
 });
 
 export const adaptReviewFromBooking = (b: any): Review | null => {

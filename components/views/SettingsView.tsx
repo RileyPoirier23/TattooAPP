@@ -1,7 +1,9 @@
+
 // @/components/views/SettingsView.tsx
 
 import React, { useState } from 'react';
-import type { User } from '../../types';
+import type { User, Artist } from '../../types';
+import { useAppStore } from '../../hooks/useAppStore';
 
 interface SettingsViewProps {
     user: User;
@@ -12,6 +14,7 @@ interface SettingsViewProps {
 export const SettingsView: React.FC<SettingsViewProps> = ({ user, onUpdateUser, showToast }) => {
     const [name, setName] = useState(user.data.name);
     const [city, setCity] = useState('city' in user.data ? user.data.city : '');
+    const { toggleArtistSubscription } = useAppStore(); // Add hook
     
     const handleSave = () => {
         const updatedData: Partial<User['data']> = { name };
@@ -68,6 +71,29 @@ export const SettingsView: React.FC<SettingsViewProps> = ({ user, onUpdateUser, 
                     </button>
                 </div>
             </div>
+
+            {/* Subscription Section */}
+            {(user.type === 'artist' || user.type === 'dual') && (
+                <div className="mt-8 pt-8 border-t border-gray-200 dark:border-gray-800">
+                    <h2 className="text-xl font-bold text-brand-dark dark:text-white mb-4">Subscription Plan</h2>
+                    <div className="flex items-center justify-between bg-gray-100 dark:bg-gray-800 p-4 rounded-lg">
+                        <div>
+                            <p className="font-bold text-brand-primary capitalize">{(user.data as Artist).subscriptionTier || 'Free'} Tier</p>
+                            <p className="text-sm text-brand-gray">
+                                {(user.data as Artist).subscriptionTier === 'pro' 
+                                    ? 'You keep 100% of deposits. Enjoy automated marketing tools.' 
+                                    : '2.9% fee on deposits. Upgrade to remove fees.'}
+                            </p>
+                        </div>
+                        <button 
+                            onClick={() => toggleArtistSubscription(user.id)} 
+                            className={`px-4 py-2 rounded-lg font-bold text-white transition-colors ${(user.data as Artist).subscriptionTier === 'pro' ? 'bg-gray-500' : 'bg-brand-secondary'}`}
+                        >
+                            {(user.data as Artist).subscriptionTier === 'pro' ? 'Downgrade to Free' : 'Upgrade to Pro'}
+                        </button>
+                    </div>
+                </div>
+            )}
         </div>
     );
 };

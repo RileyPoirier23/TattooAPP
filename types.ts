@@ -41,6 +41,8 @@ export interface IntakeFormSettings {
   requireBudget: boolean;
 }
 
+export type SubscriptionTier = 'free' | 'pro';
+
 export interface Artist {
   id: string; // This will be the user's auth id
   name: string;
@@ -59,6 +61,7 @@ export interface Artist {
   hours?: ArtistHours;
   intakeSettings?: IntakeFormSettings;
   bookingMode?: 'specific_time' | 'time_range';
+  subscriptionTier?: SubscriptionTier;
 }
 
 export interface Client {
@@ -216,6 +219,18 @@ export interface VerificationRequest {
     itemName?: string;
 }
 
+export interface Report {
+    id: string;
+    reporterId: string;
+    targetId: string; // User ID or Booking ID
+    type: 'user' | 'booking';
+    reason: string;
+    status: 'pending' | 'resolved' | 'dismissed';
+    createdAt: string;
+    details?: string;
+    reporterName?: string;
+}
+
 
 export interface MockData {
   artists: Artist[];
@@ -228,6 +243,7 @@ export interface MockData {
   messages: Message[];
   artistAvailability: ArtistAvailability[];
   verificationRequests: VerificationRequest[];
+  reports: Report[];
 }
 
 
@@ -236,7 +252,7 @@ export interface MockData {
 export type ViewMode = 'artist' | 'client';
 
 export interface ModalState {
-  type: 'auth' | 'artist-detail' | 'shop-detail' | 'booking' | 'client-booking-request' | 'upload-portfolio' | 'edit-booth' | 'leave-review' | 'image-editor' | 'shop-review' | 'request-verification' | 'admin-edit-user' | 'admin-edit-shop' | 'payment' | 'booking-request-detail' | null;
+  type: 'auth' | 'artist-detail' | 'shop-detail' | 'booking' | 'client-booking-request' | 'upload-portfolio' | 'edit-booth' | 'leave-review' | 'image-editor' | 'shop-review' | 'request-verification' | 'admin-edit-user' | 'admin-edit-shop' | 'payment' | 'booking-request-detail' | 'report-user' | 'report-booking' | null;
   data?: any;
 }
 

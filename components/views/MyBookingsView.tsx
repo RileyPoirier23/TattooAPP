@@ -103,14 +103,18 @@ const ClientRequests: React.FC<Pick<MyBookingsViewProps, 'user' | 'allClientBook
     const upcoming = myClientRequests.filter(b => b.status === 'approved' && new Date(b.endDate) >= new Date());
     const past = myClientRequests.filter(b => !pending.includes(b) && !upcoming.includes(b));
 
-    const addToGoogleCalendar = (req: ClientBookingRequest) => {
+    const generateCalendarLinks = (req: ClientBookingRequest) => {
+        const title = encodeURIComponent(`Tattoo Session: ${req.artistName}`);
+        const details = encodeURIComponent(`Service: ${req.serviceName}`);
         const start = new Date(req.startDate).toISOString().replace(/-|:|\.\d\d\d/g,"");
         const end = new Date(req.endDate).toISOString().replace(/-|:|\.\d\d\d/g,"");
-        const title = encodeURIComponent(`Tattoo Session with ${req.artistName}`);
-        const details = encodeURIComponent(`Service: ${req.serviceName}\nNotes: ${req.message}`);
-        const url = `https://www.google.com/calendar/render?action=TEMPLATE&text=${title}&dates=${start}/${end}&details=${details}`;
-        window.open(url, '_blank');
-    };
+        
+        return {
+            google: `https://www.google.com/calendar/render?action=TEMPLATE&text=${title}&dates=${start}/${end}&details=${details}`,
+            yahoo: `https://calendar.yahoo.com/?v=60&view=d&type=20&title=${title}&st=${start}&dur=0200&desc=${details}`,
+            outlook: `https://outlook.live.com/owa/?path=/calendar/action/compose&subject=${title}&startdt=${start}&enddt=${end}&body=${details}`
+        };
+    }
 
     return (
         <div className="space-y-8">
@@ -163,10 +167,11 @@ const ClientRequests: React.FC<Pick<MyBookingsViewProps, 'user' | 'allClientBook
                                         <span>Pay Deposit (${req.depositAmount})</span>
                                     </button>
                                 )}
-                                <button onClick={() => addToGoogleCalendar(req)} className="w-full bg-gray-200 dark:bg-gray-700 text-brand-dark dark:text-white font-bold py-2 px-4 rounded-lg flex items-center justify-center gap-2 hover:bg-gray-300 dark:hover:bg-gray-600">
-                                    <CalendarIcon className="w-5 h-5" />
-                                    <span>Add to Google Calendar</span>
-                                </button>
+                                <div className="flex gap-2">
+                                    <a href={generateCalendarLinks(req).google} target="_blank" className="flex-1 text-center bg-gray-200 dark:bg-gray-700 text-brand-dark dark:text-white font-bold py-2 px-4 rounded-lg text-xs hover:bg-gray-300 dark:hover:bg-gray-600">Google Cal</a>
+                                    <a href={generateCalendarLinks(req).outlook} target="_blank" className="flex-1 text-center bg-gray-200 dark:bg-gray-700 text-brand-dark dark:text-white font-bold py-2 px-4 rounded-lg text-xs hover:bg-gray-300 dark:hover:bg-gray-600">Outlook</a>
+                                </div>
+                                <button onClick={() => openModal('report-booking', req.id)} className="text-xs text-red-500 hover:underline w-full text-right mt-2">Report Issue</button>
                             </div>
                         )}
                     </div>

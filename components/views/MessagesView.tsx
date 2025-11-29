@@ -1,3 +1,4 @@
+
 // @/components/views/MessagesView.tsx
 
 import React, { useState, useEffect, useRef } from 'react';
@@ -17,7 +18,8 @@ export const MessagesView: React.FC<MessagesViewProps> = ({ conversationId, navi
         isLoading, 
         activeConversationId, 
         selectConversation, 
-        sendMessage 
+        sendMessage,
+        openModal // Added
     } = useAppStore();
     
     const [newMessage, setNewMessage] = useState('');
@@ -107,12 +109,17 @@ export const MessagesView: React.FC<MessagesViewProps> = ({ conversationId, navi
                 )}
                 {activeConversation && (
                     <>
-                        <header className="p-4 border-b border-gray-200 dark:border-gray-800 flex items-center space-x-3">
-                             <button onClick={() => navigate('/messages')} className="md:hidden p-1 text-brand-gray hover:text-brand-dark dark:hover:text-white">
-                                <ArrowLeftIcon className="w-6 h-6" />
+                        <header className="p-4 border-b border-gray-200 dark:border-gray-800 flex items-center justify-between">
+                             <div className="flex items-center space-x-3">
+                                 <button onClick={() => navigate('/messages')} className="md:hidden p-1 text-brand-gray hover:text-brand-dark dark:hover:text-white">
+                                    <ArrowLeftIcon className="w-6 h-6" />
+                                 </button>
+                                 <UserCircleIcon className="w-8 h-8 text-brand-gray" />
+                                 <h3 className="font-bold text-lg text-brand-dark dark:text-white">{activeConversation.otherUser.name}</h3>
+                             </div>
+                             <button onClick={() => openModal('report-user', activeConversation.otherUser.id)} className="text-xs text-red-500 hover:underline">
+                                Report User
                              </button>
-                             <UserCircleIcon className="w-8 h-8 text-brand-gray" />
-                             <h3 className="font-bold text-lg text-brand-dark dark:text-white">{activeConversation.otherUser.name}</h3>
                         </header>
                         <div className="flex-grow p-4 overflow-y-auto space-y-4">
                             {messages.map(msg => (

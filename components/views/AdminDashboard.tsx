@@ -1,9 +1,11 @@
+
 // @/components/views/AdminDashboard.tsx
 
 import React, { useState } from 'react';
 import type { MockData, User, Shop, ModalState } from '../../types';
 import { XIcon, CheckBadgeIcon, EditIcon, UserCircleIcon, LocationIcon } from '../shared/Icons';
 import { Loader } from '../shared/Loader';
+import { useAppStore } from '../../hooks/useAppStore'; // Added import
 
 interface AdminDashboardProps {
     data: MockData;
@@ -47,7 +49,9 @@ const Table: React.FC<{ headers: string[]; children: React.ReactNode }> = ({ hea
 );
 
 export const AdminDashboard: React.FC<AdminDashboardProps> = ({ data, allUsers, deleteUser, deleteShop, respondToVerificationRequest, openModal }) => {
+    const { resolveReport } = useAppStore(); // Use global store action
     const [processingRequestId, setProcessingRequestId] = useState<string | null>(null);
+    const [activeTab, setActiveTab] = useState<'users' | 'shops' | 'verifications' | 'reports'>('reports'); // Added tabs
     
     const handleDeleteUser = (user: User) => {
         if (window.confirm(`Are you sure you want to delete user ${user.data.name} (${user.email})? This action cannot be undone.`)) {
@@ -73,18 +77,52 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ data, allUsers, 
     };
 
     const pendingVerifications = data.verificationRequests.filter(v => v.status === 'pending');
+    const pendingReports = data.reports.filter(r => r.status === 'pending'); // Filter reports
 
     return (
         <div className="max-w-7xl mx-auto space-y-8">
             <h1 className="text-4xl font-bold text-brand-dark dark:text-white">Admin Dashboard</h1>
             
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+            <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
                 <StatCard title="Total Users" value={allUsers.length} icon={<UserCircleIcon className="w-6 h-6 text-brand-secondary" />} />
                 <StatCard title="Total Shops" value={data.shops.length} icon={<LocationIcon className="w-6 h-6 text-brand-secondary" />} />
                 <StatCard title="Pending Verifications" value={pendingVerifications.length} icon={<CheckBadgeIcon className="w-6 h-6 text-brand-secondary" />} />
+                <StatCard title="Pending Reports" value={pendingReports.length} icon={<XIcon className="w-6 h-6 text-brand-secondary" />} />
             </div>
 
-            {pendingVerifications.length > 0 && (
+            {/* Tabs */}
+            <div className="flex gap-4 border-b border-gray-200 dark:border-gray-800">
+                {(['reports', 'verifications', 'users', 'shops'] as const).map(tab => (
+                    <button 
+                        key={tab}
+                        onClick={() => setActiveTab(tab)}
+                        className={`py-2 px-4 font-semibold capitalize ${activeTab === tab ? 'text-brand-primary border-b-2 border-brand-primary' : 'text-brand-gray'}`}
+                    >
+                        {tab}
+                    </button>
+                ))}
+            </div>
+
+            {activeTab === 'reports' && (
+                 <TableCard title="Pending Reports">
+                    <Table headers={['Reporter', 'Type', 'Reason', 'Date', 'Actions']}>
+                        {pendingReports.length > 0 ? pendingReports.map(report => (
+                            <tr key={report.id} className="border-b border-gray-200 dark:border-gray-800 hover:bg-gray-100 dark:hover:bg-gray-800/50">
+                                <td className="px-6 py-4">{report.reporterName}</td>
+                                <td className="px-6 py-4 capitalize">{report.type}</td>
+                                <td className="px-6 py-4">{report.reason}</td>
+                                <td className="px-6 py-4">{new Date(report.createdAt).toLocaleDateString()}</td>
+                                <td className="px-6 py-4 flex gap-2">
+                                    <button onClick={() => resolveReport(report.id, 'resolved')} className="text-green-500 hover:underline">Resolve</button>
+                                    <button onClick={() => resolveReport(report.id, 'dismissed')} className="text-red-500 hover:underline">Dismiss</button>
+                                </td>
+                            </tr>
+                        )) : <tr><td colSpan={5} className="px-6 py-4 text-center">No pending reports.</td></tr>}
+                    </Table>
+                </TableCard>
+            )}
+
+            {activeTab === 'verifications' && (
                 <TableCard title="Pending Verification Requests">
                     <Table headers={['Request ID', 'Name', 'Type', 'Submitted', 'Actions']}>
                         {pendingVerifications.map(req => (
@@ -115,47 +153,51 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ data, allUsers, 
                 </TableCard>
             )}
 
-            <TableCard title="All Users">
-                <Table headers={['Email', 'Name', 'Role', 'Verified', 'Actions']}>
-                    {allUsers.map(user => (
-                        <tr key={user.id} className="border-b border-gray-200 dark:border-gray-800 hover:bg-gray-100 dark:hover:bg-gray-800/50">
-                            <td className="px-6 py-4">{user.email}</td>
-                            <td className="px-6 py-4 font-medium text-brand-dark dark:text-white">{user.data.name}</td>
-                            <td className="px-6 py-4 capitalize">{user.type}</td>
-                            <td className="px-6 py-4">
-                                {('isVerified' in user.data && user.data.isVerified) ? (
-                                    <CheckBadgeIcon className="w-6 h-6 text-green-400" title="Verified" />
-                                ) : (
-                                    <XIcon className="w-6 h-6 text-brand-gray" title="Not Verified" />
-                                )}
-                            </td>
-                            <td className="px-6 py-4 flex items-center gap-4">
-                                <button onClick={() => openModal('admin-edit-user', user)} className="text-brand-gray hover:text-brand-dark dark:hover:text-white" title="Edit User"><EditIcon className="w-5 h-5"/></button>
-                                <button onClick={() => handleDeleteUser(user)} className="text-red-500 hover:text-red-400" title="Delete User"><XIcon className="w-5 h-5"/></button>
-                            </td>
-                        </tr>
-                    ))}
-                </Table>
-            </TableCard>
+            {activeTab === 'users' && (
+                <TableCard title="All Users">
+                    <Table headers={['Email', 'Name', 'Role', 'Verified', 'Actions']}>
+                        {allUsers.map(user => (
+                            <tr key={user.id} className="border-b border-gray-200 dark:border-gray-800 hover:bg-gray-100 dark:hover:bg-gray-800/50">
+                                <td className="px-6 py-4">{user.email}</td>
+                                <td className="px-6 py-4 font-medium text-brand-dark dark:text-white">{user.data.name}</td>
+                                <td className="px-6 py-4 capitalize">{user.type}</td>
+                                <td className="px-6 py-4">
+                                    {('isVerified' in user.data && user.data.isVerified) ? (
+                                        <CheckBadgeIcon className="w-6 h-6 text-green-400" title="Verified" />
+                                    ) : (
+                                        <XIcon className="w-6 h-6 text-brand-gray" title="Not Verified" />
+                                    )}
+                                </td>
+                                <td className="px-6 py-4 flex items-center gap-4">
+                                    <button onClick={() => openModal('admin-edit-user', user)} className="text-brand-gray hover:text-brand-dark dark:hover:text-white" title="Edit User"><EditIcon className="w-5 h-5"/></button>
+                                    <button onClick={() => handleDeleteUser(user)} className="text-red-500 hover:text-red-400" title="Delete User"><XIcon className="w-5 h-5"/></button>
+                                </td>
+                            </tr>
+                        ))}
+                    </Table>
+                </TableCard>
+            )}
 
-            <TableCard title="Shops">
-                <Table headers={['Name', 'Location', 'Rating', 'Verified', 'Actions']}>
-                    {data.shops.map(shop => (
-                        <tr key={shop.id} className="border-b border-gray-200 dark:border-gray-800 hover:bg-gray-100 dark:hover:bg-gray-800/50">
-                            <td className="px-6 py-4 font-medium text-brand-dark dark:text-white">{shop.name}</td>
-                            <td className="px-6 py-4">{shop.location}</td>
-                            <td className="px-6 py-4">{shop.averageArtistRating.toFixed(1)}</td>
-                            <td className="px-6 py-4">
-                                {shop.isVerified ? <CheckBadgeIcon className="w-6 h-6 text-green-400" title="Verified" /> : <XIcon className="w-6 h-6 text-brand-gray" title="Not Verified" />}
-                            </td>
-                            <td className="px-6 py-4 flex items-center gap-4">
-                                <button onClick={() => openModal('admin-edit-shop', shop)} className="text-brand-gray hover:text-brand-dark dark:hover:text-white" title="Edit Shop"><EditIcon className="w-5 h-5"/></button>
-                                <button onClick={() => handleDeleteShop(shop)} className="text-red-500 hover:text-red-400" title="Delete Shop"><XIcon className="w-5 h-5"/></button>
-                            </td>
-                        </tr>
-                    ))}
-                </Table>
-            </TableCard>
+            {activeTab === 'shops' && (
+                <TableCard title="Shops">
+                    <Table headers={['Name', 'Location', 'Rating', 'Verified', 'Actions']}>
+                        {data.shops.map(shop => (
+                            <tr key={shop.id} className="border-b border-gray-200 dark:border-gray-800 hover:bg-gray-100 dark:hover:bg-gray-800/50">
+                                <td className="px-6 py-4 font-medium text-brand-dark dark:text-white">{shop.name}</td>
+                                <td className="px-6 py-4">{shop.location}</td>
+                                <td className="px-6 py-4">{shop.averageArtistRating.toFixed(1)}</td>
+                                <td className="px-6 py-4">
+                                    {shop.isVerified ? <CheckBadgeIcon className="w-6 h-6 text-green-400" title="Verified" /> : <XIcon className="w-6 h-6 text-brand-gray" title="Not Verified" />}
+                                </td>
+                                <td className="px-6 py-4 flex items-center gap-4">
+                                    <button onClick={() => openModal('admin-edit-shop', shop)} className="text-brand-gray hover:text-brand-dark dark:hover:text-white" title="Edit Shop"><EditIcon className="w-5 h-5"/></button>
+                                    <button onClick={() => handleDeleteShop(shop)} className="text-red-500 hover:text-red-400" title="Delete Shop"><XIcon className="w-5 h-5"/></button>
+                                </td>
+                            </tr>
+                        ))}
+                    </Table>
+                </TableCard>
+            )}
         </div>
     );
 };
