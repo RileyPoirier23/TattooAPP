@@ -1,4 +1,3 @@
-
 // @/hooks/useAppStore.ts
 import { create } from 'zustand';
 import { persist } from 'zustand/middleware';
@@ -8,7 +7,7 @@ import {
 import {
   fetchInitialData, updateArtistData, uploadPortfolioImage, updateShopData, addBoothToShop, deleteBoothFromShop,
   createBookingForArtist, createClientBookingRequest, updateClientBookingRequestStatus, fetchNotificationsForUser, markUserNotificationsAsRead, createNotification, fetchAllUsers, updateUserData, updateBoothData, fetchUserConversations, fetchMessagesForConversation, sendMessage, findOrCreateConversation, setArtistAvailability, submitReview, deleteUserAsAdmin, deleteShopAsAdmin, uploadMessageAttachment, fetchArtistReviews, createShop as apiCreateShop, createVerificationRequest, updateVerificationRequest, addReviewToShop,
-  adminUpdateUserProfile, adminUpdateShopDetails, deletePortfolioImageFromStorage, uploadBookingReferenceImage, payClientBookingDeposit, updateClientBookingRequest, saveArtistHours, fetchClientBookingRequestById, sendSystemMessage, createReport, resolveReport,
+  adminUpdateUserProfile, adminUpdateShopDetails, deletePortfolioImageFromStorage, uploadBookingReferenceImage, payClientBookingDeposit, updateClientBookingRequest, saveArtistHours, fetchClientBookingRequestById, sendSystemMessage, createReport, resolveReport, rescheduleClientBooking,
 } from '../services/apiService';
 import { authService } from '../services/authService';
 import { getSupabase } from '../services/supabaseClient';
@@ -65,7 +64,7 @@ interface AppState {
   confirmArtistBooking: (bookingData: Omit<Booking, 'id' | 'artistId' | 'city' | 'paymentStatus'>) => Promise<void>;
   sendClientBookingRequest: (requestData: Omit<ClientBookingRequest, 'id' | 'clientId' | 'status' | 'paymentStatus'>, referenceFiles: File[]) => Promise<void>;
   respondToBookingRequest: (requestId: string, status: 'approved' | 'declined') => Promise<void>;
-  updateCompletionStatus: (requestId: string, status: 'completed' | 'rescheduled' | 'no-show') => Promise<void>;
+  updateCompletionStatus: (requestId: string, status: 'completed' | 'rescheduled' | 'no-show', newDate?: string, newTime?: string) => Promise<void>;
   payBookingDeposit: (requestId: string) => Promise<void>;
   submitReview: (requestId: string, rating: number, text: string) => Promise<void>;
   updateUser: (userId: string, data: Partial<User['data']>) => Promise<void>;
@@ -407,18 +406,38 @@ export const useAppStore = create<AppState>()(
         }
       },
       
-      updateCompletionStatus: async (requestId, status) => {
+      updateCompletionStatus: async (requestId, status, newDate, newTime) => {
         try {
-            await updateClientBookingRequestStatus(requestId, status);
-            set(state => ({
-                data: {
-                    ...state.data,
-                    clientBookingRequests: state.data.clientBookingRequests.map(req => req.id === requestId ? { ...req, status } : req),
-                }
-            }));
-            get().showToast(`Booking marked as ${status}.`);
+            if (status === 'rescheduled' && newDate && newTime) {
+                await rescheduleClientBooking(requestId, newDate, newTime);
+                set(state => ({
+                    data: {
+                        ...state.data,
+                        clientBookingRequests: state.data.clientBookingRequests.map(req => 
+                            req.id === requestId ? { 
+                                ...req, 
+                                status: 'rescheduled', 
+                                startDate: newDate, 
+                                endDate: newDate, 
+                                preferredTime: newTime as any 
+                            } : req
+                        ),
+                    }
+                }));
+                get().closeModal();
+                get().showToast(`Booking rescheduled to ${new Date(newDate).toLocaleDateString()}.`);
+            } else {
+                await updateClientBookingRequestStatus(requestId, status);
+                set(state => ({
+                    data: {
+                        ...state.data,
+                        clientBookingRequests: state.data.clientBookingRequests.map(req => req.id === requestId ? { ...req, status } : req),
+                    }
+                }));
+                get().showToast(`Booking marked as ${status}.`);
+            }
         } catch (e) {
-            get().showToast(`Failed to mark booking as ${status}.`, 'error');
+            get().showToast(`Failed to update booking status.`, 'error');
         }
       },
       

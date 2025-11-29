@@ -1,4 +1,3 @@
-
 // @/components/ModalsAndProfile.tsx
 
 import React, { useState, useRef, useEffect } from 'react';
@@ -85,6 +84,62 @@ export const ReportModal: React.FC<{ targetId: string, type: 'user' | 'booking',
                     placeholder="Details about the incident..."
                 ></textarea>
                 <button onClick={() => onSubmit(targetId, type, reason)} disabled={!reason.trim()} className="w-full bg-red-600 text-white font-bold py-3 rounded-lg disabled:bg-gray-600">Submit Report</button>
+            </div>
+        </Modal>
+    );
+};
+
+export const RescheduleModal: React.FC<{ request: ClientBookingRequest; onConfirm: (requestId: string, status: 'rescheduled', newDate: string, newTime: string) => void; onClose: () => void }> = ({ request, onConfirm, onClose }) => {
+    const [date, setDate] = useState('');
+    const [time, setTime] = useState('anytime');
+
+    const handleConfirm = () => {
+        if (!date) return;
+        onConfirm(request.id, 'rescheduled', date, time);
+    };
+
+    return (
+        <Modal onClose={onClose} title="Reschedule Session" size="md">
+            <div className="space-y-4">
+                <div className="bg-purple-50 dark:bg-purple-900/20 p-4 rounded-lg border border-purple-100 dark:border-purple-800">
+                    <p className="text-sm text-brand-gray">Rescheduling session with</p>
+                    <p className="font-bold text-brand-dark dark:text-white text-lg">{request.clientName || request.guestName}</p>
+                </div>
+                
+                <div>
+                    <label className="block text-sm font-medium text-brand-gray mb-1">New Date</label>
+                    <input 
+                        type="date" 
+                        value={date} 
+                        onChange={e => setDate(e.target.value)} 
+                        className="w-full bg-gray-100 dark:bg-gray-800 rounded-lg p-3 text-brand-dark dark:text-white focus:ring-2 focus:ring-brand-secondary outline-none border border-transparent focus:border-transparent" 
+                    />
+                </div>
+
+                <div>
+                    <label className="block text-sm font-medium text-brand-gray mb-1">New Time Preference</label>
+                    <select 
+                        value={time} 
+                        onChange={e => setTime(e.target.value)} 
+                        className="w-full bg-gray-100 dark:bg-gray-800 rounded-lg p-3 text-brand-dark dark:text-white focus:ring-2 focus:ring-brand-secondary outline-none border border-transparent focus:border-transparent"
+                    >
+                        <option value="anytime">Anytime</option>
+                        <option value="morning">Morning (9am - 12pm)</option>
+                        <option value="afternoon">Afternoon (12pm - 4pm)</option>
+                        <option value="evening">Evening (4pm+)</option>
+                    </select>
+                </div>
+
+                <div className="flex gap-4 pt-4">
+                    <button onClick={onClose} className="flex-1 bg-gray-200 dark:bg-gray-700 text-brand-dark dark:text-white font-bold py-3 rounded-lg hover:bg-gray-300 dark:hover:bg-gray-600 transition-colors">Cancel</button>
+                    <button 
+                        onClick={handleConfirm} 
+                        disabled={!date} 
+                        className="flex-1 bg-purple-600 text-white font-bold py-3 rounded-lg disabled:bg-gray-600 disabled:cursor-not-allowed hover:bg-purple-700 transition-colors shadow-lg shadow-purple-500/30"
+                    >
+                        Confirm Change
+                    </button>
+                </div>
             </div>
         </Modal>
     );
@@ -397,8 +452,6 @@ export const ShopDetailModal: React.FC<{ shop: Shop; booths: Booth[]; onClose: (
     </Modal>
 )};
 
-// --- MISSING COMPONENTS IMPLEMENTATION ---
-
 export const BookingModal: React.FC<{ shop: Shop; booths: Booth[]; bookings: Booking[]; onClose: () => void; onConfirmBooking: (booking: any) => void; }> = ({ shop, booths, bookings, onClose, onConfirmBooking }) => {
     const [selectedBoothId, setSelectedBoothId] = useState(booths[0]?.id || '');
     const [startDate, setStartDate] = useState('');
@@ -512,7 +565,7 @@ export const ClientBookingRequestModal: React.FC<{ artist: Artist; availability:
 
     // Check blocked dates (simplified logic for robustness)
     const isDateDisabled = (d: string) => {
-        const day = new Date(d).getDay(); // 0 = Sunday
+        const day = new Date(d).getUTCDay(); // 0 = Sunday
         const hours = artist.hours?.[day];
         // If hours is undefined or empty array, it's closed
         return !hours || hours.length === 0;
@@ -611,8 +664,8 @@ export const ClientBookingRequestModal: React.FC<{ artist: Artist; availability:
                          {!user && (
                              <div className="p-4 bg-brand-primary/10 rounded-lg space-y-3">
                                  <h4 className="font-semibold text-brand-primary">Guest Contact Info</h4>
-                                 <input type="text" placeholder="Full Name" value={guestName} onChange={e => setGuestName(e.target.value)} className="w-full bg-white dark:bg-gray-800 rounded p-2 border border-gray-300 dark:border-gray-700" />
-                                 <input type="email" placeholder="Email Address" value={guestEmail} onChange={e => setGuestEmail(e.target.value)} className="w-full bg-white dark:bg-gray-800 rounded p-2 border border-gray-300 dark:border-gray-700" />
+                                 <input type="text" placeholder="Full Name" value={guestName} onChange={e => setGuestName(e.target.value)} required className="w-full bg-white dark:bg-gray-800 rounded p-2 border border-gray-300 dark:border-gray-700" />
+                                 <input type="email" placeholder="Email Address" value={guestEmail} onChange={e => setGuestEmail(e.target.value)} required className="w-full bg-white dark:bg-gray-800 rounded p-2 border border-gray-300 dark:border-gray-700" />
                                  <input type="tel" placeholder="Phone Number" value={guestPhone} onChange={e => setGuestPhone(e.target.value)} className="w-full bg-white dark:bg-gray-800 rounded p-2 border border-gray-300 dark:border-gray-700" />
                              </div>
                          )}

@@ -1,4 +1,3 @@
-
 // @/services/apiService.ts
 import { getSupabase } from './supabaseClient';
 import type { Artist, Shop, Booth, Booking, ClientBookingRequest, Notification, User, UserRole, PortfolioImage, VerificationRequest, Conversation, ConversationWithUser, Message, ArtistAvailability, Review, AdminUser, ArtistService, ArtistHours, Report } from '../types';
@@ -372,6 +371,26 @@ export const updateClientBookingRequestStatus = async (requestId: string, status
 
     const { error } = await supabase.from('client_booking_requests').update(updatePayload).eq('id', requestId);
     if (error) throw error;
+};
+
+export const rescheduleClientBooking = async (requestId: string, newDate: string, newTime: string) => {
+    const supabase = getSupabase();
+    
+    const { error } = await supabase
+        .from('client_booking_requests')
+        .update({ 
+            status: 'rescheduled',
+            start_date: newDate,
+            end_date: newDate,
+            preferred_time: newTime,
+            updated_at: new Date().toISOString()
+        })
+        .eq('id', requestId);
+
+    if (error) {
+        console.error("Reschedule Error:", error);
+        throw error;
+    }
 };
 
 export const payClientBookingDeposit = async (requestId: string) => {

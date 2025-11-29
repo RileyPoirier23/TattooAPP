@@ -1,4 +1,3 @@
-
 // @/components/views/ArtistDashboardView.tsx
 
 import React, { useState, useEffect } from 'react';
@@ -84,8 +83,7 @@ const AvailabilityTab: React.FC<{ artist: Artist }> = ({ artist }) => {
             const cleanHours = JSON.parse(JSON.stringify(hours));
             await saveArtistAvailability(cleanHours);
         } catch (e) {
-            const msg = e instanceof Error ? e.message : 'Failed to save availability.';
-            showToast(msg, 'error');
+            // The store now handles showing the toast on error
         } finally {
             setIsSaving(false);
         }
@@ -182,7 +180,7 @@ const BookingRequestsTab: React.FC<{
     artist: Artist;
     allClientBookings: ClientBookingRequest[];
     onRespondToRequest: (requestId: string, status: 'approved' | 'declined') => void;
-    onCompleteRequest: (requestId: string, status: 'completed' | 'rescheduled' | 'no-show') => void;
+    onCompleteRequest: (requestId: string, status: 'completed' | 'rescheduled' | 'no-show', newDate?: string, newTime?: string) => void;
     openModal: (type: ModalState['type'], data?: any) => void;
 }> = ({ artist, allClientBookings, onRespondToRequest, onCompleteRequest, openModal }) => {
     const { sendAftercare, requestHealedPhoto } = useAppStore();
@@ -192,6 +190,7 @@ const BookingRequestsTab: React.FC<{
     today.setHours(0, 0, 0, 0);
 
     const isUpcoming = (dateString: string) => {
+        if (!dateString) return false;
         const target = new Date(dateString + 'T23:59:59');
         return target >= today;
     };
@@ -240,7 +239,7 @@ const BookingRequestsTab: React.FC<{
                         </div>
                         <div className="mt-4 pt-4 border-t border-gray-200 dark:border-gray-700 flex flex-wrap gap-2">
                             <button onClick={() => onCompleteRequest(req.id, 'completed')} className="bg-blue-600 text-white text-sm font-bold py-2 px-3 rounded-lg hover:bg-blue-500">Mark Completed</button>
-                            <button onClick={() => onCompleteRequest(req.id, 'rescheduled')} className="bg-purple-600 text-white text-sm font-bold py-2 px-3 rounded-lg hover:bg-purple-500">Mark Rescheduled</button>
+                            <button onClick={() => openModal('reschedule-booking', req)} className="bg-purple-600 text-white text-sm font-bold py-2 px-3 rounded-lg hover:bg-purple-500">Mark Rescheduled</button>
                             <button onClick={() => onCompleteRequest(req.id, 'no-show')} className="bg-red-600 text-white text-sm font-bold py-2 px-3 rounded-lg hover:bg-red-500">Mark No-Show</button>
                         </div>
                     </div>
@@ -258,7 +257,7 @@ const BookingRequestsTab: React.FC<{
                             </div>
                             <span className={`text-xs font-bold px-3 py-1 rounded-full capitalize ${getStatusChip(req.status)}`}>{req.status}</span>
                          </div>
-                         {req.clientId && (
+                         {req.clientId && req.status === 'completed' && (
                              <div className="mt-4 flex gap-2">
                                 <button onClick={() => sendAftercare(req.clientId!)} className="flex items-center gap-1 bg-brand-secondary/20 text-brand-secondary text-xs font-bold py-1 px-3 rounded-full hover:bg-brand-secondary hover:text-white transition-colors">
                                     <PaperAirplaneIcon className="w-3 h-3"/> Send Aftercare
@@ -297,7 +296,7 @@ export const ArtistDashboardView: React.FC<{
     setArtistAvailability: (date: string, status: 'available' | 'unavailable') => Promise<void>;
     allClientBookings: ClientBookingRequest[];
     onRespondToRequest: (requestId: string, status: 'approved' | 'declined') => void;
-    onCompleteRequest: (requestId: string, status: 'completed' | 'rescheduled' | 'no-show') => void;
+    onCompleteRequest: (requestId: string, status: 'completed' | 'rescheduled' | 'no-show', newDate?: string, newTime?: string) => void;
 }> = (props) => {
     const [activeTab, setActiveTab] = useState<ArtistDashboardTab>('requests');
 

@@ -1,4 +1,3 @@
-
 // @/App.tsx
 import React, { useEffect } from 'react';
 import { useAppStore } from './hooks/useAppStore';
@@ -30,6 +29,8 @@ import {
   AdminEditShopModal,
   PaymentModal,
   BookingRequestDetailModal,
+  ReportModal,
+  RescheduleModal,
 } from './components/ModalsAndProfile';
 import { Toast } from './components/shared/Toast';
 import { Loader } from './components/shared/Loader';
@@ -91,6 +92,8 @@ function App() {
     adminUpdateUser,
     adminUpdateShop,
     setArtistAvailability, // Added for new availability component
+    submitReport,
+    resolveReport,
   } = useAppStore();
 
   useEffect(() => {
@@ -238,6 +241,12 @@ function App() {
         return <PaymentModal request={modal.data} onProcessPayment={payBookingDeposit} onClose={closeModal} />;
       case 'booking-request-detail':
         return <BookingRequestDetailModal request={modal.data} onClose={closeModal} onRespond={respondToBookingRequest} />;
+      case 'report-user':
+        return <ReportModal targetId={modal.data} type="user" onSubmit={submitReport} onClose={closeModal} />;
+      case 'report-booking':
+        return <ReportModal targetId={modal.data} type="booking" onSubmit={submitReport} onClose={closeModal} />;
+      case 'reschedule-booking':
+        return <RescheduleModal request={modal.data} onConfirm={updateCompletionStatus} onClose={closeModal} />;
       default:
         return null;
     }
