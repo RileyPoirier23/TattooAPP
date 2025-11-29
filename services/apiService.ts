@@ -55,6 +55,7 @@ export const fetchInitialData = async (): Promise<any> => {
     const { data: rawBooths, error: boothsError } = await supabase.from('booths').select('*');
     const { data: rawBookings, error: bookingsError } = await supabase.from('bookings').select('*');
     
+    // CRITICAL: explicit Foreign Key hints to match the SQL script
     const { data: rawClientBookings, error: clientBookingsError } = await supabase
         .from('client_booking_requests')
         .select(`
@@ -66,16 +67,13 @@ export const fetchInitialData = async (): Promise<any> => {
     const { data: rawAvailability, error: availabilityError } = await supabase.from('artist_availability').select('*');
     const { data: rawVerificationRequests, error: verificationRequestsError } = await supabase.from('verification_requests').select(`*, profile:profiles(full_name), shop:shops(name)`);
     
-    // Attempt to fetch reports. This might fail if the table doesn't exist or RLS blocks it, so we handle it gracefully.
+    // Try fetch reports (might fail if not admin or table missing, handle gracefully)
     let reports: Report[] = [];
-    try {
-        const { data: rawReports, error: reportsError } = await supabase.from('reports').select('*, reporter:profiles(full_name)');
-        if (!reportsError && rawReports) {
-            reports = rawReports.map(adaptReport);
-        }
-    } catch (e) {
-        console.warn("Reports table might not exist yet.", e);
+    const { data: rawReports, error: reportsError } = await supabase.from('reports').select('*, reporter:profiles(full_name)');
+    if (!reportsError && rawReports) {
+        reports = rawReports.map(adaptReport);
     }
+
 
     if (artistsError || shopsError || boothsError || bookingsError || clientBookingsError || availabilityError || verificationRequestsError) {
         const firstError = artistsError || shopsError || boothsError || bookingsError || clientBookingsError || availabilityError || verificationRequestsError;
@@ -104,7 +102,7 @@ export const fetchInitialData = async (): Promise<any> => {
         notifications: [],
         conversations: [],
         messages: [],
-        reports // Added reports to return
+        reports
     };
 };
 
@@ -135,27 +133,43 @@ export const updateUserData = async (userId: string, updatedData: Partial<User['
     return { success: true };
 }
 
-export const updateArtistData = async (artistId: string, updatedData: Partial<Artist>): Promise<Artist> => {
+// Rewritten for robustness: Uses upsert to handle both existing and missing profiles.
+export const updateArtistData = async (artistId: string, email: string, updatedData: Partial<Artist>): Promise<Artist> => {
     const supabase = getSupabase();
-    const profileUpdate: { [key: string]: any } = {};
-    if (updatedData.name) profileUpdate.full_name = updatedData.name;
-    if (updatedData.specialty) profileUpdate.specialty = updatedData.specialty;
-    if (updatedData.bio) profileUpdate.bio = updatedData.bio;
-    if (updatedData.city) profileUpdate.city = updatedData.city;
-    if (updatedData.portfolio) profileUpdate.portfolio = updatedData.portfolio;
-    if (updatedData.socials) profileUpdate.socials = updatedData.socials;
-    if (updatedData.hourlyRate) profileUpdate.hourly_rate = updatedData.hourlyRate;
-    if (updatedData.services) profileUpdate.services = updatedData.services;
-    if (updatedData.aftercareMessage) profileUpdate.aftercare_message = updatedData.aftercareMessage;
-    if (typeof updatedData.requestHealedPhoto === 'boolean') profileUpdate.request_healed_photo = updatedData.requestHealedPhoto;
-    if (updatedData.hours) profileUpdate.hours = updatedData.hours;
-    if (updatedData.intakeSettings) profileUpdate.intake_settings = updatedData.intakeSettings;
-    if (updatedData.bookingMode) profileUpdate.booking_mode = updatedData.bookingMode;
-    if (updatedData.subscriptionTier) profileUpdate.subscription_tier = updatedData.subscriptionTier;
+    
+    // Construct a full payload to satisfy DB constraints on insert
+    const profilePayload = {
+      id: artistId,
+      username: email,
+      full_name: updatedData.name,
+      specialty: updatedData.specialty,
+      bio: updatedData.bio,
+      city: updatedData.city,
+      portfolio: updatedData.portfolio,
+      socials: updatedData.socials,
+      hourly_rate: updatedData.hourlyRate,
+      services: updatedData.services,
+      aftercare_message: updatedData.aftercareMessage,
+      request_healed_photo: updatedData.requestHealedPhoto,
+      hours: updatedData.hours,
+      intake_settings: updatedData.intakeSettings,
+      booking_mode: updatedData.bookingMode,
+      subscription_tier: updatedData.subscriptionTier,
+      updated_at: new Date().toISOString()
+    };
+    
+    // Remove undefined properties to prevent Supabase errors on UPDATE
+    Object.keys(profilePayload).forEach(key => profilePayload[key as keyof typeof profilePayload] === undefined && delete profilePayload[key as keyof typeof profilePayload]);
 
-    const { data, error } = await supabase.from('profiles').update(profileUpdate).eq('id', artistId).select().single();
+
+    const { data, error } = await supabase
+      .from('profiles')
+      .upsert(profilePayload, { onConflict: 'id' })
+      .select()
+      .single();
+
     if (error) {
-        console.error("Update Artist Error:", error);
+        console.error("Update/Upsert Artist Error:", error);
         throw error;
     }
     return adaptProfileToArtist(data);
@@ -164,40 +178,25 @@ export const updateArtistData = async (artistId: string, updatedData: Partial<Ar
 export const saveArtistHours = async (userId: string, hours: ArtistHours, name: string, city: string, email: string, role: UserRole): Promise<Artist> => {
     const supabase = getSupabase();
     
-    const updatePayload = {
+    const payload = {
+        id: userId,
+        username: email,
         hours: hours,
+        full_name: name,
+        city: city,
+        role: role,
         updated_at: new Date().toISOString()
     };
-
-    let { data, error } = await supabase
+    
+    const { data, error } = await supabase
         .from('profiles')
-        .update(updatePayload)
-        .eq('id', userId)
+        .upsert(payload, { onConflict: 'id' })
         .select()
         .single();
-
-    if (error || !data) {
-        const insertPayload = {
-            id: userId,
-            hours: hours,
-            full_name: name || 'Artist',
-            city: city || '',
-            username: email,
-            role: role === 'dual' ? 'dual' : 'artist',
-            updated_at: new Date().toISOString()
-        };
-        
-        const insertResult = await supabase
-            .from('profiles')
-            .insert(insertPayload)
-            .select()
-            .single();
             
-        if (insertResult.error) {
-             console.error("Save Hours Insert Error:", insertResult.error);
-             throw new Error(insertResult.error.message);
-        }
-        data = insertResult.data;
+    if (error) {
+         console.error("Save Hours Upsert Error:", error);
+         throw new Error(error.message);
     }
 
     if (!data) {

@@ -2,10 +2,13 @@
 
 InkSpace is a dual-sided marketplace connecting tattoo artists with shops for guest spots (B2B) and clients with artists for appointments (B2C).
 
-## 🚀 Quick Start & Manual Setup
+## 🚀 Quick Start & Manual Setup Guide
+
+This guide will walk you through setting up the application for local development and deploying it for production.
 
 ### 1. Environment Setup
-Create a `.env` file in the root directory and add your API keys:
+Create a `.env` file in the root directory and add your API keys. You must get these from their respective services.
+
 ```
 VITE_SUPABASE_URL=your_supabase_project_url
 VITE_SUPABASE_ANON_KEY=your_supabase_anon_key
@@ -17,11 +20,11 @@ VITE_GEMINI_API_KEY=your_gemini_ai_api_key
 
 You **MUST** run the SQL script below to set up the database. The app will not work without this. This script is "idempotent," meaning you can run it multiple times safely. It will clean up old rules and apply the correct new ones.
 
-1. Log in to your [Supabase Dashboard](https://supabase.com/dashboard).
-2. Go to the **SQL Editor** tab (icon on the left).
-3. Click **New query**.
-4. Copy the SQL script below and paste it into the editor.
-5. Click **Run** (bottom right).
+1.  Log in to your [Supabase Dashboard](https://supabase.com/dashboard).
+2.  Go to the **SQL Editor** tab (icon on the left).
+3.  Click **New query**.
+4.  Copy the SQL script below and paste it into the editor.
+5.  Click **Run** (bottom right).
 
 #### 📜 Master SQL Script (Copy All)
 
@@ -38,7 +41,6 @@ alter table public.profiles add column if not exists subscription_tier text defa
 
 -- Ensure Booking Requests have correct columns for Guest Flow and Archiving
 -- The status column is TEXT, so we don't need to alter it to add 'archived'.
--- This is just a safety check for other columns.
 alter table public.client_booking_requests add column if not exists updated_at timestamptz default now();
 alter table public.client_booking_requests add column if not exists guest_name text;
 alter table public.client_booking_requests add column if not exists guest_email text;
@@ -205,4 +207,10 @@ npx supabase link --project-ref your-project-id
 4.  Set your secret keys: `npx supabase secrets set STRIPE_SECRET_KEY=sk_test_...`
 
 You will do a similar process for a `send-email` function using SendGrid. The code for these functions is included in the `README.md` as a guide.
-```
+
+## ⚠️ Troubleshooting
+
+- **`Failed to save availability` or other save errors:** Your database is likely missing a column (like `updated_at`) or has a Row Level Security (RLS) policy blocking the update. **Re-run the Master SQL Script above.**
+- **`404 Error on Page Reload`:** Your hosting provider is not configured for a Single Page Application (SPA). Add a `vercel.json` (for Vercel) or `_redirects` (for Netlify) file to your project root that redirects all paths to `index.html`.
+- **`Cannot read properties of undefined (reading 'VITE_...')`:** Your `.env` file is missing or not configured correctly in your hosting provider's settings (e.g., Vercel).
+- **`Booking not showing up`:** The Foreign Keys in your database do not match what the app expects. **Re-run the Master SQL Script above.**

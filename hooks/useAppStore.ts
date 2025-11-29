@@ -497,8 +497,14 @@ export const useAppStore = create<AppState>()(
       },
       
       updateArtist: async (artistId, data) => {
+        const user = get().user;
+        if (!user || user.id !== artistId) {
+            get().showToast('You can only update your own profile.', 'error');
+            throw new Error("Permission denied to update artist profile.");
+        }
         try {
-            const updatedArtist = await updateArtistData(artistId, data);
+            // FIX: Pass the user's email as the second argument to updateArtistData
+            const updatedArtist = await updateArtistData(artistId, user.email, data);
             set(state => {
                 const newArtists = state.data.artists.map(a => a.id === artistId ? {...a, ...updatedArtist} : a);
                 let newUser = state.user;
@@ -870,6 +876,7 @@ export const useAppStore = create<AppState>()(
             get().showToast("Failed to upgrade subscription.", 'error');
         }
       },
+      // FIX: The call to updateArtistData was missing the email argument. This internal function is not exposed or used elsewhere, but fixing it for correctness.
       toggleArtistSubscription: async (artistId) => {
           const user = get().user;
           const artist = get().data.artists.find(a => a.id === artistId);
@@ -877,7 +884,18 @@ export const useAppStore = create<AppState>()(
           
           const newTier = artist.subscriptionTier === 'pro' ? 'free' : 'pro';
           try {
-              await updateArtistData(artistId, { subscriptionTier: newTier });
+              let artistEmail: string | undefined;
+              if (user?.id === artistId) {
+                artistEmail = user.email;
+              } else if (user?.type === 'admin') {
+                artistEmail = get().allUsers.find(u => u.id === artistId)?.email;
+              }
+
+              if (!artistEmail) {
+                throw new Error(`Could not determine email for artist ${artistId} to toggle subscription.`);
+              }
+
+              await updateArtistData(artistId, artistEmail, { subscriptionTier: newTier });
               set(state => ({
                   data: { ...state.data, artists: state.data.artists.map(a => a.id === artistId ? { ...a, subscriptionTier: newTier } : a) },
                   user: state.user?.id === artistId && (state.user.type === 'artist' || state.user.type === 'dual') ? 
