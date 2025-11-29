@@ -448,6 +448,7 @@ export const sendMessage = async (conversationId: string, senderId: string, cont
     return adaptMessage(data);
 };
 
+// Automation: Send System Message (reuses send_message logic)
 export const sendSystemMessage = async (conversationId: string, senderId: string, content: string): Promise<Message> => {
     const supabase = getSupabase();
     const { data, error } = await supabase.rpc('send_message', {

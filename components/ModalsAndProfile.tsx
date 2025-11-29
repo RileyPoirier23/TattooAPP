@@ -95,6 +95,7 @@ export const PaymentModal: React.FC<{ request: ClientBookingRequest; onProcessPa
     const [isProcessing, setIsProcessing] = useState(false);
     
     const artist = data.artists.find(a => a.id === request.artistId);
+    // Fee Logic: 2.9% if free tier, 0% if pro
     const isPro = artist?.subscriptionTier === 'pro';
     const deposit = request.depositAmount || 0;
     const fee = isPro ? 0 : deposit * 0.029;

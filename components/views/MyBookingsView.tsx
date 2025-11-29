@@ -63,7 +63,7 @@ const ArtistBookings: React.FC<Pick<MyBookingsViewProps, 'artistBookings' | 'sho
                                 <div>
                                     <p className="font-bold text-brand-dark dark:text-white">{shop?.name}</p>
                                     <p className="text-sm text-brand-gray flex items-center mt-1"><LocationIcon className="w-4 h-4 mr-1.5"/>{shop?.location}</p>
-                                    <p className="text-sm text-brand-gray flex items-center mt-1"><CalendarIcon className="w-4 h-4 mr-1.5"/>{new Date(booking.startDate).toLocaleDateString()} - {new Date(booking.endDate).toLocaleDateString()}</p>
+                                    <p className="text-sm text-brand-gray flex items-center mt-1"><CalendarIcon className="w-4 h-4 mr-1.5"/>{new Date(booking.startDate).toLocaleDateString()}</p>
                                 </div>
                                 <span className={`text-xs font-bold px-3 py-1 rounded-full capitalize ${getStatusChip(booking.paymentStatus)}`}>{booking.paymentStatus}</span>
                             </div>
