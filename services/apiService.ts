@@ -131,17 +131,20 @@ export const updateUserData = async (userId: string, updatedData: Partial<User['
     return { success: true };
 }
 
-// Rewritten for robustness: Uses upsert to handle both existing and missing profiles.
+// Rewritten for robustness: Uses a single, powerful upsert operation.
 export const updateArtistData = async (artistId: string, email: string, updatedData: Partial<Artist>): Promise<Artist> => {
     const supabase = getSupabase();
     
+    // This payload contains ALL possible fields for an artist profile.
+    // When upserting, it will create a new profile if one doesn't exist for the ID,
+    // or update the existing one with the provided fields.
     const profilePayload: any = {
       id: artistId,
-      username: email,
+      username: email, // `username` is often used as the unique identifier with email
       updated_at: new Date().toISOString()
     };
     
-    // Map only the provided fields to avoid overwriting with undefined
+    // Conditionally add fields to the payload only if they are provided.
     if (updatedData.name) profilePayload.full_name = updatedData.name;
     if (updatedData.specialty) profilePayload.specialty = updatedData.specialty;
     if (updatedData.bio) profilePayload.bio = updatedData.bio;
@@ -157,7 +160,6 @@ export const updateArtistData = async (artistId: string, email: string, updatedD
     if (updatedData.bookingMode) profilePayload.booking_mode = updatedData.bookingMode;
     if (updatedData.subscriptionTier) profilePayload.subscription_tier = updatedData.subscriptionTier;
 
-
     const { data, error } = await supabase
       .from('profiles')
       .upsert(profilePayload, { onConflict: 'id' })
@@ -166,40 +168,15 @@ export const updateArtistData = async (artistId: string, email: string, updatedD
 
     if (error) {
         console.error("Update/Upsert Artist Error:", error);
-        throw error;
+        throw new Error(`Failed to save artist details: ${error.message}`);
     }
     return adaptProfileToArtist(data);
 };
 
+// This function is now consolidated into updateArtistData for robustness.
+// It is kept here to prevent breaking old calls, but it's deprecated.
 export const saveArtistHours = async (userId: string, hours: ArtistHours, name: string, city: string, email: string, role: UserRole): Promise<Artist> => {
-    const supabase = getSupabase();
-    
-    const payload = {
-        id: userId,
-        username: email,
-        hours: hours,
-        full_name: name,
-        city: city,
-        role: role,
-        updated_at: new Date().toISOString()
-    };
-    
-    const { data, error } = await supabase
-        .from('profiles')
-        .upsert(payload, { onConflict: 'id' })
-        .select()
-        .single();
-            
-    if (error) {
-         console.error("Save Hours Upsert Error:", error);
-         throw new Error(error.message);
-    }
-
-    if (!data) {
-        throw new Error("Save succeeded but no data returned.");
-    }
-
-    return adaptProfileToArtist(data);
+    return updateArtistData(userId, email, { hours, name, city, ...(role && { role: role } as any) });
 };
 
 export const uploadPortfolioImage = async (userId: string, file: File): Promise<PortfolioImage> => {
@@ -298,6 +275,7 @@ export const createBookingForArtist = async (bookingData: Omit<Booking, 'id' | '
 export const createClientBookingRequest = async (requestData: any): Promise<ClientBookingRequest> => {
     const supabase = getSupabase();
     
+    // Harden the payload to ensure undefined values are sent as null.
     const rpcParams = {
         p_artist_id: requestData.artistId,
         p_start_date: requestData.startDate,
@@ -390,6 +368,8 @@ export const rescheduleClientBooking = async (requestId: string, newDate: string
 
 export const payClientBookingDeposit = async (requestId: string) => {
     const supabase = getSupabase();
+    // In production, this would call a Stripe Edge Function.
+    // For now, we simulate success by updating the DB.
     const { data, error } = await supabase
         .from('client_booking_requests')
         .update({ 
@@ -462,7 +442,6 @@ export const sendMessage = async (conversationId: string, senderId: string, cont
     return adaptMessage(data);
 };
 
-// Automation: Send System Message (reuses send_message logic)
 export const sendSystemMessage = async (conversationId: string, senderId: string, content: string): Promise<Message> => {
     const supabase = getSupabase();
     const { data, error } = await supabase.rpc('send_message', {
@@ -624,7 +603,6 @@ export const adminUpdateShopDetails = async (shopId: string, data: { name: strin
     return adaptShop(updatedShop);
 }
 
-// Report System
 export const createReport = async (reportData: { reporterId: string, targetId: string, type: 'user' | 'booking', reason: string }) => {
     const supabase = getSupabase();
     const { error } = await supabase.from('reports').insert({

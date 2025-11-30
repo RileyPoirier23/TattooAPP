@@ -56,7 +56,6 @@ export interface Artist {
   services?: ArtistService[];
   aftercareMessage?: string;
   requestHealedPhoto?: boolean;
-  // New granular availability
   hours?: ArtistHours;
   intakeSettings?: IntakeFormSettings;
   bookingMode?: 'specific_time' | 'time_range';
@@ -101,10 +100,10 @@ export interface Shop {
   lat: number;
   lng: number;
   amenities: string[];
-  rating: number; // Client rating of artists at the shop (not directly used yet)
-  averageArtistRating: number; // Artist review of the shop
+  rating: number;
+  averageArtistRating: number;
   imageUrl: string;
-  reviews: Review[]; // Artist reviews of the shop
+  reviews: Review[];
   paymentMethods?: PaymentMethods;
   isVerified: boolean;
   ownerId: string;
@@ -164,7 +163,7 @@ export interface ClientBookingRequest {
     serviceName?: string; // Denormalized for easier display
     budget?: number;
     referenceImageUrls?: string[];
-    preferredTime?: 'morning' | 'afternoon' | 'evening' | 'anytime';
+    preferredTime?: 'morning' | 'afternoon' | 'evening' | 'anytime' | string;
 }
 
 export interface Notification {
@@ -190,7 +189,6 @@ export interface Conversation {
   participantTwoId: string;
 }
 
-// Enriched conversation type for UI
 export interface ConversationWithUser extends Conversation {
   otherUser: {
     id: string;
@@ -213,7 +211,6 @@ export interface VerificationRequest {
     type: 'artist' | 'shop';
     status: 'pending' | 'approved' | 'rejected';
     createdAt: string;
-    // For UI display
     requesterName?: string;
     itemName?: string;
 }
@@ -221,7 +218,7 @@ export interface VerificationRequest {
 export interface Report {
     id: string;
     reporterId: string;
-    targetId: string; // User ID or Booking ID
+    targetId: string;
     type: 'user' | 'booking';
     reason: string;
     status: 'pending' | 'resolved' | 'dismissed';
@@ -263,8 +260,7 @@ export type UserRole = 'artist' | 'client' | 'shop-owner' | 'dual' | 'admin';
 interface BaseUser {
     id: string;
     email: string;
-    password?: string; // Should not exist on client-side after login
-    type: UserRole;
+    password?: string;
 }
 export interface ArtistUser extends BaseUser {
     type: 'artist';
@@ -280,7 +276,7 @@ export interface ShopOwnerUser extends BaseUser {
 }
 export interface DualUser extends BaseUser {
     type: 'dual';
-    data: Artist; // A dual user's primary data is their artist profile
+    data: Artist;
 }
 export interface AdminUser extends BaseUser {
     type: 'admin';
@@ -297,5 +293,5 @@ export interface AuthCredentials {
 export interface RegisterDetails extends AuthCredentials {
     type: UserRole;
     name: string;
-    city?: string; // Only for artists/dual
+    city?: string;
 }

@@ -524,21 +524,7 @@ export const useAppStore = create<AppState>()(
         const user = get().user;
         if (!user || (user.type !== 'artist' && user.type !== 'dual')) return;
         try {
-            const name = user.data.name;
-            const city = 'city' in user.data ? user.data.city : '';
-            const email = user.email;
-            const role = user.type; 
-            const updatedArtist = await saveArtistHours(user.id, hours, name, city, email, role);
-            const verifiedProfile = await authService.getUserProfile(user.id);
-            set(state => {
-                if (state.user?.id === user.id) {
-                    localStorage.setItem('inkspace_user_session', JSON.stringify(verifiedProfile));
-                }
-                return {
-                    user: verifiedProfile,
-                    data: { ...state.data, artists: state.data.artists.map(a => a.id === user.id ? {...a, ...updatedArtist} : a) }
-                };
-            });
+            const updatedArtist = await get().updateArtist(user.id, { hours });
             get().showToast('Availability saved successfully!', 'success');
         } catch (error) {
             const msg = error instanceof Error ? error.message : "Failed to save hours";
@@ -876,7 +862,6 @@ export const useAppStore = create<AppState>()(
             get().showToast("Failed to upgrade subscription.", 'error');
         }
       },
-      // FIX: The call to updateArtistData was missing the email argument. This internal function is not exposed or used elsewhere, but fixing it for correctness.
       toggleArtistSubscription: async (artistId) => {
           const user = get().user;
           const artist = get().data.artists.find(a => a.id === artistId);

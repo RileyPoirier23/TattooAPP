@@ -1,13 +1,14 @@
 // @/components/ModalsAndProfile.tsx
 
-import React, { useState, useRef, useEffect } from 'react';
+import React, { useState, useRef, useEffect, useMemo } from 'react';
 import { useAppStore } from '../hooks/useAppStore';
-import type { Artist, Shop, Booking, Booth, Review, AuthCredentials, RegisterDetails, UserRole, ClientBookingRequest, Client, ModalState, PortfolioImage, ArtistAvailability, User, ArtistService, IntakeFormSettings } from '../types';
+// FIX: Imported ArtistHours type to resolve compilation error.
+import type { Artist, Shop, Booking, Booth, Review, AuthCredentials, RegisterDetails, UserRole, ClientBookingRequest, Client, ModalState, PortfolioImage, ArtistAvailability, User, ArtistService, IntakeFormSettings, ArtistHours } from '../types';
 import { LocationIcon, StarIcon, PriceIcon, XIcon, EditIcon, PaperAirplaneIcon, CalendarIcon, UploadIcon, CheckBadgeIcon, CreditCardIcon, InstagramIcon, TikTokIcon, XIconSocial, TrashIcon, ArrowRightIcon, ArrowLeftIcon, SparklesIcon } from './shared/Icons';
 import { MapEmbed } from './shared/MapEmbed';
 import { Loader } from './shared/Loader';
 import { bodyPlacements } from '../data/bookingOptions';
-import { generateArtistBio } from '../services/geminiService';
+import { generateArtistBio, suggestTattooService } from '../services/geminiService';
 
 declare global {
     interface Window {
@@ -505,33 +506,137 @@ export const BookingModal: React.FC<{ shop: Shop; booths: Booth[]; bookings: Boo
     );
 };
 
+const BookingCalendar: React.FC<{
+  artistHours: ArtistHours;
+  selectedDate: string;
+  onDateChange: (date: string) => void;
+}> = ({ artistHours, selectedDate, onDateChange }) => {
+    const [currentMonth, setCurrentMonth] = useState(new Date().getMonth());
+    const [currentYear, setCurrentYear] = useState(new Date().getFullYear());
+
+    const isDateAvailable = (date: Date) => {
+        const dayOfWeek = date.getDay(); // 0 = Sunday
+        const hours = artistHours[dayOfWeek];
+        return hours && hours.length > 0;
+    };
+    
+    const renderCalendar = () => {
+        const firstDay = new Date(currentYear, currentMonth, 1).getDay();
+        const daysInMonth = new Date(currentYear, currentMonth + 1, 0).getDate();
+        
+        let days = [];
+        for (let i = 0; i < firstDay; i++) {
+            days.push(<div key={`empty-${i}`} className="p-2"></div>);
+        }
+
+        for (let i = 1; i <= daysInMonth; i++) {
+            const date = new Date(currentYear, currentMonth, i);
+            const dateString = date.toISOString().split('T')[0];
+            const isToday = new Date().toISOString().split('T')[0] === dateString;
+            const isSelected = selectedDate === dateString;
+            const isAvailable = isDateAvailable(date);
+
+            let classes = "w-10 h-10 flex items-center justify-center rounded-full transition-colors ";
+            if (isAvailable) {
+                if (isSelected) {
+                    classes += "bg-brand-primary text-white font-bold";
+                } else if (isToday) {
+                    classes += "bg-brand-secondary/20 text-brand-secondary";
+                } else {
+                    classes += "hover:bg-gray-200 dark:hover:bg-gray-700 cursor-pointer";
+                }
+            } else {
+                classes += "text-gray-400 dark:text-gray-600 cursor-not-allowed line-through";
+            }
+            
+            days.push(
+                <button key={i} onClick={() => isAvailable && onDateChange(dateString)} disabled={!isAvailable} className={classes}>
+                    {i}
+                </button>
+            );
+        }
+        return days;
+    };
+
+    const monthName = new Date(currentYear, currentMonth).toLocaleString('default', { month: 'long' });
+    const nextMonth = () => {
+        if (currentMonth === 11) {
+            setCurrentMonth(0);
+            setCurrentYear(currentYear + 1);
+        } else {
+            setCurrentMonth(currentMonth + 1);
+        }
+    };
+    const prevMonth = () => {
+        if (currentMonth === 0) {
+            setCurrentMonth(11);
+            setCurrentYear(currentYear - 1);
+        } else {
+            setCurrentMonth(currentMonth - 1);
+        }
+    };
+
+    return (
+        <div>
+            <div className="flex justify-between items-center mb-4">
+                <button onClick={prevMonth} className="p-2 rounded-full hover:bg-gray-200 dark:hover:bg-gray-700"><ArrowLeftIcon className="w-5 h-5"/></button>
+                <h4 className="font-bold text-lg">{monthName} {currentYear}</h4>
+                <button onClick={nextMonth} className="p-2 rounded-full hover:bg-gray-200 dark:hover:bg-gray-700"><ArrowRightIcon className="w-5 h-5"/></button>
+            </div>
+            <div className="grid grid-cols-7 gap-2 text-center text-xs text-brand-gray">
+                {['S', 'M', 'T', 'W', 'T', 'F', 'S'].map(d => <div key={d}>{d}</div>)}
+            </div>
+            <div className="grid grid-cols-7 gap-2 mt-2 text-center">
+                {renderCalendar()}
+            </div>
+             <div className="flex items-center gap-4 text-xs mt-4">
+                <div className="flex items-center gap-2"><div className="w-3 h-3 rounded-full bg-brand-primary"></div> Selected</div>
+                <div className="flex items-center gap-2"><div className="w-3 h-3 rounded-full bg-gray-400 dark:bg-gray-600"></div> Unavailable/Closed</div>
+            </div>
+        </div>
+    );
+};
+
 export const ClientBookingRequestModal: React.FC<{ artist: Artist; availability: ArtistAvailability[]; onClose: () => void; onSendRequest: (data: any, files: File[]) => void; }> = ({ artist, availability, onClose, onSendRequest }) => {
     const { user } = useAppStore();
     const [step, setStep] = useState(1);
+    const [isSuggesting, setIsSuggesting] = useState(false);
+    const [suggestionError, setSuggestionError] = useState('');
     
-    // Core details
-    const [description, setDescription] = useState('');
-    const [width, setWidth] = useState<number>(3);
-    const [height, setHeight] = useState<number>(3);
-    const [placement, setPlacement] = useState('arm_upper');
+    // Step 1
+    const [width, setWidth] = useState<number | ''>('');
+    const [height, setHeight] = useState<number | ''>('');
+    const [placement, setPlacement] = useState('');
+    const [budget, setBudget] = useState<number | ''>('');
+    const [description, setDescription] = useState(`Hi ${artist.name}, I'm interested in getting a...`);
     const [files, setFiles] = useState<File[]>([]);
     
-    // Service & Budget
+    // Step 2
     const [serviceId, setServiceId] = useState('');
-    const [budget, setBudget] = useState<number | ''>('');
-    
-    // Time & Contact
-    const [date, setDate] = useState('');
-    const [preferredTime, setPreferredTime] = useState('anytime');
+    const [selectedDate, setSelectedDate] = useState('');
+
+    // Step 3
     const [guestName, setGuestName] = useState('');
     const [guestEmail, setGuestEmail] = useState('');
     const [guestPhone, setGuestPhone] = useState('');
 
-    const intakeSettings = artist.intakeSettings || { requireSize: true, requireDescription: true, requireLocation: true, requireBudget: false };
-
     const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
         if (e.target.files) {
-            setFiles(Array.from(e.target.files));
+            setFiles(Array.from(e.target.files).slice(0, 5));
+        }
+    };
+    
+    const handleSuggest = async () => {
+        if (typeof width !== 'number' || typeof height !== 'number' || !artist.services) return;
+        setIsSuggesting(true);
+        setSuggestionError('');
+        try {
+            const suggestedId = await suggestTattooService(width, height, artist.services);
+            setServiceId(suggestedId);
+        } catch (e) {
+            setSuggestionError(e instanceof Error ? e.message : "Could not suggest a service.");
+        } finally {
+            setIsSuggesting(false);
         }
     };
 
@@ -541,17 +646,17 @@ export const ClientBookingRequestModal: React.FC<{ artist: Artist; availability:
         const payload: any = {
             artistId: artist.id,
             serviceId: serviceId || 'custom',
-            startDate: date,
-            endDate: date, // Single day for now
+            startDate: selectedDate,
+            endDate: selectedDate,
             message: description,
-            tattooWidth: width,
-            tattooHeight: height,
+            tattooWidth: Number(width),
+            tattooHeight: Number(height),
             bodyPlacement: placement,
             depositAmount: deposit,
-            platformFee: deposit * 0.029, // 2.9% fee
+            platformFee: deposit * 0.029,
             budget: budget ? Number(budget) : null,
             status: 'pending',
-            preferredTime
+            preferredTime: 'anytime'
         };
 
         if (!user) {
@@ -563,120 +668,82 @@ export const ClientBookingRequestModal: React.FC<{ artist: Artist; availability:
         onSendRequest(payload, files);
     };
 
-    // Check blocked dates (simplified logic for robustness)
-    const isDateDisabled = (d: string) => {
-        const day = new Date(d).getUTCDay(); // 0 = Sunday
-        const hours = artist.hours?.[day];
-        // If hours is undefined or empty array, it's closed
-        return !hours || hours.length === 0;
-    };
+    const inputClasses = "w-full bg-gray-100 dark:bg-gray-800 rounded-lg p-3 text-brand-dark dark:text-white border border-transparent focus:border-brand-primary focus:ring-0 transition-colors";
 
     return (
-        <Modal onClose={onClose} title={`Book with ${artist.name}`} size="lg">
-            <div className="space-y-6">
-                 {/* Step 1: Project Details */}
-                 {step === 1 && (
-                     <div className="space-y-4 animate-[fadeIn_0.3s_ease-out]">
-                        <h3 className="font-bold text-lg text-brand-dark dark:text-white">1. Tattoo Details</h3>
-                        
-                        <div>
-                            <label className="block text-sm font-medium text-brand-gray mb-1">Description {intakeSettings.requireDescription && '*'}</label>
-                            <textarea value={description} onChange={e => setDescription(e.target.value)} className="w-full bg-gray-100 dark:bg-gray-800 rounded p-2 text-brand-dark dark:text-white" rows={3} placeholder="Describe your tattoo idea..." />
-                        </div>
-
-                        <div className="grid grid-cols-2 gap-4">
-                            <div>
-                                <label className="block text-sm font-medium text-brand-gray mb-1">Placement</label>
-                                <select value={placement} onChange={e => setPlacement(e.target.value)} className="w-full bg-gray-100 dark:bg-gray-800 rounded p-2 text-brand-dark dark:text-white">
-                                    {bodyPlacements.map(p => <option key={p.value} value={p.value}>{p.label}</option>)}
-                                </select>
-                            </div>
-                            <div className="flex gap-2">
-                                <div className="flex-1">
-                                    <label className="block text-sm font-medium text-brand-gray mb-1">W (in)</label>
-                                    <input type="number" value={width} onChange={e => setWidth(Number(e.target.value))} className="w-full bg-gray-100 dark:bg-gray-800 rounded p-2 text-brand-dark dark:text-white" />
-                                </div>
-                                <div className="flex-1">
-                                    <label className="block text-sm font-medium text-brand-gray mb-1">H (in)</label>
-                                    <input type="number" value={height} onChange={e => setHeight(Number(e.target.value))} className="w-full bg-gray-100 dark:bg-gray-800 rounded p-2 text-brand-dark dark:text-white" />
-                                </div>
-                            </div>
-                        </div>
-                         
-                         <div>
-                            <label className="block text-sm font-medium text-brand-gray mb-1">Reference Images</label>
-                            <input type="file" multiple onChange={handleFileChange} className="w-full text-sm text-brand-gray file:mr-4 file:py-2 file:px-4 file:rounded-full file:border-0 file:text-sm file:font-semibold file:bg-brand-secondary/10 file:text-brand-secondary hover:file:bg-brand-secondary/20" />
-                         </div>
-
-                         <button onClick={() => setStep(2)} className="w-full bg-brand-primary text-white font-bold py-3 rounded-lg mt-2">Next</button>
-                     </div>
-                 )}
-
-                 {/* Step 2: Service & Budget */}
-                 {step === 2 && (
-                     <div className="space-y-4 animate-[fadeIn_0.3s_ease-out]">
-                         <h3 className="font-bold text-lg text-brand-dark dark:text-white">2. Service & Budget</h3>
-                         
-                         {artist.services && artist.services.length > 0 ? (
-                            <div>
-                                <label className="block text-sm font-medium text-brand-gray mb-1">Select Service</label>
-                                <select value={serviceId} onChange={e => setServiceId(e.target.value)} className="w-full bg-gray-100 dark:bg-gray-800 rounded p-2 text-brand-dark dark:text-white">
-                                    <option value="">-- Choose a service --</option>
-                                    {artist.services.map(s => <option key={s.id} value={s.id}>{s.name} (${s.price}+) - {s.duration} hrs</option>)}
-                                </select>
-                            </div>
-                         ) : <p className="text-brand-gray italic">Artist has no services listed. A custom request will be sent.</p>}
-
-                         <div>
-                             <label className="block text-sm font-medium text-brand-gray mb-1">Budget Estimate ($)</label>
-                             <input type="number" value={budget} onChange={e => setBudget(Number(e.target.value))} className="w-full bg-gray-100 dark:bg-gray-800 rounded p-2 text-brand-dark dark:text-white" placeholder="e.g. 300" />
-                         </div>
-
-                         <div className="flex gap-4">
-                             <button onClick={() => setStep(1)} className="w-1/3 bg-gray-200 dark:bg-gray-700 text-brand-dark dark:text-white font-bold py-3 rounded-lg">Back</button>
-                             <button onClick={() => setStep(3)} className="w-2/3 bg-brand-primary text-white font-bold py-3 rounded-lg">Next</button>
-                         </div>
-                     </div>
-                 )}
-
-                 {/* Step 3: Scheduling */}
-                 {step === 3 && (
-                     <div className="space-y-4 animate-[fadeIn_0.3s_ease-out]">
-                         <h3 className="font-bold text-lg text-brand-dark dark:text-white">3. Schedule</h3>
-                         
-                         <div className="grid grid-cols-2 gap-4">
-                             <div>
-                                 <label className="block text-sm font-medium text-brand-gray mb-1">Preferred Date</label>
-                                 <input type="date" value={date} onChange={e => setDate(e.target.value)} className="w-full bg-gray-100 dark:bg-gray-800 rounded p-2 text-brand-dark dark:text-white" />
-                                 {date && isDateDisabled(date) && <p className="text-red-500 text-xs mt-1">Artist is typically closed on this day.</p>}
-                             </div>
-                             <div>
-                                 <label className="block text-sm font-medium text-brand-gray mb-1">Time Preference</label>
-                                 <select value={preferredTime} onChange={e => setPreferredTime(e.target.value)} className="w-full bg-gray-100 dark:bg-gray-800 rounded p-2 text-brand-dark dark:text-white">
-                                     <option value="anytime">Anytime</option>
-                                     <option value="morning">Morning (9am - 12pm)</option>
-                                     <option value="afternoon">Afternoon (12pm - 4pm)</option>
-                                     <option value="evening">Evening (4pm+)</option>
-                                 </select>
-                             </div>
-                         </div>
-                         
-                         {!user && (
-                             <div className="p-4 bg-brand-primary/10 rounded-lg space-y-3">
-                                 <h4 className="font-semibold text-brand-primary">Guest Contact Info</h4>
-                                 <input type="text" placeholder="Full Name" value={guestName} onChange={e => setGuestName(e.target.value)} required className="w-full bg-white dark:bg-gray-800 rounded p-2 border border-gray-300 dark:border-gray-700" />
-                                 <input type="email" placeholder="Email Address" value={guestEmail} onChange={e => setGuestEmail(e.target.value)} required className="w-full bg-white dark:bg-gray-800 rounded p-2 border border-gray-300 dark:border-gray-700" />
-                                 <input type="tel" placeholder="Phone Number" value={guestPhone} onChange={e => setGuestPhone(e.target.value)} className="w-full bg-white dark:bg-gray-800 rounded p-2 border border-gray-300 dark:border-gray-700" />
-                             </div>
-                         )}
-
-                         <div className="flex gap-4 pt-2">
-                             <button onClick={() => setStep(2)} className="w-1/3 bg-gray-200 dark:bg-gray-700 text-brand-dark dark:text-white font-bold py-3 rounded-lg">Back</button>
-                             <button onClick={handleSubmit} disabled={!date || (!user && (!guestName || !guestEmail))} className="w-2/3 bg-brand-secondary text-white font-bold py-3 rounded-lg disabled:bg-gray-600">Send Request</button>
-                         </div>
-                     </div>
-                 )}
+        <Modal onClose={onClose} title={`Request Booking: Step ${step} of 3`} size="xl">
+            {/* Progress Bar */}
+            <div className="w-full bg-gray-200 dark:bg-gray-700 rounded-full h-1.5 mb-6">
+                <div className="bg-brand-primary h-1.5 rounded-full" style={{ width: `${(step / 3) * 100}%` }}></div>
             </div>
+
+            {/* Step 1: Tattoo Details */}
+            {step === 1 && (
+                <div className="space-y-4 animate-[fadeIn_0.3s_ease-out]">
+                    <h3 className="font-bold text-lg text-brand-dark dark:text-white">Tattoo Details</h3>
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                        <div className="md:col-span-1 grid grid-cols-2 gap-4">
+                            <div><label className="text-sm font-medium text-brand-gray">Width (in)</label><input type="number" value={width} onChange={e => setWidth(e.target.value === '' ? '' : Number(e.target.value))} className={inputClasses} /></div>
+                            <div><label className="text-sm font-medium text-brand-gray">Height (in)</label><input type="number" value={height} onChange={e => setHeight(e.target.value === '' ? '' : Number(e.target.value))} className={inputClasses} /></div>
+                            <div className="col-span-2"><label className="text-sm font-medium text-brand-gray">Body Placement</label><select value={placement} onChange={e => setPlacement(e.target.value)} className={inputClasses}><option value="">Select placement...</option>{bodyPlacements.map(p => <option key={p.value} value={p.value}>{p.label}</option>)}</select></div>
+                            <div className="col-span-2"><label className="text-sm font-medium text-brand-gray">Budget (Optional)</label><div className="relative"><span className="absolute left-3 top-1/2 -translate-y-1/2 text-brand-gray">$</span><input type="number" value={budget} onChange={e => setBudget(e.target.value === '' ? '' : Number(e.target.value))} className={`${inputClasses} pl-6`} /></div></div>
+                        </div>
+                        <div className="md:col-span-1 flex flex-col">
+                            <label className="text-sm font-medium text-brand-gray">Tattoo Idea / Message</label>
+                            <textarea value={description} onChange={e => setDescription(e.target.value)} rows={6} className={`${inputClasses} flex-grow`} />
+                        </div>
+                    </div>
+                     <div>
+                        <label className="text-sm font-medium text-brand-gray">Reference Photos (Up to 5)</label>
+                        <div className="mt-1"><input type="file" multiple onChange={handleFileChange} className="w-full text-sm text-brand-gray file:mr-4 file:py-2 file:px-4 file:rounded-full file:border-0 file:text-sm file:font-semibold file:bg-brand-secondary/10 file:text-brand-secondary hover:file:bg-brand-secondary/20" /></div>
+                    </div>
+                    <div className="flex justify-end pt-4"><button onClick={() => setStep(2)} disabled={!width || !height || !placement} className="bg-brand-primary text-white font-bold py-2 px-6 rounded-lg disabled:bg-gray-600">Next</button></div>
+                </div>
+            )}
+
+            {/* Step 2: Service & Dates */}
+            {step === 2 && (
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-8 animate-[fadeIn_0.3s_ease-out]">
+                    <div className="space-y-4">
+                         <h3 className="font-bold text-lg text-brand-dark dark:text-white">Service</h3>
+                         <select value={serviceId} onChange={e => setServiceId(e.target.value)} className={inputClasses}>
+                            <option value="">Select A Service...</option>
+                            {artist.services?.map(s => <option key={s.id} value={s.id}>{s.name} ({s.duration} hrs)</option>)}
+                         </select>
+                         <button onClick={handleSuggest} disabled={isSuggesting || !width || !height || !artist.services || artist.services.length === 0} className="w-full flex items-center justify-center gap-2 bg-brand-secondary text-white font-bold py-2 px-4 rounded-lg disabled:bg-gray-600">
+                           {isSuggesting ? <Loader size="sm" color="white" /> : <SparklesIcon className="w-5 h-5"/>} Suggest
+                         </button>
+                         {suggestionError && <p className="text-red-500 text-xs text-center">{suggestionError}</p>}
+                    </div>
+                    <div>
+                        <h3 className="font-bold text-lg text-brand-dark dark:text-white mb-4">Select Your Availability</h3>
+                        <BookingCalendar artistHours={artist.hours || {}} selectedDate={selectedDate} onDateChange={setSelectedDate} />
+                    </div>
+                    <div className="md:col-span-2 flex justify-between pt-4"><button onClick={() => setStep(1)} className="bg-gray-200 dark:bg-gray-700 text-brand-dark dark:text-white font-bold py-2 px-6 rounded-lg">Back</button><button onClick={() => setStep(3)} disabled={!selectedDate} className="bg-brand-primary text-white font-bold py-2 px-6 rounded-lg disabled:bg-gray-600">Next</button></div>
+                </div>
+            )}
+            
+            {/* Step 3: Contact & Confirm */}
+            {step === 3 && (
+                 <div className="space-y-4 animate-[fadeIn_0.3s_ease-out]">
+                     {!user ? (
+                         <>
+                            <h3 className="font-bold text-lg text-brand-dark dark:text-white">Your Contact Details</h3>
+                            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                                <div><label className="text-sm font-medium text-brand-gray">Full Name</label><input type="text" value={guestName} onChange={e => setGuestName(e.target.value)} className={inputClasses} required/></div>
+                                <div><label className="text-sm font-medium text-brand-gray">Email</label><input type="email" value={guestEmail} onChange={e => setGuestEmail(e.target.value)} className={inputClasses} required/></div>
+                                <div className="col-span-full"><label className="text-sm font-medium text-brand-gray">Phone Number</label><input type="tel" value={guestPhone} onChange={e => setGuestPhone(e.target.value)} className={inputClasses} /></div>
+                            </div>
+                         </>
+                     ) : (
+                         <div className="text-center p-8">
+                            <h3 className="font-bold text-xl text-brand-dark dark:text-white">Ready to Send?</h3>
+                            <p className="text-brand-gray">Your request will be sent to {artist.name} for review.</p>
+                         </div>
+                     )}
+                     <div className="flex justify-between pt-4"><button onClick={() => setStep(2)} className="bg-gray-200 dark:bg-gray-700 text-brand-dark dark:text-white font-bold py-2 px-6 rounded-lg">Back</button><button onClick={handleSubmit} disabled={!user && (!guestName || !guestEmail)} className="bg-brand-secondary text-white font-bold py-2 px-6 rounded-lg disabled:bg-gray-600">Send Request</button></div>
+                 </div>
+            )}
         </Modal>
     );
 };
@@ -869,7 +936,6 @@ export const BookingRequestDetailModal: React.FC<{ request: ClientBookingRequest
     </Modal>
 );
 
-// FIX: Add and export the missing SubscriptionModal component
 export const SubscriptionModal: React.FC<{ onConfirm: () => void; onClose: () => void; }> = ({ onConfirm, onClose }) => {
     const [isProcessing, setIsProcessing] = useState(false);
     

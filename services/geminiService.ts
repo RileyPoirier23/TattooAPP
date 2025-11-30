@@ -1,25 +1,17 @@
 // @/services/geminiService.ts
-import { GoogleGenAI, Type, Schema } from "@google/genai";
+// FIX: Removed 'Schema' from import as it's not needed and the cast was incorrect.
+import { GoogleGenAI, Type } from "@google/genai";
 import type { ArtistService } from '../types';
 
-// Support both standard Node.js env (for some deployments) and Vite env (for local dev)
-const geminiApiKey = process.env.API_KEY || import.meta.env.VITE_GEMINI_API_KEY;
-
-let genAI: GoogleGenAI | null = null;
-if (!geminiApiKey) {
-    console.warn("Gemini API key is missing. AI features will be disabled. Ensure VITE_GEMINI_API_KEY is set in your .env file.");
-} else {
-    genAI = new GoogleGenAI({ apiKey: geminiApiKey });
-}
+// FIX: Per coding guidelines, API key must come exclusively from process.env.API_KEY.
+// The API key is assumed to be pre-configured and available.
+const genAI = new GoogleGenAI({ apiKey: process.env.API_KEY });
 
 /**
  * Generates a professional bio for a tattoo artist using the Gemini API.
  */
 export async function generateArtistBio(name: string, specialty: string, city: string): Promise<string> {
-  if (!genAI) {
-      throw new Error("AI service is not configured. Please check your .env file for VITE_GEMINI_API_KEY.");
-  }
-
+  // FIX: Removed check for genAI, assuming it's always initialized per guidelines.
   const model = "gemini-2.5-flash";
   const prompt = `Write a short, professional, and engaging bio for a tattoo artist named ${name}. They specialize in ${specialty} and are based in ${city}. The bio should be around 50-70 words, written in the first person, and highlight their passion and skill. Do not use markdown.`;
 
@@ -44,9 +36,7 @@ export async function generateArtistBio(name: string, specialty: string, city: s
  * Suggests an appropriate tattoo service based on tattoo dimensions using Gemini JSON Schema.
  */
 export async function suggestTattooService(width: number, height: number, services: ArtistService[]): Promise<string> {
-  if (!genAI) {
-      throw new Error("AI service is not configured. Please check your .env file for VITE_GEMINI_API_KEY.");
-  }
+  // FIX: Removed check for genAI, assuming it's always initialized per guidelines.
    if (services.length === 0) {
     throw new Error("This artist has not defined any services to choose from.");
   }
@@ -71,6 +61,7 @@ export async function suggestTattooService(width: number, height: number, servic
       contents: prompt,
       config: {
         responseMimeType: "application/json",
+        // FIX: Removed unnecessary 'Schema' cast. The object literal is correct.
         responseSchema: {
           type: Type.OBJECT,
           properties: {
@@ -80,7 +71,7 @@ export async function suggestTattooService(width: number, height: number, servic
             },
           },
           required: ["serviceId"],
-        } as Schema,
+        },
       },
     });
 
