@@ -55,7 +55,6 @@ export const fetchInitialData = async (): Promise<any> => {
     const { data: rawBooths, error: boothsError } = await supabase.from('booths').select('*');
     const { data: rawBookings, error: bookingsError } = await supabase.from('bookings').select('*');
     
-    // CRITICAL: explicit Foreign Key hints to match the SQL script
     const { data: rawClientBookings, error: clientBookingsError } = await supabase
         .from('client_booking_requests')
         .select(`
@@ -67,7 +66,6 @@ export const fetchInitialData = async (): Promise<any> => {
     const { data: rawAvailability, error: availabilityError } = await supabase.from('artist_availability').select('*');
     const { data: rawVerificationRequests, error: verificationRequestsError } = await supabase.from('verification_requests').select(`*, profile:profiles(full_name), shop:shops(name)`);
     
-    // Try fetch reports (might fail if not admin or table missing, handle gracefully)
     let reports: Report[] = [];
     const { data: rawReports, error: reportsError } = await supabase.from('reports').select('*, reporter:profiles(full_name)');
     if (!reportsError && rawReports) {
@@ -137,29 +135,27 @@ export const updateUserData = async (userId: string, updatedData: Partial<User['
 export const updateArtistData = async (artistId: string, email: string, updatedData: Partial<Artist>): Promise<Artist> => {
     const supabase = getSupabase();
     
-    // Construct a full payload to satisfy DB constraints on insert
-    const profilePayload = {
+    const profilePayload: any = {
       id: artistId,
       username: email,
-      full_name: updatedData.name,
-      specialty: updatedData.specialty,
-      bio: updatedData.bio,
-      city: updatedData.city,
-      portfolio: updatedData.portfolio,
-      socials: updatedData.socials,
-      hourly_rate: updatedData.hourlyRate,
-      services: updatedData.services,
-      aftercare_message: updatedData.aftercareMessage,
-      request_healed_photo: updatedData.requestHealedPhoto,
-      hours: updatedData.hours,
-      intake_settings: updatedData.intakeSettings,
-      booking_mode: updatedData.bookingMode,
-      subscription_tier: updatedData.subscriptionTier,
       updated_at: new Date().toISOString()
     };
     
-    // Remove undefined properties to prevent Supabase errors on UPDATE
-    Object.keys(profilePayload).forEach(key => profilePayload[key as keyof typeof profilePayload] === undefined && delete profilePayload[key as keyof typeof profilePayload]);
+    // Map only the provided fields to avoid overwriting with undefined
+    if (updatedData.name) profilePayload.full_name = updatedData.name;
+    if (updatedData.specialty) profilePayload.specialty = updatedData.specialty;
+    if (updatedData.bio) profilePayload.bio = updatedData.bio;
+    if (updatedData.city) profilePayload.city = updatedData.city;
+    if (updatedData.portfolio) profilePayload.portfolio = updatedData.portfolio;
+    if (updatedData.socials) profilePayload.socials = updatedData.socials;
+    if (updatedData.hourlyRate) profilePayload.hourly_rate = updatedData.hourlyRate;
+    if (updatedData.services) profilePayload.services = updatedData.services;
+    if (updatedData.aftercareMessage) profilePayload.aftercare_message = updatedData.aftercareMessage;
+    if (typeof updatedData.requestHealedPhoto === 'boolean') profilePayload.request_healed_photo = updatedData.requestHealedPhoto;
+    if (updatedData.hours) profilePayload.hours = updatedData.hours;
+    if (updatedData.intakeSettings) profilePayload.intake_settings = updatedData.intakeSettings;
+    if (updatedData.bookingMode) profilePayload.booking_mode = updatedData.bookingMode;
+    if (updatedData.subscriptionTier) profilePayload.subscription_tier = updatedData.subscriptionTier;
 
 
     const { data, error } = await supabase
