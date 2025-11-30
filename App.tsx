@@ -11,7 +11,6 @@ import { AdminDashboard } from './components/views/AdminDashboard';
 import { MyBookingsView } from './components/views/MyBookingsView';
 import { SettingsView } from './components/views/SettingsView';
 import { MessagesView } from './components/views/MessagesView';
-// Fix: Removed unused import for deprecated ArtistAvailabilityView
 import { ShopOwnerOnboardingView } from './components/views/ShopOwnerOnboardingView';
 import { ArtistProfileView, ClientProfileView } from './components/ModalsAndProfile';
 import { 
@@ -37,6 +36,11 @@ import { Toast } from './components/shared/Toast';
 import { Loader } from './components/shared/Loader';
 import { ErrorDisplay } from './components/shared/ErrorDisplay';
 import { Hero } from './components/shared/Hero';
+import { loadStripe } from '@stripe/stripe-js';
+import { Elements } from '@stripe/react-stripe-js';
+
+// Initialize Stripe outside of component render to avoid recreating the object
+const stripePromise = loadStripe(import.meta.env.VITE_STRIPE_PUBLISHABLE_KEY || 'pk_test_placeholder');
 
 const PageTransition: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   return (
@@ -92,7 +96,7 @@ function App() {
     submitShopReview,
     adminUpdateUser,
     adminUpdateShop,
-    setArtistAvailability, // Added for new availability component
+    setArtistAvailability,
     submitReport,
     resolveReport,
     archiveBookingRequest,
@@ -125,12 +129,11 @@ function App() {
         return <ClientSearchView />;
       case 'shops':
         return <ArtistSearchView />;
-      case 'profile': // This route is now deprecated for artists, handled by artist-dashboard
+      case 'profile':
         if (user?.type === 'client') {
             const clientBookings = data.clientBookingRequests.filter(b => b.clientId === user.id);
             return <ClientProfileView client={user.data} bookings={clientBookings} />;
         }
-        // Redirect artists from old profile link to new dashboard
         if (user?.type === 'artist' || user?.type === 'dual') {
           navigate('/artist-dashboard');
           return null;
@@ -179,7 +182,7 @@ function App() {
         return <Hero navigate={navigate} />;
       case 'messages':
         return user ? <MessagesView conversationId={pathSegments[1]} navigate={navigate} /> : <Hero navigate={navigate} />;
-      case 'availability': // Deprecated route, redirect to new dashboard
+      case 'availability':
         if (user?.type === 'artist' || user?.type === 'dual') {
           navigate('/artist-dashboard/availability');
           return null;
@@ -203,12 +206,10 @@ function App() {
           bookings={data.bookings} 
           shops={data.shops} 
           onClose={closeModal} 
-          // FIX: Explicitly allow opening booking modal WITHOUT forcing login. Guest flow is inside the modal.
           onBookRequest={() => openModal('client-booking-request', modal.data.artist)} 
           showToast={showToast} 
           onMessageClick={async (artistId) => {
             if (!user) {
-                // For messaging, we still require auth, but we can guide them to book instead
                 showToast("Please log in to chat, or use 'Request Booking' to contact the artist via email.", 'error');
                 openModal('auth');
                 return;
@@ -271,29 +272,31 @@ function App() {
   }
 
   return (
-    <div className="bg-brand-light dark:bg-brand-dark min-h-screen text-brand-dark dark:text-brand-light font-sans">
-      <Header
-        viewMode={viewMode}
-        setViewMode={setViewMode}
-        user={user}
-        notifications={data.notifications}
-        markNotificationsAsRead={markNotificationsAsRead}
-        onLoginClick={() => openModal('auth')}
-        onLogoutClick={() => logout(navigate)}
-        onNavigate={navigate}
-      />
-      <main className="container mx-auto px-4 py-8">
-        <PageTransition key={path}>
-          {isLoading ? (
-            <div className="flex justify-center items-center h-[60vh]">
-              <Loader size="lg" />
-            </div>
-          ) : renderPage()}
-        </PageTransition>
-      </main>
-      {renderModals()}
-      {toast && <Toast key={toast.id} message={toast.message} type={toast.type} onClose={dismissToast} />}
-    </div>
+    <Elements stripe={stripePromise}>
+      <div className="bg-brand-light dark:bg-brand-dark min-h-screen text-brand-dark dark:text-brand-light font-sans">
+        <Header
+          viewMode={viewMode}
+          setViewMode={setViewMode}
+          user={user}
+          notifications={data.notifications}
+          markNotificationsAsRead={markNotificationsAsRead}
+          onLoginClick={() => openModal('auth')}
+          onLogoutClick={() => logout(navigate)}
+          onNavigate={navigate}
+        />
+        <main className="container mx-auto px-4 py-8">
+          <PageTransition key={path}>
+            {isLoading ? (
+              <div className="flex justify-center items-center h-[60vh]">
+                <Loader size="lg" />
+              </div>
+            ) : renderPage()}
+          </PageTransition>
+        </main>
+        {renderModals()}
+        {toast && <Toast key={toast.id} message={toast.message} type={toast.type} onClose={dismissToast} />}
+      </div>
+    </Elements>
   );
 }
 

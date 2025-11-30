@@ -2,13 +2,14 @@
 
 import React, { useState, useRef, useEffect, useMemo } from 'react';
 import { useAppStore } from '../hooks/useAppStore';
-// FIX: Imported ArtistHours type to resolve compilation error.
 import type { Artist, Shop, Booking, Booth, Review, AuthCredentials, RegisterDetails, UserRole, ClientBookingRequest, Client, ModalState, PortfolioImage, ArtistAvailability, User, ArtistService, IntakeFormSettings, ArtistHours } from '../types';
 import { LocationIcon, StarIcon, PriceIcon, XIcon, EditIcon, PaperAirplaneIcon, CalendarIcon, UploadIcon, CheckBadgeIcon, CreditCardIcon, InstagramIcon, TikTokIcon, XIconSocial, TrashIcon, ArrowRightIcon, ArrowLeftIcon, SparklesIcon } from './shared/Icons';
 import { MapEmbed } from './shared/MapEmbed';
 import { Loader } from './shared/Loader';
 import { bodyPlacements } from '../data/bookingOptions';
 import { generateArtistBio, suggestTattooService } from '../services/geminiService';
+import { CardElement, useStripe, useElements } from '@stripe/react-stripe-js';
+import { createPaymentIntent } from '../services/apiService';
 
 declare global {
     interface Window {
@@ -147,8 +148,10 @@ export const RescheduleModal: React.FC<{ request: ClientBookingRequest; onConfir
 };
 
 export const PaymentModal: React.FC<{ request: ClientBookingRequest; onProcessPayment: (requestId: string) => Promise<void>; onClose: () => void }> = ({ request, onProcessPayment, onClose }) => {
-    const { data } = useAppStore();
+    const { data, showToast } = useAppStore();
     const [isProcessing, setIsProcessing] = useState(false);
+    const stripe = useStripe();
+    const elements = useElements();
     
     const artist = data.artists.find(a => a.id === request.artistId);
     // Fee Logic: 2.9% if free tier, 0% if pro
@@ -157,15 +160,56 @@ export const PaymentModal: React.FC<{ request: ClientBookingRequest; onProcessPa
     const fee = isPro ? 0 : deposit * 0.029;
     const total = deposit + fee;
 
-    const handlePayment = async () => {
+    const handlePayment = async (event: React.FormEvent) => {
+        event.preventDefault();
+
+        if (!stripe || !elements) {
+            return;
+        }
+
         setIsProcessing(true);
-        await onProcessPayment(request.id);
-        setIsProcessing(false);
+
+        try {
+            // 1. Create Payment Intent via Backend
+            const { clientSecret, error: backendError } = await createPaymentIntent(total, fee);
+            
+            if (backendError || !clientSecret) {
+                throw new Error(backendError || "Failed to initialize payment");
+            }
+
+            // 2. Confirm Card Payment via Stripe
+            const cardElement = elements.getElement(CardElement);
+            if (!cardElement) throw new Error("Card element not found");
+
+            const { error: stripeError, paymentIntent } = await stripe.confirmCardPayment(clientSecret, {
+                payment_method: {
+                    card: cardElement,
+                    billing_details: {
+                        name: request.clientName || 'Guest Client',
+                    },
+                },
+            });
+
+            if (stripeError) {
+                throw new Error(stripeError.message);
+            }
+
+            if (paymentIntent?.status === 'succeeded') {
+                await onProcessPayment(request.id);
+            } else {
+                throw new Error(`Payment status: ${paymentIntent?.status}`);
+            }
+
+        } catch (err) {
+            showToast(err instanceof Error ? err.message : 'Payment failed', 'error');
+        } finally {
+            setIsProcessing(false);
+        }
     };
 
     return (
         <Modal onClose={onClose} title="Confirm Deposit Payment" size="md" closeDisabled={isProcessing}>
-            <div className="space-y-4">
+            <form onSubmit={handlePayment} className="space-y-4">
                 <div className="bg-gray-100 dark:bg-gray-800 p-4 rounded-lg text-center">
                     <p className="text-sm text-brand-gray">You are paying a deposit for your booking with</p>
                     <p className="font-bold text-lg text-brand-dark dark:text-white">{request.artistName}</p>
@@ -173,34 +217,40 @@ export const PaymentModal: React.FC<{ request: ClientBookingRequest; onProcessPa
                     {!isPro && <p className="text-xs text-brand-gray mt-1">(Includes 2.9% platform fee)</p>}
                 </div>
                 
-                <div className="space-y-3">
-                    <div>
-                        <label className="text-sm font-medium text-brand-gray">Card Information</label>
-                        <div className="mt-1 p-3 bg-gray-200 dark:bg-gray-800 rounded-lg text-gray-400">•••• •••• •••• 4242</div>
-                    </div>
-                     <div className="grid grid-cols-2 gap-3">
-                        <div>
-                             <label className="text-sm font-medium text-brand-gray">Expiry</label>
-                             <div className="mt-1 p-3 bg-gray-200 dark:bg-gray-800 rounded-lg text-gray-400">MM / YY</div>
-                        </div>
-                        <div>
-                            <label className="text-sm font-medium text-brand-gray">CVC</label>
-                             <div className="mt-1 p-3 bg-gray-200 dark:bg-gray-800 rounded-lg text-gray-400">•••</div>
-                        </div>
-                    </div>
+                <div className="p-4 bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-700 rounded-lg">
+                    <CardElement
+                        options={{
+                            style: {
+                                base: {
+                                    fontSize: '16px',
+                                    color: '#ffffff', // Assuming dark mode mostly, adjusted via CSS if needed
+                                    '::placeholder': {
+                                        color: '#aab7c4',
+                                    },
+                                },
+                                invalid: {
+                                    color: '#9e2146',
+                                },
+                            },
+                        }}
+                    />
                 </div>
 
-                <p className="text-xs text-brand-gray text-center">This is a simulated payment gateway for demonstration purposes. No real card is needed.</p>
+                <div className="flex items-center gap-2 text-xs text-brand-gray justify-center">
+                    <span className="bg-green-500/10 text-green-500 px-2 py-1 rounded flex items-center gap-1">
+                        <CheckBadgeIcon className="w-3 h-3"/> SSL Secure Payment
+                    </span>
+                </div>
                 
                 <button
-                    onClick={handlePayment}
-                    disabled={isProcessing}
-                    className="w-full bg-brand-secondary text-white font-bold py-3 rounded-lg flex items-center justify-center gap-2 disabled:bg-gray-600"
+                    type="submit"
+                    disabled={!stripe || isProcessing}
+                    className="w-full bg-brand-secondary text-white font-bold py-3 rounded-lg flex items-center justify-center gap-2 disabled:bg-gray-600 disabled:cursor-not-allowed hover:bg-opacity-90 transition-colors"
                 >
                     {isProcessing ? <Loader size="sm" color="white" /> : <CreditCardIcon className="w-5 h-5" />}
                     <span>{isProcessing ? 'Processing...' : `Pay $${total.toFixed(2)}`}</span>
                 </button>
-            </div>
+            </form>
         </Modal>
     );
 };

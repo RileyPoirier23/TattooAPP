@@ -4,27 +4,26 @@ InkSpace is a dual-sided marketplace connecting tattoo artists with shops for gu
 
 ## 🚀 Quick Start & Manual Setup Guide
 
-This guide will walk you through setting up the application for local development and deploying it for production.
-
 ### 1. Environment Setup
-Create a `.env` file in the root directory and add your API keys. You must get these from their respective services.
+Create a `.env` file in the root directory and add your API keys.
 
 ```
 VITE_SUPABASE_URL=your_supabase_project_url
 VITE_SUPABASE_ANON_KEY=your_supabase_anon_key
 VITE_MAPS_API_KEY=your_google_maps_api_key
 VITE_GEMINI_API_KEY=your_gemini_ai_api_key
+VITE_STRIPE_PUBLISHABLE_KEY=your_stripe_publishable_key
 ```
 
 ### 2. Backend Setup (Supabase) - CRITICAL STEP
 
-You **MUST** run the SQL script below to set up the database. The app will not work without this. This script is "idempotent," meaning you can run it multiple times safely. It will clean up old rules and apply the correct new ones.
+You **MUST** run the SQL script below to set up the database.
 
 1.  Log in to your [Supabase Dashboard](https://supabase.com/dashboard).
-2.  Go to the **SQL Editor** tab (icon on the left).
+2.  Go to the **SQL Editor** tab.
 3.  Click **New query**.
 4.  Copy the SQL script below and paste it into the editor.
-5.  Click **Run** (bottom right).
+5.  Click **Run**.
 
 #### 📜 Master SQL Script (Copy All)
 
@@ -40,7 +39,6 @@ alter table public.profiles alter column hours set default '{}'::jsonb;
 alter table public.profiles add column if not exists subscription_tier text default 'free';
 
 -- Ensure Booking Requests have correct columns for Guest Flow and Archiving
--- The status column is TEXT, so we don't need to alter it to add 'archived'.
 alter table public.client_booking_requests add column if not exists updated_at timestamptz default now();
 alter table public.client_booking_requests add column if not exists guest_name text;
 alter table public.client_booking_requests add column if not exists guest_email text;
@@ -64,35 +62,28 @@ create table if not exists public.reports (
 );
 
 -- 4. PERMISSION RESET (The "It Just Works" Policy)
--- This section drops all previous, potentially conflicting policies.
-do $$
-begin
-  -- Drop Profile Policies
-  drop policy if exists "Profiles_Read_All" on public.profiles;
-  drop policy if exists "Profiles_Manage_Own" on public.profiles;
-  -- Drop Booking Policies
-  drop policy if exists "Bookings_Public_Insert" on public.client_booking_requests;
-  drop policy if exists "Bookings_View_Own" on public.client_booking_requests;
-  drop policy if exists "Bookings_Update_Own" on public.client_booking_requests;
-  -- Drop Notification Policies
-  drop policy if exists "Notif_View_Own" on public.notifications;
-  drop policy if exists "Notif_Create_Public" on public.notifications;
-  drop policy if exists "Notif_Update_Own" on public.notifications;
-  -- Drop Storage Policies
-  drop policy if exists "Public_Upload_Refs" on storage.objects;
-  drop policy if exists "Public_View_Refs" on storage.objects;
-  -- Drop Report Policies
-  drop policy if exists "Reports_Insert_Authenticated" on public.reports;
-  drop policy if exists "Reports_View_All" on public.reports;
-  drop policy if exists "Reports_Update_All" on public.reports;
-exception when others then null;
-end $$;
-
--- Enable RLS on all necessary tables
 alter table public.profiles enable row level security;
 alter table public.client_booking_requests enable row level security;
 alter table public.notifications enable row level security;
 alter table public.reports enable row level security;
+
+do $$
+begin
+  drop policy if exists "Profiles_Read_All" on public.profiles;
+  drop policy if exists "Profiles_Manage_Own" on public.profiles;
+  drop policy if exists "Bookings_Public_Insert" on public.client_booking_requests;
+  drop policy if exists "Bookings_View_Own" on public.client_booking_requests;
+  drop policy if exists "Bookings_Update_Own" on public.client_booking_requests;
+  drop policy if exists "Notif_View_Own" on public.notifications;
+  drop policy if exists "Notif_Create_Public" on public.notifications;
+  drop policy if exists "Notif_Update_Own" on public.notifications;
+  drop policy if exists "Reports_Insert_Authenticated" on public.reports;
+  drop policy if exists "Reports_View_All" on public.reports;
+  drop policy if exists "Reports_Update_All" on public.reports;
+  drop policy if exists "Public_Upload_Refs" on storage.objects;
+  drop policy if exists "Public_View_Refs" on storage.objects;
+exception when others then null;
+end $$;
 
 -- Profiles: Public Read, Owner Full Manage
 create policy "Profiles_Read_All" on public.profiles for select using (true);
@@ -108,18 +99,17 @@ create policy "Notif_View_Own" on public.notifications for select using (auth.ui
 create policy "Notif_Create_Public" on public.notifications for insert with check (true);
 create policy "Notif_Update_Own" on public.notifications for update using (auth.uid() = user_id);
 
--- Reports: Authenticated Insert, Public View/Update (Simplified for MVP)
+-- Reports: Authenticated Insert, Public View/Update
 create policy "Reports_Insert_Authenticated" on public.reports for insert with check (auth.role() = 'authenticated');
 create policy "Reports_View_All" on public.reports for select using (true); 
 create policy "Reports_Update_All" on public.reports for update using (true);
 
--- Storage: Public Upload for Booking Refs (Needed for Guest flow)
+-- Storage: Public Upload for Booking Refs
 insert into storage.buckets (id, name, public) values ('booking-references', 'booking-references', true) on conflict (id) do nothing;
 create policy "Public_Upload_Refs" on storage.objects for insert with check (bucket_id = 'booking-references');
 create policy "Public_View_Refs" on storage.objects for select using (bucket_id = 'booking-references');
 
--- 5. BOOKING RPC (The Logic Engine)
--- Handles Booking Creation + Notification Trigger atomically
+-- 5. BOOKING RPC
 create or replace function create_booking_request(
   p_artist_id uuid, p_start_date date, p_end_date date, p_message text, 
   p_tattoo_width numeric, p_tattoo_height numeric, p_body_placement text, 
@@ -134,7 +124,6 @@ declare
   artist_data record;
   display_name text;
 begin
-  -- Insert Booking
   insert into public.client_booking_requests (
     artist_id, start_date, end_date, message, tattoo_width, tattoo_height, body_placement, 
     deposit_amount, platform_fee, service_id, budget, reference_image_urls, preferred_time, 
@@ -145,26 +134,16 @@ begin
     p_client_id, p_guest_name, p_guest_email, p_guest_phone, now()
   ) returning * into new_record;
   
-  -- Fetch Metadata
   select id, full_name from public.profiles where id = new_record.client_id into client_data;
   select id, full_name, services from public.profiles where id = new_record.artist_id into artist_data;
   
-  -- Trigger Notification (Safe Block)
   begin
-    if p_guest_name is not null and p_guest_name != '' then
-      display_name := p_guest_name || ' (Guest)';
-    elsif client_data.full_name is not null then
-      display_name := client_data.full_name;
-    else
-      display_name := 'A client';
-    end if;
+    if p_guest_name is not null and p_guest_name != '' then display_name := p_guest_name || ' (Guest)';
+    elsif client_data.full_name is not null then display_name := client_data.full_name;
+    else display_name := 'A client'; end if;
+    insert into public.notifications (user_id, message, read) values (p_artist_id, 'New booking request from ' || display_name, false);
+  exception when others then null; end;
 
-    insert into public.notifications (user_id, message, read)
-    values (p_artist_id, 'New booking request from ' || display_name, false);
-  exception when others then null; -- Ignore notification errors to save the booking
-  end;
-
-  -- Return Result
   return to_jsonb(new_record) || jsonb_build_object(
     'client', jsonb_build_object('id', client_data.id, 'full_name', client_data.full_name),
     'artist', jsonb_build_object('id', artist_data.id, 'full_name', artist_data.full_name, 'services', artist_data.services)
@@ -174,43 +153,65 @@ end; $$;
 grant execute on function create_booking_request to authenticated;
 grant execute on function create_booking_request to anon;
 
--- 6. REFRESH
 NOTIFY pgrst, 'reload config';
 ```
 
-### 3. Commercial Launch (Infrastructure)
+### 3. Commercial Launch Infrastructure (Stripe Payment)
 
-To process real money and send automated emails (as per the Blueprint), you need to set up backend "Edge Functions." This cannot be done from the browser.
+To handle real payments securely, you must deploy a Supabase Edge Function.
 
-You must install the Supabase CLI and deploy the function code. **Use `npx` to avoid global installation issues.**
-
-**A. Install Supabase CLI locally**
-```bash
-npm install supabase --save-dev
-```
-
-**B. Log in**
+**Step 1: Setup Supabase CLI**
+In your project root (or terminal):
 ```bash
 npx supabase login
+npx supabase functions new create-payment-intent
 ```
 
-**C. Link your project**
+**Step 2: Add Function Code**
+Replace the contents of `supabase/functions/create-payment-intent/index.ts` with:
+
+```typescript
+import { serve } from "https://deno.land/std@0.168.0/http/server.ts"
+import Stripe from 'https://esm.sh/stripe?target=deno'
+
+const stripe = new Stripe(Deno.env.get('STRIPE_SECRET_KEY') ?? '', {
+  apiVersion: '2022-11-15',
+  httpClient: Stripe.createFetchHttpClient(),
+})
+
+serve(async (req) => {
+  const corsHeaders = {
+    'Access-Control-Allow-Origin': '*',
+    'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
+  }
+  if (req.method === 'OPTIONS') {
+    return new Response('ok', { headers: corsHeaders })
+  }
+
+  try {
+    const { amount, fee } = await req.json();
+    const paymentIntent = await stripe.paymentIntents.create({
+      amount: Math.round(amount * 100),
+      currency: 'usd',
+      application_fee_amount: Math.round(fee * 100),
+      automatic_payment_methods: { enabled: true },
+    });
+
+    return new Response(
+      JSON.stringify({ clientSecret: paymentIntent.client_secret }),
+      { headers: { ...corsHeaders, 'Content-Type': 'application/json' } },
+    )
+  } catch (error) {
+    return new Response(JSON.stringify({ error: error.message }), {
+      headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+      status: 400,
+    })
+  }
+})
+```
+
+**Step 3: Deploy & Configure**
 ```bash
-npx supabase link --project-ref your-project-id
+npx supabase functions deploy create-payment-intent --no-verify-jwt
+npx supabase secrets set STRIPE_SECRET_KEY=sk_test_... 
 ```
-*(Find your project ID in your Supabase project's URL: `app.supabase.com/project/[your-project-id]`)*
-
-**D. Deploy Backend Functions (Example for Stripe)**
-1.  Create the function folder: `npx supabase functions new create-payment-intent`
-2.  Paste the secure Stripe server code into the new file (`/supabase/functions/create-payment-intent/index.ts`).
-3.  Deploy it: `npx supabase functions deploy create-payment-intent`
-4.  Set your secret keys: `npx supabase secrets set STRIPE_SECRET_KEY=sk_test_...`
-
-You will do a similar process for a `send-email` function using SendGrid. The code for these functions is included in the `README.md` as a guide.
-
-## ⚠️ Troubleshooting
-
-- **`Failed to save availability` or other save errors:** Your database is likely missing a column (like `updated_at`) or has a Row Level Security (RLS) policy blocking the update. **Re-run the Master SQL Script above.**
-- **`404 Error on Page Reload`:** Your hosting provider is not configured for a Single Page Application (SPA). Add a `vercel.json` (for Vercel) or `_redirects` (for Netlify) file to your project root that redirects all paths to `index.html`.
-- **`Cannot read properties of undefined (reading 'VITE_...')`:** Your `.env` file is missing or not configured correctly in your hosting provider's settings (e.g., Vercel).
-- **`Booking not showing up`:** The Foreign Keys in your database do not match what the app expects. **Re-run the Master SQL Script above.**
