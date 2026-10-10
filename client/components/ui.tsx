@@ -253,6 +253,10 @@ export const Notice: React.FC<{ tone?: 'info' | 'warning' | 'success'; children:
 
 // ---------- Modal ----------
 
+// Open dialogs, top-most last — so Escape only closes the dialog on top (e.g. a login box over a booking form).
+const modalStack: symbol[] = [];
+const FOCUSABLE = 'a[href], button:not([disabled]), input:not([disabled]), select:not([disabled]), textarea:not([disabled]), [tabindex]:not([tabindex="-1"])';
+
 export const Modal: React.FC<{
   title: React.ReactNode;
   onClose: () => void;
@@ -262,18 +266,44 @@ export const Modal: React.FC<{
   closeDisabled?: boolean;
 }> = ({ title, onClose, size = 'md', children, footer, closeDisabled }) => {
   const ref = useRef<HTMLDivElement>(null);
+  const titleId = useId();
   // Keep the latest callbacks in a ref so parent re-renders never re-run the focus effect.
   const latest = useRef({ onClose, closeDisabled });
   latest.current = { onClose, closeDisabled };
   useEffect(() => {
-    const onKey = (e: KeyboardEvent) => e.key === 'Escape' && !latest.current.closeDisabled && latest.current.onClose();
+    const me = Symbol('modal');
+    modalStack.push(me);
+    const opener = document.activeElement as HTMLElement | null;
+    const onKey = (e: KeyboardEvent) => {
+      if (modalStack[modalStack.length - 1] !== me) return;
+      if (e.key === 'Escape' && !latest.current.closeDisabled) {
+        e.stopPropagation();
+        latest.current.onClose();
+      }
+      // Keep keyboard focus inside the dialog.
+      if (e.key === 'Tab' && ref.current) {
+        const items = Array.from(ref.current.querySelectorAll<HTMLElement>(FOCUSABLE)).filter(el => el.offsetParent !== null);
+        if (!items.length) return;
+        const first = items[0];
+        const last = items[items.length - 1];
+        if (e.shiftKey && (document.activeElement === first || document.activeElement === ref.current)) {
+          e.preventDefault();
+          last.focus();
+        } else if (!e.shiftKey && document.activeElement === last) {
+          e.preventDefault();
+          first.focus();
+        }
+      }
+    };
     document.addEventListener('keydown', onKey);
     const prev = document.body.style.overflow;
     document.body.style.overflow = 'hidden';
     ref.current?.focus();
     return () => {
       document.removeEventListener('keydown', onKey);
-      document.body.style.overflow = prev;
+      modalStack.splice(modalStack.indexOf(me), 1);
+      if (modalStack.length === 0) document.body.style.overflow = prev;
+      opener?.focus?.();
     };
   }, []);
   return (
@@ -286,13 +316,14 @@ export const Modal: React.FC<{
         tabIndex={-1}
         role="dialog"
         aria-modal="true"
+        aria-labelledby={titleId}
         className={cx(
           'bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-700 w-full max-h-[92vh] flex flex-col rounded-t-2xl sm:rounded-2xl shadow-2xl animate-scale-up outline-none',
           { sm: 'sm:max-w-sm', md: 'sm:max-w-lg', lg: 'sm:max-w-2xl', xl: 'sm:max-w-4xl' }[size],
         )}
       >
         <header className="flex items-center justify-between gap-4 px-5 py-4 border-b border-gray-200 dark:border-gray-800">
-          <h2 className="text-lg font-bold text-brand-dark dark:text-white">{title}</h2>
+          <h2 id={titleId} className="text-lg font-bold text-brand-dark dark:text-white">{title}</h2>
           <button onClick={onClose} disabled={closeDisabled} aria-label="Close" className="p-1 rounded-lg text-gray-500 hover:text-brand-dark dark:hover:text-white hover:bg-gray-100 dark:hover:bg-gray-800 disabled:opacity-40">
             <XIcon className="w-6 h-6" />
           </button>
@@ -312,7 +343,7 @@ export const StarRating: React.FC<{ value: number; onChange?: (v: number) => voi
   const [hover, setHover] = useState(0);
   const shown = hover || value;
   return (
-    <div className="inline-flex items-center gap-1">
+    <div className="inline-flex items-center gap-1" {...(onChange ? { role: 'radiogroup', 'aria-label': 'Rating' } : { role: 'img', 'aria-label': `Rated ${value.toFixed(1)} out of 5` })}>
       <div className="flex" onMouseLeave={() => setHover(0)}>
         {[1, 2, 3, 4, 5].map(n => (
           <button
@@ -322,6 +353,7 @@ export const StarRating: React.FC<{ value: number; onChange?: (v: number) => voi
             onClick={() => onChange?.(n)}
             onMouseEnter={() => onChange && setHover(n)}
             aria-label={`${n} star${n > 1 ? 's' : ''}`}
+            {...(onChange ? { role: 'radio', 'aria-checked': n === value } : { 'aria-hidden': true, tabIndex: -1 })}
             className={cx(onChange ? 'cursor-pointer' : 'cursor-default')}
           >
             <StarIcon className={cx(size, n <= Math.round(shown) ? 'text-amber-400' : 'text-gray-300 dark:text-gray-600')} />

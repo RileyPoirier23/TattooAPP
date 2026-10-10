@@ -58,14 +58,20 @@ async function request<T>(method: string, path: string, body?: unknown): Promise
     });
   } catch (err) {
     console.error('[square] network error', err);
-    throw new SquareError('Could not reach the payment processor. Please try again.');
+    throw new SquareError(
+      method === 'POST' && path === '/v2/payments'
+        ? "We couldn't confirm whether your payment went through. Please check your bookings or email for a receipt before trying again."
+        : 'Could not reach the payment processor. Please try again.',
+    );
   }
   const json = (await res.json().catch(() => ({}))) as any;
   if (!res.ok || json.errors?.length) {
     const e = json.errors?.[0] || {};
     console.warn(`[square] ${method} ${path} failed (${res.status}):`, JSON.stringify(json.errors || json));
     const msg = FRIENDLY[e.code] || (e.category === 'PAYMENT_METHOD_ERROR' ? e.detail : null) ||
-      (res.status === 401 ? 'Payment processor credentials are invalid. Please contact the site owner.' : 'The payment could not be processed. Please try again.');
+      (res.status === 401 ? 'Payment processor credentials are invalid. Please contact the site owner.'
+        : res.status >= 500 && path === '/v2/payments' ? "We couldn't confirm whether your payment went through. Please check your bookings or email for a receipt before trying again."
+        : 'The payment could not be processed. Please try again.');
     throw new SquareError(msg, e.code);
   }
   return json as T;
@@ -144,6 +150,31 @@ export async function disableCard(cardId: string) {
     await request('POST', `/v2/cards/${encodeURIComponent(cardId)}/disable`);
   } catch (err) {
     console.warn('[square] could not disable card', cardId, (err as Error).message);
+  }
+}
+
+/** Looks up the configured location; throws a clear error when the keys are wrong. Used by "Test connection". */
+export async function checkConnection(): Promise<{ currency: string; name: string }> {
+  const s = getSettings();
+  try {
+    const { location } = await request<{ location: { currency?: string; name?: string; status?: string } }>(
+      'GET',
+      `/v2/locations/${encodeURIComponent(s.squareLocationId)}`,
+    );
+    const currency = location?.currency || s.currency;
+    currencyCache = { key: `${s.squareEnvironment}:${s.squareLocationId}`, currency };
+    if (s.currency !== currency) saveSettings({ currency });
+    return { currency, name: location?.name || s.squareLocationId };
+  } catch (err) {
+    const code = (err as SquareError).code;
+    throw new HttpError(
+      400,
+      code === 'UNAUTHORIZED' || /credentials are invalid/.test((err as Error).message)
+        ? `Square rejected the access token. Check that it's the ${s.squareEnvironment} token for the same app as the Application ID.`
+        : code === 'NOT_FOUND'
+          ? `Square couldn't find location "${s.squareLocationId}" in ${s.squareEnvironment}. Copy the Location ID from the Locations page of the same environment.`
+          : `Square connection failed: ${(err as Error).message}`,
+    );
   }
 }
 

@@ -32,6 +32,8 @@ export interface MaskedSecrets {
   smtpPassSet: boolean;
   smtpFrom: string;
   smtpFromEnv: boolean;
+  resendApiKeySet: boolean;
+  resendFromEnv: boolean;
 }
 
 export interface SettingsResponse {

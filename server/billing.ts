@@ -2,13 +2,13 @@
 // All charges go to the site owner's Square account. The ledger tracks what each artist / shop is owed.
 import { getDb, newId, nowIso } from './db';
 import { getSettings } from './settings';
-import { conflict, formatMoney, HttpError, notFound, todayStr, toCents } from './http';
-import { getUser, isPro, type UserRow } from './auth';
+import { conflict, formatMoney, formatWhen, HttpError, notFound, todayStr, toCents } from './http';
+import { getUser, isArtistRole, isPro, PRO_GRACE_DAYS, type UserRow } from './auth';
 import {
   cardLabel, createCard, createCustomer, createPayment, disableCard, idempotencyKey, locationCurrency, paymentsReady,
   refundPayment,
 } from './square';
-import { notify } from './notify';
+import { notify, notifyAdmins } from './notify';
 import { sendEmail } from './email';
 import { config } from './config';
 import { emit } from './events';
@@ -31,6 +31,9 @@ function ensureReady() {
   if (!paymentsReady()) throw new HttpError(503, 'Online payments are not set up yet. Please contact the site owner.');
 }
 
+/** Sandbox (test) and production payments are kept apart so test data never mixes with real money. */
+export const currentEnvironment = () => getSettings().squareEnvironment;
+
 interface PaymentRecord {
   kind: 'deposit' | 'booth' | 'subscription';
   refId: string;
@@ -51,17 +54,32 @@ function insertPayment(p: PaymentRecord): string {
   getDb()
     .prepare(
       `insert into payments (id, kind, ref_id, user_id, payer_email, description, amount_cents, fee_cents, payee_id,
-         payee_amount_cents, currency, square_payment_id, receipt_url, status, created_at)
-       values (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'completed', ?)`,
+         payee_amount_cents, currency, square_payment_id, receipt_url, status, environment, created_at)
+       values (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'completed', ?, ?)`,
     )
     .run(id, p.kind, p.refId, p.userId, p.payerEmail, p.description, p.amountCents, p.feeCents, p.payeeId,
-      p.payeeAmountCents, p.currency, p.squarePaymentId, p.receiptUrl, nowIso());
+      p.payeeAmountCents, p.currency, p.squarePaymentId, p.receiptUrl, currentEnvironment(), nowIso());
   return id;
 }
 
 export function depositFeeCents(depositCents: number, artist: Pick<UserRow, 'subscription_tier' | 'pro_until'>): number {
   if (isPro(artist)) return 0;
   return Math.round((depositCents * getSettings().depositFeePercent) / 100);
+}
+
+/**
+ * The booking changed while the card was being charged (e.g. it was cancelled). Record the charge so it is
+ * never lost, refund it straight away, and tell the payer.
+ */
+async function recordAndRefund(p: PaymentRecord, reason: string): Promise<never> {
+  const paymentId = insertPayment(p);
+  try {
+    await refund(paymentId, reason);
+  } catch (err) {
+    console.error('[billing] automatic refund failed', paymentId, err);
+    notifyAdmins(`A payment needs a manual refund: ${p.description} (${formatMoney(p.amountCents, p.currency)}).`, '/admin/payments', true);
+  }
+  throw conflict(`${reason} Your card has been refunded.`);
 }
 
 // ---------- Client deposits ----------
@@ -74,15 +92,18 @@ export async function payDeposit(requestId: string, sourceId: string, clientKey:
     if (!r) throw notFound('Booking not found.');
     if (r.payment_status === 'paid') throw conflict('This deposit has already been paid.');
     if (r.status !== 'approved') throw conflict('The artist needs to approve this booking before the deposit can be paid.');
+    if (r.deposit_cents <= 0) throw conflict('No deposit is needed for this booking.');
+    if (r.date < todayStr(-1)) throw conflict('This appointment date has passed. Please contact the artist.');
     const artist = getUser(r.artist_id);
-    if (!artist) throw notFound('Artist not found.');
+    if (!artist || artist.status !== 'active') throw conflict("This artist isn't taking bookings right now, so the deposit can't be paid.");
     const client = r.client_id ? getUser(r.client_id) : null;
     const payerEmail = client?.email || r.guest_email;
 
     const fee = depositFeeCents(r.deposit_cents, artist);
     const total = r.deposit_cents + fee;
     const currency = await locationCurrency();
-    const description = `Deposit for ${r.service_name} with ${artist.name} on ${r.date}`;
+    const when = formatWhen(r.date, r.appointment_time);
+    const description = `Deposit for ${r.service_name} with ${artist.name} on ${when}`;
 
     const payment = await createPayment({
       sourceId,
@@ -93,27 +114,30 @@ export async function payDeposit(requestId: string, sourceId: string, clientKey:
       referenceId: requestId,
       buyerEmail: payerEmail || undefined,
     });
+    const record: PaymentRecord = {
+      kind: 'deposit', refId: requestId, userId: r.client_id, payerEmail, description,
+      amountCents: total, feeCents: fee, payeeId: artist.id, payeeAmountCents: r.deposit_cents,
+      currency, squarePaymentId: payment.id, receiptUrl: payment.receipt_url ?? null,
+    };
 
+    // The booking may have been cancelled while the card was being charged.
     const now = nowIso();
-    db.transaction(() => {
-      db.prepare(
-        "update booking_requests set payment_status = 'paid', fee_cents = ?, deposit_paid_at = ?, updated_at = ? where id = ?",
-      ).run(fee, now, now, requestId);
-      insertPayment({
-        kind: 'deposit', refId: requestId, userId: r.client_id, payerEmail, description,
-        amountCents: total, feeCents: fee, payeeId: artist.id, payeeAmountCents: r.deposit_cents,
-        currency, squarePaymentId: payment.id, receiptUrl: payment.receipt_url ?? null,
-      });
+    const ok = db.transaction(() => {
+      const fresh = db.prepare('select status, payment_status from booking_requests where id = ?').get(requestId) as any;
+      if (!fresh || fresh.status !== 'approved' || fresh.payment_status !== 'unpaid') return false;
+      db.prepare("update booking_requests set payment_status = 'paid', fee_cents = ?, deposit_paid_at = ?, updated_at = ? where id = ?")
+        .run(fee, now, now, requestId);
+      insertPayment(record);
+      return true;
     })();
+    if (!ok) await recordAndRefund(record, 'This booking changed while you were paying.');
 
     const clientName = client?.name || r.guest_name;
-    notify(artist.id, `${clientName} paid their ${formatMoney(r.deposit_cents, currency)} deposit for ${r.date}.`, {
+    notify(artist.id, `${clientName} paid their ${formatMoney(r.deposit_cents, currency)} deposit for ${when}.`, {
       link: '/dashboard',
       email: { subject: 'Deposit received', actionLabel: 'Open dashboard' },
     });
-    if (client) {
-      notify(client.id, `Your deposit for ${artist.name} is paid. You're booked for ${r.date}!`, { link: '/bookings' });
-    }
+    if (client) notify(client.id, `Your deposit for ${artist.name} is paid. You're booked for ${when}!`, { link: '/bookings' });
     emit(r.client_id, 'bookings');
     emit(artist.id, 'bookings');
     if (payerEmail) {
@@ -122,7 +146,7 @@ export async function payDeposit(requestId: string, sourceId: string, clientKey:
         subject: `Deposit received — you're booked with ${artist.name}`,
         lines: [
           `Hi ${clientName},`,
-          `We've received your deposit of ${formatMoney(total, currency)} for ${r.service_name} with ${artist.name} on ${r.date}.`,
+          `We've received your deposit of ${formatMoney(total, currency)} for ${r.service_name} with ${artist.name} on ${when}.`,
           ...(payment.receipt_url ? [`Receipt: ${payment.receipt_url}`] : []),
         ],
         action: { label: 'View your booking', url: `${config.appUrl}/booking/${r.id}?token=${r.access_token}` },
@@ -134,43 +158,74 @@ export async function payDeposit(requestId: string, sourceId: string, clientKey:
 
 // ---------- Booth rentals ----------
 
+/** Is any other paid booking, still-held reservation, or owner block on these dates? */
+export function boothClash(boothId: string, start: string, end: string, excludeBookingId?: string): boolean {
+  const db = getDb();
+  const holdCutoff = new Date(Date.now() - getSettings().boothHoldHours * 3_600_000).toISOString();
+  const booking = db
+    .prepare(
+      `select 1 from booth_bookings where booth_id = ? and id != ? and start_date <= ? and end_date >= ?
+       and (status = 'paid' or (status = 'unpaid' and created_at > ?)) limit 1`,
+    )
+    .get(boothId, excludeBookingId ?? '', end, start, holdCutoff);
+  const block = db.prepare('select 1 from booth_blocks where booth_id = ? and start_date <= ? and end_date >= ? limit 1').get(boothId, end, start);
+  return !!(booking || block);
+}
+
 export async function payBoothBooking(bookingId: string, artist: UserRow, sourceId: string, clientKey: string) {
-  ensureReady();
   return withLock(`booth:${bookingId}`, async () => {
     const db = getDb();
     const b = db
       .prepare(
-        `select bb.*, s.name shop_name, s.owner_id, bo.name booth_name from booth_bookings bb
-         join shops s on s.id = bb.shop_id join booths bo on bo.id = bb.booth_id where bb.id = ?`,
+        `select bb.*, s.name shop_name, s.owner_id, bo.name booth_name, bo.active booth_active, o.status owner_status
+         from booth_bookings bb join shops s on s.id = bb.shop_id join booths bo on bo.id = bb.booth_id
+         join users o on o.id = s.owner_id where bb.id = ?`,
       )
       .get(bookingId) as any;
     if (!b || b.artist_id !== artist.id) throw notFound('Booking not found.');
     if (b.status === 'paid') throw conflict('This booth rental has already been paid.');
-    if (b.status !== 'unpaid') throw conflict('This booth rental was cancelled. Please book again.');
+    if (b.status !== 'unpaid') throw conflict('This reservation was cancelled or expired. Please book again.');
     if (b.start_date < todayStr(-1)) throw conflict('This rental has already started. Please book new dates.');
+    if (!b.booth_active || b.owner_status !== 'active') throw conflict('This booth is no longer available.');
+    // An expired hold may only be paid if nobody else has taken the dates since.
+    if (boothClash(b.booth_id, b.start_date, b.end_date, b.id)) {
+      throw conflict('Your reservation expired and those dates have since been booked. Please choose other dates.');
+    }
 
-    const currency = await locationCurrency();
     const description = `${b.booth_name} at ${b.shop_name}, ${b.start_date} to ${b.end_date}`;
-    const payment = await createPayment({
-      sourceId,
-      amountCents: b.total_cents,
-      currency,
-      idempotencyKey: idempotencyKey('booth', bookingId, clientKey),
-      note: `Booth rental: ${description}`,
-      referenceId: bookingId,
-      buyerEmail: artist.email,
-    });
+    if (b.total_cents > 0) ensureReady();
+    const currency = b.total_cents > 0 ? await locationCurrency() : getSettings().currency;
+    let payment: { id: string; receipt_url?: string } | null = null;
+    if (b.total_cents > 0) {
+      payment = await createPayment({
+        sourceId,
+        amountCents: b.total_cents,
+        currency,
+        idempotencyKey: idempotencyKey('booth', bookingId, clientKey),
+        note: `Booth rental: ${description}`,
+        referenceId: bookingId,
+        buyerEmail: artist.email,
+      });
+    }
+    const record: PaymentRecord | null = payment && {
+      kind: 'booth', refId: bookingId, userId: artist.id, payerEmail: artist.email, description,
+      amountCents: b.total_cents, feeCents: b.fee_cents, payeeId: b.owner_id,
+      payeeAmountCents: b.total_cents - b.fee_cents, currency, squarePaymentId: payment.id,
+      receiptUrl: payment.receipt_url ?? null,
+    };
 
     const now = nowIso();
-    db.transaction(() => {
+    const ok = db.transaction(() => {
+      const fresh = db.prepare('select status from booth_bookings where id = ?').get(bookingId) as any;
+      if (fresh?.status !== 'unpaid' || boothClash(b.booth_id, b.start_date, b.end_date, b.id)) return false;
       db.prepare("update booth_bookings set status = 'paid', paid_at = ? where id = ?").run(now, bookingId);
-      insertPayment({
-        kind: 'booth', refId: bookingId, userId: artist.id, payerEmail: artist.email, description,
-        amountCents: b.total_cents, feeCents: b.fee_cents, payeeId: b.owner_id,
-        payeeAmountCents: b.total_cents - b.fee_cents, currency, squarePaymentId: payment.id,
-        receiptUrl: payment.receipt_url ?? null,
-      });
+      if (record) insertPayment(record);
+      return true;
     })();
+    if (!ok) {
+      if (record) await recordAndRefund(record, 'This reservation changed while you were paying.');
+      throw conflict('This reservation changed while you were paying. Please book again.');
+    }
 
     notify(b.owner_id, `${artist.name} paid for ${b.booth_name} (${b.start_date} → ${b.end_date}).`, {
       link: '/shop',
@@ -180,12 +235,12 @@ export async function payBoothBooking(bookingId: string, artist: UserRow, source
       link: '/bookings',
       email: {
         subject: `Guest spot confirmed at ${b.shop_name}`,
-        lines: [`Payment of ${formatMoney(b.total_cents, currency)} received for ${description}.`],
+        lines: [b.total_cents > 0 ? `Payment of ${formatMoney(b.total_cents, currency)} received for ${description}.` : `You're booked: ${description}.`],
       },
     });
     emit(b.owner_id, 'bookings');
     emit(artist.id, 'bookings');
-    return { amountCents: b.total_cents, receiptUrl: payment.receipt_url ?? null };
+    return { amountCents: b.total_cents, receiptUrl: payment?.receipt_url ?? null };
   });
 }
 
@@ -208,13 +263,15 @@ async function saveCardOnFile(user: UserRow, sourceId: string, clientKey: string
   }
   const card = await createCard(sourceId, customerId, idempotencyKey('card', user.id, clientKey));
   if (user.square_card_id && user.square_card_id !== card.id) await disableCard(user.square_card_id);
-  db.prepare('update users set square_card_id = ?, card_label = ?, updated_at = ? where id = ?')
+  db.prepare('update users set square_card_id = ?, card_label = ?, renewal_failed_at = null, updated_at = ? where id = ?')
     .run(card.id, cardLabel(card), nowIso(), user.id);
   return { customerId, cardId: card.id };
 }
 
-async function chargeSubscription(user: UserRow, customerId: string, cardId: string, key: string) {
-  const amount = toCents(getSettings().proMonthlyPrice);
+/** Each subscriber keeps the price they signed up at, even if the admin changes the Pro price later. */
+const subscriberPriceCents = (user: UserRow) => user.pro_price_cents ?? toCents(getSettings().proMonthlyPrice);
+
+async function chargeSubscription(user: UserRow, customerId: string, cardId: string, key: string, amount: number) {
   const currency = await locationCurrency();
   const payment = await createPayment({
     sourceId: cardId,
@@ -234,21 +291,25 @@ async function chargeSubscription(user: UserRow, customerId: string, cardId: str
   return { amount, currency };
 }
 
+/** Starts Pro (charging the first month), or — if already Pro — saves the card and turns auto-renew back on. */
 export async function subscribePro(user: UserRow, sourceId: string, clientKey: string) {
   ensureReady();
-  if (!getSettings().features.proPlan) throw new HttpError(403, 'The Pro plan is not available right now.');
   return withLock(`sub:${user.id}`, async () => {
-    const { customerId, cardId } = await saveCardOnFile(user, sourceId, clientKey);
     const db = getDb();
     if (isPro(user)) {
-      // Already Pro: just update the card and switch auto-renew back on.
+      await saveCardOnFile(user, sourceId, clientKey);
       db.prepare('update users set pro_auto_renew = 1 where id = ?').run(user.id);
       return { charged: false };
     }
-    const { amount, currency } = await chargeSubscription(user, customerId, cardId, idempotencyKey('sub', user.id, clientKey));
+    if (!getSettings().features.proPlan) throw new HttpError(403, 'The Pro plan is not available right now.');
+    const { customerId, cardId } = await saveCardOnFile(user, sourceId, clientKey);
+    const price = toCents(getSettings().proMonthlyPrice);
+    if (price <= 0) throw conflict('The Pro plan price is not set. Please contact the site owner.');
+    const { amount, currency } = await chargeSubscription(user, customerId, cardId, idempotencyKey('sub', user.id, clientKey), price);
     const until = addMonth(nowIso());
-    db.prepare("update users set subscription_tier = 'pro', pro_until = ?, pro_auto_renew = 1, updated_at = ? where id = ?")
-      .run(until, nowIso(), user.id);
+    db.prepare(
+      "update users set subscription_tier = 'pro', pro_until = ?, pro_auto_renew = 1, pro_price_cents = ?, renewal_failed_at = null, updated_at = ? where id = ?",
+    ).run(until, price, nowIso(), user.id);
     notify(user.id, `Welcome to Pro! Your plan renews on ${until.slice(0, 10)}.`, {
       link: '/settings',
       email: { subject: `You're on ${getSettings().siteName} Pro`, lines: [`Thanks! We charged ${formatMoney(amount, currency)}. Your plan renews automatically each month — cancel any time in Settings.`] },
@@ -257,31 +318,58 @@ export async function subscribePro(user: UserRow, sourceId: string, clientKey: s
   });
 }
 
-/** Charges renewals that are due and downgrades accounts whose plan has lapsed. Runs from the hourly job. */
+/** Replaces the saved card without changing whether the plan renews. */
+export async function updateCard(user: UserRow, sourceId: string, clientKey: string) {
+  ensureReady();
+  return withLock(`sub:${user.id}`, () => saveCardOnFile(user, sourceId, clientKey));
+}
+
+const DAY = 86_400_000;
+
+/**
+ * Charges renewals that are due. A failed renewal is retried once a day for PRO_GRACE_DAYS before the plan
+ * ends, so a temporary Square outage or an expired card doesn't cancel anyone instantly. Runs hourly.
+ */
 export async function processRenewals() {
   const db = getDb();
   const due = db
     .prepare("select * from users where subscription_tier = 'pro' and pro_until is not null and pro_until <= ?")
     .all(nowIso()) as UserRow[];
   for (const user of due) {
-    const canRenew = user.pro_auto_renew && user.square_card_id && user.square_customer_id && paymentsReady() && getSettings().features.proPlan;
-    if (canRenew) {
-      try {
-        await chargeSubscription(user, user.square_customer_id!, user.square_card_id!, idempotencyKey('renew', user.id, user.pro_until!));
-        const until = addMonth(user.pro_until!);
-        db.prepare('update users set pro_until = ?, updated_at = ? where id = ?').run(until, nowIso(), user.id);
-        notify(user.id, `Your Pro plan renewed. Next renewal: ${until.slice(0, 10)}.`, { link: '/settings' });
-        continue;
-      } catch (err) {
-        console.warn(`[billing] renewal failed for ${user.id}:`, (err as Error).message);
-        notify(user.id, 'We could not renew your Pro plan — your card was declined. Update your card in Settings to resubscribe.', {
-          link: '/settings',
-          email: { subject: 'Your Pro plan could not be renewed', actionLabel: 'Update card' },
-        });
+    const end = (message?: string) => {
+      db.prepare("update users set subscription_tier = 'free', pro_auto_renew = 0, renewal_failed_at = null, updated_at = ? where id = ?").run(nowIso(), user.id);
+      if (message) notify(user.id, message, { link: '/settings', email: { subject: 'Your Pro plan has ended', actionLabel: 'Resubscribe' } });
+      emit(user.id, 'me');
+    };
+    const eligible = user.pro_auto_renew && user.square_card_id && user.square_customer_id && user.status === 'active' && isArtistRole(user.role);
+    if (!eligible) {
+      end(user.pro_auto_renew ? 'Your Pro plan has ended.' : undefined);
+      continue;
+    }
+    if (!paymentsReady()) continue; // payments switched off temporarily — try again later
+    if (user.renewal_failed_at && Date.now() - new Date(user.renewal_failed_at).getTime() < DAY) continue;
+
+    const attempt = new Date().toISOString().slice(0, 10);
+    try {
+      await chargeSubscription(user, user.square_customer_id!, user.square_card_id!, idempotencyKey('renew', user.id, user.pro_until!, attempt), subscriberPriceCents(user));
+      const until = addMonth(user.pro_until!);
+      db.prepare('update users set pro_until = ?, renewal_failed_at = null, updated_at = ? where id = ?').run(until, nowIso(), user.id);
+      notify(user.id, `Your Pro plan renewed. Next renewal: ${until.slice(0, 10)}.`, { link: '/settings' });
+    } catch (err) {
+      console.warn(`[billing] renewal failed for ${user.id}:`, (err as Error).message);
+      const overdueDays = (Date.now() - new Date(user.pro_until!).getTime()) / DAY;
+      if (overdueDays >= PRO_GRACE_DAYS) {
+        end('We could not renew your Pro plan, so it has ended. Add a working card in Settings to resubscribe.');
+      } else {
+        if (!user.renewal_failed_at) {
+          notify(user.id, `We couldn't renew your Pro plan (${(err as Error).message}). We'll try again tomorrow — update your card in Settings to keep Pro.`, {
+            link: '/settings',
+            email: { subject: 'Problem renewing your Pro plan', actionLabel: 'Update card' },
+          });
+        }
+        db.prepare('update users set renewal_failed_at = ? where id = ?').run(nowIso(), user.id);
       }
     }
-    db.prepare("update users set subscription_tier = 'free', pro_auto_renew = 0, updated_at = ? where id = ?").run(nowIso(), user.id);
-    emit(user.id, 'me');
   }
 }
 
@@ -299,9 +387,14 @@ export async function refund(paymentId: string, reason: string) {
     db.transaction(() => {
       db.prepare("update payments set status = 'refunded', refunded_at = ? where id = ?").run(now, paymentId);
       if (p.kind === 'deposit') {
-        db.prepare("update booking_requests set payment_status = 'refunded', updated_at = ? where id = ?").run(now, p.ref_id);
+        // A refunded deposit means the appointment is off (unless the session already happened).
+        db.prepare(
+          `update booking_requests set payment_status = 'refunded',
+             status = case when status in ('pending','approved') then 'cancelled' else status end, updated_at = ?
+           where id = ? and payment_status = 'paid'`,
+        ).run(now, p.ref_id);
       } else if (p.kind === 'booth') {
-        db.prepare("update booth_bookings set status = 'refunded' where id = ?").run(p.ref_id);
+        db.prepare("update booth_bookings set status = 'refunded' where id = ? and status in ('paid','cancelled')").run(p.ref_id);
       } else if (p.kind === 'subscription') {
         db.prepare("update users set subscription_tier = 'free', pro_until = null, pro_auto_renew = 0, updated_at = ? where id = ?").run(now, p.ref_id);
       }
@@ -317,6 +410,7 @@ export async function refund(paymentId: string, reason: string) {
     if (p.payee_id) notify(p.payee_id, `A payment was refunded: ${p.description}.`);
     emit(p.user_id, 'bookings');
     emit(p.payee_id, 'bookings');
+    emit(p.user_id, 'me');
   });
 }
 
@@ -324,15 +418,16 @@ export async function refund(paymentId: string, reason: string) {
 
 export function earningsFor(userId: string): Earnings {
   const db = getDb();
+  const env = currentEnvironment();
   const entries = db
     .prepare(
       `select id, kind, description, payee_amount_cents, status, currency, created_at from payments
-       where payee_id = ? order by created_at desc`,
+       where payee_id = ? and environment = ? order by created_at desc`,
     )
-    .all(userId) as any[];
+    .all(userId, env) as any[];
   const payouts = db
-    .prepare('select * from payouts where payee_id = ? order by created_at desc')
-    .all(userId) as any[];
+    .prepare('select * from payouts where payee_id = ? and environment = ? order by created_at desc')
+    .all(userId, env) as any[];
   const earned = entries.filter(e => e.status === 'completed').reduce((s, e) => s + e.payee_amount_cents, 0);
   const paidOut = payouts.reduce((s, p) => s + p.amount_cents, 0);
   return {
@@ -345,4 +440,25 @@ export function earningsFor(userId: string): Earnings {
     })),
     payouts: payouts.map(p => ({ id: p.id, amountCents: p.amount_cents, method: p.method, note: p.note, createdAt: p.created_at })),
   };
+}
+
+/** Money still owed to a user, or upcoming paid appointments/rentals involving them — reasons not to delete them. */
+export function deletionBlockers(userId: string): string[] {
+  const db = getDb();
+  const today = todayStr(-1);
+  const reasons: string[] = [];
+  const paidAppointments = (db
+    .prepare("select count(*) c from booking_requests where (artist_id = @u or client_id = @u) and payment_status = 'paid' and status = 'approved' and date >= @t")
+    .get({ u: userId, t: today }) as any).c;
+  if (paidAppointments) reasons.push(`${paidAppointments} upcoming paid appointment${paidAppointments > 1 ? 's' : ''}`);
+  const rentals = (db
+    .prepare(
+      `select count(*) c from booth_bookings bb join shops s on s.id = bb.shop_id
+       where (bb.artist_id = @u or s.owner_id = @u) and bb.status = 'paid' and bb.end_date >= @t`,
+    )
+    .get({ u: userId, t: today }) as any).c;
+  if (rentals) reasons.push(`${rentals} upcoming paid booth rental${rentals > 1 ? 's' : ''}`);
+  const balance = earningsFor(userId).balanceCents;
+  if (balance > 0) reasons.push(`${formatMoney(balance, getSettings().currency)} still owed to them`);
+  return reasons;
 }

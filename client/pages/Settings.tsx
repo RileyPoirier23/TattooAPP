@@ -1,12 +1,12 @@
 // Account settings: name, city, password, payout details and plan shortcuts.
 import React, { useState } from 'react';
 import { api, errorMessage } from '../api';
-import { Link } from '../router';
+import { Link, navigate } from '../router';
 import { isArtist, useStore } from '../store';
 import { ROLE_LABELS } from '../lib/format';
 import { PayoutMethodForm } from '../components/Earnings';
 import { ProPlanCard } from '../components/ProPlan';
-import { Badge, Button, Card, Input, PageHeader } from '../components/ui';
+import { Badge, Button, Card, Input, Modal, PageHeader } from '../components/ui';
 import type { Me } from '../../shared/types';
 
 export const SettingsPage: React.FC = () => {
@@ -21,6 +21,23 @@ export const SettingsPage: React.FC = () => {
   const [next, setNext] = useState('');
   const [confirm, setConfirm] = useState('');
   const [changing, setChanging] = useState(false);
+  const [deleting, setDeleting] = useState(false);
+  const [deletePassword, setDeletePassword] = useState('');
+  const [deleteBusy, setDeleteBusy] = useState(false);
+
+  const deleteAccount = async () => {
+    setDeleteBusy(true);
+    try {
+      await api.post('/me/delete', { password: deletePassword });
+      setUser(null);
+      toast('Your account has been deleted.');
+      navigate('/');
+    } catch (err) {
+      toast(errorMessage(err), 'error');
+    } finally {
+      setDeleteBusy(false);
+    }
+  };
 
   const saveProfile = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -83,6 +100,33 @@ export const SettingsPage: React.FC = () => {
 
       {(isArtist(me) || me.role === 'shop-owner') && <PayoutMethodForm me={me} />}
       {isArtist(me) && features.proPlan && <ProPlanCard me={me} />}
+
+      {me.role !== 'admin' && (
+        <Card className="border-red-500/30">
+          <h2 className="text-lg font-bold mb-1">Delete account</h2>
+          <p className="text-sm text-brand-gray mb-4">
+            Permanently deletes your account, profile, photos, messages and booking history.
+            You can't delete your account while you have upcoming paid bookings or money still owed to you.
+          </p>
+          <Button variant="danger" onClick={() => setDeleting(true)}>Delete my account</Button>
+        </Card>
+      )}
+      {deleting && (
+        <Modal
+          title="Delete your account?"
+          onClose={() => setDeleting(false)}
+          size="sm"
+          footer={
+            <>
+              <Button variant="outline" onClick={() => setDeleting(false)}>Keep my account</Button>
+              <Button variant="danger" onClick={deleteAccount} loading={deleteBusy} disabled={!deletePassword}>Delete forever</Button>
+            </>
+          }
+        >
+          <p className="text-sm mb-4">This can't be undone. Enter your password to confirm.</p>
+          <Input label="Password" type="password" value={deletePassword} onChange={e => setDeletePassword(e.target.value)} autoComplete="current-password" />
+        </Modal>
+      )}
     </div>
   );
 };

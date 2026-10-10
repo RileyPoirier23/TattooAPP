@@ -31,7 +31,8 @@ export function notify(
   }
 }
 
-export function notifyAdmins(message: string, link = '/admin') {
-  const admins = getDb().prepare("select id from users where role = 'admin'").all() as { id: string }[];
-  admins.forEach(a => notify(a.id, message, { link }));
+/** Notifies every admin; pass `email: true` for things that need action (e.g. a refund to review). */
+export function notifyAdmins(message: string, link = '/admin', email = false) {
+  const admins = getDb().prepare("select id from users where role = 'admin' and status = 'active'").all() as { id: string }[];
+  admins.forEach(a => notify(a.id, message, { link, ...(email ? { email: { subject: 'Action needed', actionLabel: 'Open admin panel' } } : {}) }));
 }

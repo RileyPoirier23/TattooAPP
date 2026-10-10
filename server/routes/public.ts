@@ -5,7 +5,7 @@ import { getSettings } from '../settings';
 import { paymentsReady } from '../square';
 import { emailReady } from '../email';
 import { notFound, todayStr } from '../http';
-import { daysOffFor, toPublicArtist, toShop } from '../mappers';
+import { daysOffFor, guestSpotsByArtist, toPublicArtist, toShop } from '../mappers';
 import type { UserRow } from '../auth';
 import type { ArtistDetail, Page, PublicConfig, Review, ShopDetail } from '../../shared/types';
 
@@ -47,7 +47,8 @@ publicRouter.get('/artists', (_req, res) => {
        order by is_verified desc, average_rating desc, review_count desc, created_at desc`,
     )
     .all() as UserRow[];
-  res.json(rows.map(toPublicArtist));
+  const spots = guestSpotsByArtist();
+  res.json(rows.map(u => toPublicArtist(u, spots)));
 });
 
 publicRouter.get('/artists/:id', (req, res) => {
@@ -104,6 +105,15 @@ publicRouter.get('/shops/:id', (req, res) => {
       )
       .all(req.params.id, todayStr(), holdCutoff) as any[]
   ).map(r => ({ boothId: r.booth_id, startDate: r.start_date, endDate: r.end_date }));
+  // Dates the shop has blocked show as unavailable too.
+  const blocked = db
+    .prepare(
+      `select bb.booth_id, bb.start_date, bb.end_date from booth_blocks bb join booths b on b.id = bb.booth_id
+       where b.shop_id = ? and bb.end_date >= ? order by bb.start_date`,
+    )
+    .all(req.params.id, todayStr()) as any[];
+  bookedRanges.push(...blocked.map(r => ({ boothId: r.booth_id, startDate: r.start_date, endDate: r.end_date })));
+  bookedRanges.sort((a, b) => (a.startDate < b.startDate ? -1 : 1));
   const reviews = (
     db
       .prepare(

@@ -12,7 +12,7 @@ export const ProPlanCard: React.FC<{ me: Me }> = ({ me }) => {
   const settings = useStore(s => s.config!.settings);
   const setUser = useStore(s => s.setUser);
   const toast = useStore(s => s.toast);
-  const [cardModal, setCardModal] = useState<'subscribe' | 'update' | null>(null);
+  const [cardModal, setCardModal] = useState<'subscribe' | 'resume' | 'update' | null>(null);
   const [busy, setBusy] = useState(false);
   const sub = me.subscription;
   const price = dollars(settings.proMonthlyPrice);
@@ -72,7 +72,7 @@ export const ProPlanCard: React.FC<{ me: Me }> = ({ me }) => {
                 {sub.proUntil && !sub.autoRenew && (sub.cardLabel ? (
                   <Button loading={busy} onClick={() => call('/me/subscription/resume', 'Auto-renew is back on.')}>Resume plan</Button>
                 ) : (
-                  <Button onClick={() => setCardModal('update')}>Add card to resume</Button>
+                  <Button onClick={() => setCardModal('resume')}>Add card to resume</Button>
                 ))}
                 {sub.proUntil && <Button variant="ghost" onClick={() => setCardModal('update')}>Update card</Button>}
               </div>
@@ -83,14 +83,15 @@ export const ProPlanCard: React.FC<{ me: Me }> = ({ me }) => {
         </div>
       </div>
       {cardModal && (
-        <Modal title={cardModal === 'subscribe' ? `Upgrade to Pro — ${price}/month` : 'Update your card'} onClose={() => setCardModal(null)} size="md">
+        <Modal title={cardModal === 'subscribe' ? `Upgrade to Pro — ${price}/month` : cardModal === 'resume' ? 'Resume your Pro plan' : 'Update your card'} onClose={() => setCardModal(null)} size="md">
           <SquareCardForm
-            buttonLabel={cardModal === 'subscribe' ? `Pay ${price} & upgrade` : 'Save card'}
+            buttonLabel={cardModal === 'subscribe' ? `Pay ${price} & upgrade` : cardModal === 'resume' ? 'Save card & resume' : 'Save card'}
             note={cardModal === 'subscribe' ? `You'll be charged ${price} today and every month until you cancel. Card payments are processed by Square.` : undefined}
             onToken={async (sourceId, idempotencyKey) => {
-              const { user } = await api.post<{ user: Me }>('/me/subscription', { sourceId, idempotencyKey });
+              // Updating the card never changes whether the plan renews; resuming does.
+              const { user } = await api.post<{ user: Me }>(cardModal === 'update' ? '/me/card' : '/me/subscription', { sourceId, idempotencyKey });
               setUser(user);
-              toast(cardModal === 'subscribe' ? "You're on Pro! 🎉" : 'Card updated.');
+              toast(cardModal === 'subscribe' ? "You're on Pro! 🎉" : cardModal === 'resume' ? 'Your plan will renew again.' : 'Card updated.');
               setCardModal(null);
             }}
           />

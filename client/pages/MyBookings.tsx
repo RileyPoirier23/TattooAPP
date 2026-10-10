@@ -14,7 +14,11 @@ export const MyBookingsPage: React.FC = () => {
   const version = useStore(s => s.bookingsVersion);
   const { data, error, loading, reload } = useApi<MyBookings>('/bookings', [version]);
   const artist = isArtist(user);
-  const [tab, setTab] = useState<'tattoos' | 'booths'>(artist && user.role === 'artist' ? 'booths' : 'tattoos');
+  // Artists mostly use this page for guest spots — unless they have tattoo appointments of their own, or rentals are off.
+  const [tab, setTab] = useState<'tattoos' | 'booths'>(artist && user.role === 'artist' && features.boothRental ? 'booths' : 'tattoos');
+  React.useEffect(() => {
+    if (data && tab === 'booths' && data.asClient.length > 0 && data.boothBookings.length === 0) setTab('tattoos');
+  }, [data]); // eslint-disable-line react-hooks/exhaustive-deps
 
   if (user.role === 'shop-owner') {
     return (

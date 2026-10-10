@@ -3,6 +3,7 @@ import * as esbuild from 'esbuild';
 import { execFileSync } from 'node:child_process';
 import fs from 'node:fs';
 import path from 'node:path';
+import { pathToFileURL } from 'node:url';
 
 const root = path.resolve(import.meta.dirname, '..');
 const out = path.join(root, 'dist');
@@ -26,8 +27,9 @@ export const clientOptions = {
 };
 
 export const serverOptions = {
-  entryPoints: [path.join(root, 'server/index.ts')],
-  outfile: path.join(out, 'server.js'),
+  // server.js runs the site; create-admin.js is the "lost admin access" recovery tool.
+  entryPoints: { server: path.join(root, 'server/index.ts'), 'create-admin': path.join(root, 'scripts/create-admin.ts') },
+  outdir: out,
   bundle: true,
   platform: 'node',
   format: 'esm',
@@ -51,7 +53,7 @@ export function buildCss({ watchMode = false } = {}) {
   execFileSync(process.execPath, args.concat('--minify'), { stdio: 'inherit', cwd: root });
 }
 
-if (import.meta.url === `file://${process.argv[1]}`) {
+if (import.meta.url === pathToFileURL(process.argv[1]).href) {
   fs.rmSync(out, { recursive: true, force: true });
   copyStatic();
   await Promise.all([esbuild.build(clientOptions), esbuild.build(serverOptions)]);

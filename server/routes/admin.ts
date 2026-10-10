@@ -10,9 +10,9 @@ import { badRequest, conflict, notFound, parse, toCents, todayStr, zDate } from 
 import { getSecrets, getSettings, saveSecrets, saveSettings } from '../settings';
 import { BOOKING_REQUEST_SELECT, BOOTH_BOOKING_SELECT, recomputeArtistRating, recomputeShopRating, toBookingRequest, toBoothBooking } from '../mappers';
 import { saveImage, upload } from '../uploads';
-import { earningsFor, refund } from '../billing';
-import { emailReady, sendEmailNow } from '../email';
-import { locationCurrency, paymentsReady } from '../square';
+import { currentEnvironment, deletionBlockers, earningsFor, refund } from '../billing';
+import { emailReady, sendEmail, sendEmailNow } from '../email';
+import { checkConnection, paymentsReady } from '../square';
 import { notify } from '../notify';
 import { createPasswordResetLink } from './auth';
 import { emit } from '../events';
@@ -35,20 +35,22 @@ adminRouter.get('/stats', (_req, res) => {
     (db.prepare('select role, count(*) c from users group by role').all() as any[]).map(r => [r.role, r.c]),
   );
   const since30 = new Date(Date.now() - 30 * 86_400_000).toISOString();
-  const revenue = one("select coalesce(sum(amount_cents),0) gross, coalesce(sum(fee_cents),0) fees from payments where status = 'completed'");
-  const revenue30 = one("select coalesce(sum(amount_cents),0) gross, coalesce(sum(fee_cents),0) fees from payments where status = 'completed' and created_at >= ?", since30);
+  const env = currentEnvironment();
+  const revenue = one("select coalesce(sum(amount_cents),0) gross, coalesce(sum(fee_cents),0) fees from payments where status = 'completed' and environment = ?", env);
+  const revenue30 = one("select coalesce(sum(amount_cents),0) gross, coalesce(sum(fee_cents),0) fees from payments where status = 'completed' and created_at >= ? and environment = ?", since30, env);
   const owed = one(
     `select coalesce(sum(bal),0) owed from (
-       select (select coalesce(sum(payee_amount_cents),0) from payments p where p.payee_id = u.id and p.status = 'completed')
-            - (select coalesce(sum(amount_cents),0) from payouts o where o.payee_id = u.id) bal
+       select (select coalesce(sum(payee_amount_cents),0) from payments p where p.payee_id = u.id and p.status = 'completed' and p.environment = @env)
+            - (select coalesce(sum(amount_cents),0) from payouts o where o.payee_id = u.id and o.environment = @env) bal
        from users u) where bal > 0`,
+    { env },
   );
   const monthly = db
     .prepare(
       `select substr(created_at,1,7) month, sum(amount_cents) gross, sum(fee_cents) fees from payments
-       where status = 'completed' and created_at >= ? group by month order by month`,
+       where status = 'completed' and created_at >= ? and environment = ? group by month order by month`,
     )
-    .all(new Date(Date.now() - 365 * 86_400_000).toISOString());
+    .all(new Date(Date.now() - 365 * 86_400_000).toISOString(), env);
   res.json({
     usersByRole,
     totalUsers: Object.values(usersByRole).reduce((a: number, b) => a + (b as number), 0),
@@ -65,6 +67,7 @@ adminRouter.get('/stats', (_req, res) => {
     pendingReports: one("select count(*) c from reports where status = 'pending'").c,
     monthly,
     currency: getSettings().currency,
+    environment: env,
     paymentsReady: paymentsReady(),
     emailReady: emailReady(),
   });
@@ -85,6 +88,8 @@ function maskedSecrets() {
     smtpPassSet: !!s.smtpPass,
     smtpFrom: s.smtpFrom,
     smtpFromEnv: !!config.smtpUrl,
+    resendApiKeySet: !!s.resendApiKey,
+    resendFromEnv: !!config.resendApiKey,
   };
 }
 
@@ -128,7 +133,7 @@ const settingsSchema = z
       .partial(),
     depositFeePercent: z.coerce.number().min(0).max(50),
     boothFeePercent: z.coerce.number().min(0).max(50),
-    proMonthlyPrice: z.coerce.number().min(0).max(10000),
+    proMonthlyPrice: z.coerce.number().min(1, 'must be at least 1').max(10000),
     defaultDeposit: z.coerce.number().min(0).max(100000),
     currency: z.string().regex(/^[A-Z]{3}$/, 'must be a 3-letter currency code like USD'),
     boothHoldHours: z.coerce.number().int().min(1).max(720),
@@ -150,6 +155,7 @@ const secretsSchema = z
     smtpUser: z.string().trim().max(200),
     smtpPass: z.string().max(500),
     smtpFrom: z.string().trim().max(200),
+    resendApiKey: z.string().trim().max(300),
   })
   .partial();
 
@@ -177,9 +183,8 @@ adminRouter.post('/test-email', async (req, res) => {
 
 adminRouter.post('/square-check', async (_req, res) => {
   if (!paymentsReady()) throw badRequest('Enter your Square access token, application ID and location ID first.');
-  const currency = await locationCurrency();
-  if (currency !== getSettings().currency) saveSettings({ currency });
-  res.json({ ok: true, currency });
+  const { currency, name } = await checkConnection();
+  res.json({ ok: true, currency, location: name });
 });
 
 // ---------- Pages ----------
@@ -309,6 +314,14 @@ adminRouter.patch('/users/:id', async (req, res) => {
     db.prepare(`update users set ${entries.map(([k]) => `${k} = ?`).join(', ')}, updated_at = ? where id = ?`)
       .run(...entries.map(([, v]) => v), nowIso(), u.id);
   }
+  // Suspended accounts, or accounts that are no longer artists, must not keep being billed for Pro.
+  if (b.status === 'suspended' || (b.role && b.role !== 'artist' && b.role !== 'dual')) {
+    db.prepare('update users set pro_auto_renew = 0 where id = ?').run(u.id);
+  }
+  // Granting Pro to someone whose old paid plan already lapsed: without a new end date, make it open-ended.
+  if (b.subscriptionTier === 'pro' && b.proUntil === undefined && u.pro_until && u.pro_until < nowIso()) {
+    db.prepare('update users set pro_until = null where id = ?').run(u.id);
+  }
   if (b.status === 'suspended' || b.password) destroyAllSessions(u.id);
   if (b.isVerified && !u.is_verified) notify(u.id, 'Your profile is now verified! ✅', { link: '/dashboard' });
   emit(u.id, 'me');
@@ -319,6 +332,10 @@ adminRouter.delete('/users/:id', (req, res) => {
   if (req.params.id === req.user!.id) throw badRequest("You can't delete your own account.");
   const u = getUser(req.params.id);
   if (!u) throw notFound('User not found.');
+  const blockers = deletionBlockers(u.id);
+  if (blockers.length) {
+    throw conflict(`Can't delete ${u.name} yet: they have ${blockers.join(' and ')}. Suspend the account instead, or refund/pay out first.`);
+  }
   getDb().prepare('delete from users where id = ?').run(u.id);
   res.json({ ok: true });
 });
@@ -383,6 +400,12 @@ adminRouter.post('/booking-requests/:id/status', (req, res) => {
   const r = db.prepare('select * from booking_requests where id = ?').get(req.params.id) as any;
   if (!r) throw notFound();
   db.prepare('update booking_requests set status = ?, updated_at = ? where id = ?').run(status, nowIso(), r.id);
+  if (status !== r.status) {
+    const msg = `The site admin changed the booking for ${r.date} to "${status}".`;
+    notify(r.artist_id, msg, { link: '/dashboard', email: { subject: 'Your booking was updated', actionLabel: 'Open dashboard' } });
+    if (r.client_id) notify(r.client_id, msg, { link: '/bookings', email: { subject: 'Your booking was updated', actionLabel: 'View booking' } });
+    else if (r.guest_email) sendEmail({ to: r.guest_email, subject: 'Your booking was updated', lines: [`Hi ${r.guest_name},`, msg], action: { label: 'View your booking', url: `${config.appUrl}/booking/${r.id}?token=${r.access_token}` } });
+  }
   emit(r.artist_id, 'bookings');
   emit(r.client_id, 'bookings');
   res.json({ ok: true });
@@ -410,9 +433,9 @@ adminRouter.get('/payments', (_req, res) => {
     .prepare(
       `select p.*, u.name payer_name, e.name payee_name from payments p
        left join users u on u.id = p.user_id left join users e on e.id = p.payee_id
-       order by p.created_at desc limit 1000`,
+       where p.environment = ? order by p.created_at desc limit 1000`,
     )
-    .all() as any[];
+    .all(currentEnvironment()) as any[];
   res.json(
     rows.map(p => ({
       id: p.id, kind: p.kind, refId: p.ref_id, description: p.description, payerName: p.payer_name, payerEmail: p.payer_email,
@@ -433,13 +456,14 @@ adminRouter.get('/payouts', (_req, res) => {
   const rows = getDb()
     .prepare(
       `select u.id, u.name, u.email, u.role, u.payout_method,
-        (select coalesce(sum(payee_amount_cents),0) from payments p where p.payee_id = u.id and p.status = 'completed') earned,
-        (select coalesce(sum(amount_cents),0) from payouts o where o.payee_id = u.id) paid
+        (select coalesce(sum(payee_amount_cents),0) from payments p where p.payee_id = u.id and p.status = 'completed' and p.environment = @env) earned,
+        (select coalesce(sum(amount_cents),0) from payouts o where o.payee_id = u.id and o.environment = @env) paid
        from users u
-       where exists(select 1 from payments p where p.payee_id = u.id) or exists(select 1 from payouts o where o.payee_id = u.id)
+       where exists(select 1 from payments p where p.payee_id = u.id and p.environment = @env)
+          or exists(select 1 from payouts o where o.payee_id = u.id and o.environment = @env)
        order by (earned - paid) desc, u.name`,
     )
-    .all() as any[];
+    .all({ env: currentEnvironment() }) as any[];
   res.json(
     rows.map(r => ({
       payee: { id: r.id, name: r.name, email: r.email, role: r.role, payoutMethod: parseJson(r.payout_method, {}) },
@@ -468,8 +492,8 @@ adminRouter.post('/payouts', (req, res) => {
   if (!payee) throw notFound('User not found.');
   const amountCents = toCents(b.amount);
   getDb()
-    .prepare('insert into payouts (id, payee_id, amount_cents, currency, method, note, created_by, created_at) values (?, ?, ?, ?, ?, ?, ?, ?)')
-    .run(newId(), payee.id, amountCents, getSettings().currency, b.method, b.note, req.user!.id, nowIso());
+    .prepare('insert into payouts (id, payee_id, amount_cents, currency, method, note, created_by, environment, created_at) values (?, ?, ?, ?, ?, ?, ?, ?, ?)')
+    .run(newId(), payee.id, amountCents, getSettings().currency, b.method, b.note, req.user!.id, currentEnvironment(), nowIso());
   notify(payee.id, `A payout of ${(amountCents / 100).toFixed(2)} ${getSettings().currency} has been sent to you${b.method ? ` via ${b.method}` : ''}.`, {
     link: payee.role === 'shop-owner' ? '/shop' : '/dashboard',
   });

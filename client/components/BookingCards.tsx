@@ -9,7 +9,7 @@ import { ReportModal } from './ReportModal';
 import { Calendar } from './Calendar';
 import { Avatar, Badge, Button, Card, Input, Modal, Select, StarRating, StatusBadge, Textarea } from './ui';
 import { CalendarIcon, CameraIcon, ChatIcon, CreditCardIcon, PaperAirplaneIcon } from './Icons';
-import type { BookingRequest, BoothBooking, PreferredTime } from '../../shared/types';
+import type { BookingRequest, BoothBooking } from '../../shared/types';
 
 // ---------- Shared helpers ----------
 
@@ -18,14 +18,32 @@ async function openConversation(userId: string) {
   navigate(`/messages/${id}`);
 }
 
+const stamp = (d: Date) =>
+  `${d.getFullYear()}${String(d.getMonth() + 1).padStart(2, '0')}${String(d.getDate()).padStart(2, '0')}T${String(d.getHours()).padStart(2, '0')}${String(d.getMinutes()).padStart(2, '0')}00`;
+
 function calendarLink(r: BookingRequest) {
-  const d = r.date.replace(/-/g, '');
-  const next = parseDate(r.date);
-  next.setDate(next.getDate() + 1);
-  const end = `${next.getFullYear()}${String(next.getMonth() + 1).padStart(2, '0')}${String(next.getDate()).padStart(2, '0')}`;
   const text = encodeURIComponent(`Tattoo: ${r.serviceName} with ${r.artistName}`);
-  const details = encodeURIComponent(`Preferred time: ${PREFERRED_TIMES[r.preferredTime] || r.preferredTime}`);
-  return `https://calendar.google.com/calendar/render?action=TEMPLATE&text=${text}&dates=${d}/${end}&details=${details}`;
+  let dates: string;
+  if (r.appointmentTime) {
+    // A timed event in the visitor's own time zone (2 hours unless we know better).
+    const [h, m] = r.appointmentTime.split(':').map(Number);
+    const start = parseDate(r.date);
+    start.setHours(h, m, 0, 0);
+    const end = new Date(start.getTime() + 2 * 3_600_000);
+    dates = `${stamp(start)}/${stamp(end)}`;
+  } else {
+    const next = parseDate(r.date);
+    next.setDate(next.getDate() + 1);
+    dates = `${r.date.replace(/-/g, '')}/${stamp(next).slice(0, 8)}`;
+  }
+  const details = encodeURIComponent(r.appointmentTime ? `Booked via ${window.location.host}` : `Time: ${PREFERRED_TIMES[r.preferredTime] || r.preferredTime} (confirm with your artist)`);
+  return `https://calendar.google.com/calendar/render?action=TEMPLATE&text=${text}&dates=${dates}&details=${details}`;
+}
+
+/** "1:00 PM" from "13:00". */
+export function formatTime(t: string) {
+  const [h, m] = t.split(':').map(Number);
+  return new Date(2000, 0, 1, h, m).toLocaleTimeString(undefined, { hour: 'numeric', minute: '2-digit' });
 }
 
 export const ReviewModal: React.FC<{ title: string; onSubmit: (rating: number, text: string) => Promise<void>; onClose: () => void }> = ({ title, onSubmit, onClose }) => {
@@ -79,7 +97,10 @@ const Detail: React.FC<{ k: string; v: React.ReactNode }> = ({ k, v }) => (
 const RequestDetails: React.FC<{ r: BookingRequest }> = ({ r }) => (
   <div className="mt-4 space-y-3 text-sm">
     <dl className="grid grid-cols-2 sm:grid-cols-4 gap-3">
-      <Detail k="Date" v={`${formatDate(r.date, { weekday: 'short', month: 'short', day: 'numeric' })} · ${PREFERRED_TIMES[r.preferredTime] || r.preferredTime}`} />
+      <Detail
+        k={r.appointmentTime ? 'Appointment' : 'Date'}
+        v={`${formatDate(r.date, { weekday: 'short', month: 'short', day: 'numeric' })} · ${r.appointmentTime ? formatTime(r.appointmentTime) : `${PREFERRED_TIMES[r.preferredTime] || r.preferredTime} (requested)`}`}
+      />
       {(r.tattooWidth || r.tattooHeight) && <Detail k="Size" v={`${r.tattooWidth ?? '?'}" × ${r.tattooHeight ?? '?'}"`} />}
       {r.bodyPlacement && <Detail k="Placement" v={r.bodyPlacement} />}
       {r.budget != null && <Detail k="Budget" v={dollars(r.budget)} />}
@@ -100,6 +121,7 @@ const RequestDetails: React.FC<{ r: BookingRequest }> = ({ r }) => (
 
 function paymentBadge(r: BookingRequest) {
   if (r.status !== 'approved' && r.paymentStatus === 'unpaid') return null;
+  if (r.depositCents === 0 && r.paymentStatus !== 'refunded') return <Badge tone="gray">No deposit</Badge>;
   if (r.paymentStatus === 'paid') return <Badge tone="green">Deposit paid</Badge>;
   if (r.paymentStatus === 'refunded') return <Badge tone="purple">Refunded</Badge>;
   return <Badge tone="yellow">Deposit due</Badge>;
@@ -167,11 +189,16 @@ export const ClientRequestCard: React.FC<{ request: BookingRequest; token?: stri
             <ChatIcon className="w-4 h-4" /> Message artist
           </Button>
         )}
+        {!user && features.messaging && (
+          <Button variant="outline" size="sm" onClick={() => useStore.getState().openAuth('register')}>
+            <ChatIcon className="w-4 h-4" /> Create an account to message {r.artistName}
+          </Button>
+        )}
         {r.status === 'completed' && !r.review && features.reviews && (
           <Button size="sm" onClick={() => setReviewing(true)}>Leave a review</Button>
         )}
         {r.review && <span className="text-sm text-brand-gray self-center">You rated this {r.review.rating}★</span>}
-        {(r.status === 'pending' || r.status === 'approved') && (
+        {(r.status === 'pending' || (r.status === 'approved' && r.date >= today())) && (
           <Button variant="ghost" size="sm" onClick={cancel} loading={busy} className="text-red-500">Cancel booking</Button>
         )}
         {user && (
@@ -196,9 +223,12 @@ export const ClientRequestCard: React.FC<{ request: BookingRequest; token?: stri
 
 // ---------- Artist's view of a booking request ----------
 
+const SUGGESTED_START: Record<string, string> = { morning: '10:00', afternoon: '13:00', evening: '17:00', anytime: '' };
+
 const ApproveModal: React.FC<{ r: BookingRequest; onClose: () => void; onDone: () => void }> = ({ r, onClose, onDone }) => {
   const toast = useStore(s => s.toast);
   const [deposit, setDeposit] = useState(String(r.depositCents / 100));
+  const [startTime, setStartTime] = useState(r.appointmentTime || SUGGESTED_START[r.preferredTime] || '');
   const [note, setNote] = useState('');
   const [busy, setBusy] = useState(false);
   return (
@@ -212,10 +242,11 @@ const ApproveModal: React.FC<{ r: BookingRequest; onClose: () => void; onDone: (
           <Button
             variant="success"
             loading={busy}
+            disabled={!startTime}
             onClick={async () => {
               setBusy(true);
               try {
-                await api.post(`/booking-requests/${r.id}/action`, { action: 'approve', depositAmount: Number(deposit) || 0, note: note || undefined });
+                await api.post(`/booking-requests/${r.id}/action`, { action: 'approve', depositAmount: Number(deposit) || 0, time: startTime, note: note || undefined });
                 toast('Approved — the client has been asked to pay the deposit.');
                 onDone();
               } catch (err) {
@@ -234,6 +265,7 @@ const ApproveModal: React.FC<{ r: BookingRequest; onClose: () => void; onDone: (
         <p className="text-sm">
           {formatDate(r.date)} · {PREFERRED_TIMES[r.preferredTime]} · {r.serviceName}
         </p>
+        <Input label="Start time" type="time" value={startTime} onChange={e => setStartTime(e.target.value)} required hint={`The client asked for: ${PREFERRED_TIMES[r.preferredTime]}.`} />
         <Input label="Deposit to collect" type="number" min="0" step="1" prefix="$" value={deposit} onChange={e => setDeposit(e.target.value)} hint="Set to 0 if you don't need a deposit." />
         <Textarea label="Note to the client (optional)" value={note} onChange={e => setNote(e.target.value)} rows={3} placeholder="e.g. Let's start at 1pm. Please eat beforehand!" />
       </div>
@@ -244,7 +276,7 @@ const ApproveModal: React.FC<{ r: BookingRequest; onClose: () => void; onDone: (
 const RescheduleModal: React.FC<{ r: BookingRequest; onClose: () => void; onDone: () => void }> = ({ r, onClose, onDone }) => {
   const toast = useStore(s => s.toast);
   const [date, setDate] = useState('');
-  const [time, setTime] = useState<PreferredTime>(r.preferredTime);
+  const [time, setTime] = useState(r.appointmentTime || SUGGESTED_START[r.preferredTime] || '');
   const [note, setNote] = useState('');
   const [busy, setBusy] = useState(false);
   return (
@@ -261,7 +293,7 @@ const RescheduleModal: React.FC<{ r: BookingRequest; onClose: () => void; onDone
             onClick={async () => {
               setBusy(true);
               try {
-                await api.post(`/booking-requests/${r.id}/action`, { action: 'reschedule', date, preferredTime: time, note: note || undefined });
+                await api.post(`/booking-requests/${r.id}/action`, { action: 'reschedule', date, time, note: note || undefined });
                 toast(`Moved to ${formatDate(date)}. The client has been notified.`);
                 onDone();
               } catch (err) {
@@ -279,9 +311,7 @@ const RescheduleModal: React.FC<{ r: BookingRequest; onClose: () => void; onDone
       <div className="space-y-4">
         <p className="text-sm text-brand-gray">Currently {formatDate(r.date)}.</p>
         <Calendar selected={date ? [date] : []} onSelect={setDate} initialMonth={r.date >= today() ? r.date : undefined} />
-        <Select label="Time of day" value={time} onChange={e => setTime(e.target.value as PreferredTime)}>
-          {Object.entries(PREFERRED_TIMES).map(([v, l]) => <option key={v} value={v}>{l}</option>)}
-        </Select>
+        <Input label="Start time" type="time" value={time} onChange={e => setTime(e.target.value)} />
         <Textarea label="Note to the client (optional)" value={note} onChange={e => setNote(e.target.value)} rows={2} />
       </div>
     </Modal>
@@ -401,7 +431,8 @@ export const BoothBookingCard: React.FC<{ booking: BoothBooking; as: 'artist' | 
   const [busy, setBusy] = useState(false);
 
   const cancel = async () => {
-    if (!window.confirm('Cancel this reservation?')) return;
+    const paid = b.status === 'paid';
+    if (!window.confirm(paid ? `Cancel ${b.artistName}'s paid rental? The site admin will be asked to refund them.` : 'Cancel this reservation?')) return;
     setBusy(true);
     try {
       await api.post(`/booth-bookings/${b.id}/cancel`);
@@ -435,7 +466,9 @@ export const BoothBookingCard: React.FC<{ booking: BoothBooking; as: 'artist' | 
       )}
       <div className="mt-4 pt-4 border-t border-gray-200 dark:border-gray-800 flex flex-wrap gap-2">
         {as === 'artist' && b.status === 'unpaid' && <Button size="sm" onClick={() => setPaying(true)}><CreditCardIcon className="w-4 h-4" /> Pay {money(b.totalCents)}</Button>}
-        {b.status === 'unpaid' && <Button variant="ghost" size="sm" className="text-red-500" onClick={cancel} loading={busy}>Cancel reservation</Button>}
+        {(b.status === 'unpaid' || (as === 'owner' && b.status === 'paid' && b.endDate >= today())) && (
+          <Button variant="ghost" size="sm" className="text-red-500" onClick={cancel} loading={busy}>{b.status === 'paid' ? 'Cancel rental' : 'Cancel reservation'}</Button>
+        )}
         {as === 'artist' && b.status === 'paid' && b.startDate <= today() && !b.reviewed && features.reviews && (
           <Button variant="outline" size="sm" onClick={() => setReviewing(true)}>Review this shop</Button>
         )}

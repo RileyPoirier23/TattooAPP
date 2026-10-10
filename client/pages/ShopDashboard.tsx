@@ -3,7 +3,7 @@ import React, { useState } from 'react';
 import { api, errorMessage } from '../api';
 import { Link, useLocation } from '../router';
 import { useStore } from '../store';
-import { dollars, today } from '../lib/format';
+import { dollars, formatDate, today } from '../lib/format';
 import { geocode } from '../lib/maps';
 import { BoothBookingCard } from '../components/BookingCards';
 import { EarningsPanel, PayoutMethodForm } from '../components/Earnings';
@@ -99,6 +99,75 @@ const ShopDetailsForm: React.FC<{ shop?: Shop | null; onSaved: (s: Shop) => void
         <Button type="submit" loading={busy}>{submitLabel}</Button>
       </div>
     </form>
+  );
+};
+
+interface BoothBlock { id: string; boothId: string; boothName: string; startDate: string; endDate: string; note: string }
+
+/** Dates a booth can't be rented (shop closed, private booking, renovations…). */
+const BlockedDates: React.FC<{ shop: Shop }> = ({ shop }) => {
+  const toast = useStore(s => s.toast);
+  const blocks = useApi<BoothBlock[]>(`/shops/${shop.id}/blocks`);
+  const [boothId, setBoothId] = useState(shop.booths[0]?.id || '');
+  const [start, setStart] = useState('');
+  const [end, setEnd] = useState('');
+  const [note, setNote] = useState('');
+  const [busy, setBusy] = useState(false);
+  if (shop.booths.length === 0) return null;
+  const add = async () => {
+    setBusy(true);
+    try {
+      await api.post(`/booths/${boothId}/blocks`, { startDate: start, endDate: end || start, note });
+      toast('Dates blocked.');
+      setStart('');
+      setEnd('');
+      setNote('');
+      blocks.reload();
+    } catch (err) {
+      toast(errorMessage(err), 'error');
+    } finally {
+      setBusy(false);
+    }
+  };
+  const remove = async (id: string) => {
+    try {
+      await api.del(`/booth-blocks/${id}`);
+      blocks.reload();
+    } catch (err) {
+      toast(errorMessage(err), 'error');
+    }
+  };
+  return (
+    <Card>
+      <h2 className="text-xl font-bold mb-1">Blocked dates</h2>
+      <p className="text-sm text-brand-gray mb-4">Block days when a booth can't be rented — holidays, private bookings or renovations.</p>
+      <div className="grid gap-3 sm:grid-cols-5 items-end">
+        <label className="sm:col-span-2 text-sm">
+          <span className="block font-medium text-gray-700 dark:text-gray-300 mb-1">Booth</span>
+          <select className="w-full rounded-lg border border-gray-300 dark:border-gray-700 bg-white dark:bg-gray-900 px-3 py-2.5" value={boothId} onChange={e => setBoothId(e.target.value)}>
+            {shop.booths.map(b => <option key={b.id} value={b.id}>{b.name}</option>)}
+          </select>
+        </label>
+        <Input label="First day" type="date" min={today()} value={start} onChange={e => { setStart(e.target.value); if (!end || end < e.target.value) setEnd(e.target.value); }} />
+        <Input label="Last day" type="date" min={start || today()} value={end} onChange={e => setEnd(e.target.value)} />
+        <Button onClick={add} loading={busy} disabled={!boothId || !start}>Block</Button>
+        <Input className="sm:col-span-5" label="Reason (optional, only you see this)" value={note} onChange={e => setNote(e.target.value)} />
+      </div>
+      {blocks.data && blocks.data.length > 0 && (
+        <ul className="mt-4 divide-y divide-gray-200 dark:divide-gray-800 text-sm">
+          {blocks.data.map(b => (
+            <li key={b.id} className="py-2 flex items-center justify-between gap-3">
+              <span>
+                <strong>{b.boothName}</strong>: {formatDate(b.startDate, { month: 'short', day: 'numeric' })}
+                {b.endDate !== b.startDate && ` – ${formatDate(b.endDate, { month: 'short', day: 'numeric', year: 'numeric' })}`}
+                {b.note && <span className="text-brand-gray"> · {b.note}</span>}
+              </span>
+              <button onClick={() => remove(b.id)} className="text-red-500 hover:underline">Unblock</button>
+            </li>
+          ))}
+        </ul>
+      )}
+    </Card>
   );
 };
 
@@ -259,6 +328,7 @@ export const ShopDashboardPage: React.FC = () => {
       )}
 
       {tab === 'booths' && (
+        <div className="space-y-6">
         <Card>
           <div className="flex justify-between items-center mb-4">
             <div>
@@ -287,6 +357,8 @@ export const ShopDashboardPage: React.FC = () => {
             </ul>
           )}
         </Card>
+        <BlockedDates shop={shop} />
+        </div>
       )}
 
       {tab === 'details' && (

@@ -36,6 +36,7 @@ async function signUp(page: Page, role: RegExp, user: { name: string; email: str
   if (city) await dialog.getByLabel('City you work in').fill(city);
   await dialog.getByLabel('Email').fill(user.email);
   await dialog.getByLabel('Password').fill(user.password);
+  await dialog.getByRole('checkbox').check();
   await dialog.getByRole('button', { name: 'Create account' }).click();
   await expect(dialog).toBeHidden();
 }
@@ -87,6 +88,7 @@ test('artist sets up profile, guest books and pays a deposit', async ({ page }) 
   await dialog.getByRole('button', { name: 'Next', exact: true }).click();
   await dialog.getByLabel('Full name *').fill('Gina Guest');
   await dialog.getByLabel('Email *').fill('gina@example.com');
+  await dialog.getByRole('checkbox').check();
   await dialog.getByRole('button', { name: 'Send request' }).click();
   await expect(dialog.getByText('Request sent!')).toBeVisible();
   const guestLink = await dialog.locator('a[href*="/booking/"]').getAttribute('href');
@@ -97,6 +99,7 @@ test('artist sets up profile, guest books and pays a deposit', async ({ page }) 
   await page.goto('/dashboard');
   await expect(page.getByText('Gina Guest')).toBeVisible();
   await page.getByRole('button', { name: 'Approve' }).click();
+  await page.getByRole('dialog').getByLabel('Start time').fill('13:30');
   await page.getByRole('dialog').getByRole('button', { name: 'Approve' }).click();
   await expect(page.getByText(/Approved — the client/)).toBeVisible();
 
@@ -109,6 +112,7 @@ test('artist sets up profile, guest books and pays a deposit', async ({ page }) 
   await page.getByRole('dialog').getByRole('button', { name: /Pay .*61\.74/ }).click();
   await expect(page.getByText("Deposit paid — you're booked!")).toBeVisible();
   await expect(page.getByText('Deposit paid', { exact: true })).toBeVisible();
+  await expect(page.getByText(/1:30\s?PM/)).toBeVisible();
 });
 
 test('shop owner lists a booth and an artist rents it', async ({ page }) => {

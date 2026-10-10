@@ -1,4 +1,5 @@
-// Outgoing email via SMTP (configured in Admin → Settings, or SMTP_URL). Logs instead when not configured.
+// Outgoing email: Resend's HTTPS API (works on hosts that block SMTP, e.g. Railway's Hobby plan) or any SMTP
+// server — configured in Admin → Settings or via RESEND_API_KEY / SMTP_URL. Logs instead when not configured.
 import nodemailer, { type Transporter } from 'nodemailer';
 import { config } from './config';
 import { getSecrets, getSettings } from './settings';
@@ -23,14 +24,31 @@ function transport(): Transporter | null {
   return t;
 }
 
+const resendKey = () => config.resendApiKey || getSecrets().resendApiKey;
+
 export function emailReady(): boolean {
-  return !!(config.smtpUrl || getSecrets().smtpHost);
+  return !!(resendKey() || config.smtpUrl || getSecrets().smtpHost);
 }
 
 function fromAddress(): string {
   const s = getSecrets();
-  const from = config.smtpFrom || s.smtpFrom || s.smtpUser;
+  const from = (config.smtpFrom || s.smtpFrom || (resendKey() ? '' : s.smtpUser)).trim();
+  if (!from.includes('@')) {
+    throw new Error('Set a "From" email address in Admin → Settings → Email (for Resend, use an address on your verified domain).');
+  }
   return from.includes('<') ? from : `${getSettings().siteName} <${from}>`;
+}
+
+async function sendWithResend(to: string, subject: string, text: string, html: string) {
+  const res = await fetch('https://api.resend.com/emails', {
+    method: 'POST',
+    headers: { Authorization: `Bearer ${resendKey()}`, 'Content-Type': 'application/json' },
+    body: JSON.stringify({ from: fromAddress(), to: [to], subject, text, html }),
+  });
+  if (!res.ok) {
+    const body = (await res.json().catch(() => ({}))) as { message?: string };
+    throw new Error(`Resend rejected the email (${res.status}): ${body.message || res.statusText}`);
+  }
 }
 
 export interface EmailInput {
@@ -67,10 +85,12 @@ export function sendEmail(input: EmailInput) {
 }
 
 export async function sendEmailNow(input: EmailInput) {
-  const t = transport();
   const { text, html } = renderEmail(input);
+  if (resendKey()) return sendWithResend(input.to, input.subject, text, html);
+  const t = transport();
   if (!t) {
-    console.log(`[email] (SMTP not configured) to=${input.to} subject="${input.subject}"\n${text}`);
+    // In production, don't write message bodies (which contain private booking / password-reset links) to logs.
+    console.log(`[email] (email not configured) to=${input.to} subject="${input.subject}"${config.isProduction ? '' : `\n${text}`}`);
     return;
   }
   await t.sendMail({ from: fromAddress(), to: input.to, subject: input.subject, text, html });

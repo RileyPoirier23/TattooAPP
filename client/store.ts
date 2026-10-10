@@ -85,6 +85,7 @@ export const useStore = create<State>()((set, get) => ({
     if (!user) {
       events?.close();
       events = null;
+      if (reconnectTimer) clearTimeout(reconnectTimer);
       set({ notifications: [], unreadMessages: 0 });
     }
   },
@@ -148,10 +149,25 @@ export const useStore = create<State>()((set, get) => ({
   },
 }));
 
+let reconnectTimer: ReturnType<typeof setTimeout> | null = null;
+
 function connectEvents() {
   events?.close();
+  if (reconnectTimer) clearTimeout(reconnectTimer);
   events = new EventSource('/api/events');
   const { getState, setState } = useStore;
+  // The browser gives up for good after a non-200 reply (e.g. a 502 while the site redeploys) — retry ourselves,
+  // then catch up on anything missed while disconnected.
+  events.onerror = () => {
+    if (events?.readyState !== EventSource.CLOSED) return;
+    reconnectTimer = setTimeout(() => {
+      if (!getState().user) return;
+      connectEvents();
+      getState().loadNotifications();
+      getState().loadUnreadMessages();
+      setState(s => ({ bookingsVersion: s.bookingsVersion + 1, messagesVersion: s.messagesVersion + 1 }));
+    }, 5000);
+  };
   events.addEventListener('notification', e => {
     const n = JSON.parse((e as MessageEvent).data) as AppNotification;
     setState(s => ({ notifications: [n, ...s.notifications].slice(0, 50) }));

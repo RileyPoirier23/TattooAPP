@@ -6,20 +6,20 @@ import { z } from 'zod';
 import { getUser, isArtistRole, randomToken, requireArtist, requireUser, type UserRow } from '../auth';
 import { getDb, newId, nowIso, parseJson } from '../db';
 import {
-  badRequest, conflict, daysBetweenInclusive, forbidden, formatMoney, HttpError, notFound, parse, parseDate, todayStr,
+  badRequest, conflict, daysBetweenInclusive, forbidden, formatMoney, formatWhen, HttpError, notFound, parse, parseDate, todayStr,
   toCents, zDate,
 } from '../http';
 import {
   BOOKING_REQUEST_SELECT, BOOTH_BOOKING_SELECT, intakeOf, recomputeArtistRating, recomputeShopRating, toBookingRequest,
   toBoothBooking,
 } from '../mappers';
-import { saveImage, upload } from '../uploads';
+import { saveImage, upload, uploadLimiter } from '../uploads';
 import { getSettings } from '../settings';
 import { notify, notifyAdmins } from '../notify';
 import { sendEmail } from '../email';
 import { emit } from '../events';
 import { config } from '../config';
-import { depositFeeCents, payBoothBooking, payDeposit } from '../billing';
+import { boothClash, depositFeeCents, payBoothBooking, payDeposit } from '../billing';
 import { sendSystemMessage } from './messages';
 import type { ArtistService, GuestBookingView, MyBookings, WeeklyHours } from '../../shared/types';
 
@@ -63,9 +63,10 @@ const requestSchema = z.object({
   guestName: z.string().trim().max(100).optional(),
   guestEmail: z.string().trim().toLowerCase().email('Enter a valid email address').max(200).optional().or(z.literal('')),
   guestPhone: z.string().trim().max(40).optional(),
+  acceptTerms: z.literal(true, { message: 'Please confirm you are 18 or older and accept the booking policy.' }),
 });
 
-bookingsRouter.post('/booking-requests', createLimiter, upload.array('images', 5), (req, res) => {
+bookingsRouter.post('/booking-requests', createLimiter, uploadLimiter, upload.array('images', 5), (req, res) => {
   const settings = getSettings();
   if (!settings.features.clientBooking) throw forbidden('Online booking is currently turned off.');
   let raw: unknown;
@@ -82,7 +83,7 @@ bookingsRouter.post('/booking-requests', createLimiter, upload.array('images', 5
     .prepare("select * from users where id = ? and role in ('artist','dual') and status = 'active'")
     .get(body.artistId) as UserRow | undefined;
   if (!artist) throw notFound('Artist not found.');
-  if (user?.id === artist.id) throw badRequest("You can't book yourself.");
+  if (user?.id === artist.id || (!user && body.guestEmail === artist.email)) throw badRequest("You can't book yourself.");
   if (user && !['client', 'dual', 'artist'].includes(user.role)) throw forbidden('Please use a client account to book tattoos.');
 
   if (!user) {
@@ -91,7 +92,8 @@ bookingsRouter.post('/booking-requests', createLimiter, upload.array('images', 5
     if (!body.guestEmail) throw badRequest('Please enter your email so the artist can reach you.');
   }
 
-  if (body.date < todayStr()) throw badRequest('Please choose a date in the future.');
+  // One day of slack: the server runs on UTC while clients may be several hours behind.
+  if (body.date < todayStr(-1)) throw badRequest('Please choose a date in the future.');
   if (body.date > todayStr(366)) throw badRequest('Bookings can be made up to a year in advance.');
   const reason = unavailableReason(artist, body.date);
   if (reason) throw badRequest(reason);
@@ -191,9 +193,21 @@ bookingsRouter.get('/booking-requests/:id', (req, res) => {
     request: toBookingRequest(row, { includeToken: role === 'client', includeContact: role !== 'client' }),
     artist: { id: artist.id, name: artist.name, city: artist.city, avatarUrl: artist.avatar_url },
   };
-  // Show the fee that would apply if paid now.
-  if (row.payment_status === 'unpaid') view.request.feeCents = depositFeeCents(row.deposit_cents, artist);
   res.json(view);
+});
+
+/** A logged-in client adds a booking they made as a guest to their account (the private link proves it's theirs). */
+bookingsRouter.post('/booking-requests/:id/claim', (req, res) => {
+  const user = requireUser(req);
+  if (!['client', 'dual', 'artist'].includes(user.role)) throw forbidden('Use a client account to keep bookings.');
+  const { token } = parse(z.object({ token: z.string().min(1) }), req.body);
+  const row = getDb().prepare('select * from booking_requests where id = ?').get(req.params.id) as any;
+  if (!row || !tokenMatches(token, row.access_token)) throw notFound('Booking not found.');
+  if (row.client_id) throw conflict(row.client_id === user.id ? 'This booking is already in your account.' : 'This booking belongs to another account.');
+  if (row.artist_id === user.id) throw badRequest("You can't book yourself.");
+  getDb().prepare('update booking_requests set client_id = ?, updated_at = ? where id = ?').run(user.id, nowIso(), row.id);
+  emit(row.artist_id, 'bookings');
+  res.json({ ok: true });
 });
 
 // ---------- Status changes ----------
@@ -202,6 +216,7 @@ const actionSchema = z.object({
   action: z.enum(['approve', 'decline', 'cancel', 'complete', 'no-show', 'reschedule', 'archive', 'unarchive']),
   date: zDate.optional(),
   preferredTime: z.enum(['anytime', 'morning', 'afternoon', 'evening']).optional(),
+  time: z.string().regex(/^([01]\d|2[0-3]):[0-5]\d$/, 'must be a time like 13:00').optional().or(z.literal('')),
   note: z.string().trim().max(1000).optional(),
   depositAmount: z.coerce.number().min(0).max(100000).optional(),
   token: z.string().optional(),
@@ -214,7 +229,9 @@ bookingsRouter.post('/booking-requests/:id/action', (req, res) => {
   const now = nowIso();
   const artist = getUser(row.artist_id)!;
   const statusLink = guestLink(row);
+
   const isArtist = role === 'artist' || role === 'admin';
+  const when = formatWhen(row.date, row.appointment_time);
 
   const tellClient = (message: string, subject: string, extra: string[] = []) => {
     if (row.client_id) {
@@ -229,31 +246,38 @@ bookingsRouter.post('/booking-requests/:id/action', (req, res) => {
     case 'approve': {
       if (!isArtist) throw forbidden();
       if (row.status !== 'pending') throw conflict('Only pending requests can be approved.');
+      if (row.date < todayStr(-1)) throw conflict('This request is for a date that has passed. Reschedule it first, or decline it.');
       const depositCents = body.depositAmount !== undefined ? toCents(body.depositAmount) : row.deposit_cents;
-      set("status = 'approved', deposit_cents = ?, fee_cents = ?, artist_note = ?", depositCents, depositFeeCents(depositCents, artist), body.note ?? row.artist_note);
+      const time = body.time || null;
+      set("status = 'approved', deposit_cents = ?, fee_cents = ?, artist_note = ?, appointment_time = ?", depositCents, depositFeeCents(depositCents, artist), body.note ?? row.artist_note, time);
       const payLine = depositCents > 0
         ? `Please pay your ${formatMoney(depositCents, getSettings().currency)} deposit to lock in your appointment.`
         : 'No deposit is required.';
-      tellClient(`${artist.name} approved your booking for ${row.date}! ${payLine}`, `${artist.name} approved your booking`, body.note ? [`Note from ${artist.name}: ${body.note}`] : []);
-      if (depositCents === 0) set("payment_status = 'paid'");
+      tellClient(`${artist.name} approved your booking for ${formatWhen(row.date, time)}! ${payLine}`, `${artist.name} approved your booking`, body.note ? [`Note from ${artist.name}: ${body.note}`] : []);
       break;
     }
     case 'decline':
       if (!isArtist) throw forbidden();
       if (row.status !== 'pending') throw conflict('Only pending requests can be declined.');
       set("status = 'declined', artist_note = ?", body.note ?? row.artist_note);
-      tellClient(`${artist.name} isn't able to take your booking for ${row.date}.`, 'Update on your booking request', body.note ? [`Note from ${artist.name}: ${body.note}`] : []);
+      tellClient(`${artist.name} isn't able to take your booking for ${when}.`, 'Update on your booking request', body.note ? [`Note from ${artist.name}: ${body.note}`] : []);
       break;
     case 'cancel':
       if (!['pending', 'approved'].includes(row.status)) throw conflict('This booking can no longer be cancelled.');
+      if (role === 'client' && row.status === 'approved' && row.date < todayStr(-1)) {
+        throw conflict('This appointment date has passed. Contact the artist if something went wrong.');
+      }
       set("status = 'cancelled'");
       if (role === 'client') {
-        notify(artist.id, `${row.client_name || row.guest_name} cancelled their booking for ${row.date}.`, { link: '/dashboard' });
+        notify(artist.id, `${row.client_name || row.guest_name} cancelled their booking for ${when}.`, {
+          link: '/dashboard',
+          email: { subject: 'A client cancelled their booking', actionLabel: 'Open dashboard' },
+        });
       } else {
-        tellClient(`${artist.name} cancelled your booking for ${row.date}.`, 'Your booking was cancelled', body.note ? [`Note: ${body.note}`] : []);
+        tellClient(`${artist.name} cancelled your booking for ${when}.`, 'Your booking was cancelled', body.note ? [`Note: ${body.note}`] : []);
       }
       if (row.payment_status === 'paid') {
-        notifyAdmins(`A paid booking was cancelled (${artist.name}, ${row.date}). Review it for a refund.`, '/admin/payments');
+        notifyAdmins(`A paid booking was cancelled (${artist.name}, ${when}). Review it for a refund in Payments.`, '/admin/payments', true);
       }
       break;
     case 'complete':
@@ -269,10 +293,11 @@ bookingsRouter.post('/booking-requests/:id/action', (req, res) => {
     case 'reschedule': {
       if (!body.date) throw badRequest('Choose a new date.');
       if (!['pending', 'approved'].includes(row.status)) throw conflict('This booking can no longer be rescheduled.');
-      if (!isArtist) throw forbidden('Please message the artist to change your date.');
-      if (body.date < todayStr()) throw badRequest('Please choose a date in the future.');
-      set('date = ?, preferred_time = ?', body.date, body.preferredTime || row.preferred_time);
-      tellClient(`${artist.name} moved your appointment to ${body.date}.`, 'Your appointment was rescheduled', body.note ? [`Note: ${body.note}`] : []);
+      if (!isArtist) throw forbidden('Please contact the artist to change your date.');
+      if (body.date < todayStr(-1)) throw badRequest('Please choose a date in the future.');
+      const time = body.time === undefined ? row.appointment_time : body.time || null;
+      set('date = ?, preferred_time = ?, appointment_time = ?', body.date, body.preferredTime || row.preferred_time, time);
+      tellClient(`${artist.name} moved your appointment to ${formatWhen(body.date, time)}.`, 'Your appointment was rescheduled', body.note ? [`Note: ${body.note}`] : []);
       break;
     }
     case 'archive':
@@ -297,6 +322,9 @@ bookingsRouter.post('/booking-requests/:id/review', (req, res) => {
   if (role !== 'client') throw forbidden('Only the client can review this booking.');
   if (row.status !== 'completed') throw conflict('You can leave a review once your session is completed.');
   if (row.review_rating) throw conflict("You've already reviewed this booking.");
+  if (!row.client_id && !(row.payment_status === 'paid' && row.deposit_cents > 0)) {
+    throw conflict('Reviews from guest bookings are only possible after a paid deposit. Create an account to review your artist.');
+  }
   getDb()
     .prepare('update booking_requests set review_rating = ?, review_text = ?, review_at = ?, updated_at = ? where id = ?')
     .run(body.rating, body.text, nowIso(), nowIso(), row.id);
@@ -332,7 +360,8 @@ bookingsRouter.post('/booking-requests/:id/aftercare', async (req, res) => {
     sendEmail({
       to: row.guest_email,
       subject: kind === 'aftercare' ? `Aftercare from ${artist.name}` : `${artist.name} would love to see your healed tattoo`,
-      lines: [`Hi ${row.guest_name},`, ...text.split('\n'), ...(kind === 'healed-photo' ? [`You can reply to ${artist.name} at ${artist.email}.`] : [])],
+      lines: [`Hi ${row.guest_name},`, ...text.split('\n'), ...(kind === 'healed-photo' ? ['Create a free account with this email address and use your booking link to message your artist and send photos.'] : [])],
+      action: { label: 'Open your booking', url: guestLink(row) },
     });
   } else {
     throw badRequest('This client has no contact details.');
@@ -347,7 +376,7 @@ bookingsRouter.post('/booth-bookings', (req, res) => {
   const settings = getSettings();
   if (!settings.features.boothRental) throw forbidden('Booth rentals are currently turned off.');
   const body = parse(z.object({ boothId: z.string().min(1), startDate: zDate, endDate: zDate }), req.body);
-  if (body.startDate < todayStr()) throw badRequest('The start date must be today or later.');
+  if (body.startDate < todayStr(-1)) throw badRequest('The start date must be today or later.');
   if (body.endDate < body.startDate) throw badRequest('The end date must be on or after the start date.');
   const days = daysBetweenInclusive(body.startDate, body.endDate);
   if (days > 60) throw badRequest('Booth rentals can be up to 60 days.');
@@ -366,15 +395,13 @@ bookingsRouter.post('/booth-bookings', (req, res) => {
   const totalCents = toCents(booth.daily_rate * days);
   const feeCents = Math.round((totalCents * settings.boothFeePercent) / 100);
   const holdCutoff = new Date(Date.now() - settings.boothHoldHours * 3_600_000).toISOString();
+  const openHolds = (db.prepare("select count(*) c from booth_bookings where artist_id = ? and status = 'unpaid' and created_at > ?").get(artist.id, holdCutoff) as { c: number }).c;
+  if (openHolds >= 3) throw conflict('You have 3 unpaid reservations. Pay for or cancel one before reserving another.');
 
   db.transaction(() => {
-    const clash = db
-      .prepare(
-        `select 1 from booth_bookings where booth_id = ? and start_date <= ? and end_date >= ?
-         and (status = 'paid' or (status = 'unpaid' and created_at > ?)) limit 1`,
-      )
-      .get(booth.id, body.endDate, body.startDate, holdCutoff);
-    if (clash) throw conflict('Those dates overlap an existing booking for this booth. Please pick different dates.');
+    if (boothClash(booth.id, body.startDate, body.endDate)) {
+      throw conflict('Those dates are already booked or blocked for this booth. Please pick different dates.');
+    }
     db.prepare(
       `insert into booth_bookings (id, artist_id, booth_id, shop_id, start_date, end_date, days, total_cents, fee_cents, status, created_at)
        values (?, ?, ?, ?, ?, ?, ?, ?, ?, 'unpaid', ?)`,
@@ -401,11 +428,21 @@ bookingsRouter.post('/booth-bookings/:id/cancel', (req, res) => {
   const shop = db.prepare('select owner_id from shops where id = ?').get(b.shop_id) as { owner_id: string };
   const isOwner = shop.owner_id === user.id;
   if (b.artist_id !== user.id && !isOwner && user.role !== 'admin') throw notFound('Booking not found.');
-  if (b.status === 'paid') throw conflict('Paid rentals must be cancelled by the site admin so the payment can be refunded. Please contact support.');
-  if (b.status !== 'unpaid') throw conflict('This rental is already cancelled.');
+  if (b.status === 'paid' && !isOwner && user.role !== 'admin') {
+    throw conflict('Paid rentals can only be cancelled by the shop or the site admin, so the payment can be refunded. Message the shop to arrange it.');
+  }
+  if (b.status !== 'unpaid' && b.status !== 'paid') throw conflict('This rental is already cancelled.');
+  const wasPaid = b.status === 'paid';
   db.prepare("update booth_bookings set status = 'cancelled' where id = ?").run(b.id);
-  if (isOwner) notify(b.artist_id, `${b.shop_name} cancelled your unpaid reservation for ${b.booth_name}.`, { link: '/bookings' });
-  else notify(shop.owner_id, `${b.artist_name} cancelled their reservation for ${b.booth_name}.`, { link: '/shop' });
+  if (isOwner) {
+    notify(b.artist_id, `${b.shop_name} cancelled your ${wasPaid ? '' : 'unpaid '}reservation for ${b.booth_name} (${b.start_date} → ${b.end_date}).${wasPaid ? ' Your payment will be refunded.' : ''}`, {
+      link: '/bookings',
+      email: wasPaid ? { subject: `${b.shop_name} cancelled your guest spot`, actionLabel: 'View bookings' } : undefined,
+    });
+  } else {
+    notify(shop.owner_id, `${b.artist_name} cancelled their reservation for ${b.booth_name}.`, { link: '/shop' });
+  }
+  if (wasPaid) notifyAdmins(`A paid booth rental was cancelled (${b.shop_name}, ${b.start_date}). Refund it in Payments.`, '/admin/payments', true);
   emit(b.artist_id, 'bookings');
   emit(shop.owner_id, 'bookings');
   res.json({ ok: true });

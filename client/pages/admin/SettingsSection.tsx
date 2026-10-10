@@ -213,6 +213,8 @@ interface SecretDraft {
   smtpPass: string;
   clearSmtpPass: boolean;
   smtpFrom: string;
+  resendApiKey: string;
+  clearResendKey: boolean;
 }
 
 const fromMasked = (m: MaskedSecrets): SecretDraft => ({
@@ -225,6 +227,8 @@ const fromMasked = (m: MaskedSecrets): SecretDraft => ({
   smtpPass: '',
   clearSmtpPass: false,
   smtpFrom: m.smtpFrom,
+  resendApiKey: '',
+  clearResendKey: false,
 });
 
 /** Only the secret fields the admin actually changed. */
@@ -239,6 +243,8 @@ function secretsPatch(d: SecretDraft, m: MaskedSecrets): Partial<SecretSettings>
   if (d.smtpPass) p.smtpPass = d.smtpPass;
   else if (d.clearSmtpPass) p.smtpPass = '';
   if (d.smtpFrom.trim() !== m.smtpFrom) p.smtpFrom = d.smtpFrom.trim();
+  if (d.resendApiKey.trim()) p.resendApiKey = d.resendApiKey.trim();
+  else if (d.clearResendKey) p.resendApiKey = '';
   return p;
 }
 
@@ -332,7 +338,7 @@ export const SettingsSection: React.FC = () => {
         {() => {
           if (!draft || !sd || !secrets || !saved) return null;
           const squareReady = secrets.squareAccessTokenSet && !!saved.squareApplicationId && !!saved.squareLocationId;
-          const emailReady = secrets.smtpFromEnv || !!secrets.smtpHost;
+          const emailReady = secrets.smtpFromEnv || secrets.resendFromEnv || secrets.resendApiKeySet || !!secrets.smtpHost;
           const squareEnvDisabled = secrets.squareAccessTokenFromEnv;
           return (
             <div className="space-y-6">
@@ -544,7 +550,7 @@ export const SettingsSection: React.FC = () => {
 
               {/* Email */}
               <SettingsCard
-                title="Email (SMTP)"
+                title="Email"
                 description="Used for booking updates, receipts and password resets."
                 icon={<PaperAirplaneIcon className="w-5 h-5" />}
                 aside={<StatusPill ready={emailReady} />}
@@ -552,6 +558,26 @@ export const SettingsSection: React.FC = () => {
                 {secrets.smtpFromEnv && (
                   <Notice tone="warning">Email is configured on the server with the SMTP_URL environment variable. It overrides the fields below.</Notice>
                 )}
+                <div className="rounded-xl border border-brand-primary/30 bg-brand-primary/5 p-4 space-y-3">
+                  <p className="text-sm">
+                    <strong>Recommended: Resend.</strong> Create a free account at{' '}
+                    <a href="https://resend.com" target="_blank" rel="noopener noreferrer" className="underline font-semibold">resend.com</a>, verify your domain, create an API key and paste it here.
+                    It works on every host — including Railway's Hobby plan, which blocks the SMTP option below.
+                  </p>
+                  {secrets.resendFromEnv ? (
+                    <p className="text-sm text-brand-gray">A Resend key is set on the server (RESEND_API_KEY) and is used for all email.</p>
+                  ) : (
+                    <SecretField
+                      label="Resend API key"
+                      isSet={!!secrets.resendApiKeySet}
+                      value={sd.resendApiKey}
+                      onChange={v => updateSecret('resendApiKey', v)}
+                      cleared={sd.clearResendKey}
+                      onClear={v => updateSecret('clearResendKey', v)}
+                    />
+                  )}
+                  <p className="text-xs text-brand-gray">When a Resend key is set, the SMTP settings below are ignored. Fill in the From address below with an address on your verified domain.</p>
+                </div>
                 <Notice>
                   <p className="font-semibold mb-1">Which email service?</p>
                   <ul className="list-disc pl-5 space-y-1">
@@ -563,7 +589,7 @@ export const SettingsSection: React.FC = () => {
                       (needs 2-Step Verification). Not your normal password. Good for low volume.
                     </li>
                     <li>
-                      <strong>Resend</strong> (resend.com): host smtp.resend.com, port 465 with SSL on, username <span className="font-mono">resend</span>, password = your API key.
+                      <strong>Resend over SMTP</strong>: host smtp.resend.com, port 465 with SSL on, username <span className="font-mono">resend</span>, password = your API key. (Prefer the API key box above.)
                     </li>
                     <li>
                       <strong>Brevo</strong> (brevo.com): host smtp-relay.brevo.com, port 587, your Brevo login and SMTP key (Settings → SMTP & API).
@@ -631,7 +657,7 @@ export const SettingsSection: React.FC = () => {
                       variant="outline"
                       onClick={testEmail}
                       loading={busy('email')}
-                      disabled={!testTo.trim() || !!problem || (anyBusy && !busy('email')) || (!emailReady && !sd.smtpHost.trim())}
+                      disabled={!testTo.trim() || !!problem || (anyBusy && !busy('email')) || (!emailReady && !sd.smtpHost.trim() && !sd.resendApiKey.trim())}
                     >
                       <PaperAirplaneIcon className="w-4 h-4" />
                       {dirty ? 'Save & send test' : 'Send test'}

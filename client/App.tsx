@@ -25,6 +25,30 @@ import type { Role } from '../shared/types';
 
 const AdminPage = lazy(() => import('./pages/admin/AdminPage').then(m => ({ default: m.AdminPage })));
 
+/** If part of the site fails to load (usually an old tab after the site was updated), offer a reload instead of a blank page. */
+class ErrorBoundary extends React.Component<{ children: React.ReactNode; resetKey: string }, { failed: boolean }> {
+  state = { failed: false };
+  static getDerivedStateFromError() {
+    return { failed: true };
+  }
+  componentDidUpdate(prev: { resetKey: string }) {
+    if (prev.resetKey !== this.props.resetKey && this.state.failed) this.setState({ failed: false });
+  }
+  componentDidCatch(err: unknown) {
+    console.error(err);
+  }
+  render() {
+    if (!this.state.failed) return this.props.children;
+    return (
+      <Card className="max-w-md mx-auto mt-10 text-center">
+        <h2 className="text-xl font-bold mb-2">Something went wrong loading this page</h2>
+        <p className="text-brand-gray mb-4">The site may have just been updated. Reloading usually fixes it.</p>
+        <Button onClick={() => window.location.reload()}>Reload</Button>
+      </Card>
+    );
+  }
+}
+
 type RouteDef = { path: string; render: (p: Record<string, string>) => React.ReactNode; auth?: Role[] | true; wide?: boolean };
 
 const ROUTES: RouteDef[] = [
@@ -146,9 +170,11 @@ export const App: React.FC = () => {
     <div className="min-h-screen flex flex-col">
       <Header />
       <main className={cx('flex-1 w-full', route?.wide ? '' : 'container mx-auto px-4 py-8')}>
-        <Suspense fallback={<PageLoader />}>
-          <div key={path} className="animate-fade-in">{content}</div>
-        </Suspense>
+        <ErrorBoundary resetKey={path}>
+          <Suspense fallback={<PageLoader />}>
+            <div key={path} className="animate-fade-in">{content}</div>
+          </Suspense>
+        </ErrorBoundary>
       </main>
       <Footer />
       {authModal && <AuthModal key={authModal} />}

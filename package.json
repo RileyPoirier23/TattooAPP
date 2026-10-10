@@ -9,11 +9,11 @@
   "scripts": {
     "dev": "node scripts/dev.mjs",
     "build": "node scripts/build.mjs",
-    "start": "node dist/server.js",
+    "start": "node --env-file-if-exists=.env dist/server.js",
     "typecheck": "tsc --noEmit",
     "test": "node --import tsx --test tests/*.test.ts",
     "test:e2e": "playwright test",
-    "create-admin": "tsx scripts/create-admin.ts"
+    "create-admin": "node --env-file-if-exists=.env dist/create-admin.js"
   },
   "dependencies": {
     "better-sqlite3": "^13.0.3",

@@ -32,7 +32,23 @@ export function currentGuestSpot(artistId: string): GuestSpot | null {
   return { shopId: row.shop_id, shopName: row.shop_name, city: row.city, startDate: row.start_date, endDate: row.end_date };
 }
 
-export function toPublicArtist(u: UserRow): PublicArtist {
+/** Current guest spots for every artist in one query (avoids a query per artist on listing pages). */
+export function guestSpotsByArtist(): Map<string, GuestSpot> {
+  const rows = getDb()
+    .prepare(
+      `select b.artist_id, s.id shop_id, s.name shop_name, s.city, b.start_date, b.end_date
+       from booth_bookings b join shops s on s.id = b.shop_id
+       where b.status = 'paid' and b.end_date >= ? order by b.start_date`,
+    )
+    .all(todayStr()) as any[];
+  const map = new Map<string, GuestSpot>();
+  for (const r of rows) {
+    if (!map.has(r.artist_id)) map.set(r.artist_id, { shopId: r.shop_id, shopName: r.shop_name, city: r.city, startDate: r.start_date, endDate: r.end_date });
+  }
+  return map;
+}
+
+export function toPublicArtist(u: UserRow, spots?: Map<string, GuestSpot>): PublicArtist {
   return {
     id: u.id,
     name: u.name,
@@ -49,7 +65,7 @@ export function toPublicArtist(u: UserRow): PublicArtist {
     isPro: isPro(u),
     averageRating: u.average_rating,
     reviewCount: u.review_count,
-    guestSpot: currentGuestSpot(u.id),
+    guestSpot: spots ? spots.get(u.id) ?? null : currentGuestSpot(u.id),
   };
 }
 
@@ -133,7 +149,7 @@ export function toShop(r: any, includeInactiveBooths = false): Shop {
 }
 
 export const BOOKING_REQUEST_SELECT = `
-  select br.*, a.name artist_name, c.name client_name, c.email client_email
+  select br.*, a.name artist_name, a.subscription_tier artist_tier, a.pro_until artist_pro_until, c.name client_name, c.email client_email
   from booking_requests br
   join users a on a.id = br.artist_id
   left join users c on c.id = br.client_id`;
@@ -164,6 +180,7 @@ export function toBookingRequest(r: any, opts: { includeToken?: boolean; include
     servicePrice: r.service_price,
     date: r.date,
     preferredTime: r.preferred_time,
+    appointmentTime: r.appointment_time ?? null,
     message: r.message,
     tattooWidth: r.tattoo_width,
     tattooHeight: r.tattoo_height,
@@ -172,7 +189,11 @@ export function toBookingRequest(r: any, opts: { includeToken?: boolean; include
     referenceImages: parseJson(r.reference_images, []),
     status: r.status,
     depositCents: r.deposit_cents,
-    feeCents: r.fee_cents,
+    // Until it's paid, show the fee that would apply right now (it changes if the artist goes Pro or cancels Pro).
+    feeCents:
+      r.payment_status === 'unpaid'
+        ? isPro({ subscription_tier: r.artist_tier, pro_until: r.artist_pro_until }) ? 0 : Math.round((r.deposit_cents * getSettings().depositFeePercent) / 100)
+        : r.fee_cents,
     paymentStatus: r.payment_status,
     depositPaidAt: r.deposit_paid_at,
     artistNote: r.artist_note,

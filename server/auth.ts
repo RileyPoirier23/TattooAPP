@@ -37,6 +37,8 @@ export interface UserRow {
   square_customer_id: string | null;
   square_card_id: string | null;
   card_label: string | null;
+  pro_price_cents: number | null;
+  renewal_failed_at: string | null;
   average_rating: number;
   review_count: number;
   created_at: string;
@@ -155,9 +157,13 @@ export function requireAdmin(req: Request): UserRow {
   return requireRole(req, 'admin');
 }
 
+/** Days a Pro plan stays active after a failed renewal while the charge is retried. */
+export const PRO_GRACE_DAYS = 3;
+
 export function isPro(u: Pick<UserRow, 'subscription_tier' | 'pro_until'>): boolean {
   if (u.subscription_tier !== 'pro') return false;
-  return !u.pro_until || u.pro_until > nowIso();
+  if (!u.pro_until) return true;
+  return new Date(u.pro_until).getTime() + PRO_GRACE_DAYS * 86_400_000 > Date.now();
 }
 
 export async function createUser(input: {
@@ -197,9 +203,15 @@ export async function ensureAdminFromEnv() {
   if (!config.adminEmail || !config.adminPassword) return;
   const existing = findUserByEmail(config.adminEmail);
   if (existing) {
-    if (existing.role !== 'admin') {
-      getDb().prepare("update users set role = 'admin', updated_at = ? where id = ?").run(nowIso(), existing.id);
-      console.log(`[setup] Promoted ${config.adminEmail} to admin.`);
+    // Promoting an existing account also sets its password to ADMIN_PASSWORD, so an account someone else
+    // registered with the owner's email can never become admin with *their* password.
+    // ADMIN_RESET_PASSWORD=true resets the admin's password on start-up (for a forgotten password).
+    if (existing.role !== 'admin' || existing.status !== 'active' || config.adminResetPassword) {
+      getDb()
+        .prepare("update users set role = 'admin', status = 'active', password_hash = ?, updated_at = ? where id = ?")
+        .run(await hashPassword(config.adminPassword), nowIso(), existing.id);
+      destroyAllSessions(existing.id);
+      console.log(`[setup] ${existing.role === 'admin' ? 'Reset the password for' : 'Promoted'} ${config.adminEmail} (admin).`);
     }
     return;
   }

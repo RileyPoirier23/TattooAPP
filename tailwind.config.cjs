@@ -10,7 +10,8 @@ module.exports = {
         'brand-secondary': 'rgb(var(--brand-secondary) / <alpha-value>)',
         'brand-dark': '#101014',
         'brand-light': '#F5F5F7',
-        'brand-gray': '#8E8E93',
+        // Secondary text: darker in light mode, lighter in dark mode, so it stays readable (WCAG AA) in both.
+        'brand-gray': 'rgb(var(--brand-gray) / <alpha-value>)',
       },
       keyframes: {
         'fade-in': { from: { opacity: '0' }, to: { opacity: '1' } },

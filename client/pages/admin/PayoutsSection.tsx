@@ -246,6 +246,11 @@ export const PayoutsSection: React.FC = () => {
   return (
     <>
       <PageHeader title="Payouts" subtitle="Keep track of what you owe each artist and shop." />
+      {useStore.getState().config?.settings.squareEnvironment !== 'production' && (
+        <Notice tone="warning" className="mb-6">
+          Square is in <strong>Sandbox (test) mode</strong>, so this page shows test payments only. When you switch to Production in Settings, test payments are hidden and only real money is counted.
+        </Notice>
+      )}
       <Notice className="mb-6">
         <p className="font-semibold mb-1">How payouts work</p>
         All payments go into your Square account. This page tracks what you owe each artist and shop. Send the money (e.g. e-Transfer) then record it here.

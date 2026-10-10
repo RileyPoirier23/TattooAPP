@@ -63,6 +63,7 @@ export const DEFAULT_SECRETS: SecretSettings = {
   smtpUser: '',
   smtpPass: '',
   smtpFrom: '',
+  resendApiKey: '',
 };
 
 const DEFAULT_PAGES = [

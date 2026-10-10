@@ -35,7 +35,15 @@ export function errorHandler(err: unknown, _req: Request, res: Response, _next: 
   }
   const e = err as { code?: string; message?: string; status?: number; type?: string };
   if (e?.code === 'LIMIT_FILE_SIZE') {
-    res.status(413).json({ error: 'That file is too large.' });
+    res.status(413).json({ error: 'That image is too large (the limit is 8 MB).' });
+    return;
+  }
+  if (e?.code === 'LIMIT_FILE_COUNT' || e?.code === 'LIMIT_UNEXPECTED_FILE') {
+    res.status(400).json({ error: 'Too many images at once — please upload up to 6 at a time.' });
+    return;
+  }
+  if (typeof e?.code === 'string' && e.code.startsWith('LIMIT_')) {
+    res.status(400).json({ error: 'That upload is too large or has too many fields.' });
     return;
   }
   if (e?.type === 'entity.too.large') {
@@ -80,6 +88,16 @@ export function parseDate(s: string): Date {
 export function daysBetweenInclusive(start: string, end: string): number {
   const ms = parseDate(end).getTime() - parseDate(start).getTime();
   return Math.round(ms / 86_400_000) + 1;
+}
+
+/** "Sun, Nov 15, 2026 at 1:00 PM" (time optional). */
+export function formatWhen(date: string, time?: string | null): string {
+  const d = parseDate(date);
+  const day = d.toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric', year: 'numeric' });
+  if (!time) return day;
+  const [h, m] = time.split(':').map(Number);
+  const t = new Date(2000, 0, 1, h, m).toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' });
+  return `${day} at ${t}`;
 }
 
 export function formatMoney(cents: number, currency: string): string {

@@ -6,6 +6,10 @@
   /* Brand colors are set at runtime from Admin → Customize (see client/lib/theme.ts). */
   --brand-primary: 240 78 152;
   --brand-secondary: 138 78 252;
+  --brand-gray: 99 99 104;
+}
+.dark {
+  --brand-gray: 161 161 170;
 }
 
 html { -webkit-tap-highlight-color: transparent; }

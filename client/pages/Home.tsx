@@ -80,7 +80,7 @@ export const HomePage: React.FC = () => {
               <Link to="/artists" className="text-sm font-semibold text-brand-primary hover:underline">See all →</Link>
             </div>
             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
-              {artists.data.slice(0, 4).map(a => <ArtistCard key={a.id} artist={a} />)}
+              {[...artists.data].sort((a, b) => Number(b.portfolio.length > 0) - Number(a.portfolio.length > 0)).slice(0, 4).map(a => <ArtistCard key={a.id} artist={a} />)}
             </div>
           </section>
         )}

@@ -44,7 +44,7 @@ export const Link: React.FC<React.AnchorHTMLAttributes<HTMLAnchorElement> & { to
     href={to}
     onClick={e => {
       onClick?.(e);
-      if (e.defaultPrevented || e.metaKey || e.ctrlKey || e.shiftKey || e.button !== 0) return;
+      if (e.defaultPrevented || e.metaKey || e.ctrlKey || e.shiftKey || e.button !== 0 || rest.target === '_blank') return;
       e.preventDefault();
       navigate(to);
     }}

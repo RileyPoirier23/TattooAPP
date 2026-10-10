@@ -4,6 +4,7 @@ import { api, errorMessage } from '../api';
 import { navigate } from '../router';
 import { useStore } from '../store';
 import { Button, Input, Modal, Notice, cx } from './ui';
+import { Link } from '../router';
 import type { Me, Role } from '../../shared/types';
 
 const ROLES: { id: Exclude<Role, 'admin'>; title: string; text: string }[] = [
@@ -27,6 +28,9 @@ export const AuthModal: React.FC = () => {
   const [error, setError] = useState('');
   const [busy, setBusy] = useState(false);
   const [sent, setSent] = useState(false);
+  const [acceptTerms, setAcceptTerms] = useState(false);
+  const config = useStore(s => s.config);
+  const legal = (config?.pages || []).filter(p => p.slug === 'terms' || p.slug === 'privacy');
 
   const submit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -40,7 +44,7 @@ export const AuthModal: React.FC = () => {
       }
       const { user } = view === 'login'
         ? await api.post<{ user: Me }>('/auth/login', { email, password })
-        : await api.post<{ user: Me }>('/auth/register', { email, password, name, role, city: city || undefined });
+        : await api.post<{ user: Me }>('/auth/register', { email, password, name, role, city: city || undefined, acceptTerms });
       setUser(user);
       close();
       toast(view === 'login' ? `Welcome back, ${user.name.split(' ')[0]}!` : `Welcome, ${user.name.split(' ')[0]}! Your account is ready.`);
@@ -71,6 +75,7 @@ export const AuthModal: React.FC = () => {
                     type="button"
                     key={r.id}
                     onClick={() => setRole(r.id)}
+                    aria-pressed={role === r.id}
                     className={cx(
                       'text-left p-3 rounded-xl border transition',
                       role === r.id ? 'border-brand-primary bg-brand-primary/10' : 'border-gray-200 dark:border-gray-700 hover:border-gray-400',
@@ -85,6 +90,11 @@ export const AuthModal: React.FC = () => {
             <Input label={role === 'shop-owner' ? 'Your name' : 'Full name'} value={name} onChange={e => setName(e.target.value)} required autoComplete="name" />
             {needsCity && <Input label="City you work in" placeholder="e.g. Moncton, NB" value={city} onChange={e => setCity(e.target.value)} required />}
           </>
+        )}
+        {view === 'forgot' && !config?.emailReady && (
+          <Notice tone="warning">
+            Password reset emails aren't set up on this site yet. Please contact {config?.settings.contactEmail || 'the site owner'} to reset your password.
+          </Notice>
         )}
         {view === 'forgot' && sent ? (
           <Notice tone="success">If an account exists for {email}, we've emailed a link to reset your password. Check your inbox (and spam folder).</Notice>
@@ -103,9 +113,28 @@ export const AuthModal: React.FC = () => {
             autoComplete={view === 'login' ? 'current-password' : 'new-password'}
           />
         )}
+        {view === 'register' && (
+          <label className="flex items-start gap-2 text-sm text-gray-700 dark:text-gray-300">
+            <input type="checkbox" className="mt-1" checked={acceptTerms} onChange={e => setAcceptTerms(e.target.checked)} required />
+            <span>
+              I agree to the{' '}
+              {legal.length ? (
+                legal.map((p, i) => (
+                  <React.Fragment key={p.slug}>
+                    {i > 0 && ' and '}
+                    <Link to={`/p/${p.slug}`} target="_blank" className="text-brand-primary underline" onClick={e => e.stopPropagation()}>{p.title}</Link>
+                  </React.Fragment>
+                ))
+              ) : (
+                'Terms of Service and Privacy Policy'
+              )}
+              .
+            </span>
+          </label>
+        )}
         {error && <p className="text-sm text-red-500" role="alert">{error}</p>}
         {!(view === 'forgot' && sent) && (
-          <Button type="submit" block size="lg" loading={busy}>
+          <Button type="submit" block size="lg" loading={busy} disabled={(view === 'register' && !acceptTerms) || (view === 'forgot' && !config?.emailReady)}>
             {view === 'login' ? 'Log in' : view === 'register' ? 'Create account' : 'Send reset link'}
           </Button>
         )}

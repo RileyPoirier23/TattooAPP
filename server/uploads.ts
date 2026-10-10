@@ -2,6 +2,7 @@
 import fs from 'node:fs';
 import path from 'node:path';
 import multer from 'multer';
+import rateLimit, { ipKeyGenerator } from 'express-rate-limit';
 import { config } from './config';
 import { newId } from './db';
 import { badRequest } from './http';
@@ -10,7 +11,18 @@ const MAX_BYTES = 8 * 1024 * 1024;
 
 export const upload = multer({
   storage: multer.memoryStorage(),
-  limits: { fileSize: MAX_BYTES, files: 6 },
+  // Cap text fields too, otherwise one request with thousands of huge fields could exhaust memory.
+  limits: { fileSize: MAX_BYTES, files: 6, fields: 20, fieldSize: 64 * 1024, fieldNameSize: 100, parts: 30 },
+});
+
+/** Limits how many upload requests one account (or one visitor) can make, so nobody can fill the disk. */
+export const uploadLimiter = rateLimit({
+  windowMs: 60 * 60 * 1000,
+  limit: config.isProduction ? 60 : 10_000,
+  standardHeaders: 'draft-8',
+  legacyHeaders: false,
+  keyGenerator: req => (req.user ? `user:${req.user.id}` : `ip:${ipKeyGenerator(req.ip || '')}`),
+  message: { error: "You've uploaded a lot of images in the last hour. Please wait a bit and try again." },
 });
 
 /** Detect the real image type from the file's first bytes (never trust the browser's mime type). */

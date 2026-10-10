@@ -34,10 +34,10 @@ function useSave() {
       const { user } = await api.patch<{ user: Me }>('/me', patch);
       setUser(user);
       toast(message);
-      return true;
+      return user;
     } catch (err) {
       toast(errorMessage(err), 'error');
-      return false;
+      return null;
     } finally {
       setBusy(false);
     }
@@ -223,7 +223,17 @@ const ProfileTab: React.FC<{ me: Me }> = ({ me }) => {
             <span className={cx('cursor-pointer inline-flex items-center gap-2 font-semibold text-sm px-4 py-2.5 rounded-lg bg-brand-primary text-white hover:brightness-110', uploading && 'opacity-50 pointer-events-none')}>
               <PlusIcon className="w-5 h-5" /> {uploading ? 'Uploading…' : 'Add photos'}
             </span>
-            <input type="file" accept="image/*" multiple className="sr-only" onChange={e => { upload('/me/portfolio', e.target.files, 'images'); e.target.value = ''; }} />
+            <input
+              type="file"
+              accept="image/*"
+              multiple
+              className="sr-only"
+              onChange={e => {
+                if ((e.target.files?.length || 0) > 6) toast('You can upload up to 6 photos at a time — please pick fewer.', 'error');
+                else upload('/me/portfolio', e.target.files, 'images');
+                e.target.value = '';
+              }}
+            />
           </label>
         </div>
         {me.portfolio.length === 0 ? (
@@ -274,8 +284,8 @@ const ServicesTab: React.FC<{ me: Me }> = ({ me }) => {
   const update = (i: number, patch: Partial<ServiceDraft>) => setItems(list => list.map((s, j) => (j === i ? { ...s, ...patch } : s)));
   const add = () => setItems(list => [...list, { id: '', name: '', description: '', duration: '2', price: '150', deposit: String(settings.defaultDeposit), minSize: '', maxSize: '' }]);
 
-  const submit = () =>
-    save(
+  const submit = async () => {
+    const saved = await save(
       {
         services: items.map(s => ({
           ...(s.id ? { id: s.id } : {}),
@@ -290,6 +300,9 @@ const ServicesTab: React.FC<{ me: Me }> = ({ me }) => {
       },
       'Services saved!',
     );
+    // Keep the IDs the server assigned, so saving again doesn't create "new" services.
+    if (saved) setItems(saved.services.map(toDraft));
+  };
 
   return (
     <Card>
@@ -373,7 +386,7 @@ const HoursTab: React.FC<{ me: Me }> = ({ me }) => {
                 </div>
                 <div className="flex-1 space-y-2">
                   {slots.map((slot, i) => (
-                    <div key={i} className="flex items-center gap-2">
+                    <div key={i} className="grid grid-cols-[1fr_auto_1fr_auto] items-center gap-2 min-w-0">
                       <Input type="time" value={slot.start} onChange={e => setDay(d, slots.map((s, j) => (j === i ? { ...s, start: e.target.value } : s)))} aria-label={`${name} start`} />
                       <span className="text-brand-gray">to</span>
                       <Input type="time" value={slot.end} onChange={e => setDay(d, slots.map((s, j) => (j === i ? { ...s, end: e.target.value } : s)))} aria-label={`${name} end`} />

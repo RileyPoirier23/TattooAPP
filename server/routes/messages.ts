@@ -4,7 +4,8 @@ import { z } from 'zod';
 import { requireUser } from '../auth';
 import { getDb, newId, nowIso } from '../db';
 import { badRequest, forbidden, notFound, parse } from '../http';
-import { saveImage, upload } from '../uploads';
+import { saveImage, upload, uploadLimiter } from '../uploads';
+import { notify } from '../notify';
 import { emit } from '../events';
 import { getSettings } from '../settings';
 import type { Conversation, Message } from '../../shared/types';
@@ -34,6 +35,22 @@ export function findOrCreateConversation(userId: string, otherId: string): strin
   return id;
 }
 
+/**
+ * Lets the recipient know about a new message — but only when it starts a new unread batch, so a
+ * back-and-forth chat doesn't send an email for every line.
+ */
+function notifyRecipient(conversationId: string, senderId: string, recipientId: string) {
+  const unread = (getDb()
+    .prepare('select count(*) c from messages where conversation_id = ? and sender_id = ? and read_at is null')
+    .get(conversationId, senderId) as { c: number }).c;
+  if (unread !== 1) return;
+  const sender = getDb().prepare('select name from users where id = ?').get(senderId) as { name: string } | undefined;
+  notify(recipientId, `New message from ${sender?.name || 'someone'}.`, {
+    link: `/messages/${conversationId}`,
+    email: { subject: `New message from ${sender?.name || 'someone'}`, actionLabel: 'Read message' },
+  });
+}
+
 function insertMessage(conversationId: string, senderId: string, content: string, attachmentUrl: string | null): Message {
   const db = getDb();
   const id = newId();
@@ -50,6 +67,7 @@ function insertMessage(conversationId: string, senderId: string, content: string
 export function sendSystemMessage(fromId: string, toId: string, content: string) {
   const conversationId = findOrCreateConversation(fromId, toId);
   const msg = insertMessage(conversationId, fromId, content, null);
+  notifyRecipient(conversationId, fromId, toId);
   emit(toId, 'message', msg);
   emit(fromId, 'message', msg);
   return msg;
@@ -111,7 +129,7 @@ messagesRouter.get('/conversations/:id/messages', (req, res) => {
   res.json(rows.map(toMessage));
 });
 
-messagesRouter.post('/conversations/:id/messages', upload.single('image'), (req, res) => {
+messagesRouter.post('/conversations/:id/messages', uploadLimiter, upload.single('image'), (req, res) => {
   const user = requireUser(req);
   if (!getSettings().features.messaging) throw forbidden('Messaging is currently turned off.');
   const c = loadConversation(String(req.params.id), user.id);
@@ -119,6 +137,7 @@ messagesRouter.post('/conversations/:id/messages', upload.single('image'), (req,
   const attachment = req.file ? saveImage(req.file) : null;
   if (!content && !attachment) throw badRequest('Type a message or attach a photo.');
   const msg = insertMessage(c.id, user.id, content, attachment);
+  notifyRecipient(c.id, user.id, c.otherId);
   emit(c.otherId, 'message', msg);
   emit(user.id, 'message', msg);
   res.status(201).json(msg);

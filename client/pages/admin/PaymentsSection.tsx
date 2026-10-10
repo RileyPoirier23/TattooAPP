@@ -1,7 +1,8 @@
 // Admin → Payments: every card payment taken through Square, with refunds.
 import React, { useCallback, useState } from 'react';
 import { api } from '../../api';
-import { Badge, Button, Card, EmptyState, Input, PageHeader, StatusBadge, useApi } from '../../components/ui';
+import { useStore } from '../../store';
+import { Badge, Button, Card, EmptyState, Input, Notice, PageHeader, StatusBadge, useApi } from '../../components/ui';
 import { CreditCardIcon, DocumentIcon } from '../../components/Icons';
 import { formatDate, formatDateTime, money } from '../../lib/format';
 import { PAYMENT_KIND_LABELS, type AdminPayment, type PaymentKind } from './types';
@@ -88,6 +89,11 @@ export const PaymentsSection: React.FC = () => {
   return (
     <>
       <PageHeader title="Payments" subtitle="Every card payment taken through your Square account." />
+      {useStore.getState().config?.settings.squareEnvironment !== 'production' && (
+        <Notice tone="warning" className="mb-6">
+          Square is in <strong>Sandbox (test) mode</strong>, so this page shows test payments only. When you switch to Production in Settings, test payments are hidden and only real money is counted.
+        </Notice>
+      )}
       <AsyncView state={state}>
         {payments => {
           const needle = q.trim().toLowerCase();

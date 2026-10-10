@@ -39,6 +39,7 @@ authRouter.post('/register', limiter, async (req, res) => {
       name: z.string().trim().min(1, 'Name is required').max(100),
       role: z.enum(['client', 'artist', 'dual', 'shop-owner']),
       city: z.string().trim().max(100).optional(),
+      acceptTerms: z.literal(true, { message: 'Please accept the Terms of Service and Privacy Policy.' }),
     }),
     req.body,
   );

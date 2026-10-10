@@ -1,13 +1,13 @@
 // The logged-in user's own profile, portfolio, availability, plan, earnings and notifications.
 import { Router } from 'express';
 import { z } from 'zod';
-import { isArtistRole, requireArtist, requireUser, getUser } from '../auth';
+import { destroySession, isArtistRole, requireArtist, requireUser, getUser, verifyPassword } from '../auth';
 import { getDb, newId, nowIso, parseJson } from '../db';
 import { badRequest, conflict, forbidden, parse, todayStr, zDate } from '../http';
 import { toMe } from '../mappers';
-import { deleteUpload, saveImage, upload } from '../uploads';
+import { deleteUpload, saveImage, upload, uploadLimiter } from '../uploads';
 import { subscribe } from '../events';
-import { earningsFor, subscribePro } from '../billing';
+import { deletionBlockers, earningsFor, subscribePro, updateCard } from '../billing';
 import { disableCard } from '../square';
 import { notifyAdmins } from '../notify';
 import type { PortfolioImage } from '../../shared/types';
@@ -96,7 +96,7 @@ meRouter.patch('/me', (req, res) => {
   res.json({ user: toMe(getUser(user.id)!) });
 });
 
-meRouter.post('/me/avatar', upload.single('image'), (req, res) => {
+meRouter.post('/me/avatar', uploadLimiter, upload.single('image'), (req, res) => {
   const user = requireUser(req);
   const url = saveImage(req.file);
   getDb().prepare('update users set avatar_url = ?, updated_at = ? where id = ?').run(url, nowIso(), user.id);
@@ -104,11 +104,12 @@ meRouter.post('/me/avatar', upload.single('image'), (req, res) => {
   res.json({ user: toMe(getUser(user.id)!) });
 });
 
-meRouter.post('/me/portfolio', upload.array('images', 6), (req, res) => {
+meRouter.post('/me/portfolio', uploadLimiter, upload.array('images', 6), (req, res) => {
   const user = requireArtist(req);
   const files = (req.files as Express.Multer.File[]) || [];
   if (!files.length) throw badRequest('Choose at least one image.');
-  const current = parseJson<PortfolioImage[]>(user.portfolio, []);
+  // Re-read now: the portfolio may have changed (e.g. a photo deleted) while this upload was in progress.
+  const current = parseJson<PortfolioImage[]>(getUser(user.id)!.portfolio, []);
   if (current.length + files.length > 60) throw badRequest('Your portfolio can hold up to 60 images.');
   const caption = typeof req.body.caption === 'string' ? req.body.caption.slice(0, 200) : undefined;
   const added = files.map(f => ({ url: saveImage(f), ...(caption ? { caption } : {}) }));
@@ -202,6 +203,13 @@ meRouter.post('/me/subscription/resume', (req, res) => {
   res.json({ user: toMe(getUser(user.id)!) });
 });
 
+meRouter.post('/me/card', async (req, res) => {
+  const user = requireArtist(req);
+  const body = parse(zCard, req.body);
+  await updateCard(user, body.sourceId, body.idempotencyKey);
+  res.json({ user: toMe(getUser(user.id)!) });
+});
+
 meRouter.delete('/me/card', async (req, res) => {
   const user = requireUser(req);
   if (user.square_card_id) await disableCard(user.square_card_id);
@@ -209,6 +217,26 @@ meRouter.delete('/me/card', async (req, res) => {
     .prepare('update users set square_card_id = null, card_label = null, pro_auto_renew = 0, updated_at = ? where id = ?')
     .run(nowIso(), user.id);
   res.json({ user: toMe(getUser(user.id)!) });
+});
+
+// --- Delete my account ---
+
+meRouter.post('/me/delete', async (req, res) => {
+  const user = requireUser(req);
+  if (user.role === 'admin') throw forbidden("Admins can't delete their own account here. Ask another admin, or remove admin access first.");
+  const { password } = parse(z.object({ password: z.string().max(200) }), req.body);
+  if (!(await verifyPassword(password, user.password_hash))) throw badRequest('Your password is incorrect.');
+  const blockers = deletionBlockers(user.id);
+  if (blockers.length) {
+    throw conflict(`Your account can't be deleted yet because you have ${blockers.join(' and ')}. Cancel or finish those first, or contact us.`);
+  }
+  if (user.square_card_id) await disableCard(user.square_card_id);
+  const portfolio = parseJson<PortfolioImage[]>(user.portfolio, []);
+  getDb().prepare('delete from users where id = ?').run(user.id);
+  portfolio.forEach(p => deleteUpload(p.url));
+  deleteUpload(user.avatar_url);
+  destroySession(req, res);
+  res.json({ ok: true });
 });
 
 // --- Notifications & live events ---

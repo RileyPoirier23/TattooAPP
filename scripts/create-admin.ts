@@ -1,4 +1,5 @@
-// Usage: npm run create-admin -- you@example.com "a strong password"
+// Usage (after `npm run build`): npm run create-admin -- you@example.com "a strong password"
+// On a server/container: node dist/create-admin.js you@example.com "a strong password"
 // Creates an admin account, or promotes an existing account to admin and resets its password.
 import { getDb, nowIso } from '../server/db';
 import { createUser, findUserByEmail, hashPassword } from '../server/auth';

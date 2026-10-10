@@ -12,6 +12,10 @@ import type { ArtistDetail, BookingRequest, PreferredTime } from '../../shared/t
 export const BookingRequestModal: React.FC<{ artist: ArtistDetail; onClose: () => void }> = ({ artist, onClose }) => {
   const user = useStore(s => s.user);
   const settings = useStore(s => s.config!.settings);
+  const emailReady = useStore(s => s.config!.emailReady);
+  const policyPage = useStore(s => s.config!.pages.find(p => p.slug === 'booking-policy'));
+  const toast = useStore(s => s.toast);
+  const [accepted, setAccepted] = useState(false);
   const intake = artist.intakeSettings;
   const [step, setStep] = useState(1);
   const [serviceId, setServiceId] = useState(artist.services[0]?.id || '');
@@ -64,6 +68,7 @@ export const BookingRequestModal: React.FC<{ artist: ArtistDetail; onClose: () =
           bodyPlacement: placement,
           budget: budget ? Number(budget) : null,
           ...(user ? {} : { guestName, guestEmail, guestPhone }),
+          acceptTerms: accepted,
         }),
       );
       files.forEach(f => fd.append('images', f));
@@ -84,7 +89,7 @@ export const BookingRequestModal: React.FC<{ artist: ArtistDetail; onClose: () =
           </div>
           <p>
             <strong>{artist.name}</strong> will review your request for <strong>{formatDate(done.request.date)}</strong>. You'll get a notification
-            {user ? '' : ' by email'} when they respond.
+            {user ? '' : emailReady ? ' by email' : ' — check back using the link below'} when they respond.
           </p>
           {!user && (
             <Notice>
@@ -117,7 +122,7 @@ export const BookingRequestModal: React.FC<{ artist: ArtistDetail; onClose: () =
             {step === 1 && <Button onClick={() => setStep(2)} disabled={!date}>Next</Button>}
             {step === 2 && <Button onClick={() => setStep(3)} disabled={!!step2Error}>Next</Button>}
             {step === 3 && (
-              <Button onClick={submit} loading={busy} disabled={!user && (!guestName.trim() || !/^\S+@\S+\.\S+$/.test(guestEmail))}>
+              <Button onClick={submit} loading={busy} disabled={!accepted || (!user && (!guestName.trim() || !/^\S+@\S+\.\S+$/.test(guestEmail)))}>
                 Send request
               </Button>
             )}
@@ -217,7 +222,9 @@ export const BookingRequestModal: React.FC<{ artist: ArtistDetail; onClose: () =
                       multiple
                       className="sr-only"
                       onChange={e => {
-                        const picked = Array.from(e.target.files || []).filter(f => f.size <= 8 * 1024 * 1024);
+                        const all = Array.from(e.target.files || []);
+                        const picked = all.filter(f => f.size <= 8 * 1024 * 1024);
+                        if (picked.length < all.length) toast(`${all.length - picked.length} photo${all.length - picked.length > 1 ? 's were' : ' was'} over 8 MB and skipped.`, 'error');
                         setFiles(f => [...f, ...picked].slice(0, 5));
                         e.target.value = '';
                       }}
@@ -241,7 +248,14 @@ export const BookingRequestModal: React.FC<{ artist: ArtistDetail; onClose: () =
               <>
                 <h3 className="font-bold text-lg">Your contact details</h3>
                 <Input label="Full name *" value={guestName} onChange={e => setGuestName(e.target.value)} autoComplete="name" />
-                <Input label="Email *" type="email" value={guestEmail} onChange={e => setGuestEmail(e.target.value)} autoComplete="email" hint="We'll email you updates and a link to pay your deposit." />
+                <Input
+                  label="Email *"
+                  type="email"
+                  value={guestEmail}
+                  onChange={e => setGuestEmail(e.target.value)}
+                  autoComplete="email"
+                  hint={emailReady ? "We'll email you updates and a link to pay your deposit." : "You'll get a private link to check your request — save it, as email updates aren't available yet."}
+                />
                 <Input label="Phone (optional)" type="tel" value={guestPhone} onChange={e => setGuestPhone(e.target.value)} autoComplete="tel" />
                 <p className="text-xs text-brand-gray">
                   Have an account? <button type="button" className="text-brand-primary font-semibold" onClick={() => useStore.getState().openAuth('login')}>Log in</button> to track all your bookings in one place.
@@ -262,6 +276,18 @@ export const BookingRequestModal: React.FC<{ artist: ArtistDetail; onClose: () =
               <p className="text-xs text-brand-gray mt-1">Nothing is charged now. You'll pay the deposit once {artist.name} approves your request.</p>
             </div>
           </div>
+          <label className="md:col-span-2 flex items-start gap-2 text-sm text-gray-700 dark:text-gray-300">
+            <input type="checkbox" className="mt-1" checked={accepted} onChange={e => setAccepted(e.target.checked)} />
+            <span>
+              I'm 18 or older and I agree to the{' '}
+              {policyPage ? (
+                <a href={`/p/${policyPage.slug}`} target="_blank" rel="noopener noreferrer" className="text-brand-primary underline">booking & cancellation policy</a>
+              ) : (
+                'booking & cancellation policy'
+              )}
+              , including that deposits may be non-refundable.
+            </span>
+          </label>
           {error && <p className="md:col-span-2 text-sm text-red-500" role="alert">{error}</p>}
         </div>
       )}

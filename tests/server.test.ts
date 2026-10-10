@@ -112,7 +112,7 @@ const PNG = Buffer.from('89504e470d0a1a0a0000000d4948445200000001000000010806000
 
 async function register(role: string, email: string, extra: Record<string, unknown> = {}) {
   const c = new Client();
-  const r = await c.post('/api/auth/register', { email, password: 'password123', name: email.split('@')[0], role, city: 'Moncton', ...extra });
+  const r = await c.post('/api/auth/register', { email, password: 'password123', name: email.split('@')[0], role, city: 'Moncton', acceptTerms: true, ...extra });
   assert.equal(r.status, 201, JSON.stringify(r.body));
   return { c, me: r.body.user };
 }
@@ -170,7 +170,7 @@ test('artist sets up profile, services and hours', async () => {
 
 function bookingForm(data: Record<string, unknown>) {
   const f = new FormData();
-  f.append('data', JSON.stringify(data));
+  f.append('data', JSON.stringify({ acceptTerms: true, ...data }));
   return f;
 }
 
@@ -412,4 +412,120 @@ test('completed booking can be reviewed and shows on the public profile', async 
   // Admin can hide it.
   await admin.patch(`/api/admin/reviews/artist/${id}`, { hidden: true });
   assert.equal((await new Client().get(`/api/artists/${artistId}`)).body.reviewCount, 0);
+});
+
+test('money safety: expired holds, renewals, card updates, deletion guards', async () => {
+  const { getDb } = await import('../server/db');
+  const { processRenewals } = await import('../server/billing');
+  const db = getDb();
+  await admin.put('/api/admin/settings', { settings: { features: { proPlan: true } } });
+
+  // An expired booth hold can't be paid once someone else has taken the dates.
+  const owner = (await register('shop-owner', 'owner2@example.com')).c;
+  const shop = await owner.post('/api/shops', { name: 'Second Shop', city: 'Moncton', address: '2 Main St' });
+  const withBooth = await owner.post(`/api/shops/${shop.body.id}/booths`, { name: 'Corner', dailyRate: 50 });
+  const boothId = withBooth.body.booths[0].id;
+  const a1 = (await register('artist', 'hold1@example.com')).c;
+  const a2 = (await register('artist', 'hold2@example.com')).c;
+  const first = await a1.post('/api/booth-bookings', { boothId, startDate: futureDate(30), endDate: futureDate(31) });
+  db.prepare("update booth_bookings set created_at = '2000-01-01T00:00:00.000Z' where id = ?").run(first.body.id);
+  const second = await a2.post('/api/booth-bookings', { boothId, startDate: futureDate(31), endDate: futureDate(32) });
+  assert.equal(second.status, 201, 'expired hold no longer blocks the dates');
+  assert.equal((await a2.post(`/api/booth-bookings/${second.body.id}/pay`, { sourceId: 'cnon:ok', idempotencyKey: 'hold-key-0002' })).status, 200);
+  const late = await a1.post(`/api/booth-bookings/${first.body.id}/pay`, { sourceId: 'cnon:ok', idempotencyKey: 'hold-key-0001' });
+  assert.equal(late.status, 409, 'the expired hold cannot be paid any more');
+
+  // Owners can block dates; blocked dates can't be reserved.
+  assert.equal((await owner.post(`/api/booths/${boothId}/blocks`, { startDate: futureDate(40), endDate: futureDate(42) })).status, 201);
+  assert.equal((await a1.post('/api/booth-bookings', { boothId, startDate: futureDate(41), endDate: futureDate(41) })).status, 409);
+
+  // Unpaid hold limit.
+  for (let i = 0; i < 3; i++) await a1.post('/api/booth-bookings', { boothId, startDate: futureDate(50 + i * 2), endDate: futureDate(50 + i * 2) });
+  assert.equal((await a1.post('/api/booth-bookings', { boothId, startDate: futureDate(60), endDate: futureDate(60) })).status, 409);
+
+  // A failed renewal keeps Pro during a grace period instead of cancelling straight away.
+  const pro = await register('artist', 'renew@example.com');
+  await pro.c.post('/api/me/subscription', { sourceId: 'cnon:ok', idempotencyKey: 'renew-sub-0001' });
+  const priceBefore = (db.prepare('select pro_price_cents p from users where id = ?').get(pro.me.id) as any).p;
+  assert.equal(priceBefore, 1900, 'price locked in at subscribe time');
+  db.prepare("update users set square_card_id = 'card_declines', pro_until = ? where id = ?").run(new Date(Date.now() - 1000).toISOString(), pro.me.id);
+  const realFetch = globalThis.fetch;
+  globalThis.fetch = (async (url: any, init: any) => {
+    if (String(url).endsWith('/v2/payments') && JSON.parse(init.body).source_id === 'card_declines') {
+      return new Response(JSON.stringify({ errors: [{ code: 'CARD_DECLINED', category: 'PAYMENT_METHOD_ERROR' }] }), { status: 402 });
+    }
+    return realFetch(url, init);
+  }) as typeof fetch;
+  try {
+    await processRenewals();
+  } finally {
+    globalThis.fetch = realFetch;
+  }
+  let row = db.prepare('select subscription_tier, renewal_failed_at from users where id = ?').get(pro.me.id) as any;
+  assert.equal(row.subscription_tier, 'pro', 'still Pro during the grace period');
+  assert.ok(row.renewal_failed_at);
+  // After the grace period it ends.
+  db.prepare("update users set pro_until = ?, renewal_failed_at = '2000-01-01T00:00:00.000Z' where id = ?").run(new Date(Date.now() - 4 * 86_400_000).toISOString(), pro.me.id);
+  globalThis.fetch = (async (url: any, init: any) => {
+    if (String(url).endsWith('/v2/payments')) return new Response(JSON.stringify({ errors: [{ code: 'CARD_DECLINED' }] }), { status: 402 });
+    return realFetch(url, init);
+  }) as typeof fetch;
+  try {
+    await processRenewals();
+  } finally {
+    globalThis.fetch = realFetch;
+  }
+  row = db.prepare('select subscription_tier from users where id = ?').get(pro.me.id) as any;
+  assert.equal(row.subscription_tier, 'free');
+
+  // Updating the card on a cancelled plan does not turn renewals back on.
+  const p2 = await register('artist', 'card@example.com');
+  await p2.c.post('/api/me/subscription', { sourceId: 'cnon:ok', idempotencyKey: 'card-sub-0001' });
+  await p2.c.post('/api/me/subscription/cancel');
+  const updated = await p2.c.post('/api/me/card', { sourceId: 'cnon:ok', idempotencyKey: 'card-upd-0001' });
+  assert.equal(updated.status, 200);
+  assert.equal(updated.body.user.subscription.autoRenew, false);
+
+  // Suspended subscribers are not charged.
+  await admin.patch(`/api/admin/users/${p2.me.id}`, { status: 'suspended' });
+  db.prepare('update users set pro_auto_renew = 1, pro_until = ? where id = ?').run(new Date(Date.now() - 1000).toISOString(), p2.me.id);
+  const before = squareCalls.length;
+  await processRenewals();
+  assert.equal(squareCalls.slice(before).filter(c => c.path === '/v2/payments').length, 0);
+
+  // Admin can't delete someone who is still owed money.
+  const owed = (await admin.get('/api/admin/payouts')).body.find((b: any) => b.balanceCents > 0);
+  assert.equal((await admin.req('DELETE', `/api/admin/users/${owed.payee.id}`)).status, 409);
+});
+
+test('guest can claim a booking into an account; terms are required', async () => {
+  const guest = new Client();
+  const noTerms = new FormData();
+  noTerms.append('data', JSON.stringify({ artistId, date: workday, message: 'Terms test idea here', tattooWidth: 1, tattooHeight: 1, bodyPlacement: 'Hand', guestName: 'T', guestEmail: 't@example.com' }));
+  assert.equal((await guest.req('POST', '/api/booking-requests', noTerms)).status, 400);
+  const made = await guest.req('POST', '/api/booking-requests', bookingForm({ artistId, date: workday, message: 'Claim test idea here', tattooWidth: 1, tattooHeight: 1, bodyPlacement: 'Hand', guestName: 'Clara', guestEmail: 'clara@example.com' }));
+  const { id, accessToken } = made.body.request;
+  const clara = (await register('client', 'clara@example.com')).c;
+  assert.equal((await clara.post(`/api/booking-requests/${id}/claim`, { token: 'wrong' })).status, 404);
+  assert.equal((await clara.post(`/api/booking-requests/${id}/claim`, { token: accessToken })).status, 200);
+  const mine = await clara.get('/api/bookings');
+  assert.equal(mine.body.asClient.some((r: any) => r.id === id), true);
+  // Approving sets an exact appointment time.
+  const ok = await artist.post(`/api/booking-requests/${id}/action`, { action: 'approve', time: '13:30' });
+  assert.equal(ok.body.appointmentTime, '13:30');
+});
+
+test('square connection check reports bad keys', async () => {
+  const { saveSecrets } = await import('../server/settings');
+  saveSecrets({ squareAccessToken: '' });
+  const prev = process.env.SQUARE_ACCESS_TOKEN;
+  const { config } = await import('../server/config');
+  (config as any).squareAccessToken = 'wrong-token';
+  try {
+    const r = await admin.post('/api/admin/square-check');
+    assert.equal(r.status, 400);
+    assert.match(r.body.error, /access token/i);
+  } finally {
+    (config as any).squareAccessToken = prev;
+  }
 });

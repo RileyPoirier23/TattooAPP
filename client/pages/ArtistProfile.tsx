@@ -132,7 +132,7 @@ export const ArtistProfilePage: React.FC<{ id: string }> = ({ id }) => {
             )}
             {!isSelf && (
               <div className="grid gap-2 mt-6">
-                {settings.features.clientBooking && (
+                {settings.features.clientBooking && user?.role !== 'shop-owner' && user?.role !== 'admin' && (
                   <Button size="lg" onClick={startBooking}><CalendarIcon className="w-5 h-5" /> Request a booking</Button>
                 )}
                 {settings.features.messaging && (

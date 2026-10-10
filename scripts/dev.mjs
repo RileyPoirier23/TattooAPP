@@ -11,7 +11,7 @@ const ctx = await esbuild.context({ ...clientOptions, minify: false, sourcemap: 
 await ctx.watch();
 
 const css = spawn(process.execPath, buildCss({ watchMode: true }), { stdio: 'inherit', cwd: root });
-const server = spawn(process.execPath, ['--import', 'tsx', '--watch', '--watch-path=server', '--watch-path=shared', 'server/index.ts'], {
+const server = spawn(process.execPath, ['--env-file-if-exists=.env', '--import', 'tsx', '--watch', '--watch-path=server', '--watch-path=shared', 'server/index.ts'], {
   stdio: 'inherit',
   cwd: root,
   env: { ...process.env, NODE_ENV: 'development' },

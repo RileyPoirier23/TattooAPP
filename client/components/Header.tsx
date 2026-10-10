@@ -52,7 +52,7 @@ const Notifications: React.FC = () => {
         )}
       </button>
       {open && (
-        <div className="absolute right-0 mt-2 w-[min(22rem,calc(100vw-2rem))] bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-700 rounded-xl shadow-xl z-50 animate-fade-in overflow-hidden">
+        <div className="fixed left-4 right-4 top-16 sm:absolute sm:left-auto sm:right-0 sm:top-auto sm:mt-2 sm:w-[22rem] bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-700 rounded-xl shadow-xl z-50 animate-fade-in overflow-hidden">
           <div className="px-4 py-3 border-b border-gray-200 dark:border-gray-800 font-semibold">Notifications</div>
           <ul className="max-h-96 overflow-y-auto">
             {notifications.length === 0 && <li className="p-6 text-center text-sm text-brand-gray">You're all caught up.</li>}

@@ -256,6 +256,23 @@ const MIGRATIONS: string[] = [
     updated_at text not null
   );
   `,
+  // v2 — appointment times, grandfathered Pro prices, renewal retries, test-vs-live payments, shop blocked dates
+  `
+  alter table booking_requests add column appointment_time text;
+  alter table users add column pro_price_cents integer;
+  alter table users add column renewal_failed_at text;
+  alter table payments add column environment text not null default 'sandbox';
+  alter table payouts add column environment text not null default 'sandbox';
+  create table booth_blocks (
+    id text primary key,
+    booth_id text not null references booths(id) on delete cascade,
+    start_date text not null,
+    end_date text not null,
+    note text not null default '',
+    created_at text not null
+  );
+  create index booth_blocks_booth on booth_blocks(booth_id, start_date);
+  `,
 ];
 
 let db: DB | null = null;

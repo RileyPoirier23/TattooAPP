@@ -30,7 +30,7 @@ const Thread: React.FC<{ convo: Conversation; onSent: () => void }> = ({ convo, 
 
   const send = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!text.trim() && !file) return;
+    if (sending || (!text.trim() && !file)) return;
     setSending(true);
     try {
       const fd = new FormData();

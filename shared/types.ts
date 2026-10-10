@@ -174,6 +174,8 @@ export interface BookingRequest {
   servicePrice: number | null;
   date: string; // YYYY-MM-DD
   preferredTime: PreferredTime;
+  /** Exact start time set by the artist when approving, "13:00". */
+  appointmentTime: string | null;
   message: string;
   tattooWidth: number | null;
   tattooHeight: number | null;
@@ -334,6 +336,8 @@ export interface SecretSettings {
   smtpUser: string;
   smtpPass: string;
   smtpFrom: string;
+  /** Resend (resend.com) API key — sends email over HTTPS, which works on hosts that block SMTP. */
+  resendApiKey: string;
 }
 
 export interface PageSummary {

@@ -3,9 +3,9 @@ import { Router, type Request } from 'express';
 import { z } from 'zod';
 import { requireRole, requireUser } from '../auth';
 import { getDb, newId, nowIso } from '../db';
-import { conflict, forbidden, notFound, parse } from '../http';
+import { badRequest, conflict, forbidden, notFound, parse, todayStr, zDate } from '../http';
 import { toShop } from '../mappers';
-import { deleteUpload, saveImage, upload } from '../uploads';
+import { deleteUpload, saveImage, upload, uploadLimiter } from '../uploads';
 import { notifyAdmins } from '../notify';
 
 export const shopsRouter = Router();
@@ -86,7 +86,7 @@ shopsRouter.patch('/shops/:id', (req, res) => {
   res.json(fullShop(shop.id));
 });
 
-shopsRouter.post('/shops/:id/image', upload.single('image'), (req, res) => {
+shopsRouter.post('/shops/:id/image', uploadLimiter, upload.single('image'), (req, res) => {
   const shop = loadOwnShop(req, String(req.params.id));
   const url = saveImage(req.file);
   getDb().prepare('update shops set image_url = ?, updated_at = ? where id = ?').run(url, nowIso(), shop.id);
@@ -130,4 +130,40 @@ shopsRouter.delete('/booths/:id', (req, res) => {
     db.prepare('delete from booths where id = ?').run(booth.id);
   }
   res.json(fullShop(booth.shop_id));
+});
+
+// ---------- Blocked dates (shop closed, booth being renovated, booked privately…) ----------
+
+shopsRouter.get('/shops/:id/blocks', (req, res) => {
+  const shop = loadOwnShop(req, req.params.id);
+  const rows = getDb()
+    .prepare(
+      `select bb.*, b.name booth_name from booth_blocks bb join booths b on b.id = bb.booth_id
+       where b.shop_id = ? and bb.end_date >= ? order by bb.start_date`,
+    )
+    .all(shop.id, todayStr(-1)) as any[];
+  res.json(rows.map(r => ({ id: r.id, boothId: r.booth_id, boothName: r.booth_name, startDate: r.start_date, endDate: r.end_date, note: r.note })));
+});
+
+shopsRouter.post('/booths/:id/blocks', (req, res) => {
+  const booth = loadOwnBooth(req, req.params.id);
+  const b = parse(z.object({ startDate: zDate, endDate: zDate, note: z.string().trim().max(200).default('') }), req.body);
+  if (b.endDate < b.startDate) throw badRequest('The last day must be on or after the first day.');
+  if (b.endDate < todayStr(-1)) throw badRequest('Those dates are in the past.');
+  const db = getDb();
+  const paid = db
+    .prepare("select 1 from booth_bookings where booth_id = ? and status = 'paid' and start_date <= ? and end_date >= ? limit 1")
+    .get(booth.id, b.endDate, b.startDate);
+  if (paid) throw conflict('An artist has already paid for some of those dates. Cancel that rental first if you need to.');
+  db.prepare('insert into booth_blocks (id, booth_id, start_date, end_date, note, created_at) values (?, ?, ?, ?, ?, ?)')
+    .run(newId(), booth.id, b.startDate, b.endDate, b.note, nowIso());
+  res.status(201).json({ ok: true });
+});
+
+shopsRouter.delete('/booth-blocks/:id', (req, res) => {
+  const block = getDb().prepare('select * from booth_blocks where id = ?').get(req.params.id) as any;
+  if (!block) throw notFound();
+  loadOwnBooth(req, block.booth_id);
+  getDb().prepare('delete from booth_blocks where id = ?').run(block.id);
+  res.json({ ok: true });
 });
