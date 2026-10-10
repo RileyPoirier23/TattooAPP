@@ -140,3 +140,5 @@ e2e/      Browser tests (Playwright)
 Security notes: passwords are hashed with scrypt and accounts lock for 15 minutes after repeated failed logins; sessions are httpOnly cookies; state-changing requests require a custom header (CSRF protection); a Content-Security-Policy blocks framing, plugins and foreign form targets; uploaded files are checked by their content, not their name, and hidden camera/GPS data is stripped from JPEGs; logins, sign-ups, bookings, uploads and the contact form are rate-limited (with spam traps on public forms); card details never reach the server (Square tokenizes them in the browser); secrets entered in the admin panel are never sent back to browsers; links saved in the admin panel must be web links.
 
 Search engines: `/sitemap.xml` lists public artist, shop and content pages, and `/robots.txt` points to it. Artists are listed once they have a portfolio photo.
+
+Accessibility: pages pass automated WCAG 2.1 AA checks (axe-core) in light and dark mode on desktop and phone. Brand colors chosen in Customize are automatically adjusted where text sits on them, so buttons stay readable whatever color is picked.

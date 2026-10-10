@@ -3,6 +3,8 @@
 ## [1.2.0] — 2026-10-10 — Launch readiness
 
 ### Money
+- Pro renewals after a long gap (site down, payments switched off) charge once and start a new month; missed months are never charged.
+- Money from a paid rental the shop cancelled, or a paid appointment the artist/admin cancelled, is "on hold" (not owed) until it's refunded.
 - Pro subscribers pay the currently listed price. When the admin changes it, subscribers are emailed and the new price applies from their next renewal (this replaces the 1.1.0 price lock).
 - The Pro plan ships switched off; the owner turns it on in Admin → Settings when ready. Subscribers can still manage or cancel their plan if it's switched off later. Pro artists are listed first in search (as the plan promises).
 - The displayed currency always follows the Square location.
@@ -17,12 +19,19 @@
 - `OWNER_GUIDE.md` for the person running the site.
 
 ### Security & privacy
+- Fixed: a specially crafted photo could exhaust the server's memory.
+- Rate limits can't be dodged with a fake X-Forwarded-For header (only known hosting proxies are trusted; `TRUST_PROXY` for custom setups).
+- Limits on password-reset emails per account and emails per booking; aftercare only after the appointment.
+- Deleting an account also deletes its photos, attachments and saved card.
 - Accounts lock for 15 minutes after repeated wrong passwords; guest booking and contact-form spam limits and traps.
 - Hidden camera/GPS data is removed from uploaded photos; large photos are shrunk before uploading (no more "over 8 MB" errors from phones).
 - Content-Security-Policy header; admin-entered links must be web links.
 - Sign-ups and bookings record when the terms were accepted.
 
 ### Polish
+- Meets WCAG 2.1 AA in automated checks (desktop and phone, light and dark): readable button and badge colors for any brand color, labelled controls, underlined inline links.
+- Faster first visit: member-only pages load when first opened.
+- Clean shutdown on redeploys (finishes in-progress work); database indexes for growing lists.
 - Warns before leaving a form with unsaved changes (admin panel and dashboards), including the back button.
 - Brand colors stay readable: button text turns dark on light colors and brand-colored text is adjusted for contrast.
 - Artists appear in search once they have a portfolio photo; `/sitemap.xml` for search engines.
