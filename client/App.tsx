@@ -14,17 +14,18 @@ import { ArtistProfilePage } from './pages/ArtistProfile';
 import { ShopsPage } from './pages/Shops';
 import { ShopProfilePage } from './pages/ShopProfile';
 import { BookingStatusPage } from './pages/BookingStatus';
-import { MyBookingsPage } from './pages/MyBookings';
-import { ArtistDashboardPage } from './pages/ArtistDashboard';
-import { ShopDashboardPage } from './pages/ShopDashboard';
-import { MessagesPage } from './pages/Messages';
-import { SettingsPage } from './pages/Settings';
 import { ContentPage } from './pages/ContentPage';
 import { ContactPage } from './pages/Contact';
 import { ResetPasswordPage } from './pages/ResetPassword';
 import type { Role } from '../shared/types';
 
+// Pages only members use are downloaded when first opened, so visitors browsing artists load less.
 const AdminPage = lazy(() => import('./pages/admin/AdminPage').then(m => ({ default: m.AdminPage })));
+const MyBookingsPage = lazy(() => import('./pages/MyBookings').then(m => ({ default: m.MyBookingsPage })));
+const ArtistDashboardPage = lazy(() => import('./pages/ArtistDashboard').then(m => ({ default: m.ArtistDashboardPage })));
+const ShopDashboardPage = lazy(() => import('./pages/ShopDashboard').then(m => ({ default: m.ShopDashboardPage })));
+const MessagesPage = lazy(() => import('./pages/Messages').then(m => ({ default: m.MessagesPage })));
+const SettingsPage = lazy(() => import('./pages/Settings').then(m => ({ default: m.SettingsPage })));
 
 /** If part of the site fails to load (usually an old tab after the site was updated), offer a reload instead of a blank page. */
 class ErrorBoundary extends React.Component<{ children: React.ReactNode; resetKey: string }, { failed: boolean }> {

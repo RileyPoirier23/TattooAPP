@@ -37,6 +37,8 @@ export function createApp() {
   if (config.appUrl.startsWith('https://')) csp.push('upgrade-insecure-requests');
   app.use((_req, res, next) => {
     res.setHeader('Content-Security-Policy', csp.join('; '));
+    // Only "Near me" uses the visitor's location; nothing here needs the camera or microphone.
+    res.setHeader('Permissions-Policy', 'camera=(), microphone=(), geolocation=(self)');
     next();
   });
   app.use(compression());

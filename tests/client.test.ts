@@ -1,0 +1,57 @@
+// Unit tests for browser-side logic that doesn't need a browser.
+import { test } from 'node:test';
+import assert from 'node:assert/strict';
+import { brandVariables, needsDarkText } from '../client/lib/theme';
+import { fillPageTokens } from '../client/lib/markdown';
+import { fillPageTokens as fillOnServer } from '../server/defaultPages';
+
+type RGB = [number, number, number];
+const rgb = (v: string) => v.split(' ').map(Number) as RGB;
+function luminance([r, g, b]: RGB) {
+  const f = (v: number) => {
+    const c = v / 255;
+    return c <= 0.03928 ? c / 12.92 : ((c + 0.055) / 1.055) ** 2.4;
+  };
+  return 0.2126 * f(r) + 0.7152 * f(g) + 0.0722 * f(b);
+}
+const contrast = (a: RGB, b: RGB) => {
+  const [hi, lo] = [luminance(a), luminance(b)].sort((x, y) => y - x);
+  return (hi + 0.05) / (lo + 0.05);
+};
+
+test('default brand colors keep their look', () => {
+  const v = brandVariables('#F04E98', '#8A4EFC');
+  assert.equal(v['--brand-primary'], '240 78 152');
+  assert.equal(v['--brand-on-primary'], '255 255 255', 'white text on the default pink');
+  assert.equal(v['--brand-on-gradient'], '255 255 255');
+  assert.equal(needsDarkText('#F04E98'), false);
+  assert.equal(needsDarkText('#FFE600'), true, 'yellow buttons get dark text');
+  assert.deepEqual(brandVariables('not-a-color', 'also-not'), {});
+});
+
+test('any brand color stays readable as text and behind button text', () => {
+  let seed = 42;
+  const next = () => (seed = (seed * 1103515245 + 12345) % 2 ** 31) % 256;
+  const light: RGB = [243, 244, 246];
+  const dark: RGB = [31, 41, 55];
+  for (let i = 0; i < 300; i++) {
+    const c: RGB = [next(), next(), next()];
+    const hex = `#${c.map(n => n.toString(16).padStart(2, '0')).join('')}`;
+    const v = brandVariables(hex, hex);
+    assert.ok(contrast(rgb(v['--brand-primary-text-light']), light) >= 4.5, `${hex} link text on light pages`);
+    assert.ok(contrast(rgb(v['--brand-primary-text-dark']), dark) >= 4.5, `${hex} link text on dark pages`);
+    assert.ok(contrast(rgb(v['--brand-secondary-text-light']), light) >= 3, `${hex} icons on light pages`);
+    assert.ok(contrast(rgb(v['--brand-on-primary']), c) >= 3, `${hex} button text`);
+  }
+});
+
+test('page placeholders are filled the same way on the server and in the admin preview', () => {
+  const body = 'Welcome to {{siteName}} ({{siteUrl}}). Questions? Contact us through {{contact}}.';
+  const settings = { siteName: 'Ink Co', contactEmail: '' };
+  assert.equal(fillPageTokens(body, settings, 'https://ink.example'), fillOnServer(body, settings, 'https://ink.example'));
+  assert.equal(
+    fillOnServer(body, settings, 'https://ink.example'),
+    'Welcome to Ink Co (https://ink.example). Questions? Contact us through [our contact form](/contact).',
+  );
+  assert.match(fillOnServer(body, { ...settings, contactEmail: 'hi@ink.example' }, ''), /\[hi@ink\.example\]\(mailto:hi@ink\.example\)/);
+});
