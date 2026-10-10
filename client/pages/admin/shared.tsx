@@ -68,16 +68,45 @@ export function useDebounced<T>(value: T, ms = 300): T {
   return v;
 }
 
-/** Warns before closing the tab while there are unsaved changes. */
+let unsavedChanges = false;
+
+/** True while an admin form has unsaved changes (checked by the admin navigation). */
+export const hasUnsavedChanges = () => unsavedChanges;
+
+/** Asks before leaving a form with unsaved changes. Returns true if it's OK to leave. */
+export const confirmLeave = () => !unsavedChanges || window.confirm('You have unsaved changes. Leave without saving them?');
+
+/** Warns before closing the tab (or leaving via the admin menu) while there are unsaved changes. */
 export function useUnsavedWarning(dirty: boolean) {
   useEffect(() => {
     if (!dirty) return;
+    unsavedChanges = true;
     const onBeforeUnload = (e: BeforeUnloadEvent) => {
       e.preventDefault();
     };
     window.addEventListener('beforeunload', onBeforeUnload);
-    return () => window.removeEventListener('beforeunload', onBeforeUnload);
+    return () => {
+      unsavedChanges = false;
+      window.removeEventListener('beforeunload', onBeforeUnload);
+    };
   }, [dirty]);
+}
+
+const COUNTS_EVENT = 'inkspace:admin-counts';
+
+/** Tells the admin layout to refresh its badge counts (pending verifications/reports). */
+export const refreshAdminCounts = () => window.dispatchEvent(new Event(COUNTS_EVENT));
+
+export function useAdminCountsListener(onRefresh: () => void) {
+  const ref = useRef(onRefresh);
+  useLayoutEffect(() => {
+    ref.current = onRefresh;
+  });
+  useEffect(() => {
+    const handler = () => ref.current();
+    window.addEventListener(COUNTS_EVENT, handler);
+    return () => window.removeEventListener(COUNTS_EVENT, handler);
+  }, []);
 }
 
 /** An <a> styled like an outline button (for downloads and links that open in a new tab). */
@@ -269,8 +298,9 @@ export const FilterPills: React.FC<{
   </div>
 );
 
+/** Search box with filters next to it on wide screens (stacked on smaller ones). */
 export const Toolbar: React.FC<{ children: React.ReactNode }> = ({ children }) => (
-  <div className="flex flex-col sm:flex-row sm:items-center gap-3 mb-4">{children}</div>
+  <div className="flex flex-col xl:flex-row xl:items-center gap-3 mb-4">{children}</div>
 );
 
 // ---------- Settings forms ----------

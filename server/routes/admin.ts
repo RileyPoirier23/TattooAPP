@@ -77,6 +77,7 @@ function maskedSecrets() {
   return {
     squareAccessTokenSet: !!s.squareAccessToken,
     squareAccessTokenFromEnv: !!config.squareAccessToken,
+    squareConfigFromEnv: !!(config.squareApplicationId || config.squareLocationId || config.squareEnvironment),
     smtpHost: s.smtpHost,
     smtpPort: s.smtpPort,
     smtpSecure: s.smtpSecure,
@@ -373,7 +374,7 @@ adminRouter.get('/booking-requests', (req, res) => {
   const rows = getDb()
     .prepare(`${BOOKING_REQUEST_SELECT} where (@status is null or br.status = @status) order by br.created_at desc limit 500`)
     .all({ status }) as any[];
-  res.json(rows.map(r => toBookingRequest(r, { includeContact: true })));
+  res.json(rows.map(r => ({ ...toBookingRequest(r, { includeContact: true }), guestEmail: r.guest_email || r.client_email })));
 });
 
 adminRouter.post('/booking-requests/:id/status', (req, res) => {

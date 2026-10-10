@@ -262,8 +262,11 @@ export const Modal: React.FC<{
   closeDisabled?: boolean;
 }> = ({ title, onClose, size = 'md', children, footer, closeDisabled }) => {
   const ref = useRef<HTMLDivElement>(null);
+  // Keep the latest callbacks in a ref so parent re-renders never re-run the focus effect.
+  const latest = useRef({ onClose, closeDisabled });
+  latest.current = { onClose, closeDisabled };
   useEffect(() => {
-    const onKey = (e: KeyboardEvent) => e.key === 'Escape' && !closeDisabled && onClose();
+    const onKey = (e: KeyboardEvent) => e.key === 'Escape' && !latest.current.closeDisabled && latest.current.onClose();
     document.addEventListener('keydown', onKey);
     const prev = document.body.style.overflow;
     document.body.style.overflow = 'hidden';
@@ -272,7 +275,7 @@ export const Modal: React.FC<{
       document.removeEventListener('keydown', onKey);
       document.body.style.overflow = prev;
     };
-  }, [onClose, closeDisabled]);
+  }, []);
   return (
     <div
       className="fixed inset-0 z-[60] bg-black/70 backdrop-blur-sm flex items-end sm:items-center justify-center sm:p-4 animate-fade-in"
@@ -347,8 +350,10 @@ export const Cover: React.FC<{ url?: string | null; alt: string; className?: str
   url ? (
     <img src={url} alt={alt} loading="lazy" className={cx('object-cover bg-gray-200 dark:bg-gray-800', className)} />
   ) : (
-    <div className={cx('bg-gradient-to-br from-brand-primary/30 via-brand-secondary/20 to-gray-900/40 flex items-center justify-center', className)}>
-      <span className="text-4xl font-black text-white/70">{alt.slice(0, 1).toUpperCase()}</span>
+    <div className={cx('bg-gradient-to-br from-brand-primary/40 via-brand-secondary/30 to-gray-900/50 flex items-center justify-center', className)}>
+      <span className="text-5xl font-black tracking-tight text-white/80">
+        {alt.split(/[\s&]+/).filter(w => /^[\p{L}\p{N}]/u.test(w)).slice(0, 2).map(w => w[0].toUpperCase()).join('') || '•'}
+      </span>
     </div>
   );
 

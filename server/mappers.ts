@@ -133,7 +133,7 @@ export function toShop(r: any, includeInactiveBooths = false): Shop {
 }
 
 export const BOOKING_REQUEST_SELECT = `
-  select br.*, a.name artist_name, c.name client_name
+  select br.*, a.name artist_name, c.name client_name, c.email client_email
   from booking_requests br
   join users a on a.id = br.artist_id
   left join users c on c.id = br.client_id`;

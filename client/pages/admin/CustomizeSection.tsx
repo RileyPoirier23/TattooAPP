@@ -304,7 +304,7 @@ export const CustomizeSection: React.FC = () => {
                     onChange={e => set('contactEmail', e.target.value)}
                     error={draft.contactEmail.trim() && !EMAIL.test(draft.contactEmail.trim()) ? 'That doesn’t look like an email address.' : undefined}
                   />
-                  <div className="grid gap-5 sm:grid-cols-3">
+                  <div className="grid gap-5 sm:grid-cols-2 2xl:grid-cols-3">
                     <Input
                       label="Instagram"
                       value={draft.instagramUrl}

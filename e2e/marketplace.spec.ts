@@ -79,12 +79,12 @@ test('artist sets up profile, guest books and pays a deposit', async ({ page }) 
   const dialog = page.getByRole('dialog');
   await dialog.getByRole('button', { name: 'Next month' }).click();
   await dialog.getByRole('button', { name: / 15 \d{4}$/ }).click();
-  await dialog.getByRole('button', { name: 'Next' }).click();
+  await dialog.getByRole('button', { name: 'Next', exact: true }).click();
   await dialog.getByLabel(/Width/).fill('2');
   await dialog.getByLabel(/Height/).fill('3');
   await dialog.getByLabel(/Placement/).selectOption('Forearm');
   await dialog.getByLabel(/Describe your idea/).fill('A small sprig of lavender on my inner forearm.');
-  await dialog.getByRole('button', { name: 'Next' }).click();
+  await dialog.getByRole('button', { name: 'Next', exact: true }).click();
   await dialog.getByLabel('Full name *').fill('Gina Guest');
   await dialog.getByLabel('Email *').fill('gina@example.com');
   await dialog.getByRole('button', { name: 'Send request' }).click();
@@ -158,4 +158,24 @@ test('pages work on a phone', async ({ page }) => {
   expect(overflow).toBe(false);
   await page.goto('/p/faq');
   await expect(page.getByRole('heading', { name: 'FAQ' })).toBeVisible();
+});
+
+test('admin customizes the site and refunds a payment', async ({ page }) => {
+  await logIn(page, 'admin@example.com', 'admin-password');
+  await expect(page).toHaveURL(/\/admin/);
+  await page.goto('/admin/customize');
+  await page.getByLabel('Site name').fill('Moncton Ink Co');
+  await page.getByRole('button', { name: 'Save changes' }).first().click();
+  await expect(page.locator('header').getByText('Moncton Ink Co')).toBeVisible();
+
+  await page.goto('/admin/payments');
+  await page.getByRole('button', { name: 'Refund', exact: true }).first().click();
+  await page.getByRole('dialog').getByRole('button', { name: /^Refund / }).click();
+  await expect(page.getByText(/Refunded .* The payer has been notified/)).toBeVisible();
+
+  // Non-admins can't reach the admin panel.
+  await logOut(page);
+  await logIn(page, artist.email, artist.password);
+  await page.goto('/admin');
+  await expect(page.getByText("You don't have access to this page")).toBeVisible();
 });

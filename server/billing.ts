@@ -302,6 +302,8 @@ export async function refund(paymentId: string, reason: string) {
         db.prepare("update booking_requests set payment_status = 'refunded', updated_at = ? where id = ?").run(now, p.ref_id);
       } else if (p.kind === 'booth') {
         db.prepare("update booth_bookings set status = 'refunded' where id = ?").run(p.ref_id);
+      } else if (p.kind === 'subscription') {
+        db.prepare("update users set subscription_tier = 'free', pro_until = null, pro_auto_renew = 0, updated_at = ? where id = ?").run(now, p.ref_id);
       }
     })();
     if (p.user_id) notify(p.user_id, `You've been refunded ${formatMoney(p.amount_cents, p.currency)} (${p.description}).`, { link: '/bookings' });

@@ -5,7 +5,7 @@ import { Badge, Button, Card, EmptyState, PageHeader, StarRating, StatusBadge, T
 import { CalendarIcon, EyeIcon, StoreIcon } from '../../components/Icons';
 import { PREFERRED_TIMES, dollars, formatDate, formatDateTime, money, timeAgo } from '../../lib/format';
 import type { BookingRequest, BookingStatus, BoothBooking } from '../../../shared/types';
-import { AsyncView, ConfirmModal, DataTable, Dialog, FilterPills, Muted, SearchInput, Td, Toolbar, useRunner } from './shared';
+import { AsyncView, ConfirmModal, DataTable, Dialog, FilterPills, Muted, SearchInput, Td, useRunner } from './shared';
 
 const BOOKING_STATUSES: { id: BookingStatus; label: string }[] = [
   { id: 'pending', label: 'Pending' },
@@ -127,10 +127,10 @@ const RequestsTab: React.FC = () => {
 
   return (
     <>
-      <Toolbar>
-        <SearchInput value={q} onChange={setQ} placeholder="Search client, artist or email" className="flex-1" />
+      <div className="space-y-3 mb-4">
+        <SearchInput value={q} onChange={setQ} placeholder="Search client, artist or email" className="sm:max-w-md" />
         <FilterPills value={status} onChange={setStatus} options={[{ id: '', label: 'All' }, ...BOOKING_STATUSES]} />
-      </Toolbar>
+      </div>
       <AsyncView state={state}>
         {list => {
           const needle = q.trim().toLowerCase();
@@ -152,7 +152,7 @@ const RequestsTab: React.FC = () => {
                 {visible.map(r => (
                   <tr key={r.id} className="hover:bg-gray-50 dark:hover:bg-gray-800/30">
                     <Td className="min-w-[11rem]">
-                      <span className="font-semibold flex items-center gap-1.5">
+                      <span className="font-semibold flex flex-wrap items-center gap-1.5">
                         {r.clientName}
                         {r.isGuest && <Badge>Guest</Badge>}
                       </span>
@@ -181,7 +181,7 @@ const RequestsTab: React.FC = () => {
                         aria-label="Booking status"
                         disabled={busy(`status:${r.id}`)}
                         onChange={e => changeStatus(r, e.target.value as BookingStatus)}
-                        className={cx(inputClass, 'py-1.5 text-sm w-36')}
+                        className={cx(inputClass, 'py-1.5 text-sm w-40')}
                       >
                         {BOOKING_STATUSES.map(s => (
                           <option key={s.id} value={s.id}>
@@ -237,9 +237,7 @@ const BoothsTab: React.FC = () => {
 
   return (
     <>
-      <Toolbar>
-        <FilterPills value={filter} onChange={setFilter} options={BOOTH_FILTERS} />
-      </Toolbar>
+      <FilterPills className="mb-4" value={filter} onChange={setFilter} options={BOOTH_FILTERS} />
       <AsyncView state={state}>
         {list => {
           const visible = filter === 'all' ? list : list.filter(b => b.status === filter);

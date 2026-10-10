@@ -8,6 +8,7 @@ import {
   FlagIcon, LockIcon, PaletteIcon, StarIcon, StoreIcon, UsersIcon,
 } from '../../components/Icons';
 import type { AdminStats } from './types';
+import { confirmLeave, useAdminCountsListener } from './shared';
 import { OverviewSection } from './OverviewSection';
 import { CustomizeSection } from './CustomizeSection';
 import { PagesSection } from './PagesSection';
@@ -58,7 +59,11 @@ export const AdminPage: React.FC<{ section: string }> = ({ section }) => {
   const isAdmin = user?.role === 'admin';
   // Refreshed whenever the admin switches sections so the badge counts stay current.
   const stats = useApi<AdminStats>(isAdmin ? '/admin/stats' : null, [section]);
+  useAdminCountsListener(() => void stats.reload());
   const current = SECTIONS.find(s => s.id === section);
+  const guard = (e: React.MouseEvent) => {
+    if (!confirmLeave()) e.preventDefault();
+  };
   const mobileTabs = useRef<HTMLDivElement>(null);
 
   // Keep the active tab visible in the horizontally scrolling mobile nav.
@@ -72,7 +77,7 @@ export const AdminPage: React.FC<{ section: string }> = ({ section }) => {
 
   if (!isAdmin) {
     return (
-      <div className="max-w-xl mx-auto px-4 py-16">
+      <div className="max-w-xl mx-auto py-8">
         <Card>
           <EmptyState icon={<LockIcon className="w-12 h-12" />} title="Admins only">
             {user ? (
@@ -95,7 +100,7 @@ export const AdminPage: React.FC<{ section: string }> = ({ section }) => {
   const Content = current?.component;
 
   return (
-    <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6 lg:py-10">
+    <div className="max-w-7xl mx-auto">
       <div className="lg:grid lg:grid-cols-[220px_minmax(0,1fr)] lg:gap-10">
         {/* Desktop sidebar */}
         <aside className="hidden lg:block">
@@ -115,6 +120,7 @@ export const AdminPage: React.FC<{ section: string }> = ({ section }) => {
                       <li key={s.id}>
                         <Link
                           to={s.id === 'overview' ? '/admin' : `/admin/${s.id}`}
+                          onClick={active ? undefined : guard}
                           aria-current={active ? 'page' : undefined}
                           className={cx(
                             'flex items-center gap-3 px-3 py-2 rounded-lg text-sm font-medium transition-colors',
@@ -133,7 +139,7 @@ export const AdminPage: React.FC<{ section: string }> = ({ section }) => {
                 </ul>
               </div>
             ))}
-            <Link to="/" className="flex items-center gap-3 px-3 py-2 rounded-lg text-sm font-medium text-brand-gray hover:text-brand-dark dark:hover:text-white">
+            <Link to="/" onClick={guard} className="flex items-center gap-3 px-3 py-2 rounded-lg text-sm font-medium text-brand-gray hover:text-brand-dark dark:hover:text-white">
               <EyeIcon className="w-5 h-5" />
               View site
             </Link>
@@ -150,6 +156,7 @@ export const AdminPage: React.FC<{ section: string }> = ({ section }) => {
                 <Link
                   key={s.id}
                   to={s.id === 'overview' ? '/admin' : `/admin/${s.id}`}
+                  onClick={active ? undefined : guard}
                   aria-current={active ? 'page' : undefined}
                   className={cx(
                     'flex items-center gap-2 px-3.5 py-2 rounded-full text-sm font-semibold whitespace-nowrap border transition-colors',

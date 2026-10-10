@@ -474,6 +474,11 @@ export const SettingsSection: React.FC = () => {
                   </ol>
                   <p className="mt-2">All three must come from the same environment. When you&apos;re ready for real payments, switch to your Production keys.</p>
                 </Notice>
+                {secrets.squareConfigFromEnv && (
+                  <Notice tone="warning">
+                    Some Square settings are set by your hosting provider&apos;s environment variables (SQUARE_APPLICATION_ID, SQUARE_LOCATION_ID or SQUARE_ENVIRONMENT). Those values win over anything saved here — change them in your host&apos;s settings instead.
+                  </Notice>
+                )}
                 <Select
                   label="Environment"
                   value={draft.squareEnvironment}

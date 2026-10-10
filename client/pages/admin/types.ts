@@ -24,6 +24,7 @@ export interface AdminStats {
 export interface MaskedSecrets {
   squareAccessTokenSet: boolean;
   squareAccessTokenFromEnv: boolean;
+  squareConfigFromEnv: boolean;
   smtpHost: string;
   smtpPort: number;
   smtpSecure: boolean;

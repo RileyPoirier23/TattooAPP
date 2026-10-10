@@ -110,9 +110,9 @@ export const HomePage: React.FC = () => {
           <section className="rounded-3xl bg-gradient-to-r from-brand-primary to-brand-secondary text-white p-8 md:p-12 text-center">
             <h2 className="text-3xl font-extrabold tracking-tight">Are you a tattoo artist or shop?</h2>
             <p className="mt-2 text-white/90 max-w-xl mx-auto">Create a free profile to take bookings and deposits online, or list your booths for guest artists.</p>
-            <Button size="lg" variant="outline" className="mt-6 bg-white text-brand-dark border-white hover:bg-white/90" onClick={() => openAuth('register')}>
+            <button onClick={() => openAuth('register')} className="mt-6 inline-flex items-center justify-center font-semibold px-6 py-3 rounded-xl bg-white text-gray-900 hover:bg-white/90 transition">
               Join for free
-            </Button>
+            </button>
           </section>
         )}
       </div>

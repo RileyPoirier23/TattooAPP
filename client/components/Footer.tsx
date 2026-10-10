@@ -45,7 +45,7 @@ export const Footer: React.FC = () => {
             ))}
           </ul>
         </div>
-        <div>
+        {(s.contactEmail || s.instagramUrl) && <div>
           <h4 className="font-semibold mb-3">Contact</h4>
           <ul className="space-y-2 text-sm text-brand-gray">
             {s.contactEmail && (
@@ -59,7 +59,7 @@ export const Footer: React.FC = () => {
               </li>
             )}
           </ul>
-        </div>
+        </div>}
       </div>
       <div className="border-t border-gray-200 dark:border-gray-800">
         <div className="container mx-auto px-4 py-5 text-xs text-brand-gray flex flex-col sm:flex-row justify-between gap-2">

@@ -3,9 +3,9 @@ import React, { useCallback, useState } from 'react';
 import { api } from '../../api';
 import { Badge, Button, Card, EmptyState, Input, PageHeader, StatusBadge, useApi } from '../../components/ui';
 import { CreditCardIcon, DocumentIcon } from '../../components/Icons';
-import { formatDateTime, money } from '../../lib/format';
+import { formatDate, formatDateTime, money } from '../../lib/format';
 import { PAYMENT_KIND_LABELS, type AdminPayment, type PaymentKind } from './types';
-import { AsyncView, DataTable, Dialog, FilterPills, Muted, SearchInput, Td, Toolbar, useRunner } from './shared';
+import { AsyncView, DataTable, Dialog, FilterPills, Muted, SearchInput, Td, useRunner } from './shared';
 
 const KIND_TONES: Record<PaymentKind, 'brand' | 'blue' | 'purple'> = { deposit: 'brand', booth: 'blue', subscription: 'purple' };
 
@@ -57,7 +57,7 @@ const RefundModal: React.FC<{ payment: AdminPayment; onClose: () => void; onRefu
         </p>
         {p.kind === 'deposit' && <p>The booking will be marked as refunded.</p>}
         {p.kind === 'booth' && <p>The booth rental will be cancelled and the dates freed up.</p>}
-        {p.kind === 'subscription' && <p>Their Pro plan isn&apos;t switched off automatically. Change it on the Users page if needed.</p>}
+        {p.kind === 'subscription' && <p>Refunding a Pro payment also ends that artist&apos;s Pro plan straight away.</p>}
         {p.payeeAmountCents > 0 && (
           <p className="text-amber-700 dark:text-amber-300">
             {p.payeeName || 'The payee'}&apos;s share ({money(p.payeeAmountCents, p.currency)}) is taken off what you owe them. If you already paid them, their balance goes
@@ -126,19 +126,21 @@ export const PaymentsSection: React.FC = () => {
                 ))}
               </div>
 
-              <Toolbar>
-                <SearchInput value={q} onChange={setQ} placeholder="Search description, payer or payee" className="flex-1" />
-                <FilterPills value={kind} onChange={setKind} options={KIND_FILTERS} />
-                <FilterPills
-                  value={status}
-                  onChange={setStatus}
-                  options={[
-                    { id: 'all', label: 'Any status' },
-                    { id: 'completed', label: 'Completed' },
-                    { id: 'refunded', label: 'Refunded' },
-                  ]}
-                />
-              </Toolbar>
+              <div className="space-y-3 mb-4">
+                <SearchInput value={q} onChange={setQ} placeholder="Search description, payer or payee" className="sm:max-w-md" />
+                <div className="flex flex-col md:flex-row md:items-center gap-3 md:gap-6">
+                  <FilterPills value={kind} onChange={setKind} options={KIND_FILTERS} />
+                  <FilterPills
+                    value={status}
+                    onChange={setStatus}
+                    options={[
+                      { id: 'all', label: 'Any status' },
+                      { id: 'completed', label: 'Completed' },
+                      { id: 'refunded', label: 'Refunded' },
+                    ]}
+                  />
+                </div>
+              </div>
 
               {visible.length === 0 ? (
                 <Card>
@@ -150,11 +152,14 @@ export const PaymentsSection: React.FC = () => {
                 </Card>
               ) : (
                 <Card padded={false} className="overflow-hidden">
-                  <DataTable columns={['Date', 'What', 'Paid by', 'Paid to', 'Amount', 'Your fee', 'Their share', 'Status', '']}>
+                  <DataTable columns={['Date', 'What', 'Paid by', 'Amount', 'Paid to', 'Status', '']}>
                     {visible.map(p => (
                       <tr key={p.id} className="hover:bg-gray-50 dark:hover:bg-gray-800/30">
-                        <Td className="whitespace-nowrap text-brand-gray">{formatDateTime(p.createdAt)}</Td>
-                        <Td className="min-w-[13rem]">
+                        <Td className="whitespace-nowrap text-brand-gray">
+                          {formatDate(p.createdAt, { month: 'short', day: 'numeric', year: 'numeric' })}
+                          <Muted>{new Date(p.createdAt).toLocaleTimeString(undefined, { hour: 'numeric', minute: '2-digit' })}</Muted>
+                        </Td>
+                        <Td className="min-w-[12rem]">
                           <Badge tone={KIND_TONES[p.kind] ?? 'gray'}>{PAYMENT_KIND_LABELS[p.kind] ?? p.kind}</Badge>
                           <span className="block mt-1">{p.description}</span>
                         </Td>
@@ -162,30 +167,42 @@ export const PaymentsSection: React.FC = () => {
                           {p.payerName || <span className="text-brand-gray">Guest</span>}
                           {p.payerEmail && <Muted>{p.payerEmail}</Muted>}
                         </Td>
-                        <Td className="min-w-[8rem]">{p.payeeName || <span className="text-brand-gray">{p.kind === 'subscription' ? 'You' : '-'}</span>}</Td>
-                        <Td className="whitespace-nowrap font-semibold">{money(p.amountCents, p.currency)}</Td>
-                        <Td className="whitespace-nowrap">{money(p.feeCents, p.currency)}</Td>
-                        <Td className="whitespace-nowrap">{money(p.payeeAmountCents, p.currency)}</Td>
+                        <Td className="whitespace-nowrap">
+                          <span className="font-semibold">{money(p.amountCents, p.currency)}</span>
+                          <Muted>Your fee {money(p.feeCents, p.currency)}</Muted>
+                        </Td>
+                        <Td className="min-w-[8rem]">
+                          {p.payeeName ? (
+                            <>
+                              {p.payeeName}
+                              <Muted>Gets {money(p.payeeAmountCents, p.currency)}</Muted>
+                            </>
+                          ) : (
+                            <span className="text-brand-gray">{p.kind === 'subscription' ? 'You (all of it)' : 'Deleted account'}</span>
+                          )}
+                        </Td>
                         <Td className="whitespace-nowrap">
                           <StatusBadge status={p.status === 'completed' ? 'paid' : p.status} />
                           {p.refundedAt && <Muted className="mt-1">{formatDateTime(p.refundedAt)}</Muted>}
                         </Td>
                         <Td className="text-right whitespace-nowrap">
-                          {p.receiptUrl && (
-                            <a
-                              href={p.receiptUrl}
-                              target="_blank"
-                              rel="noopener noreferrer"
-                              className="inline-flex items-center gap-1 text-sm font-semibold px-3 py-1.5 rounded-lg text-gray-600 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-800"
-                            >
-                              <DocumentIcon className="w-4 h-4" /> Receipt
-                            </a>
-                          )}
-                          {p.status === 'completed' && p.squarePaymentId && (
-                            <Button size="sm" variant="ghost" className="text-red-600 dark:text-red-400" onClick={() => setRefunding(p)}>
-                              Refund
-                            </Button>
-                          )}
+                          <div className="flex flex-col items-end gap-1">
+                            {p.receiptUrl && (
+                              <a
+                                href={p.receiptUrl}
+                                target="_blank"
+                                rel="noopener noreferrer"
+                                className="inline-flex items-center gap-1 text-sm font-semibold px-3 py-1.5 rounded-lg text-gray-600 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-800"
+                              >
+                                <DocumentIcon className="w-4 h-4" /> Receipt
+                              </a>
+                            )}
+                            {p.status === 'completed' && p.squarePaymentId && (
+                              <Button size="sm" variant="ghost" className="text-red-600 dark:text-red-400" onClick={() => setRefunding(p)}>
+                                Refund
+                              </Button>
+                            )}
+                          </div>
                         </Td>
                       </tr>
                     ))}
