@@ -814,3 +814,40 @@ test('review fixes: crafted images, renewal gaps, page templates, email caps, mo
   assert.equal(ledger.balanceCents, 0);
   assert.equal(ledger.onHoldCents, 9000);
 });
+
+test('a payment whose reply was lost is never charged twice', async () => {
+  const { getDb } = await import('../server/db');
+  const payer = (await register('client', 'lostreply@example.com')).c;
+  const made = await payer.req('POST', '/api/booking-requests', bookingForm({ artistId, serviceId, date: workday, message: 'Lost reply test idea', tattooWidth: 1, tattooHeight: 1, bodyPlacement: 'Hand' }));
+  const id = made.body.request.id;
+  await artist.post(`/api/booking-requests/${id}/action`, { action: 'approve' });
+
+  // Square takes the payment, but the answer never reaches the site.
+  const realFetch = globalThis.fetch;
+  let drop = true;
+  globalThis.fetch = (async (url: any, init: any) => {
+    const res = await realFetch(url, init);
+    if (drop && String(url).endsWith('/v2/payments')) {
+      drop = false;
+      throw new TypeError('fetch failed');
+    }
+    return res;
+  }) as typeof fetch;
+  let first;
+  try {
+    first = await payer.post(`/api/booking-requests/${id}/pay`, { sourceId: 'cnon:first-card', idempotencyKey: 'lost-key-0001' });
+  } finally {
+    globalThis.fetch = realFetch;
+  }
+  assert.equal(first.status, 402);
+  assert.match(first.body.error, /won't be charged twice/);
+
+  // The client tries again with a fresh card entry: the original charge is found instead of a second one.
+  const second = await payer.post(`/api/booking-requests/${id}/pay`, { sourceId: 'cnon:second-card', idempotencyKey: 'lost-key-0002' });
+  assert.equal(second.status, 200, JSON.stringify(second.body));
+  const attempts = squareCalls.filter(c => c.path === '/v2/payments' && c.body.reference_id === id);
+  assert.equal(new Set(attempts.map(c => c.body.idempotency_key)).size, 1, 'both attempts used the original request');
+  assert.ok(attempts.every(c => c.body.source_id === 'cnon:first-card'));
+  assert.equal((getDb().prepare("select count(*) c from payments where ref_id = ? and status = 'completed'").get(id) as any).c, 1);
+  assert.equal((getDb().prepare('select count(*) c from pending_charges').get() as any).c, 0);
+});

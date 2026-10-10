@@ -4,14 +4,19 @@ import crypto from 'node:crypto';
 import { config } from './config';
 import { getSecrets, getSettings, saveSettings } from './settings';
 import { HttpError } from './http';
+import { getDb } from './db';
 
 const SQUARE_VERSION = '2025-01-23';
 
 export class SquareError extends HttpError {
-  constructor(message: string, public code?: string) {
+  /** `ambiguous`: we don't know whether Square carried the request out (no answer, or a Square server error). */
+  constructor(message: string, public code?: string, public ambiguous = false) {
     super(402, message);
   }
 }
+
+const UNCONFIRMED_PAYMENT =
+  "We couldn't confirm whether your payment went through. Please check your bookings or email for a receipt — if you try again, you won't be charged twice.";
 
 export function paymentsReady(): boolean {
   const s = getSettings();
@@ -61,9 +66,9 @@ async function request<T>(method: string, path: string, body?: unknown): Promise
   } catch (err) {
     console.error('[square] network error', err);
     throw new SquareError(
-      method === 'POST' && path === '/v2/payments'
-        ? "We couldn't confirm whether your payment went through. Please check your bookings or email for a receipt before trying again."
-        : 'Could not reach the payment processor. Please try again.',
+      method === 'POST' && path === '/v2/payments' ? UNCONFIRMED_PAYMENT : 'Could not reach the payment processor. Please try again.',
+      undefined,
+      true,
     );
   }
   const json = (await res.json().catch(() => ({}))) as any;
@@ -72,9 +77,9 @@ async function request<T>(method: string, path: string, body?: unknown): Promise
     console.warn(`[square] ${method} ${path} failed (${res.status}):`, JSON.stringify(json.errors || json));
     const msg = FRIENDLY[e.code] || (e.category === 'PAYMENT_METHOD_ERROR' ? e.detail : null) ||
       (res.status === 401 ? 'Payment processor credentials are invalid. Please contact the site owner.'
-        : res.status >= 500 && path === '/v2/payments' ? "We couldn't confirm whether your payment went through. Please check your bookings or email for a receipt before trying again."
+        : res.status >= 500 && path === '/v2/payments' ? UNCONFIRMED_PAYMENT
         : 'The payment could not be processed. Please try again.');
-    throw new SquareError(msg, e.code);
+    throw new SquareError(msg, e.code, res.status >= 500);
   }
   return json as T;
 }
@@ -88,9 +93,26 @@ export interface SquarePayment {
   id: string;
   status: string;
   receipt_url?: string;
+  amount_money?: { amount: number; currency: string };
   card_details?: { card?: { card_brand?: string; last_4?: string } };
 }
 
+const PENDING_TTL_MS = 24 * 3_600_000; // card tokens can't be used after a day anyway
+
+async function sendPayment(body: Record<string, unknown>): Promise<SquarePayment> {
+  const { payment } = await request<{ payment: SquarePayment }>('POST', '/v2/payments', body);
+  if (payment.status !== 'COMPLETED' && payment.status !== 'APPROVED') {
+    throw new SquareError('The payment was not completed. Please try again.');
+  }
+  return payment;
+}
+
+/**
+ * Charges a card. `ref` names what is being paid for (a booking, a rental…). If an earlier charge for the same
+ * thing got no clear answer from Square, that exact request is sent again first: thanks to its idempotency key
+ * Square returns the original payment if it went through — so nobody is charged twice — or carries it out now.
+ * Only when it definitely failed is the new card charged.
+ */
 export async function createPayment(input: {
   sourceId: string;
   amountCents: number;
@@ -100,8 +122,24 @@ export async function createPayment(input: {
   referenceId?: string;
   customerId?: string;
   buyerEmail?: string;
+  ref?: string;
 }): Promise<SquarePayment> {
-  const { payment } = await request<{ payment: SquarePayment }>('POST', '/v2/payments', {
+  const db = getDb();
+  if (input.ref) {
+    const pending = db.prepare('select body, created_at from pending_charges where ref = ?').get(input.ref) as { body: string; created_at: string } | undefined;
+    if (pending && Date.now() - new Date(pending.created_at).getTime() < PENDING_TTL_MS) {
+      try {
+        const payment = await sendPayment(JSON.parse(pending.body));
+        db.prepare('delete from pending_charges where ref = ?').run(input.ref);
+        return payment; // the earlier attempt went through
+      } catch (err) {
+        if (err instanceof SquareError && err.ambiguous) throw err; // still no answer: don't risk a second charge
+        // It definitely didn't go through, so charge the card entered now.
+      }
+    }
+    db.prepare('delete from pending_charges where ref = ?').run(input.ref);
+  }
+  const body = {
     source_id: input.sourceId,
     idempotency_key: input.idempotencyKey,
     amount_money: { amount: input.amountCents, currency: input.currency },
@@ -111,11 +149,15 @@ export async function createPayment(input: {
     reference_id: input.referenceId?.slice(0, 40),
     customer_id: input.customerId,
     buyer_email_address: input.buyerEmail,
-  });
-  if (payment.status !== 'COMPLETED' && payment.status !== 'APPROVED') {
-    throw new SquareError('The payment was not completed. Please try again.');
+  };
+  try {
+    return await sendPayment(body);
+  } catch (err) {
+    if (input.ref && err instanceof SquareError && err.ambiguous) {
+      db.prepare('insert or replace into pending_charges (ref, body, created_at) values (?, ?, ?)').run(input.ref, JSON.stringify(body), new Date().toISOString());
+    }
+    throw err;
   }
-  return payment;
 }
 
 export async function refundPayment(paymentId: string, amountCents: number, currency: string, reason: string) {

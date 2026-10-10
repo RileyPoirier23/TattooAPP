@@ -306,6 +306,14 @@ const MIGRATIONS: string[] = [
   `
   alter table booking_requests add column cancelled_by text;
   `,
+  // v6 — card charges whose result never arrived (replayed before charging again, so nobody is charged twice)
+  `
+  create table pending_charges (
+    ref text primary key,
+    body text not null,
+    created_at text not null
+  );
+  `,
 ];
 
 let db: DB | null = null;

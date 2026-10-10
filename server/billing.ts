@@ -6,7 +6,7 @@ import { conflict, formatMoney, formatWhen, HttpError, notFound, todayStr, toCen
 import { getUser, isArtistRole, isPro, PRO_GRACE_DAYS, type UserRow } from './auth';
 import {
   cardLabel, createCard, createCustomer, createPayment, disableCard, idempotencyKey, locationCurrency, paymentsReady,
-  refundPayment,
+  refundPayment, type SquarePayment,
 } from './square';
 import { notify, notifyAdmins } from './notify';
 import { sendEmail } from './email';
@@ -83,6 +83,16 @@ async function recordAndRefund(p: PaymentRecord, reason: string): Promise<never>
   throw conflict(`${reason} Your card has been refunded.`);
 }
 
+/**
+ * If an earlier, unconfirmed attempt is what went through (see createPayment) and it was for a different amount
+ * than is due now, record it and refund it rather than accept the wrong amount.
+ */
+async function refundIfAmountChanged(payment: SquarePayment, record: PaymentRecord) {
+  const charged = payment.amount_money?.amount;
+  if (charged === undefined || charged === record.amountCents) return;
+  await recordAndRefund({ ...record, amountCents: charged, feeCents: 0, payeeAmountCents: 0 }, 'The amount due changed while you were paying.');
+}
+
 // ---------- Client deposits ----------
 
 export async function payDeposit(requestId: string, sourceId: string, clientKey: string) {
@@ -114,12 +124,14 @@ export async function payDeposit(requestId: string, sourceId: string, clientKey:
       note: description,
       referenceId: requestId,
       buyerEmail: payerEmail || undefined,
+      ref: `deposit:${requestId}`,
     });
     const record: PaymentRecord = {
       kind: 'deposit', refId: requestId, userId: r.client_id, payerEmail, description,
       amountCents: total, feeCents: fee, payeeId: artist.id, payeeAmountCents: r.deposit_cents,
       currency, squarePaymentId: payment.id, receiptUrl: payment.receipt_url ?? null,
     };
+    await refundIfAmountChanged(payment, record);
 
     // The booking may have been cancelled while the card was being charged.
     const now = nowIso();
@@ -196,7 +208,7 @@ export async function payBoothBooking(bookingId: string, artist: UserRow, source
     const description = `${b.booth_name} at ${b.shop_name}, ${b.start_date} to ${b.end_date}`;
     if (b.total_cents > 0) ensureReady();
     const currency = b.total_cents > 0 ? await locationCurrency() : getSettings().currency;
-    let payment: { id: string; receipt_url?: string } | null = null;
+    let payment: SquarePayment | null = null;
     if (b.total_cents > 0) {
       payment = await createPayment({
         sourceId,
@@ -206,6 +218,7 @@ export async function payBoothBooking(bookingId: string, artist: UserRow, source
         note: `Booth rental: ${description}`,
         referenceId: bookingId,
         buyerEmail: artist.email,
+        ref: `booth:${bookingId}`,
       });
     }
     const record: PaymentRecord | null = payment && {
@@ -214,6 +227,7 @@ export async function payBoothBooking(bookingId: string, artist: UserRow, source
       payeeAmountCents: b.total_cents - b.fee_cents, currency, squarePaymentId: payment.id,
       receiptUrl: payment.receipt_url ?? null,
     };
+    if (payment && record) await refundIfAmountChanged(payment, record);
 
     const now = nowIso();
     const ok = db.transaction(() => {
@@ -283,7 +297,10 @@ async function chargeSubscription(user: UserRow, customerId: string, cardId: str
     note: `${getSettings().siteName} Pro — monthly`,
     referenceId: user.id,
     buyerEmail: user.email,
+    ref: `pro:${user.id}`,
   });
+  // A replayed earlier attempt may have been for the price listed at that time.
+  amount = payment.amount_money?.amount ?? amount;
   insertPayment({
     kind: 'subscription', refId: user.id, userId: user.id, payerEmail: user.email,
     description: `Pro plan — 1 month`, amountCents: amount, feeCents: amount, payeeId: null, payeeAmountCents: 0,
