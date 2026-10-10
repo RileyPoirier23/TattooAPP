@@ -1,0 +1,23 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+:root {
+  /* Brand colors are set at runtime from Admin → Customize (see client/lib/theme.ts). */
+  --brand-primary: 240 78 152;
+  --brand-secondary: 138 78 252;
+}
+
+html { -webkit-tap-highlight-color: transparent; }
+body { min-height: 100vh; }
+
+::-webkit-scrollbar { width: 10px; height: 10px; }
+::-webkit-scrollbar-track { background: transparent; }
+::-webkit-scrollbar-thumb { background-color: #d1d5db; border-radius: 5px; border: 2px solid #f5f5f7; }
+.dark ::-webkit-scrollbar-thumb { background-color: #4b5563; border-color: #101014; }
+
+.scrollbar-hide::-webkit-scrollbar { display: none; }
+.scrollbar-hide { -ms-overflow-style: none; scrollbar-width: none; }
+
+input[type='date']::-webkit-calendar-picker-indicator, input[type='time']::-webkit-calendar-picker-indicator { cursor: pointer; }
+.dark input[type='date']::-webkit-calendar-picker-indicator, .dark input[type='time']::-webkit-calendar-picker-indicator { filter: invert(1); }

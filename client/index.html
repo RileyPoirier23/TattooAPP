@@ -1,0 +1,28 @@
+<!doctype html>
+<html lang="en" class="%THEME%">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>%SITE_NAME%</title>
+    <meta name="description" content="%SITE_DESCRIPTION%" />
+    <meta property="og:title" content="%SITE_NAME%" />
+    <meta property="og:description" content="%SITE_DESCRIPTION%" />
+    <link rel="icon" href="%FAVICON%" />
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&display=swap" rel="stylesheet" />
+    <script>
+      // Apply the visitor's saved theme before first paint to avoid a flash.
+      try {
+        var t = localStorage.getItem('theme');
+        if (t === 'light') document.documentElement.classList.remove('dark');
+        if (t === 'dark') document.documentElement.classList.add('dark');
+      } catch (e) {}
+    </script>
+    <link rel="stylesheet" href="/assets/app.css?v=%BUILD%" />
+  </head>
+  <body class="bg-brand-light dark:bg-brand-dark text-brand-dark dark:text-brand-light font-sans antialiased">
+    <div id="root"></div>
+    <script type="module" src="/assets/app.js?v=%BUILD%"></script>
+  </body>
+</html>
