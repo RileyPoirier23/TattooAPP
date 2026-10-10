@@ -9,6 +9,8 @@ A complete website where:
 
 Payments are handled by **Square**. Everything else (accounts, database, image uploads, email) runs inside this one app — there are no other services to sign up for.
 
+**Running the site day to day?** Read the [Owner's guide](OWNER_GUIDE.md).
+
 ---
 
 ## What's included
@@ -16,15 +18,16 @@ Payments are handled by **Square**. Everything else (accounts, database, image u
 | Area | Features |
 |---|---|
 | Discovery | Artist search (name, city, style, rating, verified, "near me"), shop search (city, amenities), guest-spot badges, optional "not on the platform yet" shop listings from Google Maps |
-| Client bookings | 3-step request (service, date from the artist's real availability, size/placement/budget/idea, up to 5 reference photos), guest booking with a private status link, cancel, add to calendar, reviews |
+| Client bookings | 3-step request (service, date from the artist's real availability, size/placement/budget/idea, up to 5 reference photos), guest booking with a private status link, cancel, add to calendar, reviews, reminder emails before the appointment and when a deposit is still unpaid |
 | Deposits | Artist approves (can adjust the deposit and add a note) → client pays by card via Square → receipt emailed. Optional booking fee on deposits (waived for Pro artists) |
 | Artist dashboard | Requests (approve / decline / reschedule / complete / no-show / archive), profile + portfolio (upload, reorder, delete), services & prices, weekly hours + days-off calendar, booking-form requirements, aftercare message, earnings & payout details, Pro plan, verification request |
 | Booth rentals | Shops list booths with daily rates and can block dates; artists pick dates (double-booking is impossible), pay by card, review the shop afterwards. Unpaid reservations are released automatically; shops can cancel a rental (the admin refunds it) |
-| Pro plan | Monthly subscription charged to a saved card (Square card on file), auto-renews, cancel/resume, update card. Subscribers keep the price they signed up at; a failed renewal is retried daily for 3 days before the plan ends |
+| Pro plan | **Off until you switch it on** (Admin → Settings). Monthly subscription charged to a saved card (Square card on file), auto-renews, cancel/resume, update card. Subscribers pay the listed price: when you change it they're emailed and the new price applies from their next renewal. A failed renewal is retried daily for 3 days before the plan ends |
 | Messaging | Direct messages with photo attachments and live updates |
 | Notifications | In-app bell with live updates, plus emails for the important moments (new request, approval, payment, refunds, password reset) |
-| Accounts | Sign up as client / artist / both / shop owner, login, forgot password, change password |
-| Admin panel | Dashboard & revenue, Customize (branding, colours, homepage, announcement banner, socials, footer), Pages (FAQ, policies…), Settings (feature switches, fees, Pro price, Square, email, Google Maps), Users, Shops, Bookings, Payments & refunds, Payouts ledger, Verifications, Reports, Reviews, Backup download |
+| Accounts | Sign up as client / artist / both / shop owner, login, forgot password, change password, download my data, delete my account |
+| Contact | "Contact us" page; messages land in the admin Inbox and your email (reply goes straight to the sender) |
+| Admin panel | Dashboard, revenue & setup checklist, Customize (branding, colours, homepage, announcement banner, socials, footer), Pages (FAQ, Terms, Privacy, Booking policy — starter text included), Settings (feature switches, fees, Pro price, Square, email, Google Maps), Inbox, Users, Shops, Bookings (change dates), Payments & refunds, Payouts ledger, Verifications, Reports, Reviews, Backups (automatic nightly + download). Long lists are searchable and paged |
 
 ### How the money works
 
@@ -103,7 +106,7 @@ Add a Google Maps API key in **Admin → Settings** (enable *Maps JavaScript API
 
 ## Backups
 
-**Admin → Backup** downloads a copy of the database. Uploaded images live in the `uploads` folder of the data directory (`/data/uploads` on Railway). Railway volumes can also be backed up from the Railway dashboard.
+The site saves a copy of its database every night in the `backups` folder of the data directory and keeps the last 7. **Admin → Backup** lists those copies and downloads a fresh one — download one regularly and keep it somewhere other than the server. Uploaded images live in the `uploads` folder of the data directory (`/data/uploads` on Railway). Railway volumes can also be backed up from the Railway dashboard.
 
 ## Lost admin access?
 
@@ -134,4 +137,6 @@ e2e/      Browser tests (Playwright)
 | `npm test` | API tests (payments, refunds, payouts, security, bookings…) |
 | `npm run test:e2e` | Browser tests (run `npm run build` first) |
 
-Security notes: passwords are hashed with scrypt; sessions are httpOnly cookies; state-changing requests require a custom header (CSRF protection); uploaded files are checked by their content, not their name; card details never reach the server (Square tokenizes them in the browser); secrets entered in the admin panel are never sent back to browsers.
+Security notes: passwords are hashed with scrypt and accounts lock for 15 minutes after repeated failed logins; sessions are httpOnly cookies; state-changing requests require a custom header (CSRF protection); a Content-Security-Policy blocks framing, plugins and foreign form targets; uploaded files are checked by their content, not their name, and hidden camera/GPS data is stripped from JPEGs; logins, sign-ups, bookings, uploads and the contact form are rate-limited (with spam traps on public forms); card details never reach the server (Square tokenizes them in the browser); secrets entered in the admin panel are never sent back to browsers; links saved in the admin panel must be web links.
+
+Search engines: `/sitemap.xml` lists public artist, shop and content pages, and `/robots.txt` points to it. Artists are listed once they have a portfolio photo.

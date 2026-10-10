@@ -78,6 +78,7 @@ async function recordAndRefund(p: PaymentRecord, reason: string): Promise<never>
   } catch (err) {
     console.error('[billing] automatic refund failed', paymentId, err);
     notifyAdmins(`A payment needs a manual refund: ${p.description} (${formatMoney(p.amountCents, p.currency)}).`, '/admin/payments', true);
+    throw conflict(`${reason} We couldn't refund your card automatically; the site owner has been told and will refund it shortly.`);
   }
   throw conflict(`${reason} Your card has been refunded.`);
 }

@@ -1,5 +1,33 @@
 # Changelog
 
+## [1.2.0] — 2026-10-10 — Launch readiness
+
+### Money
+- Pro subscribers pay the currently listed price. When the admin changes it, subscribers are emailed and the new price applies from their next renewal (this replaces the 1.1.0 price lock).
+- The Pro plan ships switched off; the owner turns it on in Admin → Settings when ready. Subscribers can still manage or cancel their plan if it's switched off later. Pro artists are listed first in search (as the plan promises).
+- The displayed currency always follows the Square location.
+
+### New
+- "Contact us" page with an admin Inbox (replies go straight to the sender).
+- Reminder emails before appointments and when an approved deposit is still unpaid; artists are emailed when an unpaid booth reservation expires.
+- Nightly automatic database backups (last 7 kept), listed and downloadable in Admin → Backup.
+- Members can download all their data from Settings.
+- Starter Terms of Service, Privacy Policy, Booking & Cancellation Policy and FAQ, with the site's name and contact details filled in automatically.
+- Admin: searchable, paged Users, Bookings, Booth rentals and Payments (with totals); edit a shop's details and cover photo; change a booking's date or time; a fuller setup checklist.
+- `OWNER_GUIDE.md` for the person running the site.
+
+### Security & privacy
+- Accounts lock for 15 minutes after repeated wrong passwords; guest booking and contact-form spam limits and traps.
+- Hidden camera/GPS data is removed from uploaded photos; large photos are shrunk before uploading (no more "over 8 MB" errors from phones).
+- Content-Security-Policy header; admin-entered links must be web links.
+- Sign-ups and bookings record when the terms were accepted.
+
+### Polish
+- Warns before leaving a form with unsaved changes (admin panel and dashboards), including the back button.
+- Brand colors stay readable: button text turns dark on light colors and brand-colored text is adjusted for contrast.
+- Artists appear in search once they have a portfolio photo; `/sitemap.xml` for search engines.
+- Admin changes to bookings are attributed to the admin in notifications.
+
 ## [1.1.0] — 2026-10-10 — Review fixes
 
 ### Money

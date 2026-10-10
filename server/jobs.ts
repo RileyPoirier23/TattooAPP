@@ -20,7 +20,10 @@ export function expireBoothHolds() {
     .all(cutoff) as any[];
   for (const b of expired) {
     db.prepare("update booth_bookings set status = 'cancelled' where id = ?").run(b.id);
-    notify(b.artist_id, `Your unpaid reservation at ${b.shop_name} expired and was released.`, { link: '/bookings' });
+    notify(b.artist_id, `Your unpaid reservation at ${b.shop_name} expired and was released.`, {
+      link: '/bookings',
+      email: { subject: 'Your booth reservation expired', actionLabel: 'View my bookings' },
+    });
   }
 }
 
