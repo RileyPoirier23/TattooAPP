@@ -302,6 +302,11 @@ export function usePaged<R extends Paged<unknown>>(base: string, filters: Record
     setState({ key, page: p });
     window.scrollTo({ top: 0, behavior: 'smooth' });
   }, [key]);
+  // If the last item on a later page was removed, step back to the previous page instead of showing it empty.
+  const emptyLaterPage = !!api.data && api.data.items.length === 0 && page > 1;
+  useEffect(() => {
+    if (emptyLaterPage) setState({ key, page: page - 1 });
+  }, [emptyLaterPage, key, page]);
   return { ...api, page, setPage };
 }
 

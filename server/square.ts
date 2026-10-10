@@ -55,6 +55,8 @@ async function request<T>(method: string, path: string, body?: unknown): Promise
         'Content-Type': 'application/json',
       },
       body: body ? JSON.stringify(body) : undefined,
+      // Don't keep a visitor (and their payment lock) waiting forever if Square doesn't answer.
+      signal: AbortSignal.timeout(30_000),
     });
   } catch (err) {
     console.error('[square] network error', err);

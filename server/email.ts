@@ -19,6 +19,10 @@ function transport(): Transporter | null {
         port: s.smtpPort,
         secure: s.smtpSecure,
         auth: s.smtpUser ? { user: s.smtpUser, pass: s.smtpPass } : undefined,
+        // Fail within seconds (e.g. "Send test email" with a wrong host) instead of the default minutes.
+        connectionTimeout: 15_000,
+        greetingTimeout: 15_000,
+        socketTimeout: 30_000,
       });
   cached = { key, transport: t };
   return t;
@@ -44,6 +48,7 @@ async function sendWithResend(to: string, subject: string, text: string, html: s
     method: 'POST',
     headers: { Authorization: `Bearer ${resendKey()}`, 'Content-Type': 'application/json' },
     body: JSON.stringify({ from: fromAddress(), to: [to], subject, text, html, ...(replyTo ? { reply_to: replyTo } : {}) }),
+    signal: AbortSignal.timeout(15_000),
   });
   if (!res.ok) {
     const body = (await res.json().catch(() => ({}))) as { message?: string };
