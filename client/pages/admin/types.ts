@@ -15,6 +15,9 @@ export interface AdminStats {
   owedCents: number;
   pendingVerifications: number;
   pendingReports: number;
+  newContactMessages: number;
+  policiesCustomized: boolean;
+  environment: 'sandbox' | 'production';
   monthly: { month: string; gross: number; fees: number }[];
   currency: string;
   paymentsReady: boolean;

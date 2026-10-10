@@ -4,7 +4,7 @@ import { api } from '../../api';
 import { useStore } from '../../store';
 import { Badge, Button, Card, EmptyState, Field, Input, PageHeader, Tabs, Toggle, cx, inputClass, useApi } from '../../components/ui';
 import { ArrowLeftIcon, DocumentIcon, EditIcon, EyeIcon, PlusIcon, TrashIcon } from '../../components/Icons';
-import { Markdown } from '../../lib/markdown';
+import { Markdown, fillPageTokens } from '../../lib/markdown';
 import { timeAgo } from '../../lib/format';
 import type { Page } from '../../../shared/types';
 import { AsyncView, ConfirmModal, useRunner, useUnsavedWarning } from './shared';
@@ -45,6 +45,10 @@ const MarkdownHelp: React.FC = () => (
       <li>- bullet point &nbsp;·&nbsp; 1. numbered item</li>
     </ul>
     <p className="mt-2">Leave an empty line between paragraphs.</p>
+    <p className="mt-2">
+      <span className="font-mono">{'{{siteName}}'}</span>, <span className="font-mono">{'{{siteUrl}}'}</span> and <span className="font-mono">{'{{contact}}'}</span> are
+      replaced with your site&apos;s name, web address and contact email (or a link to the contact form).
+    </p>
   </details>
 );
 
@@ -56,6 +60,7 @@ const PageEditor: React.FC<{ page: Page | null; nextSortOrder: number; onDone: (
   const [slugTouched, setSlugTouched] = useState(!!page);
   const [tab, setTab] = useState<'write' | 'preview'>('write');
   const { run, busy } = useRunner();
+  const settings = useStore(s => s.config?.settings);
   const dirty = JSON.stringify(d) !== JSON.stringify(initial);
   useUnsavedWarning(dirty);
 
@@ -171,7 +176,7 @@ const PageEditor: React.FC<{ page: Page | null; nextSortOrder: number; onDone: (
               <div className="rounded-lg border border-gray-200 dark:border-gray-800 bg-gray-50 dark:bg-gray-950/40 px-5 py-4 min-h-[200px] lg:max-h-[470px] overflow-y-auto">
                 <h1 className="text-2xl font-extrabold text-brand-dark dark:text-white">{d.title || 'Untitled page'}</h1>
                 {d.body.trim() ? (
-                  <Markdown text={d.body} className="text-gray-700 dark:text-gray-300 break-words" />
+                  <Markdown text={settings ? fillPageTokens(d.body, settings, window.location.origin) : d.body} className="text-gray-700 dark:text-gray-300 break-words" />
                 ) : (
                   <p className="text-sm text-brand-gray mt-3">Start writing to see a preview.</p>
                 )}

@@ -5,10 +5,10 @@ import { useStore } from '../../store';
 import { Button, Card, EmptyState, cx, useApi } from '../../components/ui';
 import {
   CalendarIcon, CashIcon, ChartIcon, CheckBadgeIcon, CogIcon, CreditCardIcon, DocumentIcon, DownloadIcon, EyeIcon,
-  FlagIcon, LockIcon, PaletteIcon, StarIcon, StoreIcon, UsersIcon,
+  FlagIcon, InboxStackIcon, LockIcon, PaletteIcon, StarIcon, StoreIcon, UsersIcon,
 } from '../../components/Icons';
 import type { AdminStats } from './types';
-import { confirmLeave, useAdminCountsListener } from './shared';
+import { useAdminCountsListener } from './shared';
 import { OverviewSection } from './OverviewSection';
 import { CustomizeSection } from './CustomizeSection';
 import { PagesSection } from './PagesSection';
@@ -22,6 +22,7 @@ import { VerificationsSection } from './VerificationsSection';
 import { ReportsSection } from './ReportsSection';
 import { ReviewsSection } from './ReviewsSection';
 import { BackupSection } from './BackupSection';
+import { InboxSection } from './InboxSection';
 
 type IconType = React.FC<{ className?: string }>;
 
@@ -39,6 +40,7 @@ const SECTIONS: SectionDef[] = [
   { id: 'customize', label: 'Customize', icon: PaletteIcon, group: 'Your site', component: CustomizeSection },
   { id: 'pages', label: 'Pages', icon: DocumentIcon, group: 'Your site', component: PagesSection },
   { id: 'settings', label: 'Settings', icon: CogIcon, group: 'Your site', component: SettingsSection },
+  { id: 'inbox', label: 'Inbox', icon: InboxStackIcon, group: 'Manage', component: InboxSection, badge: s => s.newContactMessages },
   { id: 'users', label: 'Users', icon: UsersIcon, group: 'Manage', component: UsersSection },
   { id: 'shops', label: 'Shops', icon: StoreIcon, group: 'Manage', component: ShopsSection },
   { id: 'bookings', label: 'Bookings', icon: CalendarIcon, group: 'Manage', component: BookingsSection },
@@ -61,9 +63,6 @@ export const AdminPage: React.FC<{ section: string }> = ({ section }) => {
   const stats = useApi<AdminStats>(isAdmin ? '/admin/stats' : null, [section]);
   useAdminCountsListener(() => void stats.reload());
   const current = SECTIONS.find(s => s.id === section);
-  const guard = (e: React.MouseEvent) => {
-    if (!confirmLeave()) e.preventDefault();
-  };
   const mobileTabs = useRef<HTMLDivElement>(null);
 
   // Keep the active tab visible in the horizontally scrolling mobile nav.
@@ -120,7 +119,6 @@ export const AdminPage: React.FC<{ section: string }> = ({ section }) => {
                       <li key={s.id}>
                         <Link
                           to={s.id === 'overview' ? '/admin' : `/admin/${s.id}`}
-                          onClick={active ? undefined : guard}
                           aria-current={active ? 'page' : undefined}
                           className={cx(
                             'flex items-center gap-3 px-3 py-2 rounded-lg text-sm font-medium transition-colors',
@@ -131,7 +129,7 @@ export const AdminPage: React.FC<{ section: string }> = ({ section }) => {
                         >
                           <s.icon className="w-5 h-5 flex-shrink-0" />
                           <span className="flex-1">{s.label}</span>
-                          {n > 0 && <span className="text-xs font-bold bg-brand-primary text-white rounded-full px-1.5 py-0.5 min-w-[1.25rem] text-center">{n}</span>}
+                          {n > 0 && <span className="text-xs font-bold bg-brand-primary text-on-primary rounded-full px-1.5 py-0.5 min-w-[1.25rem] text-center">{n}</span>}
                         </Link>
                       </li>
                     );
@@ -139,7 +137,7 @@ export const AdminPage: React.FC<{ section: string }> = ({ section }) => {
                 </ul>
               </div>
             ))}
-            <Link to="/" onClick={guard} className="flex items-center gap-3 px-3 py-2 rounded-lg text-sm font-medium text-brand-gray hover:text-brand-dark dark:hover:text-white">
+            <Link to="/" className="flex items-center gap-3 px-3 py-2 rounded-lg text-sm font-medium text-brand-gray hover:text-brand-dark dark:hover:text-white">
               <EyeIcon className="w-5 h-5" />
               View site
             </Link>
@@ -156,18 +154,17 @@ export const AdminPage: React.FC<{ section: string }> = ({ section }) => {
                 <Link
                   key={s.id}
                   to={s.id === 'overview' ? '/admin' : `/admin/${s.id}`}
-                  onClick={active ? undefined : guard}
                   aria-current={active ? 'page' : undefined}
                   className={cx(
                     'flex items-center gap-2 px-3.5 py-2 rounded-full text-sm font-semibold whitespace-nowrap border transition-colors',
                     active
-                      ? 'bg-brand-primary text-white border-brand-primary'
+                      ? 'bg-brand-primary text-on-primary border-brand-primary'
                       : 'bg-white dark:bg-gray-900 border-gray-200 dark:border-gray-800 text-gray-600 dark:text-gray-300',
                   )}
                 >
                   <s.icon className="w-4 h-4" />
                   {s.label}
-                  {n > 0 && <span className={cx('text-xs rounded-full px-1.5', active ? 'bg-white/25' : 'bg-brand-primary text-white')}>{n}</span>}
+                  {n > 0 && <span className={cx('text-xs rounded-full px-1.5', active ? 'bg-white/25' : 'bg-brand-primary text-on-primary')}>{n}</span>}
                 </Link>
               );
             })}

@@ -160,7 +160,10 @@ function connectEvents() {
   // then catch up on anything missed while disconnected.
   events.onerror = () => {
     if (events?.readyState !== EventSource.CLOSED) return;
-    reconnectTimer = setTimeout(() => {
+    reconnectTimer = setTimeout(async () => {
+      if (!getState().user) return;
+      // The session may have ended meanwhile (logged out elsewhere, suspended); don't keep retrying with it.
+      await getState().refreshUser();
       if (!getState().user) return;
       connectEvents();
       getState().loadNotifications();

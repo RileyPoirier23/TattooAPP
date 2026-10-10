@@ -2,8 +2,9 @@
 import React, { useCallback, useEffect, useLayoutEffect, useRef, useState } from 'react';
 import { api, errorMessage } from '../../api';
 import { useStore } from '../../store';
-import { Button, ErrorBox, Modal, PageLoader, Spinner, cx, inputClass, Field } from '../../components/ui';
+import { Button, ErrorBox, Modal, PageLoader, Spinner, cx, inputClass, Field, useApi } from '../../components/ui';
 import { PhotoIcon, SearchIcon, TrashIcon, UploadIcon, XIcon } from '../../components/Icons';
+import { prepareImage } from '../../lib/images';
 
 // ---------- Actions ----------
 
@@ -68,29 +69,7 @@ export function useDebounced<T>(value: T, ms = 300): T {
   return v;
 }
 
-let unsavedChanges = false;
-
-/** True while an admin form has unsaved changes (checked by the admin navigation). */
-export const hasUnsavedChanges = () => unsavedChanges;
-
-/** Asks before leaving a form with unsaved changes. Returns true if it's OK to leave. */
-export const confirmLeave = () => !unsavedChanges || window.confirm('You have unsaved changes. Leave without saving them?');
-
-/** Warns before closing the tab (or leaving via the admin menu) while there are unsaved changes. */
-export function useUnsavedWarning(dirty: boolean) {
-  useEffect(() => {
-    if (!dirty) return;
-    unsavedChanges = true;
-    const onBeforeUnload = (e: BeforeUnloadEvent) => {
-      e.preventDefault();
-    };
-    window.addEventListener('beforeunload', onBeforeUnload);
-    return () => {
-      unsavedChanges = false;
-      window.removeEventListener('beforeunload', onBeforeUnload);
-    };
-  }, [dirty]);
-}
+export { confirmLeave, hasUnsavedChanges, useUnsavedWarning } from '../../lib/unsaved';
 
 const COUNTS_EVENT = 'inkspace:admin-counts';
 
@@ -115,7 +94,7 @@ export const LinkButton: React.FC<React.AnchorHTMLAttributes<HTMLAnchorElement> 
     className={cx(
       'inline-flex items-center justify-center gap-2 text-sm font-semibold px-4 py-2.5 rounded-lg transition focus:outline-none focus-visible:ring-2 focus-visible:ring-brand-primary',
       primary
-        ? 'bg-brand-primary text-white hover:brightness-110 shadow-sm shadow-brand-primary/20'
+        ? 'bg-brand-primary text-on-primary hover:brightness-110 shadow-sm shadow-brand-primary/20'
         : 'border border-gray-300 dark:border-gray-700 text-brand-dark dark:text-white hover:bg-gray-100 dark:hover:bg-gray-800',
       className,
     )}
@@ -285,7 +264,7 @@ export const FilterPills: React.FC<{
         className={cx(
           'px-3 py-1.5 rounded-full text-sm font-semibold whitespace-nowrap border transition-colors',
           value === o.id
-            ? 'bg-brand-primary text-white border-brand-primary'
+            ? 'bg-brand-primary text-on-primary border-brand-primary'
             : 'border-gray-300 dark:border-gray-700 text-gray-600 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-800',
         )}
       >
@@ -297,6 +276,63 @@ export const FilterPills: React.FC<{
     ))}
   </div>
 );
+
+// ---------- Paged lists ----------
+
+export interface Paged<T> {
+  items: T[];
+  total: number;
+  page: number;
+  pageSize: number;
+}
+
+/**
+ * Loads one page of an admin list. Changing any filter goes back to page 1.
+ * Empty filters are left out of the request.
+ */
+export function usePaged<R extends Paged<unknown>>(base: string, filters: Record<string, string>) {
+  const key = JSON.stringify(filters);
+  const [state, setState] = useState({ key, page: 1 });
+  const page = state.key === key ? state.page : 1;
+  const params = new URLSearchParams(Object.entries(filters).filter(([, v]) => v !== ''));
+  if (page > 1) params.set('page', String(page));
+  const qs = params.toString();
+  const api = useApi<R>(`${base}${qs ? `?${qs}` : ''}`);
+  const setPage = useCallback((p: number) => {
+    setState({ key, page: p });
+    window.scrollTo({ top: 0, behavior: 'smooth' });
+  }, [key]);
+  return { ...api, page, setPage };
+}
+
+/** "21–40 of 230" with previous/next buttons. */
+export const Pager: React.FC<{ page: number; pageSize: number; total: number; onPage: (page: number) => void; noun?: string }> = ({
+  page, pageSize, total, onPage, noun,
+}) => {
+  const pages = Math.max(1, Math.ceil(total / pageSize));
+  const from = total === 0 ? 0 : (page - 1) * pageSize + 1;
+  const to = Math.min(total, page * pageSize);
+  return (
+    <div className="flex items-center justify-between gap-3 px-4 py-3 text-xs text-brand-gray border-t border-gray-100 dark:border-gray-800">
+      <span>
+        {pages > 1 ? `${from}–${to} of ${total}` : total} {noun}
+      </span>
+      {pages > 1 && (
+        <span className="flex items-center gap-2">
+          <Button size="sm" variant="outline" disabled={page <= 1} onClick={() => onPage(page - 1)}>
+            Previous
+          </Button>
+          <span aria-live="polite">
+            Page {page} of {pages}
+          </span>
+          <Button size="sm" variant="outline" disabled={page >= pages} onClick={() => onPage(page + 1)}>
+            Next
+          </Button>
+        </span>
+      )}
+    </div>
+  );
+};
 
 /** Search box with filters next to it on wide screens (stacked on smaller ones). */
 export const Toolbar: React.FC<{ children: React.ReactNode }> = ({ children }) => (
@@ -362,9 +398,10 @@ export const ImageField: React.FC<{
   const input = useRef<HTMLInputElement>(null);
   const [uploading, setUploading] = useState(false);
 
-  const onFile = async (file: File | undefined) => {
-    if (!file) return;
-    if (!/^image\/(png|jpe?g|gif|webp)$/i.test(file.type)) return toast('Please choose a JPG, PNG, GIF or WebP image.', 'error');
+  const onFile = async (picked: File | undefined) => {
+    if (!picked) return;
+    if (!/^image\/(png|jpe?g|gif|webp)$/i.test(picked.type)) return toast('Please choose a JPG, PNG, GIF or WebP image.', 'error');
+    const file = await prepareImage(picked);
     if (file.size > MAX_UPLOAD_BYTES) return toast('That image is too large (max 8 MB).', 'error');
     setUploading(true);
     try {

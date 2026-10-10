@@ -15,7 +15,7 @@ export const ShopCard: React.FC<{ shop: Shop }> = ({ shop }) => {
       <div className="relative">
         <Cover url={shop.imageUrl} alt={shop.name} className="w-full h-48" />
         {shop.isVerified && (
-          <Badge className="absolute top-2 right-2 bg-brand-secondary text-white"><CheckBadgeIcon className="w-3.5 h-3.5" />Verified</Badge>
+          <Badge className="absolute top-2 right-2 bg-brand-secondary text-on-secondary"><CheckBadgeIcon className="w-3.5 h-3.5" />Verified</Badge>
         )}
       </div>
       <div className="p-4">

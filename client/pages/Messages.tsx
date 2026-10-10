@@ -1,6 +1,7 @@
 // Direct messages: conversation list + live chat thread with photo attachments.
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { api, errorMessage } from '../api';
+import { prepareImage } from '../lib/images';
 import { Link, navigate } from '../router';
 import { useStore } from '../store';
 import { formatDateTime, ROLE_LABELS, timeAgo } from '../lib/format';
@@ -69,7 +70,7 @@ const Thread: React.FC<{ convo: Conversation; onSent: () => void }> = ({ convo, 
           const mine = m.senderId === me.id;
           return (
             <div key={m.id} className={cx('flex', mine ? 'justify-end' : 'justify-start')}>
-              <div className={cx('max-w-[80%] rounded-2xl px-3.5 py-2.5', mine ? 'bg-brand-primary text-white rounded-br-md' : 'bg-gray-100 dark:bg-gray-800 rounded-bl-md')}>
+              <div className={cx('max-w-[80%] rounded-2xl px-3.5 py-2.5', mine ? 'bg-brand-primary text-on-primary rounded-br-md' : 'bg-gray-100 dark:bg-gray-800 rounded-bl-md')}>
                 {m.attachmentUrl && (
                   <a href={m.attachmentUrl} target="_blank" rel="noopener noreferrer">
                     <img src={m.attachmentUrl} alt="Attachment" className="rounded-lg mb-1.5 max-h-64 max-w-full" />
@@ -93,7 +94,16 @@ const Thread: React.FC<{ convo: Conversation; onSent: () => void }> = ({ convo, 
         <div className="flex items-end gap-2">
           <label className="p-2.5 rounded-lg text-brand-gray hover:text-brand-primary hover:bg-gray-100 dark:hover:bg-gray-800 cursor-pointer" aria-label="Attach photo">
             <PaperClipIcon className="w-6 h-6" />
-            <input type="file" accept="image/*" className="sr-only" onChange={e => { setFile(e.target.files?.[0] || null); e.target.value = ''; }} />
+            <input
+              type="file"
+              accept="image/jpeg,image/png,image/webp,image/gif"
+              className="sr-only"
+              onChange={async e => {
+                const picked = e.target.files?.[0];
+                e.target.value = '';
+                if (picked) setFile(await prepareImage(picked));
+              }}
+            />
           </label>
           <textarea
             value={text}

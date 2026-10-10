@@ -2,11 +2,15 @@
 import React, { useCallback, useState } from 'react';
 import { api } from '../../api';
 import { useStore } from '../../store';
-import { Badge, Button, Card, EmptyState, Input, Notice, PageHeader, StatusBadge, useApi } from '../../components/ui';
+import { Badge, Button, Card, EmptyState, Input, Notice, PageHeader, StatusBadge } from '../../components/ui';
 import { CreditCardIcon, DocumentIcon } from '../../components/Icons';
 import { formatDate, formatDateTime, money } from '../../lib/format';
 import { PAYMENT_KIND_LABELS, type AdminPayment, type PaymentKind } from './types';
-import { AsyncView, DataTable, Dialog, FilterPills, Muted, SearchInput, Td, useRunner } from './shared';
+import { AsyncView, DataTable, Dialog, FilterPills, Muted, Pager, SearchInput, Td, useDebounced, usePaged, useRunner, type Paged } from './shared';
+
+interface PaymentsPage extends Paged<AdminPayment> {
+  totals: { grossCents: number; feesCents: number; payeeCents: number; refundedCents: number; completedCount: number; refundedCount: number };
+}
 
 const KIND_TONES: Record<PaymentKind, 'brand' | 'blue' | 'purple'> = { deposit: 'brand', booth: 'blue', subscription: 'purple' };
 
@@ -79,38 +83,31 @@ const RefundModal: React.FC<{ payment: AdminPayment; onClose: () => void; onRefu
 };
 
 export const PaymentsSection: React.FC = () => {
-  const state = useApi<AdminPayment[]>('/admin/payments');
   const [kind, setKind] = useState('all');
   const [status, setStatus] = useState('all');
   const [q, setQ] = useState('');
+  const dq = useDebounced(q.trim(), 300);
+  const state = usePaged<PaymentsPage>('/admin/payments', { kind: kind === 'all' ? '' : kind, status: status === 'all' ? '' : status, q: dq });
+  const sandbox = useStore(s => s.config?.settings.squareEnvironment) !== 'production';
+  const filtered = kind !== 'all' || status !== 'all' || !!dq;
   const [refunding, setRefunding] = useState<AdminPayment | null>(null);
   const closeRefund = useCallback(() => setRefunding(null), []);
 
   return (
     <>
       <PageHeader title="Payments" subtitle="Every card payment taken through your Square account." />
-      {useStore.getState().config?.settings.squareEnvironment !== 'production' && (
+      {sandbox && (
         <Notice tone="warning" className="mb-6">
           Square is in <strong>Sandbox (test) mode</strong>, so this page shows test payments only. When you switch to Production in Settings, test payments are hidden and only real money is counted.
         </Notice>
       )}
       <AsyncView state={state}>
-        {payments => {
-          const needle = q.trim().toLowerCase();
-          const visible = payments.filter(
-            p =>
-              (kind === 'all' || p.kind === kind) &&
-              (status === 'all' || p.status === status) &&
-              (!needle || [p.description, p.payerName, p.payerEmail, p.payeeName].some(v => v?.toLowerCase().includes(needle))),
-          );
-          const completed = visible.filter(p => p.status === 'completed');
-          const refunded = visible.filter(p => p.status === 'refunded');
-          const sum = (list: AdminPayment[], f: (p: AdminPayment) => number) => list.reduce((s, p) => s + f(p), 0);
+        {({ items: visible, total, pageSize, totals: t }) => {
           const totals = [
-            { label: 'Collected', value: money(sum(completed, p => p.amountCents)), hint: `${completed.length} payment${completed.length === 1 ? '' : 's'}` },
-            { label: 'Your fees', value: money(sum(completed, p => p.feeCents)), hint: 'Booking fees, booth commission & Pro plans', highlight: true },
-            { label: 'Artists’ & shops’ share', value: money(sum(completed, p => p.payeeAmountCents)), hint: 'See Payouts for what is still owed' },
-            { label: 'Refunded', value: money(sum(refunded, p => p.amountCents)), hint: `${refunded.length} refund${refunded.length === 1 ? '' : 's'}` },
+            { label: 'Collected', value: money(t.grossCents), hint: `${t.completedCount} payment${t.completedCount === 1 ? '' : 's'}` },
+            { label: 'Your fees', value: money(t.feesCents), hint: 'Booking fees, booth commission & Pro plans', highlight: true },
+            { label: 'Artists’ & shops’ share', value: money(t.payeeCents), hint: 'See Payouts for what is still owed' },
+            { label: 'Refunded', value: money(t.refundedCents), hint: `${t.refundedCount} refund${t.refundedCount === 1 ? '' : 's'}` },
           ];
 
           return (
@@ -133,7 +130,7 @@ export const PaymentsSection: React.FC = () => {
               </div>
 
               <div className="space-y-3 mb-4">
-                <SearchInput value={q} onChange={setQ} placeholder="Search description, payer or payee" className="sm:max-w-md" />
+                <SearchInput value={q} onChange={setQ} placeholder="Search description, payer, payee or Square ID" loading={dq !== q.trim()} className="sm:max-w-md" />
                 <div className="flex flex-col md:flex-row md:items-center gap-3 md:gap-6">
                   <FilterPills value={kind} onChange={setKind} options={KIND_FILTERS} />
                   <FilterPills
@@ -150,8 +147,8 @@ export const PaymentsSection: React.FC = () => {
 
               {visible.length === 0 ? (
                 <Card>
-                  <EmptyState icon={<CreditCardIcon className="w-12 h-12" />} title={payments.length ? 'No matches' : 'No payments yet'}>
-                    {payments.length
+                  <EmptyState icon={<CreditCardIcon className="w-12 h-12" />} title={filtered ? 'No matches' : 'No payments yet'}>
+                    {filtered
                       ? 'Try a different search or filter.'
                       : 'When clients pay deposits, artists rent booths or subscribe to Pro, the payments show up here.'}
                   </EmptyState>
@@ -213,7 +210,7 @@ export const PaymentsSection: React.FC = () => {
                       </tr>
                     ))}
                   </DataTable>
-                  {payments.length >= 1000 && <p className="px-4 py-3 text-xs text-brand-gray border-t border-gray-100 dark:border-gray-800">Showing the 1,000 most recent payments.</p>}
+                  <Pager page={state.page} pageSize={pageSize} total={total} onPage={state.setPage} noun={total === 1 ? 'payment' : 'payments'} />
                 </Card>
               )}
             </>

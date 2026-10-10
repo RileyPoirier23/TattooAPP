@@ -46,10 +46,12 @@ publicRouter.get('/artists', (_req, res) => {
   const rows = getDb()
     .prepare(
       // Artists appear in search once they've added at least one portfolio photo (their profile link works before that).
+      // Pro artists are listed first, then verified ones.
       `select * from users where role in ('artist','dual') and status = 'active' and json_array_length(portfolio) > 0
-       order by is_verified desc, average_rating desc, review_count desc, created_at desc`,
+       order by (subscription_tier = 'pro' and (pro_until is null or pro_until > @now)) desc,
+         is_verified desc, average_rating desc, review_count desc, created_at desc`,
     )
-    .all() as UserRow[];
+    .all({ now: new Date().toISOString() }) as UserRow[];
   const spots = guestSpotsByArtist();
   res.json(rows.map(u => toPublicArtist(u, spots)));
 });

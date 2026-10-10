@@ -3,12 +3,12 @@ import React, { useCallback, useMemo, useState } from 'react';
 import { api } from '../../api';
 import { useLocation } from '../../router';
 import { useStore } from '../../store';
-import { Avatar, Badge, Button, Card, EmptyState, Input, PageHeader, Select, StatusBadge, Toggle, useApi } from '../../components/ui';
+import { Avatar, Badge, Button, Card, EmptyState, Input, PageHeader, Select, StatusBadge, Toggle } from '../../components/ui';
 import { CheckBadgeIcon, EditIcon, LinkIcon, LockIcon, TrashIcon, UsersIcon } from '../../components/Icons';
 import { ROLE_LABELS, formatDate, toDateStr } from '../../lib/format';
 import type { Role } from '../../../shared/types';
 import { PAYOUT_TYPE_LABELS, type AdminUser } from './types';
-import { AsyncView, ConfirmModal, DataTable, Dialog, Muted, SearchInput, Td, Toolbar, copyText, useDebounced, useRunner } from './shared';
+import { AsyncView, ConfirmModal, DataTable, Dialog, Muted, Pager, SearchInput, Td, Toolbar, copyText, useDebounced, usePaged, useRunner, type Paged } from './shared';
 
 const ROLE_TONES: Record<Role, 'gray' | 'brand' | 'purple' | 'blue' | 'red'> = {
   client: 'gray',
@@ -239,7 +239,7 @@ export const UsersSection: React.FC = () => {
   const [q, setQ] = useState(() => query.get('q') ?? '');
   const [role, setRole] = useState('');
   const dq = useDebounced(q.trim(), 300);
-  const state = useApi<AdminUser[]>(`/admin/users?q=${encodeURIComponent(dq)}&role=${encodeURIComponent(role)}`);
+  const state = usePaged<Paged<AdminUser>>('/admin/users', { q: dq, role });
   const [editing, setEditing] = useState<AdminUser | null>(null);
   const [deleting, setDeleting] = useState<AdminUser | null>(null);
   const { run } = useRunner();
@@ -247,7 +247,7 @@ export const UsersSection: React.FC = () => {
   const closeEdit = useCallback(() => setEditing(null), []);
   const closeDelete = useCallback(() => setDeleting(null), []);
   const onSaved = useCallback(
-    (u: AdminUser) => state.setData(list => (list ?? []).map(x => (x.id === u.id ? u : x))),
+    (u: AdminUser) => state.setData(d => d && { ...d, items: d.items.map(x => (x.id === u.id ? u : x)) }),
     // eslint-disable-next-line react-hooks/exhaustive-deps
     [state.setData],
   );
@@ -257,7 +257,7 @@ export const UsersSection: React.FC = () => {
       'delete',
       async () => {
         await api.del(`/admin/users/${u.id}`);
-        state.setData(list => (list ?? []).filter(x => x.id !== u.id));
+        state.setData(d => d && { ...d, items: d.items.filter(x => x.id !== u.id), total: d.total - 1 });
       },
       `${u.name}'s account was deleted.`,
     );
@@ -277,7 +277,7 @@ export const UsersSection: React.FC = () => {
         </Select>
       </Toolbar>
       <AsyncView state={state}>
-        {users =>
+        {({ items: users, total, pageSize }) =>
           users.length === 0 ? (
             <Card>
               <EmptyState icon={<UsersIcon className="w-12 h-12" />} title={dq || role ? 'No matches' : 'No users yet'}>
@@ -321,9 +321,7 @@ export const UsersSection: React.FC = () => {
                   </tr>
                 ))}
               </DataTable>
-              <p className="px-4 py-3 text-xs text-brand-gray border-t border-gray-100 dark:border-gray-800">
-                {users.length === 500 ? 'Showing the 500 newest matches. Search to narrow it down.' : `${users.length} ${users.length === 1 ? 'person' : 'people'}`}
-              </p>
+              <Pager page={state.page} pageSize={pageSize} total={total} onPage={state.setPage} noun={total === 1 ? 'person' : 'people'} />
             </Card>
           )
         }

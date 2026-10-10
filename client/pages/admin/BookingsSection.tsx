@@ -1,11 +1,14 @@
 // Admin → Bookings: client booking requests and booth rentals.
 import React, { useCallback, useState } from 'react';
 import { api } from '../../api';
-import { Badge, Button, Card, EmptyState, PageHeader, StarRating, StatusBadge, Tabs, cx, inputClass, useApi } from '../../components/ui';
+import { Badge, Button, Card, EmptyState, PageHeader, StarRating, StatusBadge, Tabs, cx, inputClass } from '../../components/ui';
 import { CalendarIcon, EyeIcon, StoreIcon } from '../../components/Icons';
+import { RescheduleModal, formatTime } from '../../components/BookingCards';
 import { PREFERRED_TIMES, dollars, formatDate, formatDateTime, money, timeAgo } from '../../lib/format';
 import type { BookingRequest, BookingStatus, BoothBooking } from '../../../shared/types';
-import { AsyncView, ConfirmModal, DataTable, Dialog, FilterPills, Muted, SearchInput, Td, useRunner } from './shared';
+import { AsyncView, ConfirmModal, DataTable, Dialog, FilterPills, Muted, Pager, SearchInput, Td, useDebounced, usePaged, useRunner, type Paged } from './shared';
+
+type WithCounts<T> = Paged<T> & { counts: Record<string, number> };
 
 const BOOKING_STATUSES: { id: BookingStatus; label: string }[] = [
   { id: 'pending', label: 'Pending' },
@@ -25,8 +28,22 @@ const Detail: React.FC<{ label: string; children: React.ReactNode }> = ({ label,
   </div>
 );
 
-const RequestDetails: React.FC<{ r: BookingRequest; onClose: () => void }> = ({ r, onClose }) => (
-  <Dialog title="Booking request" size="lg" onClose={onClose}>
+const RequestDetails: React.FC<{ r: BookingRequest; onClose: () => void; onReschedule: () => void }> = ({ r, onClose, onReschedule }) => (
+  <Dialog
+    title="Booking request"
+    size="lg"
+    onClose={onClose}
+    footer={
+      <>
+        {(r.status === 'pending' || r.status === 'approved') && (
+          <Button variant="outline" onClick={onReschedule}>
+            <CalendarIcon className="w-4 h-4" /> Change date or time
+          </Button>
+        )}
+        <Button onClick={onClose}>Close</Button>
+      </>
+    }
+  >
     <dl className="grid gap-4 sm:grid-cols-2">
       <Detail label="Client">
         {r.clientName} {r.isGuest && <Badge>Guest</Badge>}
@@ -46,8 +63,8 @@ const RequestDetails: React.FC<{ r: BookingRequest; onClose: () => void }> = ({ 
           {r.artistName}
         </a>
       </Detail>
-      <Detail label="Requested date">
-        {formatDate(r.date)} · {PREFERRED_TIMES[r.preferredTime] ?? r.preferredTime}
+      <Detail label={r.appointmentTime ? 'Appointment' : 'Requested date'}>
+        {formatDate(r.date)} · {r.appointmentTime ? formatTime(r.appointmentTime) : PREFERRED_TIMES[r.preferredTime] ?? r.preferredTime}
       </Detail>
       <Detail label="Service">
         {r.serviceName || 'Not specified'}
@@ -107,41 +124,41 @@ const RequestDetails: React.FC<{ r: BookingRequest; onClose: () => void }> = ({ 
 const RequestsTab: React.FC = () => {
   const [status, setStatus] = useState('');
   const [q, setQ] = useState('');
-  const state = useApi<BookingRequest[]>(`/admin/booking-requests?status=${encodeURIComponent(status)}`);
+  const dq = useDebounced(q.trim(), 300);
+  const state = usePaged<WithCounts<BookingRequest>>('/admin/booking-requests', { status, q: dq });
   const [viewing, setViewing] = useState<BookingRequest | null>(null);
+  const [rescheduling, setRescheduling] = useState<BookingRequest | null>(null);
   const { run, busy } = useRunner();
   const closeView = useCallback(() => setViewing(null), []);
+  const counts = state.data?.counts ?? {};
 
   const changeStatus = (r: BookingRequest, next: BookingStatus) =>
     run(
       `status:${r.id}`,
       async () => {
         await api.post(`/admin/booking-requests/${r.id}/status`, { status: next });
-        state.setData(list => {
-          const updated = (list ?? []).map(x => (x.id === r.id ? { ...x, status: next } : x));
-          return status ? updated.filter(x => x.status === status) : updated;
-        });
+        await state.reload();
       },
-      `Status changed to ${BOOKING_STATUSES.find(s => s.id === next)?.label ?? next}.`,
+      `Status changed to ${BOOKING_STATUSES.find(s => s.id === next)?.label ?? next}. The client and artist were notified.`,
     );
 
   return (
     <>
       <div className="space-y-3 mb-4">
-        <SearchInput value={q} onChange={setQ} placeholder="Search client, artist or email" className="sm:max-w-md" />
-        <FilterPills value={status} onChange={setStatus} options={[{ id: '', label: 'All' }, ...BOOKING_STATUSES]} />
+        <SearchInput value={q} onChange={setQ} placeholder="Search client, artist or email" loading={dq !== q.trim()} className="sm:max-w-md" />
+        <FilterPills
+          value={status}
+          onChange={setStatus}
+          options={[{ id: '', label: 'All' }, ...BOOKING_STATUSES.map(s => ({ ...s, count: s.id === 'pending' ? counts.pending : undefined }))]}
+        />
       </div>
       <AsyncView state={state}>
-        {list => {
-          const needle = q.trim().toLowerCase();
-          const visible = needle
-            ? list.filter(r => [r.clientName, r.artistName, r.guestEmail, r.guestPhone, r.serviceName].some(v => v?.toLowerCase().includes(needle)))
-            : list;
-          if (visible.length === 0) {
+        {({ items: list, total, pageSize }) => {
+          if (list.length === 0) {
             return (
               <Card>
-                <EmptyState icon={<CalendarIcon className="w-12 h-12" />} title={list.length ? 'No matches' : 'No booking requests'}>
-                  {list.length ? 'Try a different search.' : status ? 'Nothing with this status right now.' : 'Requests from clients to artists will appear here.'}
+                <EmptyState icon={<CalendarIcon className="w-12 h-12" />} title={dq ? 'No matches' : 'No booking requests'}>
+                  {dq ? 'Try a different search.' : status ? 'Nothing with this status right now.' : 'Requests from clients to artists will appear here.'}
                 </EmptyState>
               </Card>
             );
@@ -149,7 +166,7 @@ const RequestsTab: React.FC = () => {
           return (
             <Card padded={false} className="overflow-hidden">
               <DataTable columns={['Client', 'Artist', 'Appointment', 'Service', 'Deposit', 'Status', '']}>
-                {visible.map(r => (
+                {list.map(r => (
                   <tr key={r.id} className="hover:bg-gray-50 dark:hover:bg-gray-800/30">
                     <Td className="min-w-[11rem]">
                       <span className="font-semibold flex flex-wrap items-center gap-1.5">
@@ -163,7 +180,7 @@ const RequestsTab: React.FC = () => {
                     <Td className="min-w-[8rem]">{r.artistName}</Td>
                     <Td className="whitespace-nowrap">
                       {shortDate(r.date)}
-                      <Muted>{PREFERRED_TIMES[r.preferredTime] ?? r.preferredTime}</Muted>
+                      <Muted>{r.appointmentTime ? formatTime(r.appointmentTime) : PREFERRED_TIMES[r.preferredTime] ?? r.preferredTime}</Muted>
                     </Td>
                     <Td className="min-w-[8rem]">
                       {r.serviceName || <span className="text-brand-gray">Not specified</span>}
@@ -198,6 +215,7 @@ const RequestsTab: React.FC = () => {
                   </tr>
                 ))}
               </DataTable>
+              <Pager page={state.page} pageSize={pageSize} total={total} onPage={state.setPage} noun={total === 1 ? 'request' : 'requests'} />
             </Card>
           );
         }}
@@ -205,7 +223,26 @@ const RequestsTab: React.FC = () => {
       <p className="mt-3 text-xs text-brand-gray">
         Changing a status here doesn&apos;t move money. To give a deposit back, refund it from the Payments page.
       </p>
-      {viewing && <RequestDetails r={viewing} onClose={closeView} />}
+      {viewing && (
+        <RequestDetails
+          r={viewing}
+          onClose={closeView}
+          onReschedule={() => {
+            setRescheduling(viewing);
+            setViewing(null);
+          }}
+        />
+      )}
+      {rescheduling && (
+        <RescheduleModal
+          r={rescheduling}
+          onClose={() => setRescheduling(null)}
+          onDone={() => {
+            setRescheduling(null);
+            void state.reload();
+          }}
+        />
+      )}
     </>
   );
 };
@@ -219,8 +256,10 @@ const BOOTH_FILTERS = [
 ];
 
 const BoothsTab: React.FC = () => {
-  const state = useApi<BoothBooking[]>('/admin/booth-bookings');
   const [filter, setFilter] = useState('all');
+  const [q, setQ] = useState('');
+  const dq = useDebounced(q.trim(), 300);
+  const state = usePaged<WithCounts<BoothBooking>>('/admin/booth-bookings', { status: filter === 'all' ? '' : filter, q: dq });
   const [cancelling, setCancelling] = useState<BoothBooking | null>(null);
   const { run } = useRunner();
   const closeCancel = useCallback(() => setCancelling(null), []);
@@ -230,22 +269,24 @@ const BoothsTab: React.FC = () => {
       'cancel',
       async () => {
         await api.post(`/admin/booth-bookings/${b.id}/cancel`);
-        state.setData(list => (list ?? []).map(x => (x.id === b.id ? { ...x, status: 'cancelled' } : x)));
+        await state.reload();
       },
       'Reservation cancelled. The booth is free again.',
     );
 
   return (
     <>
-      <FilterPills className="mb-4" value={filter} onChange={setFilter} options={BOOTH_FILTERS} />
+      <div className="space-y-3 mb-4">
+        <SearchInput value={q} onChange={setQ} placeholder="Search artist, shop or city" loading={dq !== q.trim()} className="sm:max-w-md" />
+        <FilterPills value={filter} onChange={setFilter} options={BOOTH_FILTERS} />
+      </div>
       <AsyncView state={state}>
-        {list => {
-          const visible = filter === 'all' ? list : list.filter(b => b.status === filter);
+        {({ items: visible, total, pageSize }) => {
           if (visible.length === 0) {
             return (
               <Card>
-                <EmptyState icon={<StoreIcon className="w-12 h-12" />} title="No booth rentals">
-                  {list.length ? 'Nothing with this status.' : 'When artists book guest spots at shops, they appear here.'}
+                <EmptyState icon={<StoreIcon className="w-12 h-12" />} title={dq ? 'No matches' : 'No booth rentals'}>
+                  {dq ? 'Try a different search.' : filter !== 'all' ? 'Nothing with this status.' : 'When artists book guest spots at shops, they appear here.'}
                 </EmptyState>
               </Card>
             );
@@ -293,6 +334,7 @@ const BoothsTab: React.FC = () => {
                   </tr>
                 ))}
               </DataTable>
+              <Pager page={state.page} pageSize={pageSize} total={total} onPage={state.setPage} noun={total === 1 ? 'rental' : 'rentals'} />
             </Card>
           );
         }}

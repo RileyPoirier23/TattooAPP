@@ -46,7 +46,7 @@ const Notifications: React.FC = () => {
       >
         <BellIcon className="w-6 h-6" />
         {unread > 0 && (
-          <span className="absolute top-1 right-1 min-w-[18px] h-[18px] px-1 rounded-full bg-brand-primary text-white text-[10px] font-bold flex items-center justify-center">
+          <span className="absolute top-1 right-1 min-w-[18px] h-[18px] px-1 rounded-full bg-brand-primary text-on-primary text-[10px] font-bold flex items-center justify-center">
             {unread > 9 ? '9+' : unread}
           </span>
         )}
@@ -136,7 +136,7 @@ export const Header: React.FC = () => {
   return (
     <header className="sticky top-0 z-50 bg-brand-light/85 dark:bg-brand-dark/85 backdrop-blur border-b border-gray-200 dark:border-gray-800">
       {s.announcementEnabled && s.announcementText && (
-        <div className="bg-gradient-to-r from-brand-primary to-brand-secondary text-white text-center text-sm font-medium px-4 py-2">{s.announcementText}</div>
+        <div className="bg-gradient-to-r from-brand-primary to-brand-secondary text-on-gradient text-center text-sm font-medium px-4 py-2">{s.announcementText}</div>
       )}
       <div className="container mx-auto px-4 h-16 flex items-center justify-between gap-4">
         <Link to="/" className="flex items-center gap-2.5 min-w-0" aria-label={`${s.siteName} home`}>

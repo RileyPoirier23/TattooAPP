@@ -1,9 +1,70 @@
 // Admin → Backup: download a copy of the database and explain how backups work.
 import React from 'react';
+import { api } from '../../api';
 import { useStore } from '../../store';
-import { Card, Notice, PageHeader } from '../../components/ui';
-import { DownloadIcon, LockIcon, PhotoIcon } from '../../components/Icons';
-import { LinkButton } from './shared';
+import { Button, Card, Notice, PageHeader, useApi } from '../../components/ui';
+import { ClockIcon, DownloadIcon, LockIcon, PhotoIcon } from '../../components/Icons';
+import { formatDateTime } from '../../lib/format';
+import { AsyncView, LinkButton, useRunner } from './shared';
+
+interface AutoBackup {
+  name: string;
+  size: number;
+  createdAt: string;
+}
+
+const fileSize = (bytes: number) => (bytes >= 1024 * 1024 ? `${(bytes / 1024 / 1024).toFixed(1)} MB` : `${Math.max(1, Math.round(bytes / 1024))} KB`);
+
+/** The nightly copies the server keeps by itself (the newest seven). */
+const AutomaticBackups: React.FC = () => {
+  const state = useApi<AutoBackup[]>('/admin/backups');
+  const { run, busy } = useRunner();
+  const backupNow = () =>
+    run(
+      'now',
+      async () => {
+        state.setData(await api.post<AutoBackup[]>('/admin/backups'));
+      },
+      'Backup saved on the server.',
+    );
+  return (
+    <Card>
+      <div className="flex flex-wrap items-start justify-between gap-3 mb-3">
+        <div>
+          <h2 className="text-lg font-bold text-brand-dark dark:text-white flex items-center gap-2">
+            <ClockIcon className="w-5 h-5 text-brand-primary" /> Automatic backups
+          </h2>
+          <p className="text-sm text-brand-gray mt-0.5">
+            The site saves a copy of its database every night and keeps the last 7. They&apos;re stored on the same server, so also download one now and then and keep it somewhere else.
+          </p>
+        </div>
+        <Button variant="outline" size="sm" onClick={backupNow} loading={busy('now')}>
+          Back up now
+        </Button>
+      </div>
+      <AsyncView state={state}>
+        {list =>
+          list.length === 0 ? (
+            <p className="text-sm text-brand-gray">No automatic backups yet. The first one is made within an hour of the site starting.</p>
+          ) : (
+            <ul className="divide-y divide-gray-100 dark:divide-gray-800 text-sm">
+              {list.map(b => (
+                <li key={b.name} className="flex items-center justify-between gap-3 py-2">
+                  <span>
+                    {formatDateTime(b.createdAt)} <span className="text-brand-gray">· {fileSize(b.size)}</span>
+                  </span>
+                  <a href={`/api/admin/backups/${encodeURIComponent(b.name)}`} download className="inline-flex items-center gap-1 font-semibold text-brand-primary hover:underline">
+                    <DownloadIcon className="w-4 h-4" /> Download
+                  </a>
+                </li>
+              ))}
+            </ul>
+          )
+        }
+      </AsyncView>
+    </Card>
+  );
+};
 
 const Step: React.FC<{ n: number; children: React.ReactNode }> = ({ n, children }) => (
   <li className="flex gap-3">
@@ -34,6 +95,8 @@ export const BackupSection: React.FC = () => {
             </LinkButton>
           </div>
         </Card>
+
+        <AutomaticBackups />
 
         <Card>
           <h2 className="text-lg font-bold text-brand-dark dark:text-white mb-3">Good habits</h2>

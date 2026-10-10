@@ -1,6 +1,7 @@
 // Three-step booking request: service & date → tattoo details → contact & send.
 import React, { useMemo, useState } from 'react';
 import { api, errorMessage } from '../api';
+import { prepareImages } from '../lib/images';
 import { useStore } from '../store';
 import { navigate } from '../router';
 import { dollars, formatDate, parseDate, PREFERRED_TIMES } from '../lib/format';
@@ -30,6 +31,7 @@ export const BookingRequestModal: React.FC<{ artist: ArtistDetail; onClose: () =
   const [guestName, setGuestName] = useState('');
   const [guestEmail, setGuestEmail] = useState('');
   const [guestPhone, setGuestPhone] = useState('');
+  const [website, setWebsite] = useState(''); // spam trap: hidden from people
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState('');
   const [done, setDone] = useState<{ request: BookingRequest; link: string } | null>(null);
@@ -67,7 +69,7 @@ export const BookingRequestModal: React.FC<{ artist: ArtistDetail; onClose: () =
           tattooHeight: height ? Number(height) : null,
           bodyPlacement: placement,
           budget: budget ? Number(budget) : null,
-          ...(user ? {} : { guestName, guestEmail, guestPhone }),
+          ...(user ? {} : { guestName, guestEmail, guestPhone, website }),
           acceptTerms: accepted,
         }),
       );
@@ -144,6 +146,7 @@ export const BookingRequestModal: React.FC<{ artist: ArtistDetail; onClose: () =
                   <button
                     key={s.id}
                     type="button"
+                    aria-pressed={serviceId === s.id}
                     onClick={() => setServiceId(s.id)}
                     className={cx('w-full text-left p-3 rounded-xl border transition', serviceId === s.id ? 'border-brand-primary bg-brand-primary/10' : 'border-gray-200 dark:border-gray-700 hover:border-gray-400')}
                   >
@@ -156,6 +159,7 @@ export const BookingRequestModal: React.FC<{ artist: ArtistDetail; onClose: () =
                 ))}
                 <button
                   type="button"
+                  aria-pressed={!serviceId}
                   onClick={() => setServiceId('')}
                   className={cx('w-full text-left p-3 rounded-xl border transition', !serviceId ? 'border-brand-primary bg-brand-primary/10' : 'border-gray-200 dark:border-gray-700 hover:border-gray-400')}
                 >
@@ -221,18 +225,19 @@ export const BookingRequestModal: React.FC<{ artist: ArtistDetail; onClose: () =
                       accept="image/jpeg,image/png,image/webp,image/gif"
                       multiple
                       className="sr-only"
-                      onChange={e => {
-                        const all = Array.from(e.target.files || []);
+                      onChange={async e => {
+                        const chosen = Array.from(e.target.files || []);
+                        e.target.value = '';
+                        const all = await prepareImages(chosen);
                         const picked = all.filter(f => f.size <= 8 * 1024 * 1024);
                         if (picked.length < all.length) toast(`${all.length - picked.length} photo${all.length - picked.length > 1 ? 's were' : ' was'} over 8 MB and skipped.`, 'error');
                         setFiles(f => [...f, ...picked].slice(0, 5));
-                        e.target.value = '';
                       }}
                     />
                   </label>
                 )}
               </div>
-              <p className="text-xs text-brand-gray mt-1">Up to 5 images, 8 MB each.</p>
+              <p className="text-xs text-brand-gray mt-1">Up to 5 images. Large photos are shrunk automatically.</p>
             </div>
           </div>
           {step2Error && <p className="md:col-span-2 text-sm text-amber-600 dark:text-amber-400">{step2Error}</p>}
@@ -257,6 +262,12 @@ export const BookingRequestModal: React.FC<{ artist: ArtistDetail; onClose: () =
                   hint={emailReady ? "We'll email you updates and a link to pay your deposit." : "You'll get a private link to check your request — save it, as email updates aren't available yet."}
                 />
                 <Input label="Phone (optional)" type="tel" value={guestPhone} onChange={e => setGuestPhone(e.target.value)} autoComplete="tel" />
+                <div className="hidden" aria-hidden="true">
+                  <label>
+                    Website
+                    <input type="text" tabIndex={-1} autoComplete="off" value={website} onChange={e => setWebsite(e.target.value)} />
+                  </label>
+                </div>
                 <p className="text-xs text-brand-gray">
                   Have an account? <button type="button" className="text-brand-primary font-semibold" onClick={() => useStore.getState().openAuth('login')}>Log in</button> to track all your bookings in one place.
                 </p>

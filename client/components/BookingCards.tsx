@@ -273,7 +273,7 @@ const ApproveModal: React.FC<{ r: BookingRequest; onClose: () => void; onDone: (
   );
 };
 
-const RescheduleModal: React.FC<{ r: BookingRequest; onClose: () => void; onDone: () => void }> = ({ r, onClose, onDone }) => {
+export const RescheduleModal: React.FC<{ r: BookingRequest; onClose: () => void; onDone: () => void }> = ({ r, onClose, onDone }) => {
   const toast = useStore(s => s.toast);
   const [date, setDate] = useState('');
   const [time, setTime] = useState(r.appointmentTime || SUGGESTED_START[r.preferredTime] || '');

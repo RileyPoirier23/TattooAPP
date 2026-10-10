@@ -7,6 +7,7 @@ import { ROLE_LABELS } from '../lib/format';
 import { PayoutMethodForm } from '../components/Earnings';
 import { ProPlanCard } from '../components/ProPlan';
 import { Badge, Button, Card, Input, Modal, PageHeader } from '../components/ui';
+import { DownloadIcon } from '../components/Icons';
 import type { Me } from '../../shared/types';
 
 export const SettingsPage: React.FC = () => {
@@ -99,13 +100,27 @@ export const SettingsPage: React.FC = () => {
       </Card>
 
       {(isArtist(me) || me.role === 'shop-owner') && <PayoutMethodForm me={me} />}
-      {isArtist(me) && features.proPlan && <ProPlanCard me={me} />}
+      {isArtist(me) && (features.proPlan || me.subscription.isPro || me.subscription.autoRenew) && <ProPlanCard me={me} />}
+
+      <Card>
+        <h2 className="text-lg font-bold mb-1">Your data</h2>
+        <p className="text-sm text-brand-gray mb-4">
+          Download a copy of everything we hold about you: your account, bookings, payments, messages and more (a JSON file).
+        </p>
+        <a
+          href="/api/me/export"
+          download
+          className="inline-flex items-center gap-2 text-sm font-semibold px-4 py-2.5 rounded-lg border border-gray-300 dark:border-gray-700 hover:bg-gray-100 dark:hover:bg-gray-800"
+        >
+          <DownloadIcon className="w-4 h-4" /> Download my data
+        </a>
+      </Card>
 
       {me.role !== 'admin' && (
         <Card className="border-red-500/30">
           <h2 className="text-lg font-bold mb-1">Delete account</h2>
           <p className="text-sm text-brand-gray mb-4">
-            Permanently deletes your account, profile, photos, messages and booking history.
+            Permanently deletes your account, profile, photos, messages and reviews.
             You can't delete your account while you have upcoming paid bookings or money still owed to you.
           </p>
           <Button variant="danger" onClick={() => setDeleting(true)}>Delete my account</Button>

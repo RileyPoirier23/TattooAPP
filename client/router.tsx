@@ -3,7 +3,6 @@ import React, { useSyncExternalStore } from 'react';
 
 const listeners = new Set<() => void>();
 const notify = () => listeners.forEach(l => l());
-window.addEventListener('popstate', notify);
 
 function subscribe(l: () => void) {
   listeners.add(l);
@@ -12,13 +11,34 @@ function subscribe(l: () => void) {
 
 const getLocation = () => window.location.pathname + window.location.search;
 
+let leaveGuard: (() => boolean) | null = null;
+let current = getLocation();
+
+/** Registers a check that runs before leaving the page, e.g. "Leave without saving?". Return false to stay. */
+export function setLeaveGuard(guard: (() => boolean) | null) {
+  leaveGuard = guard;
+}
+
 export function navigate(to: string, opts: { replace?: boolean } = {}) {
   if (to === getLocation()) return;
+  if (leaveGuard && !leaveGuard()) return;
   if (opts.replace) window.history.replaceState({}, '', to);
   else window.history.pushState({}, '', to);
+  current = getLocation();
   if (!opts.replace) window.scrollTo(0, 0);
   notify();
 }
+
+// Back/forward buttons: the address has already changed, so put it back if the visitor decides to stay.
+window.addEventListener('popstate', () => {
+  const next = getLocation();
+  if (next !== current && leaveGuard && !leaveGuard()) {
+    window.history.pushState({}, '', current);
+    return;
+  }
+  current = next;
+  notify();
+});
 
 export function useLocation() {
   const loc = useSyncExternalStore(subscribe, getLocation);

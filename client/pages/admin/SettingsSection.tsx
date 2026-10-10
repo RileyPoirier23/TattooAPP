@@ -21,7 +21,12 @@ const FEATURES: { key: keyof SiteFeatures; label: string; description: string }[
   { key: 'guestBooking', label: 'Book without an account', description: 'People can request a booking as a guest. They get a private link by email to check the request and pay.' },
   { key: 'boothRental', label: 'Booth rentals (guest spots)', description: 'Shops can list booths and travelling artists can rent them by the day.' },
   { key: 'messaging', label: 'Messaging', description: 'Members can send each other private messages.' },
-  { key: 'proPlan', label: 'Pro plan', description: 'Artists can subscribe monthly. Their clients don’t pay the booking fee and they get a Pro badge.' },
+  {
+    key: 'proPlan',
+    label: 'Pro plan',
+    description:
+      'Artists can subscribe monthly: their clients don’t pay the booking fee, they get a Pro badge and they’re listed first in search. Turning it off stops new sign-ups; current subscribers keep their plan until they cancel.',
+  },
   { key: 'reviews', label: 'Reviews', description: 'Clients can rate artists after an appointment, and artists can review shops they rented from.' },
   { key: 'unclaimedShops', label: 'Unclaimed shop listings', description: 'Show nearby tattoo shops from Google Maps that haven’t joined yet, so artists can find them. Needs a Google Maps key.' },
 ];
@@ -279,7 +284,7 @@ export const SettingsSection: React.FC = () => {
     ? null
     : numberProblem(draft.depositFeePercent, 0, 50) ||
         numberProblem(draft.boothFeePercent, 0, 50) ||
-        numberProblem(draft.proMonthlyPrice, 0, 10000) ||
+        numberProblem(draft.proMonthlyPrice, 1, 10000) ||
         numberProblem(draft.defaultDeposit, 0, 100000) ||
         numberProblem(draft.boothHoldHours, 1, 720, true)
       ? 'Check the highlighted numbers.'
@@ -395,11 +400,11 @@ export const SettingsSection: React.FC = () => {
                   <NumberField
                     label="Pro plan price (per month)"
                     suffix={draft.currency}
-                    min={0}
+                    min={1}
                     max={10000}
                     value={draft.proMonthlyPrice}
                     onChange={v => set('proMonthlyPrice', v)}
-                    hint="What artists pay each month for Pro."
+                    hint="What artists pay each month for Pro. If you change it, current subscribers are emailed when you save and pay the new price from their next renewal."
                   />
                   <NumberField
                     label="Default deposit"

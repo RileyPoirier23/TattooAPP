@@ -93,7 +93,11 @@ export const AuthModal: React.FC = () => {
         )}
         {view === 'forgot' && !config?.emailReady && (
           <Notice tone="warning">
-            Password reset emails aren't set up on this site yet. Please contact {config?.settings.contactEmail || 'the site owner'} to reset your password.
+            Password reset emails aren&apos;t set up on this site yet.{' '}
+            <Link to="/contact" onClick={() => useStore.getState().closeAuth()} className="font-semibold underline">
+              Contact us
+            </Link>{' '}
+            and we&apos;ll help you get back into your account.
           </Notice>
         )}
         {view === 'forgot' && sent ? (

@@ -1,6 +1,8 @@
 // Artist dashboard: booking requests, profile & portfolio, services, hours, booking form, earnings and plan.
 import React, { useEffect, useMemo, useState } from 'react';
 import { api, errorMessage } from '../api';
+import { prepareImages } from '../lib/images';
+import { useUnsavedWarning } from '../lib/unsaved';
 import { Link, navigate, useLocation } from '../router';
 import { useStore } from '../store';
 import { formatDate, today } from '../lib/format';
@@ -96,26 +98,29 @@ const ProfileTab: React.FC<{ me: Me }> = ({ me }) => {
   const setUser = useStore(s => s.setUser);
   const toast = useStore(s => s.toast);
   const { save, busy } = useSave();
-  const [form, setForm] = useState({
-    name: me.name,
-    city: me.city,
-    specialty: me.specialty,
-    bio: me.bio,
-    instagram: me.socials.instagram || '',
-    tiktok: me.socials.tiktok || '',
-    facebook: me.socials.facebook || '',
-    website: me.socials.website || '',
+  const profileOf = (u: Me) => ({
+    name: u.name,
+    city: u.city,
+    specialty: u.specialty,
+    bio: u.bio,
+    instagram: u.socials.instagram || '',
+    tiktok: u.socials.tiktok || '',
+    facebook: u.socials.facebook || '',
+    website: u.socials.website || '',
   });
+  const [form, setForm] = useState(() => profileOf(me));
+  useUnsavedWarning(JSON.stringify(form) !== JSON.stringify(profileOf(me)));
   const [uploading, setUploading] = useState(false);
   const [verifyBusy, setVerifyBusy] = useState(false);
   const set = (k: keyof typeof form) => (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement>) => setForm(f => ({ ...f, [k]: e.target.value }));
 
-  const upload = async (url: string, files: FileList | null, field: string) => {
-    if (!files?.length) return;
+  const upload = async (url: string, list: FileList | null, field: string) => {
+    const files = Array.from(list ?? []);
+    if (!files.length) return;
     setUploading(true);
     try {
       const fd = new FormData();
-      Array.from(files).forEach(f => fd.append(field, f));
+      (await prepareImages(files)).forEach(f => fd.append(field, f));
       const { user } = await api.post<{ user: Me }>(url, fd);
       setUser(user);
       toast('Uploaded!');
@@ -167,7 +172,15 @@ const ProfileTab: React.FC<{ me: Me }> = ({ me }) => {
               <span className="cursor-pointer inline-flex items-center gap-2 text-sm font-semibold px-3 py-1.5 rounded-lg border border-gray-300 dark:border-gray-700 hover:bg-gray-100 dark:hover:bg-gray-800">
                 <PhotoIcon className="w-4 h-4" /> {me.avatarUrl ? 'Change photo' : 'Add profile photo'}
               </span>
-              <input type="file" accept="image/*" className="sr-only" onChange={e => upload('/me/avatar', e.target.files, 'image')} />
+              <input
+                type="file"
+                accept="image/jpeg,image/png,image/webp,image/gif"
+                className="sr-only"
+                onChange={e => {
+                  upload('/me/avatar', e.target.files, 'image');
+                  e.target.value = '';
+                }}
+              />
             </label>
             <div className="flex items-center gap-2">
               {me.isVerified ? (
@@ -198,15 +211,16 @@ const ProfileTab: React.FC<{ me: Me }> = ({ me }) => {
         <div className="flex justify-end mt-6">
           <Button
             loading={busy}
-            onClick={() =>
-              save({
+            onClick={async () => {
+              const saved = await save({
                 name: form.name,
                 city: form.city,
                 specialty: form.specialty,
                 bio: form.bio,
                 socials: { instagram: form.instagram, tiktok: form.tiktok, facebook: form.facebook, website: form.website },
-              }, 'Profile saved!')
-            }
+              }, 'Profile saved!');
+              if (saved) setForm(profileOf(saved));
+            }}
           >
             Save profile
           </Button>
@@ -220,12 +234,12 @@ const ProfileTab: React.FC<{ me: Me }> = ({ me }) => {
             <p className="text-sm text-brand-gray">Your first image is used as your cover photo. {me.portfolio.length}/60 images.</p>
           </div>
           <label>
-            <span className={cx('cursor-pointer inline-flex items-center gap-2 font-semibold text-sm px-4 py-2.5 rounded-lg bg-brand-primary text-white hover:brightness-110', uploading && 'opacity-50 pointer-events-none')}>
+            <span className={cx('cursor-pointer inline-flex items-center gap-2 font-semibold text-sm px-4 py-2.5 rounded-lg bg-brand-primary text-on-primary hover:brightness-110', uploading && 'opacity-50 pointer-events-none')}>
               <PlusIcon className="w-5 h-5" /> {uploading ? 'Uploading…' : 'Add photos'}
             </span>
             <input
               type="file"
-              accept="image/*"
+              accept="image/jpeg,image/png,image/webp,image/gif"
               multiple
               className="sr-only"
               onChange={e => {
@@ -237,7 +251,9 @@ const ProfileTab: React.FC<{ me: Me }> = ({ me }) => {
           </label>
         </div>
         {me.portfolio.length === 0 ? (
-          <EmptyState icon={<PhotoIcon />} title="No photos yet">Upload your best work — clients book artists whose portfolios they love.</EmptyState>
+          <EmptyState icon={<PhotoIcon />} title="No photos yet">
+            Upload your best work — clients book artists whose portfolios they love. Your profile appears in the artist search once it has at least one photo.
+          </EmptyState>
         ) : (
           <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-3">
             {me.portfolio.map((img, i) => (
@@ -281,6 +297,7 @@ const ServicesTab: React.FC<{ me: Me }> = ({ me }) => {
     minSize: s.minSize != null ? String(s.minSize) : '', maxSize: s.maxSize != null ? String(s.maxSize) : '',
   });
   const [items, setItems] = useState<ServiceDraft[]>(me.services.map(toDraft));
+  useUnsavedWarning(JSON.stringify(items) !== JSON.stringify(me.services.map(toDraft)));
   const update = (i: number, patch: Partial<ServiceDraft>) => setItems(list => list.map((s, j) => (j === i ? { ...s, ...patch } : s)));
   const add = () => setItems(list => [...list, { id: '', name: '', description: '', duration: '2', price: '150', deposit: String(settings.defaultDeposit), minSize: '', maxSize: '' }]);
 
@@ -344,11 +361,16 @@ const ServicesTab: React.FC<{ me: Me }> = ({ me }) => {
 
 const DAY_NAMES = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
 
+/** Comparable form of weekly hours (ignores key order and empty days). */
+const sameHours = (h: WeeklyHours) =>
+  JSON.stringify(Object.keys(h).sort().filter(k => h[k]?.length).map(k => [k, h[k]]));
+
 const HoursTab: React.FC<{ me: Me }> = ({ me }) => {
   const setUser = useStore(s => s.setUser);
   const toast = useStore(s => s.toast);
   const { save, busy } = useSave();
   const [hours, setHours] = useState<WeeklyHours>(() => JSON.parse(JSON.stringify(me.hours || {})));
+  useUnsavedWarning(sameHours(hours) !== sameHours(me.hours || {}));
   const daysOff = useMemo(() => new Set(me.daysOff), [me.daysOff]);
 
   const setDay = (d: number, slots: TimeSlot[]) => setHours(h => ({ ...h, [String(d)]: slots }));
@@ -402,7 +424,15 @@ const HoursTab: React.FC<{ me: Me }> = ({ me }) => {
           })}
         </div>
         <div className="flex justify-end mt-4">
-          <Button onClick={() => save({ hours }, 'Hours saved!')} loading={busy}>Save hours</Button>
+          <Button
+            onClick={async () => {
+              const saved = await save({ hours }, 'Hours saved!');
+              if (saved) setHours(JSON.parse(JSON.stringify(saved.hours || {})));
+            }}
+            loading={busy}
+          >
+            Save hours
+          </Button>
         </div>
       </Card>
       <Card className="xl:col-span-2 h-fit">
@@ -429,6 +459,7 @@ const SettingsTab: React.FC<{ me: Me }> = ({ me }) => {
   const { save, busy } = useSave();
   const [intake, setIntake] = useState(me.intakeSettings);
   const [aftercare, setAftercare] = useState(me.aftercareMessage);
+  useUnsavedWarning(JSON.stringify(intake) !== JSON.stringify(me.intakeSettings) || aftercare !== me.aftercareMessage);
   const opt = (k: keyof typeof intake, label: string, description: string) => (
     <Toggle checked={intake[k]} onChange={v => setIntake(i => ({ ...i, [k]: v }))} label={label} description={description} />
   );
@@ -453,7 +484,15 @@ const SettingsTab: React.FC<{ me: Me }> = ({ me }) => {
         <p className="text-sm text-brand-gray mb-4">Sent to clients when you press "Send aftercare" on a completed booking. Leave empty to use the standard instructions.</p>
         <Textarea rows={8} value={aftercare} onChange={e => setAftercare(e.target.value)} maxLength={4000} placeholder="1. Leave the wrap on for 2–3 hours…" />
         <div className="flex justify-end mt-4">
-          <Button onClick={() => save({ aftercareMessage: aftercare }, 'Aftercare saved!')} loading={busy}>Save</Button>
+          <Button
+            onClick={async () => {
+              const saved = await save({ aftercareMessage: aftercare }, 'Aftercare saved!');
+              if (saved) setAftercare(saved.aftercareMessage);
+            }}
+            loading={busy}
+          >
+            Save
+          </Button>
         </div>
       </Card>
     </div>
@@ -467,7 +506,9 @@ export const ArtistDashboardPage: React.FC = () => {
   const features = useStore(s => s.config!.settings.features);
   const { query } = useLocation();
   const tab = query.get('tab') || 'requests';
-  const tabs = TABS.filter(t => t.id !== 'plan' || features.proPlan);
+  // Subscribers can always manage (or cancel) their plan, even after the owner stops offering Pro.
+  const showPlan = features.proPlan || me.subscription.isPro || me.subscription.autoRenew;
+  const tabs = TABS.filter(t => t.id !== 'plan' || showPlan);
   const incomplete = !me.services.length || !me.portfolio.length || !me.bio;
 
   useEffect(() => {
@@ -480,7 +521,8 @@ export const ArtistDashboardPage: React.FC = () => {
       {incomplete && tab === 'requests' && (
         <Notice tone="info" className="mb-6">
           <strong>Finish setting up your profile</strong> so clients can book you:{' '}
-          {[!me.bio && 'add a bio', !me.portfolio.length && 'upload portfolio photos', !me.services.length && 'add your services'].filter(Boolean).join(', ')}.{' '}
+          {[!me.bio && 'add a bio', !me.portfolio.length && 'upload portfolio photos', !me.services.length && 'add your services'].filter(Boolean).join(', ')}.
+          {!me.portfolio.length && " You won't appear in the artist search until you've added at least one photo."}{' '}
           <Link to={`/dashboard?tab=${!me.services.length && me.bio && me.portfolio.length ? 'services' : 'profile'}`} className="font-semibold underline">Do it now →</Link>
         </Notice>
       )}

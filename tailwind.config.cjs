@@ -12,6 +12,15 @@ module.exports = {
         'brand-light': '#F5F5F7',
         // Secondary text: darker in light mode, lighter in dark mode, so it stays readable (WCAG AA) in both.
         'brand-gray': 'rgb(var(--brand-gray) / <alpha-value>)',
+        // Readable text on brand-colored backgrounds (white, or near-black for very light brand colors).
+        'on-primary': 'rgb(var(--brand-on-primary) / <alpha-value>)',
+        'on-secondary': 'rgb(var(--brand-on-secondary) / <alpha-value>)',
+        'on-gradient': 'rgb(var(--brand-on-gradient) / <alpha-value>)',
+      },
+      // As text, brand colors use shades adjusted for contrast against the page (see client/lib/theme.ts).
+      textColor: {
+        'brand-primary': 'rgb(var(--brand-primary-text) / <alpha-value>)',
+        'brand-secondary': 'rgb(var(--brand-secondary-text) / <alpha-value>)',
       },
       keyframes: {
         'fade-in': { from: { opacity: '0' }, to: { opacity: '1' } },

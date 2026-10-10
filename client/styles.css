@@ -3,12 +3,25 @@
 @tailwind utilities;
 
 :root {
-  /* Brand colors are set at runtime from Admin → Customize (see client/lib/theme.ts). */
+  /* Brand colors are set at runtime from Admin → Customize (see client/lib/theme.ts). These are the defaults. */
   --brand-primary: 240 78 152;
   --brand-secondary: 138 78 252;
+  /* Text/icons on top of brand-colored backgrounds. */
+  --brand-on-primary: 255 255 255;
+  --brand-on-secondary: 255 255 255;
+  --brand-on-gradient: 255 255 255;
+  /* Brand colors used as text, adjusted so they stay readable on light and dark backgrounds. */
+  --brand-primary-text-light: 192 62 122;
+  --brand-primary-text-dark: 241 87 157;
+  --brand-secondary-text-light: 138 78 252;
+  --brand-secondary-text-dark: 138 78 252;
+  --brand-primary-text: var(--brand-primary-text-light);
+  --brand-secondary-text: var(--brand-secondary-text-light);
   --brand-gray: 99 99 104;
 }
 .dark {
+  --brand-primary-text: var(--brand-primary-text-dark);
+  --brand-secondary-text: var(--brand-secondary-text-dark);
   --brand-gray: 161 161 170;
 }
 

@@ -20,6 +20,7 @@ import { ShopDashboardPage } from './pages/ShopDashboard';
 import { MessagesPage } from './pages/Messages';
 import { SettingsPage } from './pages/Settings';
 import { ContentPage } from './pages/ContentPage';
+import { ContactPage } from './pages/Contact';
 import { ResetPasswordPage } from './pages/ResetPassword';
 import type { Role } from '../shared/types';
 
@@ -65,6 +66,7 @@ const ROUTES: RouteDef[] = [
   { path: '/messages/:id', render: p => <MessagesPage conversationId={p.id} />, auth: true },
   { path: '/settings', render: () => <SettingsPage />, auth: true },
   { path: '/p/:slug', render: p => <ContentPage slug={p.slug} /> },
+  { path: '/contact', render: () => <ContactPage /> },
   { path: '/reset-password', render: () => <ResetPasswordPage /> },
   { path: '/admin', render: () => <AdminPage section="overview" />, auth: ['admin'] },
   { path: '/admin/:section', render: p => <AdminPage section={p.section} />, auth: ['admin'] },

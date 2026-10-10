@@ -1,51 +1,73 @@
-// Admin → Shops: verify, rename or delete tattoo shops.
+// Admin → Shops: verify, edit or delete tattoo shops.
 import React, { useCallback, useState } from 'react';
-import { api } from '../../api';
 import { Link } from '../../router';
-import { Button, Card, EmptyState, Input, PageHeader, StarRating, Toggle, useApi } from '../../components/ui';
-import { EditIcon, StoreIcon, TrashIcon } from '../../components/Icons';
+import { api, errorMessage } from '../../api';
+import { useStore } from '../../store';
+import { Button, Card, EmptyState, PageHeader, StarRating, Toggle, cx, useApi } from '../../components/ui';
+import { EditIcon, PhotoIcon, StoreIcon, TrashIcon, UploadIcon } from '../../components/Icons';
 import { formatDate } from '../../lib/format';
+import { prepareImage } from '../../lib/images';
+import { ShopDetailsForm } from '../ShopDashboard';
+import type { Shop } from '../../../shared/types';
 import type { AdminShop } from './types';
 import { AsyncView, ConfirmModal, DataTable, Dialog, FilterPills, Muted, SearchInput, Td, Toolbar, useRunner } from './shared';
 
-const RenameModal: React.FC<{ shop: AdminShop; onClose: () => void; onSaved: (name: string) => void }> = ({ shop, onClose, onSaved }) => {
-  const [name, setName] = useState(shop.name);
-  const { run, busy } = useRunner();
-  const save = () =>
-    run(
-      'rename',
-      async () => {
-        await api.patch(`/admin/shops/${shop.id}`, { name: name.trim() });
-        onSaved(name.trim());
-        onClose();
-      },
-      'Shop renamed.',
-    );
+const EditShopModal: React.FC<{ shopId: string; onClose: () => void; onSaved: (s: Shop) => void }> = ({ shopId, onClose, onSaved }) => {
+  const shop = useApi<Shop>(`/shops/${shopId}`);
+  const toast = useStore(s => s.toast);
+  const [uploading, setUploading] = useState(false);
+  const uploadCover = async (picked: File | undefined) => {
+    if (!picked) return;
+    setUploading(true);
+    try {
+      const fd = new FormData();
+      fd.append('image', await prepareImage(picked));
+      const saved = await api.post<Shop>(`/shops/${shopId}/image`, fd);
+      shop.setData(saved);
+      onSaved(saved);
+      toast('Cover photo updated.');
+    } catch (err) {
+      toast(errorMessage(err), 'error');
+    } finally {
+      setUploading(false);
+    }
+  };
   return (
-    <Dialog
-      title="Rename shop"
-      size="sm"
-      onClose={onClose}
-      closeDisabled={busy('rename')}
-      footer={
-        <>
-          <Button variant="outline" onClick={onClose} disabled={busy('rename')}>
-            Cancel
-          </Button>
-          <Button onClick={save} loading={busy('rename')} disabled={!name.trim() || name.trim() === shop.name}>
-            Save
-          </Button>
-        </>
-      }
-    >
-      <form
-        onSubmit={e => {
-          e.preventDefault();
-          if (name.trim() && name.trim() !== shop.name) save();
-        }}
-      >
-        <Input label="Shop name" value={name} maxLength={120} autoFocus onChange={e => setName(e.target.value)} hint="The owner can also change this from their shop dashboard." />
-      </form>
+    <Dialog title="Edit shop" size="lg" onClose={onClose}>
+      <AsyncView state={shop}>
+        {s => (
+          <div className="space-y-6">
+            <div className="flex flex-col sm:flex-row sm:items-center gap-4">
+              <div className="w-full sm:w-48 h-28 rounded-xl overflow-hidden bg-gray-100 dark:bg-gray-800 flex items-center justify-center">
+                {s.imageUrl ? <img src={s.imageUrl} alt="" className="w-full h-full object-cover" /> : <PhotoIcon className="w-8 h-8 text-brand-gray" />}
+              </div>
+              <label className="inline-flex">
+                <span className={cx('cursor-pointer inline-flex items-center gap-2 text-sm font-semibold px-3 py-2 rounded-lg border border-gray-300 dark:border-gray-700 hover:bg-gray-100 dark:hover:bg-gray-800', uploading && 'opacity-50 pointer-events-none')}>
+                  <UploadIcon className="w-4 h-4" /> {uploading ? 'Uploading…' : s.imageUrl ? 'Replace cover photo' : 'Add cover photo'}
+                </span>
+                <input
+                  type="file"
+                  accept="image/jpeg,image/png,image/webp,image/gif"
+                  className="sr-only"
+                  onChange={e => {
+                    uploadCover(e.target.files?.[0]);
+                    e.target.value = '';
+                  }}
+                />
+              </label>
+            </div>
+            <ShopDetailsForm
+              shop={s}
+              submitLabel="Save changes"
+              onSaved={saved => {
+                onSaved(saved);
+                onClose();
+              }}
+            />
+            <p className="text-xs text-brand-gray">The owner is not notified about changes you make here. Booths and blocked dates are managed by the owner from their shop dashboard.</p>
+          </div>
+        )}
+      </AsyncView>
     </Dialog>
   );
 };
@@ -54,11 +76,11 @@ export const ShopsSection: React.FC = () => {
   const state = useApi<AdminShop[]>('/admin/shops');
   const [q, setQ] = useState('');
   const [filter, setFilter] = useState('all');
-  const [renaming, setRenaming] = useState<AdminShop | null>(null);
+  const [editing, setEditing] = useState<AdminShop | null>(null);
   const [deleting, setDeleting] = useState<AdminShop | null>(null);
   const { run, busy } = useRunner();
 
-  const closeRename = useCallback(() => setRenaming(null), []);
+  const closeEdit = useCallback(() => setEditing(null), []);
   const closeDelete = useCallback(() => setDeleting(null), []);
   const patchLocal = (id: string, patch: Partial<AdminShop>) => state.setData(list => (list ?? []).map(s => (s.id === id ? { ...s, ...patch } : s)));
 
@@ -140,8 +162,8 @@ export const ShopsSection: React.FC = () => {
                         </Td>
                         <Td className="whitespace-nowrap text-brand-gray">{formatDate(s.createdAt, { month: 'short', day: 'numeric', year: 'numeric' })}</Td>
                         <Td className="text-right whitespace-nowrap">
-                          <Button size="sm" variant="ghost" onClick={() => setRenaming(s)}>
-                            <EditIcon className="w-4 h-4" /> Rename
+                          <Button size="sm" variant="ghost" onClick={() => setEditing(s)}>
+                            <EditIcon className="w-4 h-4" /> Edit
                           </Button>
                           <Button size="sm" variant="ghost" onClick={() => setDeleting(s)} aria-label={`Delete ${s.name}`}>
                             <TrashIcon className="w-4 h-4" />
@@ -157,7 +179,13 @@ export const ShopsSection: React.FC = () => {
         }}
       </AsyncView>
 
-      {renaming && <RenameModal shop={renaming} onClose={closeRename} onSaved={name => patchLocal(renaming.id, { name })} />}
+      {editing && (
+        <EditShopModal
+          shopId={editing.id}
+          onClose={closeEdit}
+          onSaved={saved => patchLocal(saved.id, { name: saved.name, city: saved.city, address: saved.address })}
+        />
+      )}
       {deleting && (
         <ConfirmModal title="Delete this shop?" confirmLabel="Delete shop" onClose={closeDelete} onConfirm={() => confirmDelete(deleting)}>
           <p>

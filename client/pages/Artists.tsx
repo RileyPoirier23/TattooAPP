@@ -16,7 +16,7 @@ export const ArtistCard: React.FC<{ artist: PublicArtist }> = ({ artist }) => (
         {artist.averageRating > 0 ? (
           <Badge className="bg-black/60 text-white backdrop-blur"><StarIcon className="w-3.5 h-3.5 text-amber-400" />{artist.averageRating.toFixed(1)}</Badge>
         ) : <span />}
-        {artist.isVerified && <Badge className="bg-brand-secondary text-white"><CheckBadgeIcon className="w-3.5 h-3.5" />Verified</Badge>}
+        {artist.isVerified && <Badge className="bg-brand-secondary text-on-secondary"><CheckBadgeIcon className="w-3.5 h-3.5" />Verified</Badge>}
       </div>
       {artist.guestSpot && (
         <div className="absolute bottom-2 left-2">

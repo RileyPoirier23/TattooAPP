@@ -9,6 +9,12 @@ window.Square = { payments: function () { return { card: async function () { ret
   destroy: async function () { return true; }
 }; } }; } };`;
 
+// A 1×1 pixel PNG for portfolio uploads.
+const PNG = Buffer.from(
+  '89504e470d0a1a0a0000000d49484452000000010000000108060000001f15c4890000000d4944415478da63f8cfc0f01f0005000201a1f3d6a00000000049454e44ae426082',
+  'hex',
+);
+
 const errors: string[] = [];
 
 test.beforeEach(async ({ page }) => {
@@ -63,6 +69,9 @@ test('artist sets up profile, guest books and pays a deposit', async ({ page }) 
   await page.getByLabel('Main style').selectOption('Fine Line');
   await page.getByRole('button', { name: 'Save profile' }).click();
   await expect(page.getByText('Profile saved!')).toBeVisible();
+  // Artists show up in search once they have a portfolio photo.
+  await page.getByLabel('Add photos').setInputFiles({ name: 'work.png', mimeType: 'image/png', buffer: PNG });
+  await expect(page.getByText('Uploaded!')).toBeVisible();
 
   await page.getByRole('link', { name: 'Services & prices' }).click();
   await page.getByRole('button', { name: 'Add service' }).click();
@@ -162,6 +171,30 @@ test('pages work on a phone', async ({ page }) => {
   expect(overflow).toBe(false);
   await page.goto('/p/faq');
   await expect(page.getByRole('heading', { name: 'FAQ' })).toBeVisible();
+});
+
+test('visitors can contact the owner, who answers from the admin inbox', async ({ page }) => {
+  await page.goto('/');
+  await page.getByRole('link', { name: 'Contact us' }).click();
+  await expect(page.getByRole('heading', { name: 'Contact us' })).toBeVisible();
+  await page.getByLabel('Your name').fill('Vera Visitor');
+  await page.getByLabel('Your email').fill('vera@example.com');
+  await page.getByLabel('Message').fill('Do you have any artists who do fine line work in Halifax?');
+  await page.getByRole('button', { name: 'Send message' }).click();
+  await expect(page.getByText('Message sent')).toBeVisible();
+
+  await logIn(page, 'admin@example.com', 'admin-password');
+  await page.goto('/admin/inbox');
+  await expect(page.getByText('Do you have any artists who do fine line work in Halifax?')).toBeVisible();
+  await page.getByRole('button', { name: 'Mark as replied' }).click();
+  await expect(page.getByText('No new messages')).toBeVisible();
+
+  // Unsaved changes are protected when leaving a form.
+  await page.goto('/admin/customize');
+  await page.getByLabel('Site name').fill('Unsaved name');
+  page.once('dialog', d => d.dismiss());
+  await page.getByRole('link', { name: 'Users' }).first().click();
+  await expect(page).toHaveURL(/\/admin\/customize/);
 });
 
 test('admin customizes the site and refunds a payment', async ({ page }) => {

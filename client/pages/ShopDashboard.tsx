@@ -5,6 +5,8 @@ import { Link, useLocation } from '../router';
 import { useStore } from '../store';
 import { dollars, formatDate, today } from '../lib/format';
 import { geocode } from '../lib/maps';
+import { prepareImage } from '../lib/images';
+import { useUnsavedWarning } from '../lib/unsaved';
 import { BoothBookingCard } from '../components/BookingCards';
 import { EarningsPanel, PayoutMethodForm } from '../components/Earnings';
 import {
@@ -33,10 +35,12 @@ const formFrom = (s?: Shop | null): ShopForm => ({
   lng: s?.lng != null ? String(s.lng) : '',
 });
 
-const ShopDetailsForm: React.FC<{ shop?: Shop | null; onSaved: (s: Shop) => void; submitLabel: string }> = ({ shop, onSaved, submitLabel }) => {
+export const ShopDetailsForm: React.FC<{ shop?: Shop | null; onSaved: (s: Shop) => void; submitLabel: string }> = ({ shop, onSaved, submitLabel }) => {
   const settings = useStore(s => s.config!.settings);
   const toast = useStore(s => s.toast);
   const [form, setForm] = useState<ShopForm>(formFrom(shop));
+  const [savedForm, setSavedForm] = useState<ShopForm>(formFrom(shop));
+  useUnsavedWarning(JSON.stringify(form) !== JSON.stringify(savedForm));
   const [busy, setBusy] = useState(false);
   const [showCoords, setShowCoords] = useState(false);
   const set = (k: keyof ShopForm) => (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) => setForm(f => ({ ...f, [k]: e.target.value }));
@@ -62,6 +66,7 @@ const ShopDetailsForm: React.FC<{ shop?: Shop | null; onSaved: (s: Shop) => void
         lng,
       };
       const saved = shop ? await api.patch<Shop>(`/shops/${shop.id}`, body) : await api.post<Shop>('/shops', body);
+      setSavedForm(form);
       toast(shop ? 'Shop details saved.' : 'Your shop is live! Now add your booths.');
       onSaved(saved);
     } catch (err) {
@@ -251,11 +256,12 @@ export const ShopDashboardPage: React.FC = () => {
   }
 
   const uploadImage = async (files: FileList | null) => {
-    if (!files?.[0]) return;
+    const picked = files?.[0];
+    if (!picked) return;
     setUploading(true);
     try {
       const fd = new FormData();
-      fd.append('image', files[0]);
+      fd.append('image', await prepareImage(picked));
       shopReq.setData(await api.post<Shop>(`/shops/${shop.id}/image`, fd));
       toast('Cover photo updated.');
     } catch (err) {
@@ -371,7 +377,15 @@ export const ShopDashboardPage: React.FC = () => {
                   <span className={`cursor-pointer inline-flex items-center gap-2 text-sm font-semibold px-3 py-2 rounded-lg border border-gray-300 dark:border-gray-700 hover:bg-gray-100 dark:hover:bg-gray-800 ${uploading ? 'opacity-50' : ''}`}>
                     <PhotoIcon className="w-4 h-4" /> {uploading ? 'Uploading…' : 'Change cover photo'}
                   </span>
-                  <input type="file" accept="image/*" className="sr-only" onChange={e => uploadImage(e.target.files)} />
+                  <input
+                    type="file"
+                    accept="image/jpeg,image/png,image/webp,image/gif"
+                    className="sr-only"
+                    onChange={e => {
+                      uploadImage(e.target.files);
+                      e.target.value = '';
+                    }}
+                  />
                 </label>
                 <div>
                   {shop.isVerified ? (

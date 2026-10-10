@@ -4,6 +4,7 @@ import { Button, Field, Input, PageHeader, Select, Textarea, Toggle, cx, inputCl
 import { BellIcon, DocumentIcon, EyeIcon, GlobeIcon, PaletteIcon, PhotoIcon, SparklesIcon } from '../../components/Icons';
 import { FacebookIcon, InstagramIcon, TikTokIcon } from '../../components/Icons';
 import type { SiteSettings } from '../../../shared/types';
+import { brandVariables, needsDarkText } from '../../lib/theme';
 import { AsyncView, ImageField, LinkButton, SaveBar, SettingsCard, useRunner, useUnsavedWarning } from './shared';
 import { useSettingsDraft } from './useSettingsDraft';
 
@@ -25,17 +26,11 @@ const PRESETS: { name: string; primary: string; secondary: string }[] = [
   { name: 'Ink', primary: '#64748B', secondary: '#334155' },
 ];
 
-/** "#F04E98" → "240 78 152" (the format of the --brand-* CSS variables). */
-function hexToTriplet(hex: string): string | null {
-  if (!HEX.test(hex)) return null;
-  const n = parseInt(hex.slice(1), 16);
-  return `${(n >> 16) & 255} ${(n >> 8) & 255} ${n & 255}`;
-}
-
 const ColorField: React.FC<{ label: string; hint: string; value: string; onChange: (v: string) => void }> = ({ label, hint, value, onChange }) => {
   const valid = HEX.test(value);
+  const fullHint = valid && needsDarkText(value) ? `${hint} This color is light, so text on it will be dark to stay readable.` : hint;
   return (
-    <Field label={label} hint={hint} error={valid ? undefined : 'Use a hex color like #F04E98'}>
+    <Field label={label} hint={fullHint} error={valid ? undefined : 'Use a hex color like #F04E98'}>
       <div className="flex items-center gap-2">
         <input
           type="color"
@@ -65,15 +60,16 @@ const ColorField: React.FC<{ label: string; hint: string; value: string; onChang
 const LivePreview: React.FC<{ s: SiteSettings }> = ({ s }) => {
   const dark = s.defaultTheme === 'dark';
   const style = {
-    '--brand-primary': hexToTriplet(s.primaryColor) ?? '240 78 152',
-    '--brand-secondary': hexToTriplet(s.secondaryColor) ?? '138 78 252',
+    ...brandVariables(s.primaryColor, s.secondaryColor),
+    '--brand-primary-text': `var(--brand-primary-text-${dark ? 'dark' : 'light'})`,
+    '--brand-secondary-text': `var(--brand-secondary-text-${dark ? 'dark' : 'light'})`,
   } as React.CSSProperties;
   const socials = [s.instagramUrl && InstagramIcon, s.tiktokUrl && TikTokIcon, s.facebookUrl && FacebookIcon].filter(Boolean) as React.FC<{ className?: string }>[];
 
   return (
     <div style={style} className={cx('rounded-2xl overflow-hidden border shadow-lg text-left select-none', dark ? 'bg-brand-dark text-white border-gray-800' : 'bg-brand-light text-brand-dark border-gray-200')}>
       {s.announcementEnabled && s.announcementText.trim() && (
-        <div className="bg-gradient-to-r from-brand-primary to-brand-secondary text-white text-[11px] text-center px-3 py-1.5 font-medium">{s.announcementText}</div>
+        <div className="bg-gradient-to-r from-brand-primary to-brand-secondary text-on-gradient text-[11px] text-center px-3 py-1.5 font-medium">{s.announcementText}</div>
       )}
       <div className={cx('flex items-center justify-between gap-2 px-4 py-3 border-b', dark ? 'border-white/10' : 'border-black/10')}>
         <div className="flex items-center gap-2 min-w-0">
@@ -84,7 +80,7 @@ const LivePreview: React.FC<{ s: SiteSettings }> = ({ s }) => {
           )}
           <span className="font-extrabold text-sm truncate">{s.siteName || 'Your site'}</span>
         </div>
-        <span className="text-[11px] px-2.5 py-1 rounded-full bg-brand-primary text-white font-semibold flex-shrink-0">Sign up</span>
+        <span className="text-[11px] px-2.5 py-1 rounded-full bg-brand-primary text-on-primary font-semibold flex-shrink-0">Sign up</span>
       </div>
       <div className="relative px-5 py-10 text-center overflow-hidden">
         {s.heroImageUrl && (
@@ -100,7 +96,7 @@ const LivePreview: React.FC<{ s: SiteSettings }> = ({ s }) => {
           </h3>
           {s.heroSubtitle && <p className="mt-3 text-xs opacity-80 line-clamp-3">{s.heroSubtitle}</p>}
           <div className="mt-4 flex justify-center gap-2 flex-wrap">
-            <span className="bg-brand-primary text-white text-xs font-semibold px-3 py-2 rounded-lg">Find an artist</span>
+            <span className="bg-brand-primary text-on-primary text-xs font-semibold px-3 py-2 rounded-lg">Find an artist</span>
             <span className={cx('text-xs font-semibold px-3 py-2 rounded-lg border', dark ? 'border-white/20' : 'border-black/15')}>Find a guest spot</span>
           </div>
         </div>
@@ -301,6 +297,7 @@ export const CustomizeSection: React.FC = () => {
                     value={draft.contactEmail}
                     maxLength={200}
                     placeholder="hello@yourstudio.com"
+                    hint="Shown in the footer and policy pages. Messages from the Contact form are sent here (otherwise to every admin)."
                     onChange={e => set('contactEmail', e.target.value)}
                     error={draft.contactEmail.trim() && !EMAIL.test(draft.contactEmail.trim()) ? 'That doesn’t look like an email address.' : undefined}
                   />

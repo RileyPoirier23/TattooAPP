@@ -61,7 +61,7 @@ export const Calendar: React.FC<{
               aria-label={parseDate(date).toDateString()}
               className={cx(
                 'aspect-square rounded-lg text-sm font-medium transition',
-                sel && 'bg-brand-primary text-white',
+                sel && 'bg-brand-primary text-on-primary',
                 !sel && marked && 'bg-red-500/15 text-red-600 dark:text-red-400 line-through',
                 !sel && !marked && !disabled && 'hover:bg-brand-primary/10',
                 !sel && date === todayStr && 'ring-1 ring-brand-primary',

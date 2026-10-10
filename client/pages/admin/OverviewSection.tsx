@@ -313,10 +313,20 @@ export const OverviewSection: React.FC = () => {
                       ? 'Square is connected. Clients can pay deposits and artists can pay for booths.'
                       : 'Add your Square keys so clients can pay deposits online. Until then, nobody can pay through the site.'}
                   </ChecklistItem>
+                  {s.paymentsReady && (
+                    <ChecklistItem done={s.environment === 'production'} title="Switch Square to live payments" to="/admin/settings">
+                      {s.environment === 'production'
+                        ? 'Square is in Production mode: payments are real.'
+                        : 'Square is in Sandbox (test) mode, so no real money moves. Switch to Production with your live keys when you launch.'}
+                    </ChecklistItem>
+                  )}
                   <ChecklistItem done={s.emailReady} title="Set up email" to="/admin/settings">
                     {s.emailReady
                       ? 'Email is set up. Booking updates and password resets will be delivered.'
-                      : 'Add SMTP details so people get booking confirmations and password reset emails.'}
+                      : 'Add a Resend API key (or SMTP details) so people get booking confirmations, reminders and password reset emails.'}
+                  </ChecklistItem>
+                  <ChecklistItem done={!!settings?.contactEmail} title="Add a contact email" to="/admin/customize">
+                    Shown in your footer and policy pages; messages from the Contact form are sent there.
                   </ChecklistItem>
                   <ChecklistItem done={branded} title="Make it yours" to="/admin/customize">
                     Set your site name, logo, colors and home page text.
@@ -324,8 +334,15 @@ export const OverviewSection: React.FC = () => {
                   <ChecklistItem done={!!settings?.googleMapsApiKey} optional title="Add a Google Maps key" to="/admin/settings">
                     Enables address lookup, &ldquo;near me&rdquo; search and listings for shops that haven&apos;t joined yet.
                   </ChecklistItem>
-                  <ChecklistItem done={false} optional title="Review your Terms & Privacy pages" to="/admin/pages">
-                    The starter pages are placeholders. Add your own policies before launch.
+                  <ChecklistItem done={s.policiesCustomized} title="Review your Terms & Privacy pages" to="/admin/pages">
+                    {s.policiesCustomized
+                      ? 'Your Terms and Privacy pages have been updated.'
+                      : 'Starter Terms, Privacy and Booking policies are filled in with your site name. Read them and adjust them for your business and location (ideally with a lawyer) before launch.'}
+                  </ChecklistItem>
+                  <ChecklistItem done={!!settings?.features.proPlan} optional title="Turn on the Pro plan" to="/admin/settings">
+                    {settings?.features.proPlan
+                      ? 'Artists can subscribe to Pro.'
+                      : 'When you’re ready, let artists pay monthly to remove the booking fee for their clients and be listed first. It’s off until you switch it on.'}
                   </ChecklistItem>
                 </ul>
               </Card>

@@ -31,11 +31,13 @@ export const ProPlanCard: React.FC<{ me: Me }> = ({ me }) => {
   };
 
   const perks = [
-    `No ${settings.depositFeePercent}% booking fee for your clients on deposits`,
+    ...(settings.depositFeePercent > 0 ? [`No ${settings.depositFeePercent}% booking fee for your clients on deposits`] : []),
     'Pro badge on your profile',
-    'Priority placement as the platform grows',
+    'Listed first in artist search',
     'Cancel any time',
   ];
+  // The owner can stop offering Pro; existing subscribers keep managing their plan here.
+  const offered = settings.features.proPlan;
 
   return (
     <Card className="relative overflow-hidden">
@@ -77,8 +79,16 @@ export const ProPlanCard: React.FC<{ me: Me }> = ({ me }) => {
                 {sub.proUntil && <Button variant="ghost" onClick={() => setCardModal('update')}>Update card</Button>}
               </div>
             </>
-          ) : (
+          ) : offered ? (
             <Button size="lg" onClick={() => setCardModal('subscribe')}><SparklesIcon className="w-5 h-5" /> Upgrade for {price}/month</Button>
+          ) : (
+            <p className="text-sm text-brand-gray">The Pro plan isn&apos;t available right now.</p>
+          )}
+          {sub.isPro && !offered && sub.autoRenew && (
+            <p className="text-xs text-brand-gray">Pro is no longer offered to new members, but your plan keeps renewing until you cancel.</p>
+          )}
+          {sub.isPro && sub.autoRenew && (
+            <p className="text-xs text-brand-gray">If the price changes, we&apos;ll email you before your next renewal; the new price applies from that renewal.</p>
           )}
         </div>
       </div>

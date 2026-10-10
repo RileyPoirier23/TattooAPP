@@ -18,6 +18,7 @@ import { createPasswordResetLink } from './auth';
 import { emit } from '../events';
 import { config } from '../config';
 import { backupDatabase, backupPath, listBackups } from '../jobs';
+import { DEFAULT_PAGES } from '../defaultPages';
 
 export const adminRouter = Router();
 
@@ -79,6 +80,11 @@ adminRouter.get('/stats', (_req, res) => {
     pendingVerifications: one("select count(*) c from verification_requests where status = 'pending'").c,
     pendingReports: one("select count(*) c from reports where status = 'pending'").c,
     newContactMessages: one("select count(*) c from contact_messages where status = 'new'").c,
+    // True once the starter Terms and Privacy pages have been edited (or replaced).
+    policiesCustomized: ['terms', 'privacy'].every(slug => {
+      const page = db.prepare('select body from pages where slug = ?').get(slug) as { body: string } | undefined;
+      return !page || page.body !== DEFAULT_PAGES.find(p => p.slug === slug)?.body;
+    }),
     monthly,
     currency: getSettings().currency,
     environment: env,
@@ -483,17 +489,23 @@ adminRouter.get('/payments', (req, res) => {
   const totals = db
     .prepare(
       `select count(*) total,
+        coalesce(sum(p.status = 'completed'), 0) completed_count,
+        coalesce(sum(p.status = 'refunded'), 0) refunded_count,
         coalesce(sum(case when p.status = 'completed' then p.amount_cents end), 0) gross,
         coalesce(sum(case when p.status = 'completed' then p.fee_cents end), 0) fees,
+        coalesce(sum(case when p.status = 'completed' then p.payee_amount_cents end), 0) payee,
         coalesce(sum(case when p.status = 'refunded' then p.amount_cents end), 0) refunded ${from}`,
     )
-    .get(params) as { total: number; gross: number; fees: number; refunded: number };
+    .get(params) as { total: number; completed_count: number; refunded_count: number; gross: number; fees: number; payee: number; refunded: number };
   const rows = db.prepare(`select p.*, u.name payer_name, e.name payee_name ${from} order by p.created_at desc limit @limit offset @offset`).all(params) as any[];
   res.json({
     total: totals.total,
     page,
     pageSize,
-    totals: { grossCents: totals.gross, feesCents: totals.fees, refundedCents: totals.refunded },
+    totals: {
+      grossCents: totals.gross, feesCents: totals.fees, payeeCents: totals.payee, refundedCents: totals.refunded,
+      completedCount: totals.completed_count, refundedCount: totals.refunded_count,
+    },
     items: rows.map(p => ({
       id: p.id, kind: p.kind, refId: p.ref_id, description: p.description, payerName: p.payer_name, payerEmail: p.payer_email,
       payeeId: p.payee_id, payeeName: p.payee_name, amountCents: p.amount_cents, feeCents: p.fee_cents,

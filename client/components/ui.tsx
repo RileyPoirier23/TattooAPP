@@ -10,8 +10,8 @@ export { cx };
 
 type ButtonVariant = 'primary' | 'secondary' | 'outline' | 'ghost' | 'danger' | 'success';
 const VARIANTS: Record<ButtonVariant, string> = {
-  primary: 'bg-brand-primary text-white hover:brightness-110 shadow-sm shadow-brand-primary/20',
-  secondary: 'bg-brand-secondary text-white hover:brightness-110',
+  primary: 'bg-brand-primary text-on-primary hover:brightness-110 shadow-sm shadow-brand-primary/20',
+  secondary: 'bg-brand-secondary text-on-secondary hover:brightness-110',
   outline: 'border border-gray-300 dark:border-gray-700 text-brand-dark dark:text-white hover:bg-gray-100 dark:hover:bg-gray-800',
   ghost: 'text-gray-600 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-800',
   danger: 'bg-red-600 text-white hover:bg-red-500',
@@ -200,7 +200,7 @@ export const Tabs: React.FC<{ tabs: { id: string; label: React.ReactNode; count?
         )}
       >
         {t.label}
-        {!!t.count && <span className="ml-1.5 text-xs bg-brand-primary text-white rounded-full px-1.5 py-0.5">{t.count}</span>}
+        {!!t.count && <span className="ml-1.5 text-xs bg-brand-primary text-on-primary rounded-full px-1.5 py-0.5">{t.count}</span>}
       </button>
     ))}
   </div>
@@ -371,7 +371,7 @@ export const Avatar: React.FC<{ name: string; url?: string | null; size?: 'sm' |
   if (url) return <img src={url} alt={name} className={cx(s, 'rounded-full object-cover flex-shrink-0 bg-gray-200 dark:bg-gray-800')} />;
   const initials = name.split(/\s+/).filter(Boolean).slice(0, 2).map(w => w[0]?.toUpperCase()).join('');
   return (
-    <span className={cx(s, 'rounded-full flex-shrink-0 flex items-center justify-center font-bold text-white bg-gradient-to-br from-brand-primary to-brand-secondary')}>
+    <span className={cx(s, 'rounded-full flex-shrink-0 flex items-center justify-center font-bold text-on-gradient bg-gradient-to-br from-brand-primary to-brand-secondary')}>
       {initials || '?'}
     </span>
   );
