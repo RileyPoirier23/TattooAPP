@@ -7,7 +7,7 @@ import {
   requireUser, sha256, verifyPassword,
 } from '../auth';
 import { getDb, nowIso } from '../db';
-import { badRequest, conflict, forbidden, parse, unauthorized } from '../http';
+import { HttpError, badRequest, conflict, forbidden, parse, unauthorized } from '../http';
 import { toMe } from '../mappers';
 import { sendEmail } from '../email';
 import { config } from '../config';
@@ -25,6 +25,31 @@ const limiter = rateLimit({
 });
 
 const zEmail = z.string().trim().toLowerCase().email('Enter a valid email address').max(200);
+
+// Per-account lockout on top of the per-IP limiter, so a password can't be guessed from many addresses.
+const LOCK_AFTER = 8;
+const LOCK_MS = 15 * 60 * 1000;
+const failures = new Map<string, { count: number; first: number }>();
+
+function lockedOut(email: string) {
+  const f = failures.get(email);
+  if (!f) return false;
+  if (Date.now() - f.first > LOCK_MS) {
+    failures.delete(email);
+    return false;
+  }
+  return f.count >= LOCK_AFTER;
+}
+
+function recordFailure(email: string) {
+  const f = failures.get(email);
+  if (!f || Date.now() - f.first > LOCK_MS) failures.set(email, { count: 1, first: Date.now() });
+  else f.count++;
+  if (failures.size > 10_000) failures.delete(failures.keys().next().value!);
+}
+
+// Checked against when the email doesn't exist, so a wrong email takes as long as a wrong password.
+let dummyHash: Promise<string> | null = null;
 const zPassword = z.string().min(8, 'Password must be at least 8 characters').max(200);
 
 authRouter.get('/me', (req, res) => {
@@ -46,6 +71,7 @@ authRouter.post('/register', limiter, async (req, res) => {
   if ((body.role === 'artist' || body.role === 'dual') && !body.city) throw badRequest('Please enter your city.');
   if (findUserByEmail(body.email)) throw conflict('An account with that email already exists. Try logging in.');
   const user = await createUser(body);
+  getDb().prepare('update users set terms_accepted_at = ? where id = ?').run(nowIso(), user.id);
   createSession(res, user.id);
   if (body.role !== 'client') notifyAdmins(`New ${body.role.replace('-', ' ')} signed up: ${user.name}`, '/admin/users');
   res.status(201).json({ user: toMe(user) });
@@ -53,10 +79,17 @@ authRouter.post('/register', limiter, async (req, res) => {
 
 authRouter.post('/login', limiter, async (req, res) => {
   const body = parse(z.object({ email: zEmail, password: z.string().max(200) }), req.body);
+  if (lockedOut(body.email)) {
+    throw new HttpError(429, 'Too many wrong passwords for this account. Wait 15 minutes, or reset your password.');
+  }
   const user = findUserByEmail(body.email);
-  if (!user || !(await verifyPassword(body.password, user.password_hash))) {
+  dummyHash ??= hashPassword(randomToken());
+  const ok = await verifyPassword(body.password, user?.password_hash ?? (await dummyHash));
+  if (!user || !ok) {
+    recordFailure(body.email);
     throw unauthorized('Incorrect email or password.');
   }
+  failures.delete(body.email);
   if (user.status !== 'active') throw forbidden('This account has been suspended. Please contact support.');
   createSession(res, user.id);
   res.json({ user: toMe(user) });

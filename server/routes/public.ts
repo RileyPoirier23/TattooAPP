@@ -2,6 +2,8 @@
 import { Router } from 'express';
 import { getDb } from '../db';
 import { getSettings } from '../settings';
+import { config } from '../config';
+import { fillPageTokens } from '../defaultPages';
 import { paymentsReady } from '../square';
 import { emailReady } from '../email';
 import { notFound, todayStr } from '../http';
@@ -31,7 +33,7 @@ publicRouter.get('/pages/:slug', (req, res) => {
     id: p.id,
     slug: p.slug,
     title: p.title,
-    body: p.body,
+    body: fillPageTokens(p.body, getSettings(), config.appUrl),
     published: !!p.published,
     showInFooter: !!p.show_in_footer,
     sortOrder: p.sort_order,
@@ -43,7 +45,8 @@ publicRouter.get('/pages/:slug', (req, res) => {
 publicRouter.get('/artists', (_req, res) => {
   const rows = getDb()
     .prepare(
-      `select * from users where role in ('artist','dual') and status = 'active'
+      // Artists appear in search once they've added at least one portfolio photo (their profile link works before that).
+      `select * from users where role in ('artist','dual') and status = 'active' and json_array_length(portfolio) > 0
        order by is_verified desc, average_rating desc, review_count desc, created_at desc`,
     )
     .all() as UserRow[];

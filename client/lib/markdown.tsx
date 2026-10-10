@@ -14,7 +14,7 @@ function inline(text: string, keyBase: string): React.ReactNode[] {
     if (m[2]) out.push(<strong key={key}>{m[2]}</strong>);
     else if (m[4]) out.push(<em key={key}>{m[4]}</em>);
     else if (m[6]) {
-      const href = /^(https?:|mailto:|tel:|\/)/i.test(m[7]) ? m[7] : '#';
+      const href = /^(https?:|mailto:|tel:|\/(?!\/))/i.test(m[7]) ? m[7] : '#';
       const external = /^https?:/i.test(href);
       out.push(
         <a key={key} href={href} className="text-brand-primary underline" {...(external ? { target: '_blank', rel: 'noopener noreferrer' } : {})}>

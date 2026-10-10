@@ -39,11 +39,11 @@ function fromAddress(): string {
   return from.includes('<') ? from : `${getSettings().siteName} <${from}>`;
 }
 
-async function sendWithResend(to: string, subject: string, text: string, html: string) {
+async function sendWithResend(to: string, subject: string, text: string, html: string, replyTo?: string) {
   const res = await fetch('https://api.resend.com/emails', {
     method: 'POST',
     headers: { Authorization: `Bearer ${resendKey()}`, 'Content-Type': 'application/json' },
-    body: JSON.stringify({ from: fromAddress(), to: [to], subject, text, html }),
+    body: JSON.stringify({ from: fromAddress(), to: [to], subject, text, html, ...(replyTo ? { reply_to: replyTo } : {}) }),
   });
   if (!res.ok) {
     const body = (await res.json().catch(() => ({}))) as { message?: string };
@@ -57,6 +57,8 @@ export interface EmailInput {
   /** Plain-text paragraphs. */
   lines: string[];
   action?: { label: string; url: string };
+  /** Where replies go (e.g. the visitor who sent a contact-form message). */
+  replyTo?: string;
 }
 
 export function renderEmail({ subject, lines, action }: EmailInput) {
@@ -86,12 +88,12 @@ export function sendEmail(input: EmailInput) {
 
 export async function sendEmailNow(input: EmailInput) {
   const { text, html } = renderEmail(input);
-  if (resendKey()) return sendWithResend(input.to, input.subject, text, html);
+  if (resendKey()) return sendWithResend(input.to, input.subject, text, html, input.replyTo);
   const t = transport();
   if (!t) {
     // In production, don't write message bodies (which contain private booking / password-reset links) to logs.
     console.log(`[email] (email not configured) to=${input.to} subject="${input.subject}"${config.isProduction ? '' : `\n${text}`}`);
     return;
   }
-  await t.sendMail({ from: fromAddress(), to: input.to, subject: input.subject, text, html });
+  await t.sendMail({ from: fromAddress(), to: input.to, subject: input.subject, text, html, replyTo: input.replyTo });
 }

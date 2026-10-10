@@ -4,7 +4,8 @@ import { z } from 'zod';
 import { destroySession, isArtistRole, requireArtist, requireUser, getUser, verifyPassword } from '../auth';
 import { getDb, newId, nowIso, parseJson } from '../db';
 import { badRequest, conflict, forbidden, parse, todayStr, zDate } from '../http';
-import { toMe } from '../mappers';
+import { BOOKING_REQUEST_SELECT, BOOTH_BOOKING_SELECT, toBookingRequest, toBoothBooking, toMe } from '../mappers';
+import { getSettings } from '../settings';
 import { deleteUpload, saveImage, upload, uploadLimiter } from '../uploads';
 import { subscribe } from '../events';
 import { deletionBlockers, earningsFor, subscribePro, updateCard } from '../billing';
@@ -217,6 +218,65 @@ meRouter.delete('/me/card', async (req, res) => {
     .prepare('update users set square_card_id = null, card_label = null, pro_auto_renew = 0, updated_at = ? where id = ?')
     .run(nowIso(), user.id);
   res.json({ user: toMe(getUser(user.id)!) });
+});
+
+// --- Download my data ---
+
+meRouter.get('/me/export', (req, res) => {
+  const user = requireUser(req);
+  const db = getDb();
+  const all = (sql: string, ...params: unknown[]) => db.prepare(sql).all(...params) as any[];
+  const shop = db.prepare('select * from shops where owner_id = ?').get(user.id) as any;
+  const conversations = all(
+    `select c.id, u.name other_name from conversations c
+     join users u on u.id = case when c.user_a = @me then c.user_b else c.user_a end
+     where c.user_a = @me or c.user_b = @me`,
+    { me: user.id },
+  );
+  const data = {
+    exportedAt: nowIso(),
+    site: getSettings().siteName,
+    account: {
+      ...toMe(user),
+      status: user.status,
+      termsAcceptedAt: user.terms_accepted_at,
+      createdAt: user.created_at,
+    },
+    bookingsYouMade: all(`${BOOKING_REQUEST_SELECT} where br.client_id = ? order by br.created_at`, user.id).map(r => toBookingRequest(r)),
+    bookingsFromYourClients: isArtistRole(user.role)
+      ? all(`${BOOKING_REQUEST_SELECT} where br.artist_id = ? order by br.created_at`, user.id).map(r => toBookingRequest(r, { includeContact: true }))
+      : [],
+    boothRentals: all(`${BOOTH_BOOKING_SELECT} where bb.artist_id = ? order by bb.created_at`, user.id).map(toBoothBooking),
+    shop: shop
+      ? {
+          name: shop.name, city: shop.city, address: shop.address, description: shop.description,
+          amenities: parseJson(shop.amenities, []), imageUrl: shop.image_url, createdAt: shop.created_at,
+          booths: all('select name, daily_rate dailyRate, description, active from booths where shop_id = ?', shop.id),
+          rentals: all(`${BOOTH_BOOKING_SELECT} where bb.shop_id = ? order by bb.created_at`, shop.id).map(toBoothBooking),
+        }
+      : null,
+    shopReviewsYouWrote: all('select r.rating, r.text, r.created_at createdAt, s.name shop from shop_reviews r join shops s on s.id = r.shop_id where r.author_id = ?', user.id),
+    payments: all(
+      'select kind, description, amount_cents amountCents, currency, status, receipt_url receiptUrl, created_at createdAt, refunded_at refundedAt from payments where user_id = ? order by created_at',
+      user.id,
+    ),
+    payoutsToYou: all('select amount_cents amountCents, currency, method, note, created_at createdAt from payouts where payee_id = ? order by created_at', user.id),
+    messages: conversations.map(c => ({
+      with: c.other_name,
+      messages: all('select sender_id, content, attachment_url, created_at from messages where conversation_id = ? order by created_at', c.id).map(m => ({
+        from: m.sender_id === user.id ? 'you' : c.other_name,
+        text: m.content,
+        attachment: m.attachment_url,
+        sentAt: m.created_at,
+      })),
+    })),
+    notifications: all('select message, link, read, created_at createdAt from notifications where user_id = ? order by created_at', user.id),
+    reportsYouSent: all('select target_type targetType, reason, status, created_at createdAt from reports where reporter_id = ?', user.id),
+    contactMessages: all('select message, created_at createdAt from contact_messages where user_id = ?', user.id),
+  };
+  res.setHeader('Content-Disposition', `attachment; filename="my-data-${todayStr()}.json"`);
+  res.setHeader('Cache-Control', 'no-store');
+  res.json(data);
 });
 
 // --- Delete my account ---

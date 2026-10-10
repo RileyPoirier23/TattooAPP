@@ -10,15 +10,28 @@ import { badRequest, conflict, notFound, parse, toCents, todayStr, zDate } from 
 import { getSecrets, getSettings, saveSecrets, saveSettings } from '../settings';
 import { BOOKING_REQUEST_SELECT, BOOTH_BOOKING_SELECT, recomputeArtistRating, recomputeShopRating, toBookingRequest, toBoothBooking } from '../mappers';
 import { saveImage, upload } from '../uploads';
-import { currentEnvironment, deletionBlockers, earningsFor, refund } from '../billing';
+import { announceProPriceChange, currentEnvironment, deletionBlockers, earningsFor, refund } from '../billing';
 import { emailReady, sendEmail, sendEmailNow } from '../email';
-import { checkConnection, paymentsReady } from '../square';
+import { checkConnection, locationCurrency, paymentsReady } from '../square';
 import { notify } from '../notify';
 import { createPasswordResetLink } from './auth';
 import { emit } from '../events';
 import { config } from '../config';
+import { backupDatabase, backupPath, listBackups } from '../jobs';
 
 export const adminRouter = Router();
+
+/** Paging + search for the admin lists: `?page=1&pageSize=50&q=…`. */
+function listParams(query: Record<string, unknown>) {
+  const page = Math.max(1, Math.floor(Number(query.page) || 1));
+  const pageSize = Math.min(200, Math.max(1, Math.floor(Number(query.pageSize) || 50)));
+  const raw = typeof query.q === 'string' ? query.q.trim().slice(0, 100) : '';
+  // Escape LIKE wildcards so a search for "50%" or "a_b" matches literally.
+  const q = `%${raw.replace(/[\\%_]/g, m => `\\${m}`)}%`;
+  return { page, pageSize, offset: (page - 1) * pageSize, q };
+}
+
+const filterParam = (v: unknown) => (typeof v === 'string' && v ? v : null);
 
 // Every admin route requires an admin session.
 adminRouter.use((req, _res, next) => {
@@ -65,6 +78,7 @@ adminRouter.get('/stats', (_req, res) => {
     owedCents: owed.owed,
     pendingVerifications: one("select count(*) c from verification_requests where status = 'pending'").c,
     pendingReports: one("select count(*) c from reports where status = 'pending'").c,
+    newContactMessages: one("select count(*) c from contact_messages where status = 'new'").c,
     monthly,
     currency: getSettings().currency,
     environment: env,
@@ -98,27 +112,30 @@ adminRouter.get('/settings', (_req, res) => {
 });
 
 const zHex = z.string().regex(/^#[0-9a-fA-F]{6}$/, 'must be a hex color like #F04E98');
+// Only web links and uploaded images — never javascript: or data: URLs.
+const zLinkUrl = z.string().trim().max(300).refine(v => v === '' || /^https?:\/\/[^\s]+$/i.test(v), 'must be a link starting with https://');
+const zImageUrl = z.string().trim().max(500).refine(v => v === '' || /^(https?:\/\/|\/uploads\/)[^\s"'<>]+$/i.test(v), 'must be an uploaded image or a link starting with https://');
 const settingsSchema = z
   .object({
     siteName: z.string().trim().min(1).max(60),
     tagline: z.string().max(200),
-    logoUrl: z.string().max(500),
-    faviconUrl: z.string().max(500),
+    logoUrl: zImageUrl,
+    faviconUrl: zImageUrl,
     primaryColor: zHex,
     secondaryColor: zHex,
     defaultTheme: z.enum(['dark', 'light']),
     heroTitle: z.string().max(120),
     heroHighlight: z.string().max(120),
     heroSubtitle: z.string().max(500),
-    heroImageUrl: z.string().max(500),
+    heroImageUrl: zImageUrl,
     aboutTitle: z.string().max(120),
     aboutText: z.string().max(5000),
     announcementEnabled: z.boolean(),
     announcementText: z.string().max(300),
-    contactEmail: z.string().max(200),
-    instagramUrl: z.string().max(300),
-    tiktokUrl: z.string().max(300),
-    facebookUrl: z.string().max(300),
+    contactEmail: z.string().trim().max(200).refine(v => v === '' || /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(v), 'must be an email address'),
+    instagramUrl: zLinkUrl,
+    tiktokUrl: zLinkUrl,
+    facebookUrl: zLinkUrl,
     footerText: z.string().max(500),
     features: z
       .object({
@@ -159,10 +176,16 @@ const secretsSchema = z
   })
   .partial();
 
-adminRouter.put('/settings', (req, res) => {
+adminRouter.put('/settings', async (req, res) => {
   const body = parse(z.object({ settings: settingsSchema.optional(), secrets: secretsSchema.optional() }), req.body);
+  const oldPrice = getSettings().proMonthlyPrice;
   if (body.settings) saveSettings(body.settings as any);
   if (body.secrets) saveSecrets(body.secrets);
+  if (body.settings?.proMonthlyPrice !== undefined && body.settings.proMonthlyPrice !== oldPrice) {
+    announceProPriceChange(oldPrice, body.settings.proMonthlyPrice);
+  }
+  // Prices must be shown in the currency Square charges in; this re-reads it from the Square location.
+  if (paymentsReady()) await locationCurrency();
   res.json({ settings: getSettings(), secrets: maskedSecrets() });
 });
 
@@ -263,15 +286,13 @@ const toAdminUser = (u: any) => ({
 });
 
 adminRouter.get('/users', (req, res) => {
-  const q = typeof req.query.q === 'string' ? `%${req.query.q.trim()}%` : '%';
-  const role = typeof req.query.role === 'string' && req.query.role ? req.query.role : null;
-  const rows = getDb()
-    .prepare(
-      `select * from users where (name like @q or email like @q or city like @q) and (@role is null or role = @role)
-       order by created_at desc limit 500`,
-    )
-    .all({ q, role });
-  res.json(rows.map(toAdminUser));
+  const { q, page, pageSize, offset } = listParams(req.query);
+  const role = filterParam(req.query.role);
+  const where = `where (name like @q escape '\\' or email like @q escape '\\' or city like @q escape '\\') and (@role is null or role = @role)`;
+  const db = getDb();
+  const total = (db.prepare(`select count(*) c from users ${where}`).get({ q, role }) as { c: number }).c;
+  const rows = db.prepare(`select * from users ${where} order by created_at desc limit @limit offset @offset`).all({ q, role, limit: pageSize, offset });
+  res.json({ items: rows.map(toAdminUser), total, page, pageSize });
 });
 
 adminRouter.patch('/users/:id', async (req, res) => {
@@ -387,11 +408,23 @@ adminRouter.delete('/shops/:id', (req, res) => {
 // ---------- Bookings ----------
 
 adminRouter.get('/booking-requests', (req, res) => {
-  const status = typeof req.query.status === 'string' && req.query.status ? req.query.status : null;
-  const rows = getDb()
-    .prepare(`${BOOKING_REQUEST_SELECT} where (@status is null or br.status = @status) order by br.created_at desc limit 500`)
-    .all({ status }) as any[];
-  res.json(rows.map(r => ({ ...toBookingRequest(r, { includeContact: true }), guestEmail: r.guest_email || r.client_email })));
+  const { q, page, pageSize, offset } = listParams(req.query);
+  const status = filterParam(req.query.status);
+  const where = `where (@status is null or br.status = @status)
+    and (a.name like @q escape '\\' or coalesce(c.name, br.guest_name, '') like @q escape '\\'
+      or coalesce(c.email, br.guest_email, '') like @q escape '\\' or br.id like @q escape '\\')`;
+  const db = getDb();
+  const total = (db.prepare(`select count(*) c from booking_requests br join users a on a.id = br.artist_id left join users c on c.id = br.client_id ${where}`).get({ q, status }) as { c: number }).c;
+  const counts = Object.fromEntries(
+    (db.prepare('select status, count(*) c from booking_requests group by status').all() as { status: string; c: number }[]).map(r => [r.status, r.c]),
+  );
+  const rows = db
+    .prepare(`${BOOKING_REQUEST_SELECT} ${where} order by br.created_at desc limit @limit offset @offset`)
+    .all({ q, status, limit: pageSize, offset }) as any[];
+  res.json({
+    items: rows.map(r => ({ ...toBookingRequest(r, { includeContact: true }), guestEmail: r.guest_email || r.client_email })),
+    total, page, pageSize, counts,
+  });
 });
 
 adminRouter.post('/booking-requests/:id/status', (req, res) => {
@@ -411,9 +444,18 @@ adminRouter.post('/booking-requests/:id/status', (req, res) => {
   res.json({ ok: true });
 });
 
-adminRouter.get('/booth-bookings', (_req, res) => {
-  const rows = getDb().prepare(`${BOOTH_BOOKING_SELECT} order by bb.created_at desc limit 500`).all() as any[];
-  res.json(rows.map(toBoothBooking));
+adminRouter.get('/booth-bookings', (req, res) => {
+  const { q, page, pageSize, offset } = listParams(req.query);
+  const status = filterParam(req.query.status);
+  const where = `where (@status is null or bb.status = @status)
+    and (u.name like @q escape '\\' or s.name like @q escape '\\' or bo.name like @q escape '\\' or s.city like @q escape '\\')`;
+  const db = getDb();
+  const total = (db.prepare(`select count(*) c from booth_bookings bb join users u on u.id = bb.artist_id join booths bo on bo.id = bb.booth_id join shops s on s.id = bb.shop_id ${where}`).get({ q, status }) as { c: number }).c;
+  const counts = Object.fromEntries(
+    (db.prepare('select status, count(*) c from booth_bookings group by status').all() as { status: string; c: number }[]).map(r => [r.status, r.c]),
+  );
+  const rows = db.prepare(`${BOOTH_BOOKING_SELECT} ${where} order by bb.created_at desc limit @limit offset @offset`).all({ q, status, limit: pageSize, offset }) as any[];
+  res.json({ items: rows.map(toBoothBooking), total, page, pageSize, counts });
 });
 
 adminRouter.post('/booth-bookings/:id/cancel', (req, res) => {
@@ -428,22 +470,37 @@ adminRouter.post('/booth-bookings/:id/cancel', (req, res) => {
 
 // ---------- Payments, refunds, payouts ----------
 
-adminRouter.get('/payments', (_req, res) => {
-  const rows = getDb()
+adminRouter.get('/payments', (req, res) => {
+  const { q, page, pageSize, offset } = listParams(req.query);
+  const kind = filterParam(req.query.kind);
+  const status = filterParam(req.query.status);
+  const params = { q, kind, status, env: currentEnvironment(), limit: pageSize, offset };
+  const from = `from payments p left join users u on u.id = p.user_id left join users e on e.id = p.payee_id
+    where p.environment = @env and (@kind is null or p.kind = @kind) and (@status is null or p.status = @status)
+      and (p.description like @q escape '\\' or coalesce(u.name, '') like @q escape '\\' or coalesce(p.payer_email, '') like @q escape '\\'
+        or coalesce(e.name, '') like @q escape '\\' or coalesce(p.square_payment_id, '') like @q escape '\\')`;
+  const db = getDb();
+  const totals = db
     .prepare(
-      `select p.*, u.name payer_name, e.name payee_name from payments p
-       left join users u on u.id = p.user_id left join users e on e.id = p.payee_id
-       where p.environment = ? order by p.created_at desc limit 1000`,
+      `select count(*) total,
+        coalesce(sum(case when p.status = 'completed' then p.amount_cents end), 0) gross,
+        coalesce(sum(case when p.status = 'completed' then p.fee_cents end), 0) fees,
+        coalesce(sum(case when p.status = 'refunded' then p.amount_cents end), 0) refunded ${from}`,
     )
-    .all(currentEnvironment()) as any[];
-  res.json(
-    rows.map(p => ({
+    .get(params) as { total: number; gross: number; fees: number; refunded: number };
+  const rows = db.prepare(`select p.*, u.name payer_name, e.name payee_name ${from} order by p.created_at desc limit @limit offset @offset`).all(params) as any[];
+  res.json({
+    total: totals.total,
+    page,
+    pageSize,
+    totals: { grossCents: totals.gross, feesCents: totals.fees, refundedCents: totals.refunded },
+    items: rows.map(p => ({
       id: p.id, kind: p.kind, refId: p.ref_id, description: p.description, payerName: p.payer_name, payerEmail: p.payer_email,
       payeeId: p.payee_id, payeeName: p.payee_name, amountCents: p.amount_cents, feeCents: p.fee_cents,
       payeeAmountCents: p.payee_amount_cents, currency: p.currency, squarePaymentId: p.square_payment_id,
       receiptUrl: p.receipt_url, status: p.status, refundedAt: p.refunded_at, createdAt: p.created_at,
     })),
-  );
+  });
 });
 
 adminRouter.post('/payments/:id/refund', async (req, res) => {
@@ -628,6 +685,55 @@ adminRouter.patch('/reviews/:type/:id', (req, res) => {
 });
 
 // ---------- Backup ----------
+
+// ---------- Contact form inbox ----------
+
+adminRouter.get('/contact-messages', (req, res) => {
+  const { q, page, pageSize, offset } = listParams(req.query);
+  const status = filterParam(req.query.status);
+  const where = `where (@status is null or status = @status)
+    and (name like @q escape '\\' or email like @q escape '\\' or message like @q escape '\\')`;
+  const db = getDb();
+  const total = (db.prepare(`select count(*) c from contact_messages ${where}`).get({ q, status }) as { c: number }).c;
+  const counts = Object.fromEntries(
+    (db.prepare('select status, count(*) c from contact_messages group by status').all() as { status: string; c: number }[]).map(r => [r.status, r.c]),
+  );
+  const rows = db
+    .prepare(`select * from contact_messages ${where} order by created_at desc limit @limit offset @offset`)
+    .all({ q, status, limit: pageSize, offset }) as any[];
+  res.json({
+    items: rows.map(m => ({ id: m.id, name: m.name, email: m.email, message: m.message, userId: m.user_id, status: m.status, createdAt: m.created_at })),
+    total, page, pageSize, counts,
+  });
+});
+
+adminRouter.patch('/contact-messages/:id', (req, res) => {
+  const { status } = parse(z.object({ status: z.enum(['new', 'replied', 'archived']) }), req.body);
+  const r = getDb().prepare('update contact_messages set status = ? where id = ?').run(status, req.params.id);
+  if (!r.changes) throw notFound('Message not found.');
+  res.json({ ok: true });
+});
+
+adminRouter.delete('/contact-messages/:id', (req, res) => {
+  const r = getDb().prepare('delete from contact_messages where id = ?').run(req.params.id);
+  if (!r.changes) throw notFound('Message not found.');
+  res.json({ ok: true });
+});
+
+adminRouter.get('/backups', (_req, res) => {
+  res.json(listBackups());
+});
+
+adminRouter.post('/backups', async (_req, res) => {
+  await backupDatabase(true);
+  res.status(201).json(listBackups());
+});
+
+adminRouter.get('/backups/:name', (req, res) => {
+  const file = backupPath(String(req.params.name));
+  if (!file) throw notFound('Backup not found.');
+  res.download(file, `${getSettings().siteName.replace(/[^\w-]+/g, '-')}-${req.params.name}`);
+});
 
 adminRouter.get('/backup', async (_req, res) => {
   const file = path.join(os.tmpdir(), `inkspace-backup-${Date.now()}.db`);

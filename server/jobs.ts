@@ -1,4 +1,6 @@
-// Periodic housekeeping: Pro renewals, expiring unpaid booth holds, old sessions.
+// Periodic housekeeping: Pro renewals, expiring unpaid booth holds, reminders, daily backups, old sessions.
+import fs from 'node:fs';
+import path from 'node:path';
 import { getDb, nowIso } from './db';
 import { todayStr, formatWhen } from './http';
 import { sendEmail } from './email';
@@ -40,6 +42,89 @@ export function expireStaleRequests() {
   }
 }
 
+const bookingLink = (r: { id: string; access_token: string }) => `${config.appUrl}/booking/${r.id}?token=${r.access_token}`;
+
+/** Sends a client a reminder by notification (account holders) or email (guests). */
+function remindClient(r: any, message: string, subject: string, actionLabel: string) {
+  if (r.client_id) notify(r.client_id, message, { link: '/bookings', email: { subject, actionLabel } });
+  else if (r.guest_email) {
+    sendEmail({ to: r.guest_email, subject, lines: [`Hi ${r.guest_name},`, message], action: { label: actionLabel, url: bookingLink(r) } });
+  }
+}
+
+/** Reminds clients about confirmed appointments a day or so ahead, and about deposits still unpaid after a day. Each is sent once. */
+export function sendReminders() {
+  const db = getDb();
+  const select = `select br.*, a.name artist_name from booking_requests br join users a on a.id = br.artist_id`;
+
+  const upcoming = db
+    .prepare(`${select} where br.status = 'approved' and br.reminder_sent_at is null and br.date between ? and ?
+      and (br.payment_status = 'paid' or br.deposit_cents = 0)`)
+    .all(todayStr(), todayStr(1)) as any[];
+  for (const r of upcoming) {
+    db.prepare('update booking_requests set reminder_sent_at = ? where id = ?').run(nowIso(), r.id);
+    remindClient(
+      r,
+      `Reminder: your tattoo appointment with ${r.artist_name} is on ${formatWhen(r.date, r.appointment_time)}.${r.artist_note ? ` Note from the artist: ${r.artist_note}` : ''}`,
+      `Reminder: your appointment with ${r.artist_name}`,
+      'View booking',
+    );
+  }
+
+  const unpaid = db
+    .prepare(`${select} where br.status = 'approved' and br.payment_status = 'unpaid' and br.deposit_cents > 0
+      and br.deposit_reminder_sent_at is null and br.updated_at <= ? and br.date >= ?`)
+    .all(new Date(Date.now() - 86_400_000).toISOString(), todayStr(1)) as any[];
+  for (const r of unpaid) {
+    db.prepare('update booking_requests set deposit_reminder_sent_at = ? where id = ?').run(nowIso(), r.id);
+    remindClient(
+      r,
+      `${r.artist_name} approved your appointment on ${formatWhen(r.date, r.appointment_time)}, but the deposit hasn't been paid yet. Pay it to confirm your spot.`,
+      'Your deposit is still due',
+      'Pay deposit',
+    );
+  }
+}
+
+// ---------- Daily database backups ----------
+
+const BACKUPS_KEPT = 7;
+const backupsDir = () => path.join(config.dataDir, 'backups');
+
+export function listBackups(): { name: string; size: number; createdAt: string }[] {
+  const dir = backupsDir();
+  if (!fs.existsSync(dir)) return [];
+  return fs
+    .readdirSync(dir)
+    .filter(f => /^backup-[\d-]+\.db$/.test(f))
+    .map(name => {
+      const st = fs.statSync(path.join(dir, name));
+      return { name, size: st.size, createdAt: st.mtime.toISOString() };
+    })
+    .sort((a, b) => b.createdAt.localeCompare(a.createdAt));
+}
+
+/** Full path of a backup by name, or null if there is no such backup (never escapes the backups folder). */
+export function backupPath(name: string): string | null {
+  if (!/^backup-[\d-]+\.db$/.test(name)) return null;
+  const file = path.join(backupsDir(), name);
+  return fs.existsSync(file) ? file : null;
+}
+
+/** Saves a copy of the database once a day (or now, when `force`) and keeps the newest seven. */
+export async function backupDatabase(force = false): Promise<string | null> {
+  const newest = listBackups()[0];
+  if (!force && newest && Date.now() - new Date(newest.createdAt).getTime() < 20 * 3_600_000) return null;
+  const dir = backupsDir();
+  fs.mkdirSync(dir, { recursive: true });
+  const name = `backup-${new Date().toISOString().slice(0, 19).replace(/[:T]/g, '-')}.db`;
+  const tmp = path.join(dir, `${name}.partial`);
+  await getDb().backup(tmp);
+  fs.renameSync(tmp, path.join(dir, name));
+  for (const old of listBackups().slice(BACKUPS_KEPT)) fs.rmSync(path.join(dir, old.name), { force: true });
+  return name;
+}
+
 export function cleanup() {
   const db = getDb();
   db.prepare('delete from sessions where expires_at < ?').run(nowIso());
@@ -47,13 +132,21 @@ export function cleanup() {
 }
 
 export async function runJobs() {
-  try {
-    expireBoothHolds();
-    expireStaleRequests();
-    cleanup();
-    await processRenewals();
-  } catch (err) {
-    console.error('[jobs] failed', err);
+  // Each job runs even if another one fails.
+  const jobs: [string, () => unknown][] = [
+    ['booth holds', expireBoothHolds],
+    ['stale requests', expireStaleRequests],
+    ['reminders', sendReminders],
+    ['cleanup', cleanup],
+    ['renewals', processRenewals],
+    ['backup', () => backupDatabase()],
+  ];
+  for (const [name, job] of jobs) {
+    try {
+      await job();
+    } catch (err) {
+      console.error(`[jobs] ${name} failed`, err);
+    }
   }
 }
 

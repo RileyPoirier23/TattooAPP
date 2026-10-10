@@ -184,7 +184,11 @@ let currencyCache: { key: string; currency: string } | null = null;
 export async function locationCurrency(): Promise<string> {
   const s = getSettings();
   const key = `${s.squareEnvironment}:${s.squareLocationId}`;
-  if (currencyCache?.key === key) return currencyCache.currency;
+  if (currencyCache?.key === key) {
+    // Someone may have changed the displayed currency since; prices must show what Square will charge.
+    if (s.currency !== currencyCache.currency) saveSettings({ currency: currencyCache.currency });
+    return currencyCache.currency;
+  }
   try {
     const { location } = await request<{ location: { currency?: string } }>(
       'GET',

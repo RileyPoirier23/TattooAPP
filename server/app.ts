@@ -16,6 +16,7 @@ import { bookingsRouter } from './routes/bookings';
 import { messagesRouter } from './routes/messages';
 import { shopsRouter } from './routes/shops';
 import { adminRouter } from './routes/admin';
+import { contactRouter } from './routes/contact';
 
 export function createApp() {
   const app = express();
@@ -24,13 +25,20 @@ export function createApp() {
 
   app.use(
     helmet({
-      // The payment form (Square) and maps (Google) load scripts and frames from their own domains,
-      // so a strict content-security-policy would break them. React escapes all rendered text.
-      contentSecurityPolicy: false,
+      contentSecurityPolicy: false, // set below
       crossOriginEmbedderPolicy: false,
       crossOriginResourcePolicy: { policy: 'same-site' },
     }),
   );
+  // The payment form (Square) and maps (Google) load scripts and frames from their own domains, so scripts
+  // aren't restricted (React escapes all rendered text). The policy still blocks plugins, <base> tag hijacking,
+  // forms posting to other sites and other sites framing this one (clickjacking).
+  const csp = ["object-src 'none'", "base-uri 'self'", "form-action 'self'", "frame-ancestors 'self'"];
+  if (config.appUrl.startsWith('https://')) csp.push('upgrade-insecure-requests');
+  app.use((_req, res, next) => {
+    res.setHeader('Content-Security-Policy', csp.join('; '));
+    next();
+  });
   app.use(compression());
 
   // --- API ---
@@ -48,6 +56,7 @@ export function createApp() {
   api.use(bookingsRouter);
   api.use(messagesRouter);
   api.use(shopsRouter);
+  api.use(contactRouter);
   api.use('/admin', adminRouter);
   api.use((_req, res) => {
     res.status(404).json({ error: 'Not found.' });
@@ -57,6 +66,17 @@ export function createApp() {
 
   app.get('/health', (_req, res) => {
     res.json({ ok: true });
+  });
+
+  // --- Search engines ---
+  app.get('/robots.txt', (_req, res) => {
+    res.type('text/plain').send(
+      ['User-agent: *', 'Allow: /', 'Disallow: /admin', 'Disallow: /booking/', 'Disallow: /api/', 'Disallow: /reset-password', '', `Sitemap: ${config.appUrl}/sitemap.xml`, ''].join('\n'),
+    );
+  });
+  app.get('/sitemap.xml', (_req, res) => {
+    res.set('Cache-Control', 'public, max-age=3600');
+    res.type('application/xml').send(renderSitemap());
   });
 
   // --- Uploaded images ---
@@ -85,6 +105,33 @@ export function createApp() {
   });
 
   return app;
+}
+
+/** Public pages for search engines: listed artists, shops and published content pages. */
+function renderSitemap(): string {
+  const db = getDb();
+  const s = getSettings();
+  const entries: { loc: string; lastmod?: string }[] = [{ loc: '/' }];
+  if (s.features.clientBooking) {
+    entries.push({ loc: '/artists' });
+    const artists = db
+      .prepare("select id, updated_at from users where role in ('artist','dual') and status = 'active' and json_array_length(portfolio) > 0")
+      .all() as { id: string; updated_at: string }[];
+    artists.forEach(a => entries.push({ loc: `/artists/${a.id}`, lastmod: a.updated_at }));
+  }
+  if (s.features.boothRental) {
+    entries.push({ loc: '/shops' });
+    (db.prepare('select id, updated_at from shops').all() as { id: string; updated_at: string }[]).forEach(r =>
+      entries.push({ loc: `/shops/${r.id}`, lastmod: r.updated_at }),
+    );
+  }
+  (db.prepare('select slug, updated_at from pages where published = 1').all() as { slug: string; updated_at: string }[]).forEach(p =>
+    entries.push({ loc: `/p/${p.slug}`, lastmod: p.updated_at }),
+  );
+  const urls = entries
+    .map(e => `  <url><loc>${escapeHtml(`${config.appUrl}${e.loc}`)}</loc>${e.lastmod ? `<lastmod>${e.lastmod.slice(0, 10)}</lastmod>` : ''}</url>`)
+    .join('\n');
+  return `<?xml version="1.0" encoding="UTF-8"?>\n<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">\n${urls}\n</urlset>\n`;
 }
 
 let template: string | null = null;

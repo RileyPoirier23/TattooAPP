@@ -256,7 +256,7 @@ const MIGRATIONS: string[] = [
     updated_at text not null
   );
   `,
-  // v2 — appointment times, grandfathered Pro prices, renewal retries, test-vs-live payments, shop blocked dates
+  // v2 — appointment times, renewal retries, test-vs-live payments, shop blocked dates (pro_price_cents is unused)
   `
   alter table booking_requests add column appointment_time text;
   alter table users add column pro_price_cents integer;
@@ -272,6 +272,24 @@ const MIGRATIONS: string[] = [
     created_at text not null
   );
   create index booth_blocks_booth on booth_blocks(booth_id, start_date);
+  `,
+  // v3 — terms acceptance records, reminder tracking, contact form inbox
+  `
+  alter table users add column terms_accepted_at text;
+  alter table booking_requests add column terms_accepted_at text;
+  alter table booking_requests add column reminder_sent_at text;
+  alter table booking_requests add column deposit_reminder_sent_at text;
+  create table contact_messages (
+    id text primary key,
+    name text not null,
+    email text not null,
+    message text not null,
+    user_id text references users(id) on delete set null,
+    status text not null default 'new' check (status in ('new','replied','archived')),
+    created_at text not null
+  );
+  create index contact_messages_created on contact_messages(created_at);
+  create index booking_requests_date on booking_requests(date, status);
   `,
 ];
 

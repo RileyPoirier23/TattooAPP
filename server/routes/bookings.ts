@@ -64,7 +64,11 @@ const requestSchema = z.object({
   guestEmail: z.string().trim().toLowerCase().email('Enter a valid email address').max(200).optional().or(z.literal('')),
   guestPhone: z.string().trim().max(40).optional(),
   acceptTerms: z.literal(true, { message: 'Please confirm you are 18 or older and accept the booking policy.' }),
+  website: z.string().max(200).optional(), // honeypot: hidden from people, filled in by spam bots
 });
+
+const GUEST_REQUESTS_PER_DAY = 3;
+const PENDING_PER_ARTIST = 3;
 
 bookingsRouter.post('/booking-requests', createLimiter, uploadLimiter, upload.array('images', 5), (req, res) => {
   const settings = getSettings();
@@ -86,10 +90,24 @@ bookingsRouter.post('/booking-requests', createLimiter, uploadLimiter, upload.ar
   if (user?.id === artist.id || (!user && body.guestEmail === artist.email)) throw badRequest("You can't book yourself.");
   if (user && !['client', 'dual', 'artist'].includes(user.role)) throw forbidden('Please use a client account to book tattoos.');
 
+  if (body.website) throw badRequest('Your request could not be sent.');
   if (!user) {
     if (!settings.features.guestBooking) throw new HttpError(401, 'Please log in or create an account to book.');
     if (!body.guestName) throw badRequest('Please enter your name.');
+    if (/https?:|www\.|[<>]/i.test(body.guestName)) throw badRequest('Please enter just your name.');
     if (!body.guestEmail) throw badRequest('Please enter your email so the artist can reach you.');
+    const recent = db
+      .prepare('select count(*) c from booking_requests where guest_email = ? and created_at >= ?')
+      .get(body.guestEmail, new Date(Date.now() - 86_400_000).toISOString()) as { c: number };
+    if (recent.c >= GUEST_REQUESTS_PER_DAY) {
+      throw new HttpError(429, "You've sent several requests today. Please wait for a reply, or create a free account to keep track of them.");
+    }
+  }
+  const pending = db
+    .prepare("select count(*) c from booking_requests where artist_id = ? and status = 'pending' and (client_id = ? or (client_id is null and guest_email = ?))")
+    .get(artist.id, user?.id ?? null, user ? null : body.guestEmail) as { c: number };
+  if (pending.c >= PENDING_PER_ARTIST) {
+    throw conflict(`You already have ${pending.c} requests waiting for ${artist.name} to reply. Please wait for an answer before sending more.`);
   }
 
   // One day of slack: the server runs on UTC while clients may be several hours behind.
@@ -118,13 +136,13 @@ bookingsRouter.post('/booking-requests', createLimiter, uploadLimiter, upload.ar
   db.prepare(
     `insert into booking_requests (id, artist_id, client_id, guest_name, guest_email, guest_phone, access_token, service_id,
        service_name, service_price, date, preferred_time, message, tattoo_width, tattoo_height, body_placement, budget,
-       reference_images, deposit_cents, fee_cents, created_at, updated_at)
-     values (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+       reference_images, deposit_cents, fee_cents, terms_accepted_at, created_at, updated_at)
+     values (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
   ).run(
     id, artist.id, user?.id ?? null, user ? null : body.guestName, user ? null : body.guestEmail, user ? null : body.guestPhone || null,
     token, service?.id ?? null, service?.name ?? 'Custom tattoo', service?.price ?? null, body.date, body.preferredTime,
     body.message, body.tattooWidth ?? null, body.tattooHeight ?? null, body.bodyPlacement, body.budget ?? null,
-    JSON.stringify(images), depositCents, depositFeeCents(depositCents, artist), now, now,
+    JSON.stringify(images), depositCents, depositFeeCents(depositCents, artist), now, now, now,
   );
 
   const clientName = user?.name || body.guestName!;
@@ -273,6 +291,9 @@ bookingsRouter.post('/booking-requests/:id/action', (req, res) => {
           link: '/dashboard',
           email: { subject: 'A client cancelled their booking', actionLabel: 'Open dashboard' },
         });
+      } else if (role === 'admin') {
+        tellClient(`Your booking with ${artist.name} for ${when} was cancelled.`, 'Your booking was cancelled', body.note ? [`Note: ${body.note}`] : []);
+        notify(artist.id, `The site admin cancelled your booking with ${row.client_name || row.guest_name} for ${when}.`, { link: '/dashboard' });
       } else {
         tellClient(`${artist.name} cancelled your booking for ${when}.`, 'Your booking was cancelled', body.note ? [`Note: ${body.note}`] : []);
       }
@@ -297,7 +318,18 @@ bookingsRouter.post('/booking-requests/:id/action', (req, res) => {
       if (body.date < todayStr(-1)) throw badRequest('Please choose a date in the future.');
       const time = body.time === undefined ? row.appointment_time : body.time || null;
       set('date = ?, preferred_time = ?, appointment_time = ?', body.date, body.preferredTime || row.preferred_time, time);
-      tellClient(`${artist.name} moved your appointment to ${formatWhen(body.date, time)}.`, 'Your appointment was rescheduled', body.note ? [`Note: ${body.note}`] : []);
+      tellClient(
+        role === 'admin'
+          ? `Your appointment with ${artist.name} was moved to ${formatWhen(body.date, time)}.`
+          : `${artist.name} moved your appointment to ${formatWhen(body.date, time)}.`,
+        'Your appointment was rescheduled',
+        body.note ? [`Note: ${body.note}`] : [],
+      );
+      if (role === 'admin') {
+        notify(artist.id, `The site admin moved your appointment with ${row.client_name || row.guest_name} to ${formatWhen(body.date, time)}.`, { link: '/dashboard' });
+      }
+      // The new date gets its own reminder.
+      db.prepare('update booking_requests set reminder_sent_at = null where id = ?').run(row.id);
       break;
     }
     case 'archive':

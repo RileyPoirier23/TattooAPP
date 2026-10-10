@@ -286,6 +286,10 @@ test('shop owner lists a booth; artist rents it', async () => {
 });
 
 test('pro plan subscription removes the deposit fee', async () => {
+  // The Pro plan ships switched off; subscribing is refused until the owner turns it on.
+  assert.equal((await artist.post('/api/me/subscription', { sourceId: 'cnon:ok', idempotencyKey: 'sub-key-off1' })).status, 403);
+  const { saveSettings } = await import('../server/settings');
+  saveSettings({ features: { proPlan: true } } as any);
   const sub = await artist.post('/api/me/subscription', { sourceId: 'cnon:ok', idempotencyKey: 'sub-key-0001' });
   assert.equal(sub.status, 200, JSON.stringify(sub.body));
   assert.equal(sub.body.user.subscription.isPro, true);
@@ -340,7 +344,9 @@ test('admin manages settings, refunds and payouts', async () => {
   assert.equal(page.status, 200);
 
   const payments = await admin.get('/api/admin/payments');
-  const booth = payments.body.find((p: any) => p.kind === 'booth');
+  assert.equal(payments.body.total, payments.body.items.length);
+  assert.ok(payments.body.totals.grossCents > 0);
+  const booth = payments.body.items.find((p: any) => p.kind === 'booth');
   const refunded = await admin.post(`/api/admin/payments/${booth.id}/refund`, { reason: 'Shop closed' });
   assert.equal(refunded.status, 200, JSON.stringify(refunded.body));
   const ownerEarnings = await shopOwner.get('/api/me/earnings');
@@ -355,7 +361,7 @@ test('admin manages settings, refunds and payouts', async () => {
 
   // Suspending a user logs them out.
   const users = await admin.get('/api/admin/users?q=stranger');
-  await admin.patch(`/api/admin/users/${users.body[0].id}`, { status: 'suspended' });
+  await admin.patch(`/api/admin/users/${users.body.items[0].id}`, { status: 'suspended' });
   const backup = await admin.get('/api/admin/backup');
   assert.equal(backup.status, 200);
 });
@@ -365,7 +371,7 @@ test('password reset flow', async () => {
   const before = (getDb().prepare('select count(*) c from password_resets').get() as any).c;
   await new Client().post('/api/auth/forgot', { email: 'client@example.com' });
   assert.equal((getDb().prepare('select count(*) c from password_resets').get() as any).c, before + 1);
-  const r = await admin.post(`/api/admin/users/${(await admin.get('/api/admin/users?q=client@')).body[0].id}/reset-link`);
+  const r = await admin.post(`/api/admin/users/${(await admin.get('/api/admin/users?q=client@')).body.items[0].id}/reset-link`);
   const token = new URL(r.body.link).searchParams.get('token');
   const reset = await new Client().post('/api/auth/reset', { token, password: 'newpassword1' });
   assert.equal(reset.status, 200);
@@ -446,8 +452,6 @@ test('money safety: expired holds, renewals, card updates, deletion guards', asy
   // A failed renewal keeps Pro during a grace period instead of cancelling straight away.
   const pro = await register('artist', 'renew@example.com');
   await pro.c.post('/api/me/subscription', { sourceId: 'cnon:ok', idempotencyKey: 'renew-sub-0001' });
-  const priceBefore = (db.prepare('select pro_price_cents p from users where id = ?').get(pro.me.id) as any).p;
-  assert.equal(priceBefore, 1900, 'price locked in at subscribe time');
   db.prepare("update users set square_card_id = 'card_declines', pro_until = ? where id = ?").run(new Date(Date.now() - 1000).toISOString(), pro.me.id);
   const realFetch = globalThis.fetch;
   globalThis.fetch = (async (url: any, init: any) => {
@@ -493,6 +497,22 @@ test('money safety: expired holds, renewals, card updates, deletion guards', asy
   await processRenewals();
   assert.equal(squareCalls.slice(before).filter(c => c.path === '/v2/payments').length, 0);
 
+  // Subscribers pay the listed price: a price rise is announced and charged at their next renewal.
+  const p3 = await register('artist', 'price@example.com');
+  await p3.c.post('/api/me/subscription', { sourceId: 'cnon:ok', idempotencyKey: 'price-sub-0001' });
+  const firstCharge = squareCalls.filter(c => c.path === '/v2/payments').at(-1)!;
+  assert.equal(firstCharge.body.amount_money.amount, 1900);
+  await admin.put('/api/admin/settings', { settings: { proMonthlyPrice: 25 } });
+  const notice = db.prepare('select message from notifications where user_id = ? order by created_at desc limit 1').get(p3.me.id) as any;
+  assert.match(notice.message, /next renewal/i);
+  db.prepare('update users set pro_until = ? where id = ?').run(new Date(Date.now() - 1000).toISOString(), p3.me.id);
+  const mark = squareCalls.length;
+  await processRenewals();
+  const renewed = squareCalls.slice(mark).filter(c => c.path === '/v2/payments');
+  assert.equal(renewed.length, 1);
+  assert.equal(renewed[0].body.amount_money.amount, 2500);
+  await admin.put('/api/admin/settings', { settings: { proMonthlyPrice: 19 } });
+
   // Admin can't delete someone who is still owed money.
   const owed = (await admin.get('/api/admin/payouts')).body.find((b: any) => b.balanceCents > 0);
   assert.equal((await admin.req('DELETE', `/api/admin/users/${owed.payee.id}`)).status, 409);
@@ -528,4 +548,168 @@ test('square connection check reports bad keys', async () => {
   } finally {
     (config as any).squareAccessToken = prev;
   }
+});
+
+test('contact form, admin inbox and paged admin lists', async () => {
+  const visitor = new Client();
+  assert.equal((await visitor.post('/api/contact', { name: 'Vera', email: 'vera@example.com', message: 'Short' })).status, 400);
+  const bot = await visitor.post('/api/contact', { name: 'Bot', email: 'bot@example.com', message: 'Cheap followers for sale today', website: 'http://spam.example' });
+  assert.equal(bot.status, 400, 'the hidden honeypot field catches bots');
+  const sent = await visitor.post('/api/contact', { name: 'Vera', email: 'vera@example.com', message: 'Do you have artists in Halifax?' });
+  assert.equal(sent.status, 201, JSON.stringify(sent.body));
+  assert.equal((await artist.get('/api/admin/contact-messages')).status, 403);
+  const inbox = await admin.get('/api/admin/contact-messages');
+  assert.equal(inbox.body.total, 1);
+  assert.equal(inbox.body.items[0].email, 'vera@example.com');
+  assert.equal((await admin.get('/api/admin/stats')).body.newContactMessages, 1);
+  await admin.patch(`/api/admin/contact-messages/${inbox.body.items[0].id}`, { status: 'replied' });
+  assert.equal((await admin.get('/api/admin/stats')).body.newContactMessages, 0);
+
+  // Lists are paged and searchable; LIKE wildcards are matched literally.
+  const page1 = await admin.get('/api/admin/users?pageSize=2&page=1');
+  const page2 = await admin.get('/api/admin/users?pageSize=2&page=2');
+  assert.equal(page1.body.items.length, 2);
+  assert.ok(page1.body.total > 4);
+  assert.notEqual(page1.body.items[0].id, page2.body.items[0].id);
+  assert.equal((await admin.get('/api/admin/users?q=%25')).body.total, 0);
+  const gina = await admin.get('/api/admin/booking-requests?q=gina');
+  assert.ok(gina.body.total >= 1);
+  assert.ok(gina.body.items.every((r: any) => /gina/i.test(r.clientName)));
+  const rentals = await admin.get('/api/admin/booth-bookings?status=refunded');
+  assert.ok(rentals.body.items.length >= 1);
+  assert.ok(rentals.body.items.every((b: any) => b.status === 'refunded'));
+});
+
+test('privacy: data export, terms records and photo metadata', async () => {
+  const c = new Client();
+  assert.equal((await c.post('/api/auth/login', { email: 'client@example.com', password: 'newpassword1' })).status, 200);
+  const exp = await c.get('/api/me/export');
+  assert.equal(exp.status, 200);
+  assert.equal(exp.body.account.email, 'client@example.com');
+  assert.ok(exp.body.account.termsAcceptedAt, 'sign-up records when the terms were accepted');
+  assert.ok(exp.body.bookingsYouMade.length >= 1);
+  assert.ok(exp.body.messages[0].messages.length >= 1);
+  assert.equal(JSON.stringify(exp.body).includes('scrypt$'), false, 'no password hashes');
+  assert.equal(JSON.stringify(exp.body).includes('accessToken'), false);
+  const { getDb } = await import('../server/db');
+  const terms = getDb().prepare('select count(*) c from booking_requests where terms_accepted_at is null').get() as any;
+  assert.equal(terms.c, 0, 'every booking records the 18+/policy confirmation');
+
+  // Hidden camera data (e.g. GPS location) is removed from uploaded JPEGs; the orientation is kept.
+  const tiff = Buffer.alloc(48);
+  tiff.write('MM', 0, 'latin1');
+  tiff.writeUInt16BE(42, 2);
+  tiff.writeUInt32BE(8, 4);
+  tiff.writeUInt16BE(2, 8);
+  tiff.writeUInt16BE(0x010f, 10); // Make
+  tiff.writeUInt16BE(2, 12);
+  tiff.writeUInt32BE(10, 14);
+  tiff.writeUInt32BE(38, 18);
+  tiff.writeUInt16BE(0x0112, 22); // Orientation = 6
+  tiff.writeUInt16BE(3, 24);
+  tiff.writeUInt32BE(1, 26);
+  tiff.writeUInt16BE(6, 30);
+  tiff.write('SECRETCAM\0', 38, 'latin1');
+  const exif = Buffer.concat([Buffer.from('Exif\0\0', 'latin1'), tiff]);
+  const seg = (marker: number, payload: Buffer) => {
+    const head = Buffer.from([0xff, marker, 0, 0]);
+    head.writeUInt16BE(payload.length + 2, 2);
+    return Buffer.concat([head, payload]);
+  };
+  const jpeg = Buffer.concat([
+    Buffer.from([0xff, 0xd8]),
+    seg(0xe0, Buffer.from('JFIF\0\x01\x01\0\0\x01\0\x01\0\0', 'latin1')),
+    seg(0xe1, exif),
+    seg(0xfe, Buffer.from('SECRETNOTE')),
+    seg(0xda, Buffer.from([1, 1, 0, 0, 0x3f, 0])),
+    Buffer.from('imagedata'),
+    Buffer.from([0xff, 0xd9]),
+  ]);
+  const form = new FormData();
+  form.append('images', new Blob([jpeg], { type: 'image/jpeg' }), 'photo.jpg');
+  const up = await artist.req('POST', '/api/me/portfolio', form);
+  assert.equal(up.status, 200, JSON.stringify(up.body));
+  const url: string = up.body.user.portfolio[0].url; // newest first
+  const saved = fs.readFileSync(path.join(tmp, 'uploads', url.slice('/uploads/'.length)));
+  assert.equal(saved.includes('SECRETCAM'), false);
+  assert.equal(saved.includes('SECRETNOTE'), false);
+  assert.equal(saved.includes(Buffer.from([0x01, 0x12, 0x00, 0x03, 0x00, 0x00, 0x00, 0x01, 0x00, 0x06])), true, 'orientation kept');
+  assert.equal(saved.includes('imagedata'), true);
+});
+
+test('abuse protection: login lockout and booking spam limits', async () => {
+  await register('client', 'locked@example.com');
+  for (let i = 0; i < 8; i++) {
+    assert.equal((await new Client().post('/api/auth/login', { email: 'locked@example.com', password: 'wrong-password' })).status, 401);
+  }
+  const locked = await new Client().post('/api/auth/login', { email: 'locked@example.com', password: 'password123' });
+  assert.equal(locked.status, 429, 'even the right password waits once the account is locked');
+
+  const g = new Client();
+  const guestForm = (extra: Record<string, unknown> = {}) =>
+    bookingForm({ artistId, date: workday, message: 'Spam check idea here', tattooWidth: 1, tattooHeight: 1, bodyPlacement: 'Hand', guestName: 'Sam', guestEmail: 'sam@example.com', ...extra });
+  assert.equal((await g.req('POST', '/api/booking-requests', guestForm({ website: 'http://spam.example' }))).status, 400);
+  assert.equal((await g.req('POST', '/api/booking-requests', guestForm({ guestName: 'Visit www.spam.example' }))).status, 400);
+  for (let i = 0; i < 3; i++) assert.equal((await g.req('POST', '/api/booking-requests', guestForm())).status, 201);
+  assert.equal((await g.req('POST', '/api/booking-requests', guestForm())).status, 429, 'at most 3 guest requests per email per day');
+
+  const eager = (await register('client', 'eager@example.com')).c;
+  const form = () => bookingForm({ artistId, date: workday, message: 'Pending cap idea', tattooWidth: 1, tattooHeight: 1, bodyPlacement: 'Hand' });
+  for (let i = 0; i < 3; i++) assert.equal((await eager.req('POST', '/api/booking-requests', form())).status, 201);
+  assert.equal((await eager.req('POST', '/api/booking-requests', form())).status, 409, 'at most 3 unanswered requests per artist');
+});
+
+test('reminders, backups, search engines and settings validation', async () => {
+  const { getDb } = await import('../server/db');
+  const { sendReminders } = await import('../server/jobs');
+  const { todayStr } = await import('../server/http');
+  const db = getDb();
+
+  // Appointment reminder: once, for confirmed bookings coming up.
+  const booking = db.prepare("select id, client_id from booking_requests where status = 'approved' and payment_status = 'paid' and client_id is not null limit 1").get() as any;
+  db.prepare('update booking_requests set date = ?, reminder_sent_at = null where id = ?').run(todayStr(1), booking.id);
+  const count = () => (db.prepare("select count(*) c from notifications where user_id = ? and message like 'Reminder:%'").get(booking.client_id) as any).c;
+  const before = count();
+  sendReminders();
+  assert.equal(count(), before + 1);
+  sendReminders();
+  assert.equal(count(), before + 1, 'sent only once');
+
+  // Deposit reminder for an approved booking left unpaid for a day.
+  const unpaid = db.prepare("select id from booking_requests where status = 'pending' and guest_email = 'sam@example.com' limit 1").get() as any;
+  await artist.post(`/api/booking-requests/${unpaid.id}/action`, { action: 'approve' });
+  db.prepare('update booking_requests set updated_at = ? where id = ?').run(new Date(Date.now() - 2 * 86_400_000).toISOString(), unpaid.id);
+  sendReminders();
+  assert.ok((db.prepare('select deposit_reminder_sent_at d from booking_requests where id = ?').get(unpaid.id) as any).d);
+
+  // Automatic backups can be listed and downloaded by admins only.
+  const made = await admin.post('/api/admin/backups');
+  assert.equal(made.status, 201);
+  assert.equal(made.body.length, 1);
+  assert.equal((await admin.get(`/api/admin/backups/${made.body[0].name}`)).status, 200);
+  assert.equal((await admin.get('/api/admin/backups/..%2Finkspace.db')).status, 404);
+  assert.equal((await artist.get('/api/admin/backups')).status, 403);
+
+  // Artists without a portfolio photo stay out of search, but their profile link works.
+  const bare = await register('artist', 'bare@example.com');
+  assert.equal((await new Client().get('/api/artists')).body.some((a: any) => a.id === bare.me.id), false);
+  assert.equal((await new Client().get(`/api/artists/${bare.me.id}`)).status, 200);
+
+  const sitemap = await (await fetch(`${base}/sitemap.xml`)).text();
+  assert.match(sitemap, new RegExp(`/artists/${artistId}<`));
+  assert.equal(sitemap.includes(bare.me.id), false);
+  assert.match(sitemap, /\/p\/privacy/);
+  assert.match(await (await fetch(`${base}/robots.txt`)).text(), /Sitemap: http.*\/sitemap\.xml/);
+  const home = await fetch(`${base}/`);
+  assert.match(home.headers.get('content-security-policy') || '', /frame-ancestors 'self'/);
+
+  // Links set in the admin panel must be web links; policy pages fill in the site's details.
+  assert.equal((await admin.put('/api/admin/settings', { settings: { instagramUrl: 'javascript:alert(1)' } })).status, 400);
+  assert.equal((await admin.put('/api/admin/settings', { settings: { logoUrl: 'data:image/svg+xml,<svg onload=alert(1)>' } })).status, 400);
+  const ok = await admin.put('/api/admin/settings', { settings: { instagramUrl: 'https://instagram.com/inkspace', contactEmail: 'hello@example.com' } });
+  assert.equal(ok.status, 200, JSON.stringify(ok.body));
+  const privacy = await new Client().get('/api/pages/privacy');
+  assert.match(privacy.body.body, /hello@example\.com/);
+  assert.match(privacy.body.body, /Moncton Ink/);
+  assert.equal(privacy.body.body.includes('{{'), false);
 });

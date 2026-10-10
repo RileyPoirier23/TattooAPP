@@ -2,6 +2,7 @@
 import { getDb, newId, nowIso, parseJson } from './db';
 import { config } from './config';
 import type { SecretSettings, SiteSettings } from '../shared/types';
+import { DEFAULT_PAGES, OLD_PLACEHOLDERS } from './defaultPages';
 
 export const DEFAULT_SETTINGS: SiteSettings = {
   siteName: 'InkSpace',
@@ -31,7 +32,7 @@ export const DEFAULT_SETTINGS: SiteSettings = {
     guestBooking: true,
     boothRental: true,
     messaging: true,
-    proPlan: true,
+    proPlan: false, // switched on later from Admin → Settings
     reviews: true,
     unclaimedShops: true,
   },
@@ -65,43 +66,6 @@ export const DEFAULT_SECRETS: SecretSettings = {
   smtpFrom: '',
   resendApiKey: '',
 };
-
-const DEFAULT_PAGES = [
-  {
-    slug: 'faq',
-    title: 'FAQ',
-    body: `## How do deposits work?
-When an artist approves your request you'll be asked to pay a deposit to lock in your date. The deposit is put towards the price of your tattoo.
-
-## Do I need an account to book?
-No. You can request a booking as a guest — you'll get a private link to check your request and pay your deposit.
-
-## How do guest spots work?
-Artists can rent a booth at a participating shop for one or more days. Pay for the booth to confirm it.`,
-  },
-  {
-    slug: 'booking-policy',
-    title: 'Booking & Cancellation Policy',
-    body: `## Deposits
-Deposits secure your appointment and are generally non-refundable. They are applied to the final price of your tattoo.
-
-## Rescheduling
-Contact your artist as early as possible if you need to change your appointment.
-
-## No-shows
-Missing an appointment without notice may forfeit your deposit.`,
-  },
-  {
-    slug: 'terms',
-    title: 'Terms of Service',
-    body: `Edit this page from the admin panel (Admin → Pages) to add your terms of service.`,
-  },
-  {
-    slug: 'privacy',
-    title: 'Privacy Policy',
-    body: `Edit this page from the admin panel (Admin → Pages) to add your privacy policy.`,
-  },
-];
 
 function readKey<T extends object>(key: string, defaults: T): T {
   const row = getDb().prepare('select value from settings where key = ?').get(key) as { value: string } | undefined;
@@ -155,5 +119,11 @@ export function seedDefaults() {
       'insert into pages (id, slug, title, body, published, show_in_footer, sort_order, updated_at) values (?, ?, ?, ?, 1, 1, ?, ?)',
     );
     DEFAULT_PAGES.forEach((p, i) => insert.run(newId(), p.slug, p.title, p.body, i, nowIso()));
+  }
+  // Pages never edited since an older version still hold one-line placeholders: give them the full templates.
+  for (const p of DEFAULT_PAGES) {
+    for (const old of OLD_PLACEHOLDERS[p.slug] ?? []) {
+      db.prepare('update pages set body = ?, updated_at = ? where slug = ? and body = ?').run(p.body, nowIso(), p.slug, old);
+    }
   }
 }

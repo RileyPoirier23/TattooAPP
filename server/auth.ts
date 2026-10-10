@@ -37,7 +37,7 @@ export interface UserRow {
   square_customer_id: string | null;
   square_card_id: string | null;
   card_label: string | null;
-  pro_price_cents: number | null;
+  terms_accepted_at: string | null;
   renewal_failed_at: string | null;
   average_rating: number;
   review_count: number;
