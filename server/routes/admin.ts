@@ -1,5 +1,5 @@
 // Admin panel API: site customization, settings, and management of every record.
-import { Router } from 'express';
+import { Router, type Response } from 'express';
 import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
@@ -478,15 +478,53 @@ adminRouter.post('/booth-bookings/:id/cancel', (req, res) => {
 
 // ---------- Payments, refunds, payouts ----------
 
-adminRouter.get('/payments', (req, res) => {
-  const { q, page, pageSize, offset } = listParams(req.query);
-  const kind = filterParam(req.query.kind);
-  const status = filterParam(req.query.status);
-  const params = { q, kind, status, env: currentEnvironment(), limit: pageSize, offset };
+/** The payments matching the admin's search and filters (shared by the list and the CSV export). */
+function paymentsFilter(query: Record<string, unknown>) {
+  const { q, page, pageSize, offset } = listParams(query);
+  const params = { q, kind: filterParam(query.kind), status: filterParam(query.status), env: currentEnvironment(), limit: pageSize, offset };
   const from = `from payments p left join users u on u.id = p.user_id left join users e on e.id = p.payee_id
     where p.environment = @env and (@kind is null or p.kind = @kind) and (@status is null or p.status = @status)
       and (p.description like @q escape '\\' or coalesce(u.name, '') like @q escape '\\' or coalesce(p.payer_email, '') like @q escape '\\'
         or coalesce(e.name, '') like @q escape '\\' or coalesce(p.square_payment_id, '') like @q escape '\\')`;
+  return { from, params, page, pageSize };
+}
+
+/** One CSV cell. Text that a spreadsheet would run as a formula (=, +, -, @…) is prefixed with an apostrophe. */
+function csvCell(value: unknown): string {
+  let s = value === null || value === undefined ? '' : String(value);
+  if (typeof value === 'string' && /^[=+\-@\t\r]/.test(s)) s = `'${s}`;
+  return `"${s.replace(/"/g, '""')}"`;
+}
+
+function sendCsv(res: Response, name: string, header: string[], rows: unknown[][]) {
+  const stamp = new Date().toISOString().slice(0, 10);
+  res.setHeader('Content-Type', 'text/csv; charset=utf-8');
+  res.setHeader('Content-Disposition', `attachment; filename="${name}-${currentEnvironment()}-${stamp}.csv"`);
+  // The byte-order mark makes Excel read accents and symbols correctly.
+  res.send(`\uFEFF${[header, ...rows].map(r => r.map(csvCell).join(',')).join('\r\n')}\r\n`);
+}
+
+const dollars = (cents: number) => (cents / 100).toFixed(2);
+
+adminRouter.get('/payments/export', (req, res) => {
+  const { from, params } = paymentsFilter(req.query);
+  const rows = getDb()
+    .prepare(`select p.*, u.name payer_name, e.name payee_name, e.email payee_email ${from} order by p.created_at desc limit 100000`)
+    .all(params) as any[];
+  sendCsv(
+    res,
+    'payments',
+    ['Date', 'Type', 'Description', 'Paid by', 'Payer email', 'Amount', 'Your fee', 'Paid to', 'Payee email', 'Their share', 'Currency', 'Status', 'Refunded at', 'Square payment ID', 'Receipt'],
+    rows.map(p => [
+      p.created_at, p.kind, p.description, p.payer_name ?? '', p.payer_email ?? '', dollars(p.amount_cents), dollars(p.fee_cents),
+      p.payee_name ?? '', p.payee_email ?? '', dollars(p.payee_amount_cents), p.currency, p.status, p.refunded_at ?? '',
+      p.square_payment_id ?? '', p.receipt_url ?? '',
+    ]),
+  );
+});
+
+adminRouter.get('/payments', (req, res) => {
+  const { from, params, page, pageSize } = paymentsFilter(req.query);
   const db = getDb();
   const totals = db
     .prepare(
@@ -544,6 +582,22 @@ adminRouter.get('/payouts', (_req, res) => {
       balanceCents: r.earned - r.paid,
       onHoldCents: r.held,
     })),
+  );
+});
+
+adminRouter.get('/payouts/export', (_req, res) => {
+  const rows = getDb()
+    .prepare(
+      `select o.*, u.name payee_name, u.email payee_email, a.name admin_name from payouts o
+       left join users u on u.id = o.payee_id left join users a on a.id = o.created_by
+       where o.environment = ? order by o.created_at desc`,
+    )
+    .all(currentEnvironment()) as any[];
+  sendCsv(
+    res,
+    'payouts',
+    ['Date', 'Paid to', 'Email', 'Amount', 'Currency', 'Method', 'Note', 'Recorded by'],
+    rows.map(o => [o.created_at, o.payee_name ?? '', o.payee_email ?? '', dollars(o.amount_cents), o.currency, o.method, o.note, o.admin_name ?? '']),
   );
 });
 

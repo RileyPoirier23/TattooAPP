@@ -3,11 +3,11 @@ import React, { useCallback, useState } from 'react';
 import { api } from '../../api';
 import { useStore } from '../../store';
 import { Badge, Button, Card, EmptyState, Input, Notice, PageHeader, StatusBadge, cx, useApi } from '../../components/ui';
-import { CashIcon, ClockIcon, PlusIcon, TrashIcon } from '../../components/Icons';
+import { CashIcon, ClockIcon, DownloadIcon, PlusIcon, TrashIcon } from '../../components/Icons';
 import { ROLE_LABELS, formatDate, formatDateTime, money } from '../../lib/format';
 import type { Earnings, PayoutMethod } from '../../../shared/types';
 import { PAYMENT_KIND_LABELS, PAYOUT_TYPE_LABELS, type PayoutRow } from './types';
-import { AsyncView, Dialog, FilterPills, Muted, copyText, useRunner } from './shared';
+import { AsyncView, Dialog, FilterPills, LinkButton, Muted, copyText, useRunner } from './shared';
 
 type Payee = PayoutRow['payee'];
 
@@ -245,7 +245,15 @@ export const PayoutsSection: React.FC = () => {
 
   return (
     <>
-      <PageHeader title="Payouts" subtitle="Keep track of what you owe each artist and shop." />
+      <PageHeader
+        title="Payouts"
+        subtitle="Keep track of what you owe each artist and shop."
+        actions={
+          <LinkButton href="/api/admin/payouts/export" download>
+            <DownloadIcon className="w-4 h-4" /> Export payout records
+          </LinkButton>
+        }
+      />
       {useStore.getState().config?.settings.squareEnvironment !== 'production' && (
         <Notice tone="warning" className="mb-6">
           Square is in <strong>Sandbox (test) mode</strong>, so this page shows test payments only. When you switch to Production in Settings, test payments are hidden and only real money is counted.

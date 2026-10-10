@@ -3,6 +3,8 @@
 ## [1.2.0] — 2026-10-10 — Launch readiness
 
 ### Money
+- A card is never charged twice when Square's reply is lost: the retry re-sends the original request first.
+- Calls to Square, Resend and SMTP time out instead of hanging.
 - Pro renewals after a long gap (site down, payments switched off) charge once and start a new month; missed months are never charged.
 - Money from a paid rental the shop cancelled, or a paid appointment the artist/admin cancelled, is "on hold" (not owed) until it's refunded.
 - Pro subscribers pay the currently listed price. When the admin changes it, subscribers are emailed and the new price applies from their next renewal (this replaces the 1.1.0 price lock).
@@ -15,6 +17,7 @@
 - Nightly automatic database backups (last 7 kept), listed and downloadable in Admin → Backup.
 - Members can download all their data from Settings.
 - Starter Terms of Service, Privacy Policy, Booking & Cancellation Policy and FAQ, with the site's name and contact details filled in automatically.
+- Admin: CSV exports of payments (with the current filters) and payout records for bookkeeping.
 - Admin: searchable, paged Users, Bookings, Booth rentals and Payments (with totals); edit a shop's details and cover photo; change a booking's date or time; a fuller setup checklist.
 - `OWNER_GUIDE.md` for the person running the site.
 

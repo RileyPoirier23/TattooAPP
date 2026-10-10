@@ -3,10 +3,10 @@ import React, { useCallback, useState } from 'react';
 import { api } from '../../api';
 import { useStore } from '../../store';
 import { Badge, Button, Card, EmptyState, Input, Notice, PageHeader, StatusBadge } from '../../components/ui';
-import { CreditCardIcon, DocumentIcon } from '../../components/Icons';
+import { CreditCardIcon, DocumentIcon, DownloadIcon } from '../../components/Icons';
 import { formatDate, formatDateTime, money } from '../../lib/format';
 import { PAYMENT_KIND_LABELS, type AdminPayment, type PaymentKind } from './types';
-import { AsyncView, DataTable, Dialog, FilterPills, Muted, Pager, SearchInput, Td, useDebounced, usePaged, useRunner, type Paged } from './shared';
+import { AsyncView, DataTable, Dialog, FilterPills, LinkButton, Muted, Pager, SearchInput, Td, useDebounced, usePaged, useRunner, type Paged } from './shared';
 
 interface PaymentsPage extends Paged<AdminPayment> {
   totals: { grossCents: number; feesCents: number; payeeCents: number; refundedCents: number; completedCount: number; refundedCount: number };
@@ -95,7 +95,18 @@ export const PaymentsSection: React.FC = () => {
 
   return (
     <>
-      <PageHeader title="Payments" subtitle="Every card payment taken through your Square account." />
+      <PageHeader
+        title="Payments"
+        subtitle="Every card payment taken through your Square account."
+        actions={
+          <LinkButton
+            href={`/api/admin/payments/export?${new URLSearchParams(Object.entries({ kind: kind === 'all' ? '' : kind, status: status === 'all' ? '' : status, q: dq }).filter(([, v]) => v))}`}
+            download
+          >
+            <DownloadIcon className="w-4 h-4" /> Export CSV
+          </LinkButton>
+        }
+      />
       {sandbox && (
         <Notice tone="warning" className="mb-6">
           Square is in <strong>Sandbox (test) mode</strong>, so this page shows test payments only. When you switch to Production in Settings, test payments are hidden and only real money is counted.

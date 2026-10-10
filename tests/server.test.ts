@@ -575,6 +575,16 @@ test('contact form, admin inbox and paged admin lists', async () => {
   const gina = await admin.get('/api/admin/booking-requests?q=gina');
   assert.ok(gina.body.total >= 1);
   assert.ok(gina.body.items.every((r: any) => /gina/i.test(r.clientName)));
+  // Spreadsheet exports for bookkeeping; text that looks like a formula is neutralised.
+  const csv = await admin.get('/api/admin/payments/export?kind=deposit');
+  assert.equal(csv.status, 200);
+  assert.match(csv.body, /^\uFEFF?"Date","Type","Description"/); // (fetch drops the byte-order mark when decoding)
+  assert.ok(csv.body.includes('"deposit"'));
+  assert.equal(csv.body.includes('"booth"'), false, 'filters apply to the export');
+  const payoutsCsv = await admin.get('/api/admin/payouts/export');
+  assert.match(payoutsCsv.body, /"Paid to","Email","Amount"/);
+  assert.match(payoutsCsv.body, /"e-Transfer"/);
+  assert.equal((await artist.get('/api/admin/payments/export')).status, 403);
   const rentals = await admin.get('/api/admin/booth-bookings?status=refunded');
   assert.ok(rentals.body.items.length >= 1);
   assert.ok(rentals.body.items.every((b: any) => b.status === 'refunded'));

@@ -31,7 +31,9 @@ Every payment goes into **your Square account**:
 
 **Refunds:** **Payments → Refund** sends the full amount back to the payer's card through Square (usually 5–10 business days) and updates everything automatically: a refunded deposit cancels the appointment, a refunded rental frees the booth, a refunded Pro payment ends that plan. If you'd already paid the artist or shop, their balance goes negative and comes off their next payout.
 
-When a client cancels a paid booking, or a shop cancels a paid rental, you get an email so you can decide on a refund.
+When a client cancels a paid booking, or a shop cancels a paid rental, you get an email so you can decide on a refund. If the shop or the artist cancelled, that money shows as **on hold** (not owed to them) until you refund it.
+
+**Bookkeeping:** **Export CSV** on the Payments page (it follows your current filters) and **Export payout records** on the Payouts page download spreadsheets for your accountant. Prices are charged exactly as entered, so if you need to collect sales tax (GST/HST/VAT…), build it into your fees and prices or ask your accountant. Card disputes (chargebacks) are handled in your Square dashboard.
 
 ## 3. The Pro plan
 
