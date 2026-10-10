@@ -2,6 +2,8 @@
 import type { Request, Response } from 'express';
 
 const clients = new Map<string, Set<Response>>();
+// Plenty for several open tabs and devices; stops one account from holding open thousands of connections.
+const MAX_STREAMS_PER_USER = 10;
 
 export function subscribe(req: Request, res: Response, userId: string) {
   res.set({
@@ -15,6 +17,7 @@ export function subscribe(req: Request, res: Response, userId: string) {
 
   let set = clients.get(userId);
   if (!set) clients.set(userId, (set = new Set()));
+  if (set.size >= MAX_STREAMS_PER_USER) set.values().next().value?.end(); // the oldest tab reconnects if it's still open
   set.add(res);
 
   const heartbeat = setInterval(() => res.write(': ping\n\n'), 25_000);
@@ -23,6 +26,12 @@ export function subscribe(req: Request, res: Response, userId: string) {
     set!.delete(res);
     if (set!.size === 0) clients.delete(userId);
   });
+}
+
+/** Ends every live connection (on shutdown), so the server can close promptly; browsers reconnect by themselves. */
+export function closeAllStreams() {
+  for (const set of clients.values()) for (const res of set) res.end();
+  clients.clear();
 }
 
 export type EventName = 'notification' | 'message' | 'bookings' | 'me';

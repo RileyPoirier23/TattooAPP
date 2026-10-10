@@ -713,3 +713,35 @@ test('reminders, backups, search engines and settings validation', async () => {
   assert.match(privacy.body.body, /Moncton Ink/);
   assert.equal(privacy.body.body.includes('{{'), false);
 });
+
+test('deleting an account removes its photos and attachments', async () => {
+  const gone = await register('artist', 'gone@example.com');
+  const pic = new FormData();
+  pic.append('images', new Blob([PNG], { type: 'image/png' }), 'work.png');
+  const portfolioUrl: string = (await gone.c.req('POST', '/api/me/portfolio', pic)).body.user.portfolio[0].url;
+
+  const ref = bookingForm({ artistId: gone.me.id, date: futureDate(5), message: 'Reference photo test', tattooWidth: 1, tattooHeight: 1, bodyPlacement: 'Hand', guestName: 'Rae', guestEmail: 'rae@example.com' });
+  ref.append('images', new Blob([PNG], { type: 'image/png' }), 'ref.png');
+  const booking = await new Client().req('POST', '/api/booking-requests', ref);
+  assert.equal(booking.status, 201, JSON.stringify(booking.body));
+  const refUrl: string = booking.body.request.referenceImages[0];
+
+  const fan = (await register('client', 'fan@example.com')).c;
+  const convo = await fan.post('/api/conversations', { userId: gone.me.id });
+  const msg = new FormData();
+  msg.append('content', 'Here is my idea');
+  msg.append('image', new Blob([PNG], { type: 'image/png' }), 'idea.png');
+  const sent = await fan.req('POST', `/api/conversations/${convo.body.id}/messages`, msg);
+  assert.equal(sent.status, 201, JSON.stringify(sent.body));
+  const attachmentUrl: string = sent.body.attachmentUrl;
+
+  const onDisk = (url: string) => fs.existsSync(path.join(tmp, 'uploads', url.slice('/uploads/'.length)));
+  assert.ok([portfolioUrl, refUrl, attachmentUrl].every(onDisk));
+  assert.equal((await gone.c.post('/api/me/delete', { password: 'wrong-password' })).status, 400);
+  assert.equal((await gone.c.post('/api/me/delete', { password: 'password123' })).status, 200);
+  await new Promise(r => setTimeout(r, 100));
+  assert.equal(onDisk(portfolioUrl), false);
+  assert.equal(onDisk(refUrl), false);
+  assert.equal(onDisk(attachmentUrl), false);
+  assert.equal((await new Client().get(`/api/artists/${gone.me.id}`)).status, 404);
+});

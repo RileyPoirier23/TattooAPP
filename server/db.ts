@@ -291,6 +291,17 @@ const MIGRATIONS: string[] = [
   create index contact_messages_created on contact_messages(created_at);
   create index booking_requests_date on booking_requests(date, status);
   `,
+  // v4 — indexes for lookups that grow with the site (admin lists, payouts, spam checks, conversations)
+  `
+  create index payments_user on payments(user_id);
+  create index payments_env_created on payments(environment, created_at);
+  create index payouts_payee on payouts(payee_id);
+  create index booking_requests_guest_email on booking_requests(guest_email);
+  create index booking_requests_created on booking_requests(created_at);
+  create index booth_bookings_status on booth_bookings(status, created_at);
+  create index conversations_user_b on conversations(user_b);
+  create index shop_reviews_shop on shop_reviews(shop_id);
+  `,
 ];
 
 let db: DB | null = null;

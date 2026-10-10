@@ -153,7 +153,20 @@ export async function runJobs() {
   }
 }
 
+let running: Promise<void> | null = null;
+const timers: ReturnType<typeof setTimeout>[] = [];
+
+function tick() {
+  if (!running) running = runJobs().finally(() => (running = null));
+}
+
 export function startJobs() {
-  setTimeout(runJobs, 10_000);
-  setInterval(runJobs, 60 * 60 * 1000).unref();
+  timers.push(setTimeout(tick, 10_000), setInterval(tick, 60 * 60 * 1000));
+  timers.forEach(t => t.unref());
+}
+
+/** Stops scheduling jobs and waits for a run in progress (e.g. a renewal being charged) to finish. */
+export async function stopJobs() {
+  timers.forEach(t => clearTimeout(t));
+  await running;
 }

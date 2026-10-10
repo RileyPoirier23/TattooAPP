@@ -19,6 +19,7 @@ import { emit } from '../events';
 import { config } from '../config';
 import { backupDatabase, backupPath, listBackups } from '../jobs';
 import { DEFAULT_PAGES } from '../defaultPages';
+import { deleteAccount } from '../accounts';
 
 export const adminRouter = Router();
 
@@ -355,7 +356,7 @@ adminRouter.patch('/users/:id', async (req, res) => {
   res.json(toAdminUser(getUser(u.id)));
 });
 
-adminRouter.delete('/users/:id', (req, res) => {
+adminRouter.delete('/users/:id', async (req, res) => {
   if (req.params.id === req.user!.id) throw badRequest("You can't delete your own account.");
   const u = getUser(req.params.id);
   if (!u) throw notFound('User not found.');
@@ -363,7 +364,7 @@ adminRouter.delete('/users/:id', (req, res) => {
   if (blockers.length) {
     throw conflict(`Can't delete ${u.name} yet: they have ${blockers.join(' and ')}. Suspend the account instead, or refund/pay out first.`);
   }
-  getDb().prepare('delete from users where id = ?').run(u.id);
+  await deleteAccount(u);
   res.json({ ok: true });
 });
 

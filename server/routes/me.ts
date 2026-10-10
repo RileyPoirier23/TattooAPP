@@ -11,6 +11,7 @@ import { subscribe } from '../events';
 import { deletionBlockers, earningsFor, subscribePro, updateCard } from '../billing';
 import { disableCard } from '../square';
 import { notifyAdmins } from '../notify';
+import { deleteAccount } from '../accounts';
 import type { PortfolioImage } from '../../shared/types';
 
 export const meRouter = Router();
@@ -290,11 +291,7 @@ meRouter.post('/me/delete', async (req, res) => {
   if (blockers.length) {
     throw conflict(`Your account can't be deleted yet because you have ${blockers.join(' and ')}. Cancel or finish those first, or contact us.`);
   }
-  if (user.square_card_id) await disableCard(user.square_card_id);
-  const portfolio = parseJson<PortfolioImage[]>(user.portfolio, []);
-  getDb().prepare('delete from users where id = ?').run(user.id);
-  portfolio.forEach(p => deleteUpload(p.url));
-  deleteUpload(user.avatar_url);
+  await deleteAccount(user);
   destroySession(req, res);
   res.json({ ok: true });
 });

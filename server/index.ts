@@ -4,7 +4,8 @@ import { getDb } from './db';
 import { seedDefaults } from './settings';
 import { ensureAdminFromEnv } from './auth';
 import { createApp } from './app';
-import { startJobs } from './jobs';
+import { startJobs, stopJobs } from './jobs';
+import { closeAllStreams } from './events';
 import { locationCurrency, paymentsReady } from './square';
 
 async function main() {
@@ -23,15 +24,29 @@ async function main() {
     console.log(`InkSpace running at ${config.appUrl} (port ${config.port}, data in ${config.dataDir})`);
   });
 
-  const shutdown = () => {
-    server.close(() => {
-      getDb().close();
+  // Hosts send SIGTERM before replacing the app (e.g. on every deploy): finish what's in progress, then exit.
+  let stopping = false;
+  const shutdown = async (signal: string) => {
+    if (stopping) return;
+    stopping = true;
+    console.log(`[server] ${signal} received, shutting down…`);
+    const exit = () => {
+      try {
+        getDb().close();
+      } catch {
+        /* already closed */
+      }
       process.exit(0);
-    });
-    setTimeout(() => process.exit(0), 5000).unref();
+    };
+    setTimeout(exit, 8000).unref(); // never hang longer than most hosts wait
+    const closed = new Promise<void>(resolve => server.close(() => resolve()));
+    closeAllStreams();
+    server.closeIdleConnections();
+    await Promise.all([closed, stopJobs()]);
+    exit();
   };
-  process.on('SIGTERM', shutdown);
-  process.on('SIGINT', shutdown);
+  process.on('SIGTERM', () => void shutdown('SIGTERM'));
+  process.on('SIGINT', () => void shutdown('SIGINT'));
 }
 
 main().catch(err => {
