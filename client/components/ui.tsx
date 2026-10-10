@@ -10,8 +10,8 @@ export { cx };
 
 type ButtonVariant = 'primary' | 'secondary' | 'outline' | 'ghost' | 'danger' | 'success';
 const VARIANTS: Record<ButtonVariant, string> = {
-  primary: 'bg-brand-primary text-on-primary hover:brightness-110 shadow-sm shadow-brand-primary/20',
-  secondary: 'bg-brand-secondary text-on-secondary hover:brightness-110',
+  primary: 'bg-brand-solid text-on-primary hover:brightness-110 shadow-sm shadow-brand-primary/20',
+  secondary: 'bg-brand-secondary-solid text-on-secondary hover:brightness-110',
   outline: 'border border-gray-300 dark:border-gray-700 text-brand-dark dark:text-white hover:bg-gray-100 dark:hover:bg-gray-800',
   ghost: 'text-gray-600 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-800',
   danger: 'bg-red-600 text-white hover:bg-red-500',
@@ -55,7 +55,7 @@ export const Field: React.FC<{ label?: React.ReactNode; hint?: React.ReactNode; 
     )}
     {children}
     {hint && !error && <p className="mt-1 text-xs text-brand-gray">{hint}</p>}
-    {error && <p className="mt-1 text-xs text-red-500">{error}</p>}
+    {error && <p className="mt-1 text-xs text-red-600 dark:text-red-400">{error}</p>}
   </div>
 );
 
@@ -99,9 +99,15 @@ export const Select: React.FC<React.SelectHTMLAttributes<HTMLSelectElement> & { 
   );
 };
 
-export const Toggle: React.FC<{ checked: boolean; onChange: (v: boolean) => void; label?: React.ReactNode; description?: React.ReactNode; disabled?: boolean }> = ({
-  checked, onChange, label, description, disabled,
-}) => (
+export const Toggle: React.FC<{
+  checked: boolean;
+  onChange: (v: boolean) => void;
+  label?: React.ReactNode;
+  description?: React.ReactNode;
+  disabled?: boolean;
+  /** Name for screen readers when there's no visible label (e.g. in a table). */
+  ariaLabel?: string;
+}> = ({ checked, onChange, label, description, disabled, ariaLabel }) => (
   <label className={cx('flex items-start justify-between gap-4 cursor-pointer', disabled && 'opacity-50 cursor-not-allowed')}>
     {(label || description) && (
       <span>
@@ -110,7 +116,7 @@ export const Toggle: React.FC<{ checked: boolean; onChange: (v: boolean) => void
       </span>
     )}
     <span className="relative inline-flex flex-shrink-0 mt-0.5">
-      <input type="checkbox" className="sr-only peer" checked={checked} disabled={disabled} onChange={e => onChange(e.target.checked)} />
+      <input type="checkbox" role="switch" aria-label={ariaLabel} className="sr-only peer" checked={checked} disabled={disabled} onChange={e => onChange(e.target.checked)} />
       <span className="w-11 h-6 rounded-full bg-gray-300 dark:bg-gray-700 peer-checked:bg-brand-primary transition-colors peer-focus-visible:ring-2 peer-focus-visible:ring-brand-primary" />
       <span className="absolute left-0.5 top-0.5 w-5 h-5 rounded-full bg-white shadow transition-transform peer-checked:translate-x-5" />
     </span>
@@ -152,12 +158,12 @@ export const EmptyState: React.FC<{ icon?: React.ReactNode; title: string; child
 );
 
 const TONES = {
-  green: 'bg-emerald-500/15 text-emerald-600 dark:text-emerald-400',
-  yellow: 'bg-amber-500/15 text-amber-600 dark:text-amber-400',
-  red: 'bg-red-500/15 text-red-600 dark:text-red-400',
-  blue: 'bg-sky-500/15 text-sky-600 dark:text-sky-400',
-  purple: 'bg-violet-500/15 text-violet-600 dark:text-violet-400',
-  gray: 'bg-gray-500/15 text-gray-600 dark:text-gray-400',
+  green: 'bg-emerald-500/15 text-emerald-800 dark:text-emerald-400',
+  yellow: 'bg-amber-500/15 text-amber-800 dark:text-amber-400',
+  red: 'bg-red-500/15 text-red-700 dark:text-red-400',
+  blue: 'bg-sky-500/15 text-sky-700 dark:text-sky-400',
+  purple: 'bg-violet-500/15 text-violet-700 dark:text-violet-400',
+  gray: 'bg-gray-500/15 text-gray-700 dark:text-gray-400',
   brand: 'bg-brand-primary/15 text-brand-primary',
 };
 export type Tone = keyof typeof TONES;
@@ -200,7 +206,7 @@ export const Tabs: React.FC<{ tabs: { id: string; label: React.ReactNode; count?
         )}
       >
         {t.label}
-        {!!t.count && <span className="ml-1.5 text-xs bg-brand-primary text-on-primary rounded-full px-1.5 py-0.5">{t.count}</span>}
+        {!!t.count && <span className="ml-1.5 text-xs bg-brand-solid text-on-primary rounded-full px-1.5 py-0.5">{t.count}</span>}
       </button>
     ))}
   </div>
@@ -371,7 +377,7 @@ export const Avatar: React.FC<{ name: string; url?: string | null; size?: 'sm' |
   if (url) return <img src={url} alt={name} className={cx(s, 'rounded-full object-cover flex-shrink-0 bg-gray-200 dark:bg-gray-800')} />;
   const initials = name.split(/\s+/).filter(Boolean).slice(0, 2).map(w => w[0]?.toUpperCase()).join('');
   return (
-    <span className={cx(s, 'rounded-full flex-shrink-0 flex items-center justify-center font-bold text-on-gradient bg-gradient-to-br from-brand-primary to-brand-secondary')}>
+    <span className={cx(s, 'rounded-full flex-shrink-0 flex items-center justify-center font-bold text-on-gradient bg-gradient-to-br from-brand-solid to-brand-secondary-solid')}>
       {initials || '?'}
     </span>
   );

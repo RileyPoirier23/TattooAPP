@@ -240,7 +240,7 @@ export const BookingRequestModal: React.FC<{ artist: ArtistDetail; onClose: () =
               <p className="text-xs text-brand-gray mt-1">Up to 5 images. Large photos are shrunk automatically.</p>
             </div>
           </div>
-          {step2Error && <p className="md:col-span-2 text-sm text-amber-600 dark:text-amber-400">{step2Error}</p>}
+          {step2Error && <p className="md:col-span-2 text-sm text-amber-700 dark:text-amber-400">{step2Error}</p>}
         </div>
       )}
 
@@ -299,7 +299,7 @@ export const BookingRequestModal: React.FC<{ artist: ArtistDetail; onClose: () =
               , including that deposits may be non-refundable.
             </span>
           </label>
-          {error && <p className="md:col-span-2 text-sm text-red-500" role="alert">{error}</p>}
+          {error && <p className="md:col-span-2 text-sm text-red-600 dark:text-red-400" role="alert">{error}</p>}
         </div>
       )}
     </Modal>

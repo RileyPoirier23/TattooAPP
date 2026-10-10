@@ -48,7 +48,7 @@ export const ContactPage: React.FC = () => {
         <Card>
           {sentTo ? (
             <div className="text-center py-6" role="status">
-              <span className="mx-auto mb-4 w-12 h-12 rounded-full bg-emerald-500/15 text-emerald-600 dark:text-emerald-400 flex items-center justify-center">
+              <span className="mx-auto mb-4 w-12 h-12 rounded-full bg-emerald-500/15 text-emerald-700 dark:text-emerald-400 flex items-center justify-center">
                 <CheckIcon className="w-6 h-6" />
               </span>
               <h2 className="text-xl font-bold mb-1">Message sent</h2>
@@ -90,7 +90,7 @@ export const ContactPage: React.FC = () => {
               <h2 className="font-semibold mb-1">Quick answers</h2>
               <p className="text-brand-gray">
                 Many questions are answered in our{' '}
-                <Link to="/p/faq" className="text-brand-primary hover:underline">
+                <Link to="/p/faq" className="text-brand-primary underline">
                   FAQ
                 </Link>
                 .
@@ -103,14 +103,14 @@ export const ContactPage: React.FC = () => {
               <ul className="space-y-2 text-brand-gray">
                 {settings.contactEmail && (
                   <li>
-                    <a href={`mailto:${settings.contactEmail}`} className="text-brand-primary hover:underline break-all">
+                    <a href={`mailto:${settings.contactEmail}`} className="text-brand-primary underline break-all">
                       {settings.contactEmail}
                     </a>
                   </li>
                 )}
                 {settings.instagramUrl && (
                   <li>
-                    <a href={settings.instagramUrl} target="_blank" rel="noopener noreferrer" className="inline-flex items-center gap-1.5 text-brand-primary hover:underline">
+                    <a href={settings.instagramUrl} target="_blank" rel="noopener noreferrer" className="inline-flex items-center gap-1.5 text-brand-primary underline">
                       <InstagramIcon className="w-4 h-4" /> Instagram
                     </a>
                   </li>

@@ -107,7 +107,7 @@ export const HomePage: React.FC = () => {
         )}
 
         {!user && (
-          <section className="rounded-3xl bg-gradient-to-r from-brand-primary to-brand-secondary text-on-gradient p-8 md:p-12 text-center">
+          <section className="rounded-3xl bg-gradient-to-r from-brand-solid to-brand-secondary-solid text-on-gradient p-8 md:p-12 text-center">
             <h2 className="text-3xl font-extrabold tracking-tight">Are you a tattoo artist or shop?</h2>
             <p className="mt-2 opacity-90 max-w-xl mx-auto">Create a free profile to take bookings and deposits online, or list your booths for guest artists.</p>
             <button onClick={() => openAuth('register')} className="mt-6 inline-flex items-center justify-center font-semibold px-6 py-3 rounded-xl bg-white text-gray-900 hover:bg-white/90 transition">

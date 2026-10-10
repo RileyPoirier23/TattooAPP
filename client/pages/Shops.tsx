@@ -15,7 +15,7 @@ export const ShopCard: React.FC<{ shop: Shop }> = ({ shop }) => {
       <div className="relative">
         <Cover url={shop.imageUrl} alt={shop.name} className="w-full h-48" />
         {shop.isVerified && (
-          <Badge className="absolute top-2 right-2 bg-brand-secondary text-on-secondary"><CheckBadgeIcon className="w-3.5 h-3.5" />Verified</Badge>
+          <Badge className="absolute top-2 right-2 bg-brand-secondary-solid text-on-secondary"><CheckBadgeIcon className="w-3.5 h-3.5" />Verified</Badge>
         )}
       </div>
       <div className="p-4">
@@ -136,7 +136,7 @@ export const ShopsPage: React.FC = () => {
         {filtered.map(s => <ShopCard key={s.id} shop={s} />)}
       </div>
 
-      {googleError && <p className="text-sm text-red-500 mt-6">{googleError}</p>}
+      {googleError && <p className="text-sm text-red-600 dark:text-red-400 mt-6">{googleError}</p>}
       {unclaimed.length > 0 && (
         <section className="mt-12">
           <h2 className="text-xl font-bold mb-1">Other shops in {city}</h2>

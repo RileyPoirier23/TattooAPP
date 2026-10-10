@@ -167,7 +167,7 @@ const BlockedDates: React.FC<{ shop: Shop }> = ({ shop }) => {
                 {b.endDate !== b.startDate && ` – ${formatDate(b.endDate, { month: 'short', day: 'numeric', year: 'numeric' })}`}
                 {b.note && <span className="text-brand-gray"> · {b.note}</span>}
               </span>
-              <button onClick={() => remove(b.id)} className="text-red-500 hover:underline">Unblock</button>
+              <button onClick={() => remove(b.id)} className="text-red-600 dark:text-red-400 hover:underline">Unblock</button>
             </li>
           ))}
         </ul>
@@ -356,7 +356,7 @@ export const ShopDashboardPage: React.FC = () => {
                   <div className="flex items-center gap-2">
                     <span className="font-bold whitespace-nowrap">{dollars(b.dailyRate)}<span className="text-sm font-normal text-brand-gray">/day</span></span>
                     <button onClick={() => setBoothModal(b)} className="p-2 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-800" aria-label="Edit booth"><EditIcon className="w-5 h-5" /></button>
-                    <button onClick={() => deleteBooth(b)} className="p-2 rounded-lg text-red-500 hover:bg-red-500/10" aria-label="Delete booth"><TrashIcon className="w-5 h-5" /></button>
+                    <button onClick={() => deleteBooth(b)} className="p-2 rounded-lg text-red-600 dark:text-red-400 hover:bg-red-500/10" aria-label="Delete booth"><TrashIcon className="w-5 h-5" /></button>
                   </div>
                 </li>
               ))}

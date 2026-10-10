@@ -199,7 +199,7 @@ export const ClientRequestCard: React.FC<{ request: BookingRequest; token?: stri
         )}
         {r.review && <span className="text-sm text-brand-gray self-center">You rated this {r.review.rating}★</span>}
         {(r.status === 'pending' || (r.status === 'approved' && r.date >= today())) && (
-          <Button variant="ghost" size="sm" onClick={cancel} loading={busy} className="text-red-500">Cancel booking</Button>
+          <Button variant="ghost" size="sm" onClick={cancel} loading={busy} className="text-red-600 dark:text-red-400">Cancel booking</Button>
         )}
         {user && (
           <button onClick={() => setReporting(true)} className="ml-auto text-xs text-brand-gray hover:text-red-500">Report a problem</button>
@@ -394,7 +394,7 @@ export const ArtistRequestCard: React.FC<{ request: BookingRequest; onChanged: (
           </>
         )}
         {r.status === 'approved' && !isPast && (
-          <Button variant="ghost" size="sm" className="text-red-500" loading={busy === 'cancel'} onClick={() => act('cancel', `Cancel this appointment? ${r.paymentStatus === 'paid' ? 'The deposit was paid — the admin will be notified to arrange a refund.' : ''}`)}>
+          <Button variant="ghost" size="sm" className="text-red-600 dark:text-red-400" loading={busy === 'cancel'} onClick={() => act('cancel', `Cancel this appointment? ${r.paymentStatus === 'paid' ? 'The deposit was paid — the admin will be notified to arrange a refund.' : ''}`)}>
             Cancel appointment
           </Button>
         )}
@@ -462,12 +462,12 @@ export const BoothBookingCard: React.FC<{ booking: BoothBooking; as: 'artist' | 
         </div>
       </div>
       {b.status === 'unpaid' && b.holdExpiresAt && (
-        <p className="text-xs text-amber-600 dark:text-amber-400 mt-2">Held until {new Date(b.holdExpiresAt).toLocaleString()} — unpaid reservations are released automatically.</p>
+        <p className="text-xs text-amber-700 dark:text-amber-400 mt-2">Held until {new Date(b.holdExpiresAt).toLocaleString()} — unpaid reservations are released automatically.</p>
       )}
       <div className="mt-4 pt-4 border-t border-gray-200 dark:border-gray-800 flex flex-wrap gap-2">
         {as === 'artist' && b.status === 'unpaid' && <Button size="sm" onClick={() => setPaying(true)}><CreditCardIcon className="w-4 h-4" /> Pay {money(b.totalCents)}</Button>}
         {(b.status === 'unpaid' || (as === 'owner' && b.status === 'paid' && b.endDate >= today())) && (
-          <Button variant="ghost" size="sm" className="text-red-500" onClick={cancel} loading={busy}>{b.status === 'paid' ? 'Cancel rental' : 'Cancel reservation'}</Button>
+          <Button variant="ghost" size="sm" className="text-red-600 dark:text-red-400" onClick={cancel} loading={busy}>{b.status === 'paid' ? 'Cancel rental' : 'Cancel reservation'}</Button>
         )}
         {as === 'artist' && b.status === 'paid' && b.startDate <= today() && !b.reviewed && features.reviews && (
           <Button variant="outline" size="sm" onClick={() => setReviewing(true)}>Review this shop</Button>

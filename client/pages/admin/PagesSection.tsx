@@ -141,7 +141,7 @@ const PageEditor: React.FC<{ page: Page | null; nextSortOrder: number; onDone: (
             </Field>
           </div>
           {page && d.slug !== page.slug && (
-            <p className="mt-3 text-xs text-amber-600 dark:text-amber-400">Changing the address will break any links people saved to the old one.</p>
+            <p className="mt-3 text-xs text-amber-700 dark:text-amber-400">Changing the address will break any links people saved to the old one.</p>
           )}
         </Card>
 

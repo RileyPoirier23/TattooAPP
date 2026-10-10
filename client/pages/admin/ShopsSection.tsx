@@ -158,7 +158,7 @@ export const ShopsSection: React.FC = () => {
                           {s.reviewCount > 0 ? <StarRating value={s.averageRating} size="w-4 h-4" count={s.reviewCount} /> : <span className="text-brand-gray">No reviews</span>}
                         </Td>
                         <Td>
-                          <Toggle checked={s.isVerified} disabled={busy(`verify:${s.id}`)} onChange={v => setVerified(s, v)} />
+                          <Toggle checked={s.isVerified} disabled={busy(`verify:${s.id}`)} onChange={v => setVerified(s, v)} ariaLabel={`${s.name} verified`} />
                         </Td>
                         <Td className="whitespace-nowrap text-brand-gray">{formatDate(s.createdAt, { month: 'short', day: 'numeric', year: 'numeric' })}</Td>
                         <Td className="text-right whitespace-nowrap">

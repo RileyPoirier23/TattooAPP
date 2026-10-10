@@ -95,7 +95,7 @@ export const SquareCardForm: React.FC<{
         {status === 'error' && <Notice tone="warning">{loadError}</Notice>}
         <div ref={containerRef} data-testid="card-container" />
       </div>
-      {error && <p className="text-sm text-red-500" role="alert">{error}</p>}
+      {error && <p className="text-sm text-red-600 dark:text-red-400" role="alert">{error}</p>}
       <Button block size="lg" onClick={pay} loading={busy} disabled={status !== 'ready'}>
         <LockIcon className="w-5 h-5" />
         {buttonLabel}

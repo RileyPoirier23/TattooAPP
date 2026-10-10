@@ -42,12 +42,14 @@ const Notifications: React.FC = () => {
           if (!open && unread) setTimeout(markRead, 800);
         }}
         className="relative p-2 rounded-lg text-gray-500 hover:text-brand-dark dark:hover:text-white hover:bg-gray-100 dark:hover:bg-gray-800"
-        aria-label={`Notifications${unread ? ` (${unread} unread)` : ''}`}
+        aria-expanded={open}
       >
         <BellIcon className="w-6 h-6" />
+        <span className="sr-only">Notifications</span>
         {unread > 0 && (
-          <span className="absolute top-1 right-1 min-w-[18px] h-[18px] px-1 rounded-full bg-brand-primary text-on-primary text-[10px] font-bold flex items-center justify-center">
+          <span className="absolute top-1 right-1 min-w-[18px] h-[18px] px-1 rounded-full bg-brand-solid text-on-primary text-[10px] font-bold flex items-center justify-center">
             {unread > 9 ? '9+' : unread}
+            <span className="sr-only"> unread</span>
           </span>
         )}
       </button>
@@ -104,7 +106,7 @@ const UserMenu: React.FC<{ user: Me }> = ({ user }) => {
               await logout();
               navigate('/');
             }}
-            className="w-full text-left px-4 py-2 text-sm text-red-500 hover:bg-gray-100 dark:hover:bg-gray-800"
+            className="w-full text-left px-4 py-2 text-sm text-red-600 dark:text-red-400 hover:bg-gray-100 dark:hover:bg-gray-800"
           >
             Log out
           </button>
@@ -136,7 +138,7 @@ export const Header: React.FC = () => {
   return (
     <header className="sticky top-0 z-50 bg-brand-light/85 dark:bg-brand-dark/85 backdrop-blur border-b border-gray-200 dark:border-gray-800">
       {s.announcementEnabled && s.announcementText && (
-        <div className="bg-gradient-to-r from-brand-primary to-brand-secondary text-on-gradient text-center text-sm font-medium px-4 py-2">{s.announcementText}</div>
+        <div className="bg-gradient-to-r from-brand-solid to-brand-secondary-solid text-on-gradient text-center text-sm font-medium px-4 py-2">{s.announcementText}</div>
       )}
       <div className="container mx-auto px-4 h-16 flex items-center justify-between gap-4">
         <Link to="/" className="flex items-center gap-2.5 min-w-0" aria-label={`${s.siteName} home`}>
@@ -220,7 +222,7 @@ export const Header: React.FC = () => {
                     await logout();
                     navigate('/');
                   }}
-                  className="block w-full text-left px-3 py-2.5 rounded-lg text-red-500 hover:bg-gray-100 dark:hover:bg-gray-800"
+                  className="block w-full text-left px-3 py-2.5 rounded-lg text-red-600 dark:text-red-400 hover:bg-gray-100 dark:hover:bg-gray-800"
                 >
                   Log out
                 </button>

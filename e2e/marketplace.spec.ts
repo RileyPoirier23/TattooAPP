@@ -88,7 +88,7 @@ test('artist sets up profile, guest books and pays a deposit', async ({ page }) 
   await page.getByRole('button', { name: 'Request a booking' }).click();
   const dialog = page.getByRole('dialog');
   await dialog.getByRole('button', { name: 'Next month' }).click();
-  await dialog.getByRole('button', { name: / 15 \d{4}$/ }).click();
+  await dialog.getByRole('button', { name: / 15, \d{4}$/ }).click();
   await dialog.getByRole('button', { name: 'Next', exact: true }).click();
   await dialog.getByLabel(/Width/).fill('2');
   await dialog.getByLabel(/Height/).fill('3');

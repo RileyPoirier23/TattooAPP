@@ -1,5 +1,5 @@
 // Admin → Settings: features, fees, lists, Square payments, email (SMTP) and Google Maps.
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useId, useState } from 'react';
 import { api } from '../../api';
 import { useStore } from '../../store';
 import { Badge, Button, Field, Input, Notice, PageHeader, Select, Toggle, cx, inputClass } from '../../components/ui';
@@ -51,10 +51,12 @@ const NumberField: React.FC<{
       : integer && !Number.isInteger(value)
         ? 'Use a whole number.'
         : undefined;
+  const id = useId();
   return (
-    <Field label={label} hint={hint} error={error}>
+    <Field label={label} hint={hint} error={error} htmlFor={id}>
       <div className="relative">
         <input
+          id={id}
           type="number"
           inputMode="decimal"
           min={min}
@@ -363,9 +365,9 @@ export const SettingsSection: React.FC = () => {
                           description={
                             <>
                               {f.description}
-                              {needsBooking && <span className="block text-amber-600 dark:text-amber-400">Turn on Client bookings first.</span>}
+                              {needsBooking && <span className="block text-amber-700 dark:text-amber-400">Turn on Client bookings first.</span>}
                               {needsMaps && draft.features.unclaimedShops && (
-                                <span className="block text-amber-600 dark:text-amber-400">Add a Google Maps key below for this to work.</span>
+                                <span className="block text-amber-700 dark:text-amber-400">Add a Google Maps key below for this to work.</span>
                               )}
                             </>
                           }
@@ -504,7 +506,7 @@ export const SettingsSection: React.FC = () => {
                     Test mode: pay with Square&apos;s test card <span className="font-mono">4111 1111 1111 1111</span>, any future expiry date and CVV <span className="font-mono">111</span>.
                   </p>
                 ) : (
-                  <p className="text-sm text-amber-600 dark:text-amber-400 -mt-2">Live mode: real cards will be charged.</p>
+                  <p className="text-sm text-amber-700 dark:text-amber-400 -mt-2">Live mode: real cards will be charged.</p>
                 )}
                 <div className="grid gap-5 sm:grid-cols-2">
                   <Input
@@ -545,7 +547,7 @@ export const SettingsSection: React.FC = () => {
                     {dirty ? 'Save & test connection' : 'Test connection'}
                   </Button>
                   {squareResult && (
-                    <span className="text-sm text-emerald-600 dark:text-emerald-400 font-medium flex items-center gap-1.5">
+                    <span className="text-sm text-emerald-700 dark:text-emerald-400 font-medium flex items-center gap-1.5">
                       <CheckIcon className="w-4 h-4" /> Connected. Your Square location uses {squareResult}
                       {squareResult === draft.currency ? ', and the site currency matches.' : '.'}
                     </span>

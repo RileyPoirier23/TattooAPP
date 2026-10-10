@@ -234,7 +234,7 @@ const ProfileTab: React.FC<{ me: Me }> = ({ me }) => {
             <p className="text-sm text-brand-gray">Your first image is used as your cover photo. {me.portfolio.length}/60 images.</p>
           </div>
           <label>
-            <span className={cx('cursor-pointer inline-flex items-center gap-2 font-semibold text-sm px-4 py-2.5 rounded-lg bg-brand-primary text-on-primary hover:brightness-110', uploading && 'opacity-50 pointer-events-none')}>
+            <span className={cx('cursor-pointer inline-flex items-center gap-2 font-semibold text-sm px-4 py-2.5 rounded-lg bg-brand-solid text-on-primary hover:brightness-110', uploading && 'opacity-50 pointer-events-none')}>
               <PlusIcon className="w-5 h-5" /> {uploading ? 'Uploading…' : 'Add photos'}
             </span>
             <input
@@ -345,7 +345,7 @@ const ServicesTab: React.FC<{ me: Me }> = ({ me }) => {
               <Input label="Max size (sq in)" type="number" min="0" value={s.maxSize} onChange={e => update(i, { maxSize: e.target.value })} />
             </div>
             <div className="flex justify-end mt-3">
-              <Button variant="ghost" size="sm" className="text-red-500" onClick={() => setItems(list => list.filter((_, j) => j !== i))}><TrashIcon className="w-4 h-4" /> Remove</Button>
+              <Button variant="ghost" size="sm" className="text-red-600 dark:text-red-400" onClick={() => setItems(list => list.filter((_, j) => j !== i))}><TrashIcon className="w-4 h-4" /> Remove</Button>
             </div>
           </div>
         ))}
@@ -412,7 +412,7 @@ const HoursTab: React.FC<{ me: Me }> = ({ me }) => {
                       <Input type="time" value={slot.start} onChange={e => setDay(d, slots.map((s, j) => (j === i ? { ...s, start: e.target.value } : s)))} aria-label={`${name} start`} />
                       <span className="text-brand-gray">to</span>
                       <Input type="time" value={slot.end} onChange={e => setDay(d, slots.map((s, j) => (j === i ? { ...s, end: e.target.value } : s)))} aria-label={`${name} end`} />
-                      <button onClick={() => setDay(d, slots.filter((_, j) => j !== i))} className="p-2 text-red-500 hover:bg-red-500/10 rounded-lg" aria-label="Remove hours"><TrashIcon className="w-5 h-5" /></button>
+                      <button onClick={() => setDay(d, slots.filter((_, j) => j !== i))} className="p-2 text-red-600 dark:text-red-400 hover:bg-red-500/10 rounded-lg" aria-label="Remove hours"><TrashIcon className="w-5 h-5" /></button>
                     </div>
                   ))}
                   {slots.length < 4 && (

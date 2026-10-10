@@ -12,7 +12,9 @@ module.exports = {
         'brand-light': '#F5F5F7',
         // Secondary text: darker in light mode, lighter in dark mode, so it stays readable (WCAG AA) in both.
         'brand-gray': 'rgb(var(--brand-gray) / <alpha-value>)',
-        // Readable text on brand-colored backgrounds (white, or near-black for very light brand colors).
+        // Brand-colored backgrounds that carry text (a deeper shade when needed), and the text on them.
+        'brand-solid': 'rgb(var(--brand-solid) / <alpha-value>)',
+        'brand-secondary-solid': 'rgb(var(--brand-secondary-solid) / <alpha-value>)',
         'on-primary': 'rgb(var(--brand-on-primary) / <alpha-value>)',
         'on-secondary': 'rgb(var(--brand-on-secondary) / <alpha-value>)',
         'on-gradient': 'rgb(var(--brand-on-gradient) / <alpha-value>)',

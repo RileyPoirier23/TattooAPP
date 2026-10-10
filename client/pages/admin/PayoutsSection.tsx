@@ -14,7 +14,7 @@ type Payee = PayoutRow['payee'];
 const PayoutDetails: React.FC<{ method: PayoutMethod; compact?: boolean }> = ({ method, compact }) => {
   const toast = useStore(s => s.toast);
   if (!method.type && !method.details) {
-    return <span className="text-sm text-amber-600 dark:text-amber-400">No payout details yet. Ask them to add them in their dashboard.</span>;
+    return <span className="text-sm text-amber-700 dark:text-amber-400">No payout details yet. Ask them to add them in their dashboard.</span>;
   }
   return (
     <div className={cx('text-sm', !compact && 'rounded-xl bg-gray-50 dark:bg-gray-800/60 p-3')}>
@@ -318,7 +318,7 @@ export const PayoutsSection: React.FC = () => {
                       <div className="flex flex-wrap items-center gap-3 md:justify-end">
                         <div className="md:text-right mr-auto md:mr-0">
                           <p className="text-xs text-brand-gray">Owed</p>
-                          <p className={cx('text-lg font-extrabold', r.balanceCents > 0 ? 'text-brand-primary' : r.balanceCents < 0 ? 'text-red-500' : 'text-brand-gray')}>
+                          <p className={cx('text-lg font-extrabold', r.balanceCents > 0 ? 'text-brand-primary' : r.balanceCents < 0 ? 'text-red-600 dark:text-red-400' : 'text-brand-gray')}>
                             {money(r.balanceCents, currency)}
                           </p>
                         </div>

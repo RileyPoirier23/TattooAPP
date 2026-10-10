@@ -1,7 +1,7 @@
 // Unit tests for browser-side logic that doesn't need a browser.
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { brandVariables, needsDarkText } from '../client/lib/theme';
+import { brandVariables, buttonStyle } from '../client/lib/theme';
 import { fillPageTokens } from '../client/lib/markdown';
 import { fillPageTokens as fillOnServer } from '../server/defaultPages';
 
@@ -21,11 +21,14 @@ const contrast = (a: RGB, b: RGB) => {
 
 test('default brand colors keep their look', () => {
   const v = brandVariables('#F04E98', '#8A4EFC');
-  assert.equal(v['--brand-primary'], '240 78 152');
-  assert.equal(v['--brand-on-primary'], '255 255 255', 'white text on the default pink');
+  assert.equal(v['--brand-primary'], '240 78 152', 'decorations keep the exact color');
+  assert.equal(v['--brand-on-primary'], '255 255 255', 'white text on the default pink buttons…');
+  assert.equal(v['--brand-solid'], '204 66 129', '…on a slightly deeper pink');
   assert.equal(v['--brand-on-gradient'], '255 255 255');
-  assert.equal(needsDarkText('#F04E98'), false);
-  assert.equal(needsDarkText('#FFE600'), true, 'yellow buttons get dark text');
+  assert.equal(buttonStyle('#F04E98'), 'deeper');
+  assert.equal(buttonStyle('#DC2626'), 'as-is');
+  assert.equal(buttonStyle('#FFE600'), 'dark-text', 'yellow buttons get dark text');
+  assert.equal(buttonStyle('nope'), null);
   assert.deepEqual(brandVariables('not-a-color', 'also-not'), {});
 });
 
@@ -41,7 +44,9 @@ test('any brand color stays readable as text and behind button text', () => {
     assert.ok(contrast(rgb(v['--brand-primary-text-light']), light) >= 4.5, `${hex} link text on light pages`);
     assert.ok(contrast(rgb(v['--brand-primary-text-dark']), dark) >= 4.5, `${hex} link text on dark pages`);
     assert.ok(contrast(rgb(v['--brand-secondary-text-light']), light) >= 3, `${hex} icons on light pages`);
-    assert.ok(contrast(rgb(v['--brand-on-primary']), c) >= 3, `${hex} button text`);
+    assert.ok(contrast(rgb(v['--brand-on-primary']), rgb(v['--brand-solid'])) >= 4.5, `${hex} button text (WCAG AA)`);
+    const tint = c.map((x, k) => Math.round(light[k] + (x - light[k]) * 0.15)) as RGB;
+    assert.ok(contrast(rgb(v['--brand-primary-text-light']), tint) >= 4.5, `${hex} text on a brand-tinted badge`);
   }
 });
 

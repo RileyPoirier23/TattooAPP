@@ -136,7 +136,7 @@ export const AuthModal: React.FC = () => {
             </span>
           </label>
         )}
-        {error && <p className="text-sm text-red-500" role="alert">{error}</p>}
+        {error && <p className="text-sm text-red-600 dark:text-red-400" role="alert">{error}</p>}
         {!(view === 'forgot' && sent) && (
           <Button type="submit" block size="lg" loading={busy} disabled={(view === 'register' && !acceptTerms) || (view === 'forgot' && !config?.emailReady)}>
             {view === 'login' ? 'Log in' : view === 'register' ? 'Create account' : 'Send reset link'}

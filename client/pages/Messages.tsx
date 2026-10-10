@@ -70,14 +70,14 @@ const Thread: React.FC<{ convo: Conversation; onSent: () => void }> = ({ convo, 
           const mine = m.senderId === me.id;
           return (
             <div key={m.id} className={cx('flex', mine ? 'justify-end' : 'justify-start')}>
-              <div className={cx('max-w-[80%] rounded-2xl px-3.5 py-2.5', mine ? 'bg-brand-primary text-on-primary rounded-br-md' : 'bg-gray-100 dark:bg-gray-800 rounded-bl-md')}>
+              <div className={cx('max-w-[80%] rounded-2xl px-3.5 py-2.5', mine ? 'bg-brand-solid text-on-primary rounded-br-md' : 'bg-gray-100 dark:bg-gray-800 rounded-bl-md')}>
                 {m.attachmentUrl && (
                   <a href={m.attachmentUrl} target="_blank" rel="noopener noreferrer">
                     <img src={m.attachmentUrl} alt="Attachment" className="rounded-lg mb-1.5 max-h-64 max-w-full" />
                   </a>
                 )}
                 {m.content && <p className="whitespace-pre-wrap break-words">{m.content}</p>}
-                <p className={cx('text-[10px] mt-1', mine ? 'text-white/70' : 'text-brand-gray')}>{formatDateTime(m.createdAt)}</p>
+                <p className={cx('text-[10px] mt-1', mine ? 'text-on-primary' : 'text-brand-gray')}>{formatDateTime(m.createdAt)}</p>
               </div>
             </div>
           );

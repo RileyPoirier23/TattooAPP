@@ -4,7 +4,7 @@ import { Button, Field, Input, PageHeader, Select, Textarea, Toggle, cx, inputCl
 import { BellIcon, DocumentIcon, EyeIcon, GlobeIcon, PaletteIcon, PhotoIcon, SparklesIcon } from '../../components/Icons';
 import { FacebookIcon, InstagramIcon, TikTokIcon } from '../../components/Icons';
 import type { SiteSettings } from '../../../shared/types';
-import { brandVariables, needsDarkText } from '../../lib/theme';
+import { brandVariables, buttonStyle } from '../../lib/theme';
 import { AsyncView, ImageField, LinkButton, SaveBar, SettingsCard, useRunner, useUnsavedWarning } from './shared';
 import { useSettingsDraft } from './useSettingsDraft';
 
@@ -28,7 +28,13 @@ const PRESETS: { name: string; primary: string; secondary: string }[] = [
 
 const ColorField: React.FC<{ label: string; hint: string; value: string; onChange: (v: string) => void }> = ({ label, hint, value, onChange }) => {
   const valid = HEX.test(value);
-  const fullHint = valid && needsDarkText(value) ? `${hint} This color is light, so text on it will be dark to stay readable.` : hint;
+  const style = valid ? buttonStyle(value) : null;
+  const fullHint =
+    style === 'deeper'
+      ? `${hint} Buttons use a slightly deeper shade of it so their white text stays easy to read.`
+      : style === 'dark-text'
+        ? `${hint} It's a bright color, so text on buttons will be dark to stay easy to read.`
+        : hint;
   return (
     <Field label={label} hint={fullHint} error={valid ? undefined : 'Use a hex color like #F04E98'}>
       <div className="flex items-center gap-2">
@@ -69,7 +75,7 @@ const LivePreview: React.FC<{ s: SiteSettings }> = ({ s }) => {
   return (
     <div style={style} className={cx('rounded-2xl overflow-hidden border shadow-lg text-left select-none', dark ? 'bg-brand-dark text-white border-gray-800' : 'bg-brand-light text-brand-dark border-gray-200')}>
       {s.announcementEnabled && s.announcementText.trim() && (
-        <div className="bg-gradient-to-r from-brand-primary to-brand-secondary text-on-gradient text-[11px] text-center px-3 py-1.5 font-medium">{s.announcementText}</div>
+        <div className="bg-gradient-to-r from-brand-solid to-brand-secondary-solid text-on-gradient text-[11px] text-center px-3 py-1.5 font-medium">{s.announcementText}</div>
       )}
       <div className={cx('flex items-center justify-between gap-2 px-4 py-3 border-b', dark ? 'border-white/10' : 'border-black/10')}>
         <div className="flex items-center gap-2 min-w-0">
@@ -80,7 +86,7 @@ const LivePreview: React.FC<{ s: SiteSettings }> = ({ s }) => {
           )}
           <span className="font-extrabold text-sm truncate">{s.siteName || 'Your site'}</span>
         </div>
-        <span className="text-[11px] px-2.5 py-1 rounded-full bg-brand-primary text-on-primary font-semibold flex-shrink-0">Sign up</span>
+        <span className="text-[11px] px-2.5 py-1 rounded-full bg-brand-solid text-on-primary font-semibold flex-shrink-0">Sign up</span>
       </div>
       <div className="relative px-5 py-10 text-center overflow-hidden">
         {s.heroImageUrl && (
@@ -96,7 +102,7 @@ const LivePreview: React.FC<{ s: SiteSettings }> = ({ s }) => {
           </h3>
           {s.heroSubtitle && <p className="mt-3 text-xs opacity-80 line-clamp-3">{s.heroSubtitle}</p>}
           <div className="mt-4 flex justify-center gap-2 flex-wrap">
-            <span className="bg-brand-primary text-on-primary text-xs font-semibold px-3 py-2 rounded-lg">Find an artist</span>
+            <span className="bg-brand-solid text-on-primary text-xs font-semibold px-3 py-2 rounded-lg">Find an artist</span>
             <span className={cx('text-xs font-semibold px-3 py-2 rounded-lg border', dark ? 'border-white/20' : 'border-black/15')}>Find a guest spot</span>
           </div>
         </div>

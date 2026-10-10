@@ -110,7 +110,7 @@ export const AdminPage: React.FC<{ section: string }> = ({ section }) => {
             </div>
             {GROUPS.map(group => (
               <div key={group}>
-                <p className="px-3 mb-1 text-[11px] font-bold uppercase tracking-wider text-gray-400 dark:text-gray-500">{group}</p>
+                <p className="px-3 mb-1 text-[11px] font-bold uppercase tracking-wider text-brand-gray">{group}</p>
                 <ul className="space-y-0.5">
                   {SECTIONS.filter(s => s.group === group).map(s => {
                     const active = s.id === section;
@@ -129,7 +129,7 @@ export const AdminPage: React.FC<{ section: string }> = ({ section }) => {
                         >
                           <s.icon className="w-5 h-5 flex-shrink-0" />
                           <span className="flex-1">{s.label}</span>
-                          {n > 0 && <span className="text-xs font-bold bg-brand-primary text-on-primary rounded-full px-1.5 py-0.5 min-w-[1.25rem] text-center">{n}</span>}
+                          {n > 0 && <span className="text-xs font-bold bg-brand-solid text-on-primary rounded-full px-1.5 py-0.5 min-w-[1.25rem] text-center">{n}</span>}
                         </Link>
                       </li>
                     );
@@ -158,13 +158,13 @@ export const AdminPage: React.FC<{ section: string }> = ({ section }) => {
                   className={cx(
                     'flex items-center gap-2 px-3.5 py-2 rounded-full text-sm font-semibold whitespace-nowrap border transition-colors',
                     active
-                      ? 'bg-brand-primary text-on-primary border-brand-primary'
+                      ? 'bg-brand-solid text-on-primary border-brand-primary'
                       : 'bg-white dark:bg-gray-900 border-gray-200 dark:border-gray-800 text-gray-600 dark:text-gray-300',
                   )}
                 >
                   <s.icon className="w-4 h-4" />
                   {s.label}
-                  {n > 0 && <span className={cx('text-xs rounded-full px-1.5', active ? 'bg-white/25' : 'bg-brand-primary text-on-primary')}>{n}</span>}
+                  {n > 0 && <span className={cx('text-xs rounded-full px-1.5', active ? 'bg-white/25' : 'bg-brand-solid text-on-primary')}>{n}</span>}
                 </Link>
               );
             })}

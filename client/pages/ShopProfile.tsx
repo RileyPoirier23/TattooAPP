@@ -79,7 +79,7 @@ const BookBoothModal: React.FC<{ shop: ShopDetail; boothId: string; onClose: () 
           </div>
         )}
         {booth.description && <p className="text-sm text-brand-gray">{booth.description}</p>}
-        {error && <p className="text-sm text-red-500">{error}</p>}
+        {error && <p className="text-sm text-red-600 dark:text-red-400">{error}</p>}
       </div>
     </Modal>
   );

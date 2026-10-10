@@ -44,7 +44,7 @@ export const ResetPasswordPage: React.FC = () => {
         <form onSubmit={submit} className="space-y-4">
           <Input label="New password" type="password" value={password} onChange={e => setPassword(e.target.value)} minLength={8} required autoComplete="new-password" />
           <Input label="Confirm password" type="password" value={confirm} onChange={e => setConfirm(e.target.value)} minLength={8} required autoComplete="new-password" />
-          {error && <p className="text-sm text-red-500">{error}</p>}
+          {error && <p className="text-sm text-red-600 dark:text-red-400">{error}</p>}
           <Button type="submit" block loading={busy}>Save password</Button>
         </form>
       )}
