@@ -73,6 +73,8 @@ function orientationSegment(orientation: number): Buffer {
   return Buffer.concat([head, payload]);
 }
 
+const MAX_JPEG_SEGMENTS = 1000;
+
 /**
  * Removes hidden metadata from a JPEG — EXIF/XMP (camera details, often the GPS location where the photo was
  * taken), IPTC and comments — keeping only the orientation. Returns the original if the file looks unusual.
@@ -83,8 +85,10 @@ export function stripJpegMetadata(buf: Buffer): Buffer {
     let insertAt = 1;
     let orientation = 1;
     let i = 2;
-    while (i + 4 <= buf.length) {
-      if (buf[i] !== 0xff) return buf;
+    // Real photos have a few dozen segments before the image data; a crafted file could have millions,
+    // so give up (keeping the file as uploaded) rather than spend memory on it.
+    for (let steps = 0; i + 4 <= buf.length; steps++) {
+      if (steps > MAX_JPEG_SEGMENTS || buf[i] !== 0xff) return buf;
       const marker = buf[i + 1];
       if (marker === 0xff) {
         i++; // padding
@@ -96,11 +100,8 @@ export function stripJpegMetadata(buf: Buffer): Buffer {
         out.push(buf.subarray(i));
         return Buffer.concat(out);
       }
-      if ((marker >= 0xd0 && marker <= 0xd8) || marker === 0x01) {
-        out.push(buf.subarray(i, i + 2));
-        i += 2;
-        continue;
-      }
+      // Markers without a length (restart markers, a second start-of-image) never come before the image data.
+      if ((marker >= 0xd0 && marker <= 0xd8) || marker === 0x01) return buf;
       const len = buf.readUInt16BE(i + 2);
       if (len < 2 || i + 2 + len > buf.length) return buf;
       const segment = buf.subarray(i, i + 2 + len);

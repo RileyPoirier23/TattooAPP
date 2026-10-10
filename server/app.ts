@@ -184,13 +184,16 @@ function renderIndex(urlPath = '/'): string {
   const s = getSettings();
   const meta = pageMeta(urlPath);
   const image = meta.image ? (meta.image.startsWith('http') ? meta.image : `${config.appUrl}${meta.image}`) : '';
-  return template
-    .replaceAll('%PAGE_TITLE%', escapeHtml(meta.title))
-    .replaceAll('%PAGE_DESCRIPTION%', escapeHtml(meta.description))
-    .replaceAll('%OG_IMAGE%', escapeHtml(image))
-    .replaceAll('%PAGE_URL%', escapeHtml(`${config.appUrl}${urlPath}`))
-    .replaceAll('%SITE_NAME%', escapeHtml(s.siteName))
-    .replaceAll('%SITE_DESCRIPTION%', escapeHtml(s.tagline))
-    .replaceAll('%THEME%', s.defaultTheme === 'light' ? 'light' : 'dark')
-    .replaceAll('%FAVICON%', escapeHtml(s.faviconUrl || '/favicon.svg'));
+  const values: Record<string, string> = {
+    PAGE_TITLE: escapeHtml(meta.title),
+    PAGE_DESCRIPTION: escapeHtml(meta.description),
+    OG_IMAGE: escapeHtml(image),
+    PAGE_URL: escapeHtml(`${config.appUrl}${urlPath}`),
+    SITE_NAME: escapeHtml(s.siteName),
+    SITE_DESCRIPTION: escapeHtml(s.tagline),
+    THEME: s.defaultTheme === 'light' ? 'light' : 'dark',
+    FAVICON: escapeHtml(s.faviconUrl || '/favicon.svg'),
+  };
+  // A replacer function inserts values literally (a string replacement would treat "$&", "$`"… specially).
+  return template.replace(/%([A-Z_]+)%/g, (match, key: string) => values[key] ?? match);
 }

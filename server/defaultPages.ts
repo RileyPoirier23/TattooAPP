@@ -191,5 +191,6 @@ Missing an appointment without notice may forfeit your deposit.`],
 /** Fills in {{siteName}}, {{siteUrl}} and {{contact}} (the contact email if set, otherwise the contact form). */
 export function fillPageTokens(body: string, s: { siteName: string; contactEmail: string }, siteUrl: string): string {
   const contact = s.contactEmail ? `[${s.contactEmail}](mailto:${s.contactEmail})` : '[our contact form](/contact)';
-  return body.replaceAll('{{siteName}}', s.siteName).replaceAll('{{siteUrl}}', siteUrl).replaceAll('{{contact}}', contact);
+  const values: Record<string, string> = { siteName: s.siteName, siteUrl, contact };
+  return body.replace(/\{\{(siteName|siteUrl|contact)\}\}/g, (_, key: string) => values[key]);
 }

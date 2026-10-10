@@ -308,6 +308,11 @@ export const PayoutsSection: React.FC = () => {
                         <Muted>
                           Earned {money(r.earnedCents, currency)} · paid {money(r.paidOutCents, currency)}
                         </Muted>
+                        {r.onHoldCents > 0 && (
+                          <span className="block text-xs text-amber-700 dark:text-amber-300">
+                            {money(r.onHoldCents, currency)} on hold: a paid booking was cancelled — refund it in Payments
+                          </span>
+                        )}
                       </button>
                       <PayoutDetails method={r.payee.payoutMethod} compact />
                       <div className="flex flex-wrap items-center gap-3 md:justify-end">

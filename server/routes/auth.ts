@@ -103,7 +103,11 @@ authRouter.post('/logout', (req, res) => {
 authRouter.post('/forgot', limiter, (req, res) => {
   const { email } = parse(z.object({ email: zEmail }), req.body);
   const user = findUserByEmail(email);
-  if (user && user.status === 'active') {
+  // At most 3 unexpired reset links per account, so nobody can flood someone's inbox with reset emails.
+  const recent = user
+    ? (getDb().prepare('select count(*) c from password_resets where user_id = ? and used_at is null and expires_at > ?').get(user.id, nowIso()) as { c: number }).c
+    : 0;
+  if (user && user.status === 'active' && recent < 3) {
     const link = createPasswordResetLink(user.id);
     sendEmail({
       to: user.email,

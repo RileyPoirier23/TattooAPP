@@ -65,7 +65,7 @@ The app is a single Docker container that needs a **persistent disk** for its da
 5. Under **Settings → Networking**, generate a domain (or add your own domain).
 6. Open the site, log in as admin, and go to **Admin → Settings** to connect Square and email.
 
-**Other hosts work too** — anything that runs a Docker image with a persistent disk mounted at `/data`: Render (with a Disk), Fly.io (with a Volume), DigitalOcean, or any VPS (`docker build -t inkspace . && docker run -p 3000:3000 -v inkspace-data:/data --env-file .env inkspace`).
+**Other hosts work too** — anything that runs a Docker image with a persistent disk mounted at `/data`: Render (with a Disk), Fly.io (with a Volume), DigitalOcean, or any VPS (`docker build -t inkspace . && docker run -p 3000:3000 -v inkspace-data:/data --env-file .env inkspace`). On your own server, put it behind HTTPS (e.g. Caddy or nginx). If that proxy runs on a different machine, also set `TRUST_PROXY=1` so the rate limits see visitors' real IP addresses.
 
 > Avoid "serverless" hosts like Vercel or Netlify for this app — they can't keep a database file or uploaded images.
 

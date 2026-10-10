@@ -3,7 +3,7 @@ import React, { useState } from 'react';
 import { api, errorMessage } from '../api';
 import { useStore } from '../store';
 import { formatDate, money } from '../lib/format';
-import { Button, Card, EmptyState, ErrorBox, Input, PageLoader, Select, StatusBadge, useApi } from './ui';
+import { Badge, Button, Card, EmptyState, ErrorBox, Input, PageLoader, Select, StatusBadge, useApi } from './ui';
 import { CashIcon } from './Icons';
 import type { Earnings, Me, PayoutMethod } from '../../shared/types';
 
@@ -28,6 +28,11 @@ export const EarningsPanel: React.FC = () => {
       <p className="text-sm text-brand-gray">
         Payments are collected securely by the site and paid out to you regularly using the payout method below. Questions about a payout? Contact the site admin.
       </p>
+      {data.onHoldCents > 0 && (
+        <p className="text-sm rounded-lg bg-amber-500/10 text-amber-800 dark:text-amber-300 px-3 py-2">
+          {money(data.onHoldCents, data.currency)} is on hold: it was paid for a booking that was cancelled, so the payer is due a refund. It isn&apos;t included in your balance.
+        </p>
+      )}
       <div className="grid gap-6 lg:grid-cols-2">
         <Card>
           <h3 className="font-bold mb-3">Payments received</h3>
@@ -42,8 +47,9 @@ export const EarningsPanel: React.FC = () => {
                     <p className="text-xs text-brand-gray">{formatDate(e.createdAt)}</p>
                   </div>
                   <div className="text-right">
-                    <p className={`font-semibold ${e.status === 'refunded' ? 'line-through text-brand-gray' : ''}`}>{money(e.amountCents, data.currency)}</p>
+                    <p className={`font-semibold ${e.status === 'refunded' || e.onHold ? 'line-through text-brand-gray' : ''}`}>{money(e.amountCents, data.currency)}</p>
                     {e.status === 'refunded' && <StatusBadge status="refunded" />}
+                    {e.onHold && <Badge tone="yellow">On hold</Badge>}
                   </div>
                 </li>
               ))}

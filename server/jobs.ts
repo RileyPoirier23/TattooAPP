@@ -132,6 +132,8 @@ export function cleanup() {
   const db = getDb();
   db.prepare('delete from sessions where expires_at < ?').run(nowIso());
   db.prepare('delete from password_resets where expires_at < ?').run(nowIso());
+  // Read notifications older than six months aren't shown anywhere any more.
+  db.prepare('delete from notifications where read = 1 and created_at < ?').run(new Date(Date.now() - 182 * 86_400_000).toISOString());
 }
 
 export async function runJobs() {

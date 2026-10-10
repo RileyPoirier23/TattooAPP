@@ -10,7 +10,7 @@ import { badRequest, conflict, notFound, parse, toCents, todayStr, zDate } from 
 import { getSecrets, getSettings, saveSecrets, saveSettings } from '../settings';
 import { BOOKING_REQUEST_SELECT, BOOTH_BOOKING_SELECT, recomputeArtistRating, recomputeShopRating, toBookingRequest, toBoothBooking } from '../mappers';
 import { saveImage, upload } from '../uploads';
-import { announceProPriceChange, currentEnvironment, deletionBlockers, earningsFor, refund } from '../billing';
+import { ON_HOLD_SQL, announceProPriceChange, currentEnvironment, deletionBlockers, earningsFor, refund } from '../billing';
 import { emailReady, sendEmail, sendEmailNow } from '../email';
 import { checkConnection, locationCurrency, paymentsReady } from '../square';
 import { notify } from '../notify';
@@ -55,7 +55,7 @@ adminRouter.get('/stats', (_req, res) => {
   const revenue30 = one("select coalesce(sum(amount_cents),0) gross, coalesce(sum(fee_cents),0) fees from payments where status = 'completed' and created_at >= ? and environment = ?", since30, env);
   const owed = one(
     `select coalesce(sum(bal),0) owed from (
-       select (select coalesce(sum(payee_amount_cents),0) from payments p where p.payee_id = u.id and p.status = 'completed' and p.environment = @env)
+       select (select coalesce(sum(payee_amount_cents),0) from payments p where p.payee_id = u.id and p.status = 'completed' and p.environment = @env and not ${ON_HOLD_SQL})
             - (select coalesce(sum(amount_cents),0) from payouts o where o.payee_id = u.id and o.environment = @env) bal
        from users u) where bal > 0`,
     { env },
@@ -439,7 +439,8 @@ adminRouter.post('/booking-requests/:id/status', (req, res) => {
   const db = getDb();
   const r = db.prepare('select * from booking_requests where id = ?').get(req.params.id) as any;
   if (!r) throw notFound();
-  db.prepare('update booking_requests set status = ?, updated_at = ? where id = ?').run(status, nowIso(), r.id);
+  db.prepare('update booking_requests set status = ?, cancelled_by = ?, updated_at = ? where id = ?')
+    .run(status, status === 'cancelled' ? (r.status === 'cancelled' ? r.cancelled_by : 'admin') : null, nowIso(), r.id);
   if (status !== r.status) {
     const msg = `The site admin changed the booking for ${r.date} to "${status}".`;
     notify(r.artist_id, msg, { link: '/dashboard', email: { subject: 'Your booking was updated', actionLabel: 'Open dashboard' } });
@@ -526,7 +527,8 @@ adminRouter.get('/payouts', (_req, res) => {
   const rows = getDb()
     .prepare(
       `select u.id, u.name, u.email, u.role, u.payout_method,
-        (select coalesce(sum(payee_amount_cents),0) from payments p where p.payee_id = u.id and p.status = 'completed' and p.environment = @env) earned,
+        (select coalesce(sum(payee_amount_cents),0) from payments p where p.payee_id = u.id and p.status = 'completed' and p.environment = @env and not ${ON_HOLD_SQL}) earned,
+        (select coalesce(sum(payee_amount_cents),0) from payments p where p.payee_id = u.id and p.status = 'completed' and p.environment = @env and ${ON_HOLD_SQL}) held,
         (select coalesce(sum(amount_cents),0) from payouts o where o.payee_id = u.id and o.environment = @env) paid
        from users u
        where exists(select 1 from payments p where p.payee_id = u.id and p.environment = @env)
@@ -540,6 +542,7 @@ adminRouter.get('/payouts', (_req, res) => {
       earnedCents: r.earned,
       paidOutCents: r.paid,
       balanceCents: r.earned - r.paid,
+      onHoldCents: r.held,
     })),
   );
 });

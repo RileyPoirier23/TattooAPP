@@ -355,7 +355,10 @@ export async function processRenewals() {
       const { amount, currency } = await chargeSubscription(
         user, user.square_customer_id!, user.square_card_id!, idempotencyKey('renew', user.id, user.pro_until!, attempt), currentProPriceCents(),
       );
-      const until = addMonth(user.pro_until!);
+      // A renewal on time (or during the grace period) keeps the same monthly date. After a longer gap (site
+      // down, payments switched off) the new month starts now — the missed months are never charged.
+      const overdue = Date.now() - new Date(user.pro_until!).getTime();
+      const until = addMonth(overdue > PRO_GRACE_DAYS * DAY ? nowIso() : user.pro_until!);
       db.prepare('update users set pro_until = ?, renewal_failed_at = null, updated_at = ? where id = ?').run(until, nowIso(), user.id);
       notify(user.id, `Your Pro plan renewed for ${formatMoney(amount, currency)}. Next renewal: ${until.slice(0, 10)}.`, {
         link: '/settings',
@@ -396,7 +399,8 @@ export async function refund(paymentId: string, reason: string) {
         // A refunded deposit means the appointment is off (unless the session already happened).
         db.prepare(
           `update booking_requests set payment_status = 'refunded',
-             status = case when status in ('pending','approved') then 'cancelled' else status end, updated_at = ?
+             status = case when status in ('pending','approved') then 'cancelled' else status end,
+             cancelled_by = case when status in ('pending','approved') then 'admin' else cancelled_by end, updated_at = ?
            where id = ? and payment_status = 'paid'`,
         ).run(now, p.ref_id);
       } else if (p.kind === 'booth') {
@@ -422,27 +426,40 @@ export async function refund(paymentId: string, reason: string) {
 
 // ---------- Ledger ----------
 
+/**
+ * SQL (for a payment aliased `p`): money from a paid rental the shop cancelled, or a paid appointment the artist or
+ * admin cancelled. The payer is due a refund under the booking policy, so it isn't owed to the artist/shop.
+ */
+export const ON_HOLD_SQL = `(
+  (p.kind = 'booth' and exists (select 1 from booth_bookings hb where hb.id = p.ref_id and hb.status = 'cancelled'))
+  or (p.kind = 'deposit' and exists (select 1 from booking_requests hr where hr.id = p.ref_id and hr.status = 'cancelled' and hr.cancelled_by in ('artist', 'admin')))
+)`;
+
 export function earningsFor(userId: string): Earnings {
   const db = getDb();
   const env = currentEnvironment();
   const entries = db
     .prepare(
-      `select id, kind, description, payee_amount_cents, status, currency, created_at from payments
-       where payee_id = ? and environment = ? order by created_at desc`,
+      `select p.id, p.kind, p.description, p.payee_amount_cents, p.status, p.currency, p.created_at, ${ON_HOLD_SQL} on_hold
+       from payments p where p.payee_id = ? and p.environment = ? order by p.created_at desc`,
     )
     .all(userId, env) as any[];
   const payouts = db
     .prepare('select * from payouts where payee_id = ? and environment = ? order by created_at desc')
     .all(userId, env) as any[];
-  const earned = entries.filter(e => e.status === 'completed').reduce((s, e) => s + e.payee_amount_cents, 0);
+  const sum = (list: any[]) => list.reduce((s, e) => s + e.payee_amount_cents, 0);
+  const completed = entries.filter(e => e.status === 'completed');
+  const earned = sum(completed.filter(e => !e.on_hold));
   const paidOut = payouts.reduce((s, p) => s + p.amount_cents, 0);
   return {
     currency: entries[0]?.currency || payouts[0]?.currency || getSettings().currency,
     earnedCents: earned,
     paidOutCents: paidOut,
     balanceCents: earned - paidOut,
+    onHoldCents: sum(completed.filter(e => e.on_hold)),
     entries: entries.map(e => ({
-      id: e.id, kind: e.kind, description: e.description, amountCents: e.payee_amount_cents, status: e.status, createdAt: e.created_at,
+      id: e.id, kind: e.kind, description: e.description, amountCents: e.payee_amount_cents, status: e.status,
+      onHold: e.status === 'completed' && !!e.on_hold, createdAt: e.created_at,
     })),
     payouts: payouts.map(p => ({ id: p.id, amountCents: p.amount_cents, method: p.method, note: p.note, createdAt: p.created_at })),
   };

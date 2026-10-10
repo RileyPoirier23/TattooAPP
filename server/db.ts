@@ -302,6 +302,10 @@ const MIGRATIONS: string[] = [
   create index conversations_user_b on conversations(user_b);
   create index shop_reviews_shop on shop_reviews(shop_id);
   `,
+  // v5 — who cancelled a booking (a paid booking cancelled by the artist or admin waits for a refund)
+  `
+  alter table booking_requests add column cancelled_by text;
+  `,
 ];
 
 let db: DB | null = null;

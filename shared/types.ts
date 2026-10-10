@@ -262,6 +262,8 @@ export interface LedgerEntry {
   description: string;
   amountCents: number;
   status: string;
+  /** Cancelled by the artist/shop/admin and waiting for a refund: not counted as earned. */
+  onHold: boolean;
   createdAt: string;
 }
 
@@ -278,6 +280,7 @@ export interface Earnings {
   earnedCents: number;
   paidOutCents: number;
   balanceCents: number;
+  onHoldCents: number;
   entries: LedgerEntry[];
   payouts: PayoutRecord[];
 }

@@ -33,6 +33,21 @@ const createLimiter = rateLimit({
 
 const guestLink = (r: { id: string; access_token: string }) => `${config.appUrl}/booking/${r.id}?token=${r.access_token}`;
 
+// Guest email addresses aren't verified, so one booking can only trigger a few emails a day — enough for any real
+// booking, but nobody can use a booking made with someone else's address to flood their inbox.
+const EMAILS_PER_BOOKING_PER_DAY = 6;
+const bookingEmails = new Map<string, number[]>();
+
+function bookingEmailAllowed(bookingId: string): boolean {
+  const now = Date.now();
+  const recent = (bookingEmails.get(bookingId) ?? []).filter(t => now - t < 86_400_000);
+  const allowed = recent.length < EMAILS_PER_BOOKING_PER_DAY;
+  if (allowed) recent.push(now);
+  bookingEmails.set(bookingId, recent);
+  if (bookingEmails.size > 50_000) bookingEmails.delete(bookingEmails.keys().next().value!);
+  return allowed;
+}
+
 function tokenMatches(a: unknown, b: string) {
   if (typeof a !== 'string' || a.length !== b.length) return false;
   return crypto.timingSafeEqual(Buffer.from(a), Buffer.from(b));
@@ -252,9 +267,10 @@ bookingsRouter.post('/booking-requests/:id/action', (req, res) => {
   const when = formatWhen(row.date, row.appointment_time);
 
   const tellClient = (message: string, subject: string, extra: string[] = []) => {
+    const email = bookingEmailAllowed(row.id);
     if (row.client_id) {
-      notify(row.client_id, message, { link: '/bookings', email: { subject, lines: [message, ...extra], actionLabel: 'View booking' } });
-    } else if (row.guest_email) {
+      notify(row.client_id, message, { link: '/bookings', ...(email ? { email: { subject, lines: [message, ...extra], actionLabel: 'View booking' } } : {}) });
+    } else if (row.guest_email && email) {
       sendEmail({ to: row.guest_email, subject, lines: [`Hi ${row.guest_name},`, message, ...extra], action: { label: 'View your booking', url: statusLink } });
     }
   };
@@ -285,7 +301,7 @@ bookingsRouter.post('/booking-requests/:id/action', (req, res) => {
       if (role === 'client' && row.status === 'approved' && row.date < todayStr(-1)) {
         throw conflict('This appointment date has passed. Contact the artist if something went wrong.');
       }
-      set("status = 'cancelled'");
+      set("status = 'cancelled', cancelled_by = ?", role);
       if (role === 'client') {
         notify(artist.id, `${row.client_name || row.guest_name} cancelled their booking for ${when}.`, {
           link: '/dashboard',
@@ -380,6 +396,8 @@ bookingsRouter.post('/booking-requests/:id/aftercare', async (req, res) => {
   const { row, role } = loadRequestAccess(req, req.params.id);
   if (role !== 'artist') throw forbidden();
   const { kind } = parse(z.object({ kind: z.enum(['aftercare', 'healed-photo']) }), req.body);
+  if (row.status !== 'completed') throw conflict('Mark the appointment as completed first.');
+  if (!bookingEmailAllowed(row.id)) throw new HttpError(429, "You've already sent this client several messages today. Please try again tomorrow.");
   const artist = req.user!;
   const text =
     kind === 'aftercare'

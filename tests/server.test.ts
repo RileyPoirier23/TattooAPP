@@ -745,3 +745,72 @@ test('deleting an account removes its photos and attachments', async () => {
   assert.equal(onDisk(attachmentUrl), false);
   assert.equal((await new Client().get(`/api/artists/${gone.me.id}`)).status, 404);
 });
+
+test('review fixes: crafted images, renewal gaps, page templates, email caps, money on hold', async () => {
+  const { getDb } = await import('../server/db');
+  const { processRenewals } = await import('../server/billing');
+  const { stripJpegMetadata } = await import('../server/uploads');
+  const db = getDb();
+
+  // A JPEG made of millions of tiny markers is returned untouched instead of exhausting memory.
+  const n = 2_000_000;
+  const evil = Buffer.alloc(4 + n * 2, 0xff);
+  for (let i = 0; i < n; i++) evil[3 + i * 2] = 0xd0;
+  evil[1] = 0xd8;
+  evil[evil.length - 1] = 0xda;
+  const started = Date.now();
+  assert.equal(stripJpegMetadata(evil), evil);
+  assert.ok(Date.now() - started < 500);
+
+  // After a long gap (site down, payments off) a renewal charges once and starts a new month from now.
+  await admin.put('/api/admin/settings', { settings: { features: { proPlan: true } } });
+  const gap = await register('artist', 'gap@example.com');
+  await gap.c.post('/api/me/subscription', { sourceId: 'cnon:ok', idempotencyKey: 'gap-sub-0001' });
+  db.prepare('update users set pro_until = ? where id = ?').run(new Date(Date.now() - 65 * 86_400_000).toISOString(), gap.me.id);
+  const mark = squareCalls.length;
+  for (let i = 0; i < 3; i++) await processRenewals();
+  assert.equal(squareCalls.slice(mark).filter(c => c.path === '/v2/payments').length, 1, 'missed months are not charged');
+  const until = (db.prepare('select pro_until u from users where id = ?').get(gap.me.id) as any).u;
+  assert.ok(new Date(until).getTime() > Date.now() + 25 * 86_400_000);
+
+  // Names containing "$`" can't corrupt the page head.
+  await gap.c.patch('/api/me', { name: 'Gap $` $& Artist', bio: "Bio with $' in it" });
+  const fd = new FormData();
+  fd.append('images', new Blob([PNG], { type: 'image/png' }), 'p.png');
+  await gap.c.req('POST', '/api/me/portfolio', fd);
+  const html = await (await fetch(`${base}/artists/${gap.me.id}`)).text();
+  if (html.includes('<title>')) {
+    assert.equal(html.split('<title>').length, 2, 'exactly one <title>');
+    assert.match(html, /Gap \$` \$&amp; Artist/);
+  }
+
+  // One booking can only send a few emails a day, and aftercare waits until the appointment is done.
+  const victim = await new Client().req(
+    'POST',
+    '/api/booking-requests',
+    bookingForm({ artistId: gap.me.id, date: futureDate(0), message: 'Email cap check', tattooWidth: 1, tattooHeight: 1, bodyPlacement: 'Hand', guestName: 'Val', guestEmail: 'val@example.com' }),
+  );
+  const vid = victim.body.request.id;
+  assert.equal((await gap.c.post(`/api/booking-requests/${vid}/aftercare`, { kind: 'aftercare' })).status, 409);
+  await gap.c.post(`/api/booking-requests/${vid}/action`, { action: 'approve', depositAmount: 0 });
+  await gap.c.post(`/api/booking-requests/${vid}/action`, { action: 'complete' });
+  const statuses: number[] = [];
+  for (let i = 0; i < 8; i++) statuses.push((await gap.c.post(`/api/booking-requests/${vid}/aftercare`, { kind: 'aftercare' })).status);
+  assert.ok(statuses.includes(429), 'aftercare emails are capped');
+  assert.ok(statuses.filter(s => s === 200).length <= 6);
+
+  // A paid rental the shop cancels is on hold (owed to nobody) until it's refunded.
+  const owner = (await register('shop-owner', 'holdshop@example.com')).c;
+  const shop = await owner.post('/api/shops', { name: 'Hold Shop', city: 'Moncton', address: '9 Main St' });
+  const booth = (await owner.post(`/api/shops/${shop.body.id}/booths`, { name: 'Back', dailyRate: 100 })).body.booths[0].id;
+  const rental = await gap.c.post('/api/booth-bookings', { boothId: booth, startDate: futureDate(70), endDate: futureDate(70) });
+  assert.equal((await gap.c.post(`/api/booth-bookings/${rental.body.id}/pay`, { sourceId: 'cnon:ok', idempotencyKey: 'hold-rent-0001' })).status, 200);
+  assert.equal((await owner.get('/api/me/earnings')).body.balanceCents, 9000);
+  assert.equal((await owner.post(`/api/booth-bookings/${rental.body.id}/cancel`)).status, 200);
+  const held = (await owner.get('/api/me/earnings')).body;
+  assert.equal(held.balanceCents, 0);
+  assert.equal(held.onHoldCents, 9000);
+  const ledger = (await admin.get('/api/admin/payouts')).body.find((r: any) => r.payee.email === 'holdshop@example.com');
+  assert.equal(ledger.balanceCents, 0);
+  assert.equal(ledger.onHoldCents, 9000);
+});

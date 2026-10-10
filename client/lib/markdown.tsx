@@ -31,7 +31,8 @@ function inline(text: string, keyBase: string): React.ReactNode[] {
 /** Fills in {{siteName}}, {{siteUrl}} and {{contact}} like the server does for published pages (used for previews). */
 export function fillPageTokens(body: string, s: { siteName: string; contactEmail: string }, siteUrl: string): string {
   const contact = s.contactEmail ? `[${s.contactEmail}](mailto:${s.contactEmail})` : '[our contact form](/contact)';
-  return body.replaceAll('{{siteName}}', s.siteName).replaceAll('{{siteUrl}}', siteUrl).replaceAll('{{contact}}', contact);
+  const values: Record<string, string> = { siteName: s.siteName, siteUrl, contact };
+  return body.replace(/\{\{(siteName|siteUrl|contact)\}\}/g, (_, key: string) => values[key]);
 }
 
 export const Markdown: React.FC<{ text: string; className?: string }> = ({ text, className }) => {

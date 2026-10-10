@@ -103,6 +103,7 @@ export interface PayoutRow {
   earnedCents: number;
   paidOutCents: number;
   balanceCents: number;
+  onHoldCents: number;
 }
 
 export interface Verification {
