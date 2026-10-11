@@ -51,7 +51,7 @@ The Pro plan is **switched off** until you turn it on in **Settings → Features
 - **Bookings** — every client booking and booth rental, searchable. Open **Details** to see the whole request, or **Change date or time** (the client and artist are notified). Changing a status doesn't move money — use Payments for refunds.
 - **Verifications** — artists and shops can request a verified badge; approve or reject here.
 - **Reports** and **Reviews** — handle reports from members, and hide reviews that break your rules.
-- **Users** — search everyone; edit details, suspend (logs them out), give Pro, copy a password-reset link, or delete an account. Accounts that are still owed money or have upcoming paid bookings can't be deleted — suspend them instead.
+- **Users** — search everyone; edit details, suspend (logs them out), give Pro, copy a password-reset link, or delete an account. (Clients who are also tattoo artists can switch on artist features themselves in **Settings → Become an artist**.) Accounts that are still owed money or have upcoming paid bookings can't be deleted — suspend them instead.
 - **Shops** — verify shops, edit their details and cover photo, or remove them.
 
 Badges in the admin menu show what needs attention (new messages, pending verifications and reports).

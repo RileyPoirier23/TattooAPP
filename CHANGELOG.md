@@ -32,6 +32,10 @@
 - Sign-ups and bookings record when the terms were accepted.
 
 ### Polish
+- The booking fee is shown before booking and in every "pay your deposit" message; artists are told about it.
+- Clients can switch on artist features from Settings ("Become an artist").
+- Plain-language error messages; social links typed without https:// are fixed automatically.
+- Messages only say something was emailed when email is set up.
 - Meets WCAG 2.1 AA in automated checks (desktop and phone, light and dark): readable button and badge colors for any brand color, labelled controls, underlined inline links.
 - Faster first visit: member-only pages load when first opened.
 - Clean shutdown on redeploys (finishes in-progress work); database indexes for growing lists.
