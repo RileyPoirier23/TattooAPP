@@ -165,6 +165,8 @@ const TONES = {
   purple: 'bg-violet-500/15 text-violet-700 dark:text-violet-400',
   gray: 'bg-gray-500/15 text-gray-700 dark:text-gray-400',
   brand: 'bg-brand-primary/15 text-brand-primary',
+  // Colors come from className (e.g. badges over photos); a tone's classes could otherwise win over them.
+  none: '',
 };
 export type Tone = keyof typeof TONES;
 export const Badge: React.FC<{ tone?: Tone; children: React.ReactNode; className?: string }> = ({ tone = 'gray', children, className }) => (

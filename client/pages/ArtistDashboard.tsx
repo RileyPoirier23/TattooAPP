@@ -259,7 +259,7 @@ const ProfileTab: React.FC<{ me: Me }> = ({ me }) => {
             {me.portfolio.map((img, i) => (
               <div key={img.url} className="relative group aspect-square rounded-xl overflow-hidden bg-gray-200 dark:bg-gray-800">
                 <img src={img.url} alt="" className="w-full h-full object-cover" />
-                {i === 0 && <Badge className="absolute top-2 left-2 bg-black/60 text-white">Cover</Badge>}
+                {i === 0 && <Badge tone="none" className="absolute top-2 left-2 bg-black/60 text-white">Cover</Badge>}
                 <div className="absolute inset-x-0 bottom-0 p-2 flex justify-between bg-gradient-to-t from-black/70 opacity-100 sm:opacity-0 group-hover:opacity-100 transition">
                   <div className="flex gap-1">
                     <button onClick={() => move(i, -1)} disabled={i === 0} className="p-1.5 rounded bg-white/20 text-white disabled:opacity-30" aria-label="Move left"><ArrowLeftIcon className="w-4 h-4" /></button>

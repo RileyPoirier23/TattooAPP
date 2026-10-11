@@ -14,13 +14,13 @@ export const ArtistCard: React.FC<{ artist: PublicArtist }> = ({ artist }) => (
       <Cover url={artist.portfolio[0]?.url || artist.avatarUrl} alt={artist.name} className="w-full h-60" />
       <div className="absolute top-2 left-2 right-2 flex justify-between gap-2">
         {artist.averageRating > 0 ? (
-          <Badge className="bg-black/60 text-white backdrop-blur"><StarIcon className="w-3.5 h-3.5 text-amber-400" />{artist.averageRating.toFixed(1)}</Badge>
+          <Badge tone="none" className="bg-black/60 text-white backdrop-blur"><StarIcon className="w-3.5 h-3.5 text-amber-400" />{artist.averageRating.toFixed(1)}</Badge>
         ) : <span />}
-        {artist.isVerified && <Badge className="bg-brand-secondary-solid text-on-secondary"><CheckBadgeIcon className="w-3.5 h-3.5" />Verified</Badge>}
+        {artist.isVerified && <Badge tone="none" className="bg-brand-secondary-solid text-on-secondary"><CheckBadgeIcon className="w-3.5 h-3.5" />Verified</Badge>}
       </div>
       {artist.guestSpot && (
         <div className="absolute bottom-2 left-2">
-          <Badge className="bg-sky-600 text-white"><CalendarIcon className="w-3.5 h-3.5" />Guest spot in {artist.guestSpot.city}</Badge>
+          <Badge tone="none" className="bg-sky-600 text-white"><CalendarIcon className="w-3.5 h-3.5" />Guest spot in {artist.guestSpot.city}</Badge>
         </div>
       )}
     </div>
