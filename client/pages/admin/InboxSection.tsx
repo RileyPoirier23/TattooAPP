@@ -23,6 +23,7 @@ const STATUS_LABELS: Record<ContactMessage['status'], string> = { new: 'New', re
 
 export const InboxSection: React.FC = () => {
   const settings = useStore(s => s.config?.settings);
+  const emailReady = useStore(s => !!s.config?.emailReady);
   const [status, setStatus] = useState('new');
   const [q, setQ] = useState('');
   const dq = useDebounced(q.trim(), 300);
@@ -58,10 +59,16 @@ export const InboxSection: React.FC = () => {
   return (
     <>
       <PageHeader title="Inbox" subtitle="Messages people sent with the “Contact us” form. Reply by email; their address is filled in for you." />
-      {!settings?.contactEmail && (
-        <Notice tone="info" className="mb-6">
-          New messages are also emailed to every admin. To send them to a different address, set a <strong>contact email</strong> in Customize.
+      {!emailReady ? (
+        <Notice tone="warning" className="mb-6">
+          Email isn&apos;t set up yet, so new messages only appear here. Set up email in <strong>Settings → Email</strong> to get them in your inbox too.
         </Notice>
+      ) : (
+        !settings?.contactEmail && (
+          <Notice tone="info" className="mb-6">
+            New messages are also emailed to every admin. To send them to a different address, set a <strong>contact email</strong> in Customize.
+          </Notice>
+        )
       )}
       <div className="space-y-3 mb-4">
         <SearchInput value={q} onChange={setQ} placeholder="Search name, email or message" loading={dq !== q.trim()} className="sm:max-w-md" />

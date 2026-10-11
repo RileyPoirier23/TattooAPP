@@ -18,7 +18,7 @@ const KEYS = [
 
 const FEATURES: { key: keyof SiteFeatures; label: string; description: string }[] = [
   { key: 'clientBooking', label: 'Client bookings', description: 'Clients can send booking requests to artists and pay a deposit online once the artist approves.' },
-  { key: 'guestBooking', label: 'Book without an account', description: 'People can request a booking as a guest. They get a private link by email to check the request and pay.' },
+  { key: 'guestBooking', label: 'Book without an account', description: 'People can request a booking as a guest. They get a private link (shown on screen, and emailed once email is set up) to check the request and pay.' },
   { key: 'boothRental', label: 'Booth rentals (guest spots)', description: 'Shops can list booths and travelling artists can rent them by the day.' },
   { key: 'messaging', label: 'Messaging', description: 'Members can send each other private messages.' },
   {
@@ -122,6 +122,7 @@ const ListEditor: React.FC<{ label: string; hint: string; values: string[]; onCh
             value={text}
             maxLength={200}
             placeholder={placeholder}
+            aria-label={`Add to ${label.toLowerCase()}`}
             onChange={e => setText(e.target.value)}
             onKeyDown={e => {
               if (e.key === 'Enter') {
@@ -152,8 +153,10 @@ const SecretField: React.FC<{
   disabled?: boolean;
 }> = ({ label, isSet, value, onChange, cleared, onClear, hint, disabled }) => {
   const [show, setShow] = useState(false);
+  const id = useId();
   return (
     <Field
+      htmlFor={id}
       label={
         <span className="flex flex-wrap items-center gap-2">
           {label}
@@ -171,6 +174,7 @@ const SecretField: React.FC<{
       <div className="flex gap-2">
         <div className="relative flex-1">
           <input
+            id={id}
             type={show ? 'text' : 'password'}
             autoComplete="new-password"
             spellCheck={false}
@@ -183,7 +187,7 @@ const SecretField: React.FC<{
           <button
             type="button"
             onClick={() => setShow(s => !s)}
-            aria-label={show ? 'Hide' : 'Show'}
+            aria-label={show ? `Hide ${label}` : `Show ${label}`}
             className={cx('absolute right-3 top-1/2 -translate-y-1/2', show ? 'text-brand-primary' : 'text-brand-gray hover:text-brand-dark dark:hover:text-white')}
           >
             <EyeIcon className="w-4 h-4" />

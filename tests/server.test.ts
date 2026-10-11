@@ -861,3 +861,22 @@ test('a payment whose reply was lost is never charged twice', async () => {
   assert.equal((getDb().prepare("select count(*) c from payments where ref_id = ? and status = 'completed'").get(id) as any).c, 1);
   assert.equal((getDb().prepare('select count(*) c from pending_charges').get() as any).c, 0);
 });
+
+test('clients can become artists; errors are in plain language', async () => {
+  const c = await register('client', 'switcher@example.com', { city: '' });
+  assert.equal((await c.c.post('/api/me/become-artist', {})).status, 400, 'a city is needed');
+  const switched = await c.c.post('/api/me/become-artist', { city: 'Halifax, NS' });
+  assert.equal(switched.status, 200, JSON.stringify(switched.body));
+  assert.equal(switched.body.user.role, 'dual');
+  assert.equal((await c.c.post('/api/me/become-artist', { city: 'Halifax, NS' })).status, 409);
+  assert.equal((await artist.post('/api/me/become-artist', {})).status, 409);
+
+  // Links typed without https:// are fixed up; validation messages read like sentences.
+  const saved = await c.c.patch('/api/me', { socials: { instagram: 'instagram.com/switcher' } });
+  assert.equal(saved.body.user.socials.instagram, 'https://instagram.com/switcher');
+  const bad = await c.c.patch('/api/me', { services: [{ name: 'Small', duration: 1, price: -5, deposit: 0 }] });
+  assert.equal(bad.status, 400);
+  assert.equal(bad.body.error, "Service 1 price can't be negative.");
+  const badLink = await c.c.patch('/api/me', { socials: { website: 'not a link' } });
+  assert.match(badLink.body.error, /^Website link must be a web address/);
+});

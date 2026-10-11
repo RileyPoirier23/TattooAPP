@@ -19,14 +19,16 @@ export function setLeaveGuard(guard: (() => boolean) | null) {
   leaveGuard = guard;
 }
 
-export function navigate(to: string, opts: { replace?: boolean } = {}) {
-  if (to === getLocation()) return;
-  if (leaveGuard && !leaveGuard()) return;
+/** Goes to another page of the site. Returns false if the visitor chose to stay (unsaved changes). */
+export function navigate(to: string, opts: { replace?: boolean } = {}): boolean {
+  if (to === getLocation()) return true;
+  if (leaveGuard && !leaveGuard()) return false;
   if (opts.replace) window.history.replaceState({}, '', to);
   else window.history.pushState({}, '', to);
   current = getLocation();
   if (!opts.replace) window.scrollTo(0, 0);
   notify();
+  return true;
 }
 
 // Back/forward buttons: the address has already changed, so put it back if the visitor decides to stay.

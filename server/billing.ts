@@ -2,7 +2,7 @@
 // All charges go to the site owner's Square account. The ledger tracks what each artist / shop is owed.
 import { getDb, newId, nowIso } from './db';
 import { getSettings } from './settings';
-import { conflict, formatMoney, formatWhen, HttpError, notFound, todayStr, toCents } from './http';
+import { conflict, formatMoney, formatRange, formatWhen, HttpError, notFound, todayStr, toCents } from './http';
 import { getUser, isArtistRole, isPro, PRO_GRACE_DAYS, type UserRow } from './auth';
 import {
   cardLabel, createCard, createCustomer, createPayment, disableCard, idempotencyKey, locationCurrency, paymentsReady,
@@ -205,7 +205,7 @@ export async function payBoothBooking(bookingId: string, artist: UserRow, source
       throw conflict('Your reservation expired and those dates have since been booked. Please choose other dates.');
     }
 
-    const description = `${b.booth_name} at ${b.shop_name}, ${b.start_date} to ${b.end_date}`;
+    const description = `${b.booth_name} at ${b.shop_name}, ${formatRange(b.start_date, b.end_date)}`;
     if (b.total_cents > 0) ensureReady();
     const currency = b.total_cents > 0 ? await locationCurrency() : getSettings().currency;
     let payment: SquarePayment | null = null;
@@ -242,7 +242,7 @@ export async function payBoothBooking(bookingId: string, artist: UserRow, source
       throw conflict('This reservation changed while you were paying. Please book again.');
     }
 
-    notify(b.owner_id, `${artist.name} paid for ${b.booth_name} (${b.start_date} → ${b.end_date}).`, {
+    notify(b.owner_id, `${artist.name} paid for ${b.booth_name} (${formatRange(b.start_date, b.end_date)}).`, {
       link: '/shop',
       email: { subject: 'Booth rental confirmed', actionLabel: 'Open shop dashboard' },
     });

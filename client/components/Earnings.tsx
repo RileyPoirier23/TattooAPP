@@ -1,6 +1,7 @@
 // Earnings ledger and payout details for artists and shop owners.
 import React, { useState } from 'react';
 import { api, errorMessage } from '../api';
+import { useUnsavedWarning } from '../lib/unsaved';
 import { useStore } from '../store';
 import { formatDate, money } from '../lib/format';
 import { Badge, Button, Card, EmptyState, ErrorBox, Input, PageLoader, Select, StatusBadge, useApi } from './ui';
@@ -34,7 +35,7 @@ export const EarningsPanel: React.FC = () => {
         </p>
       )}
       <div className="grid gap-6 lg:grid-cols-2">
-        <Card>
+        <Card className="min-w-0">
           <h3 className="font-bold mb-3">Payments received</h3>
           {data.entries.length === 0 ? (
             <EmptyState icon={<CashIcon />} title="No payments yet" />
@@ -46,7 +47,7 @@ export const EarningsPanel: React.FC = () => {
                     <p className="truncate">{e.description}</p>
                     <p className="text-xs text-brand-gray">{formatDate(e.createdAt)}</p>
                   </div>
-                  <div className="text-right">
+                  <div className="text-right whitespace-nowrap">
                     <p className={`font-semibold ${e.status === 'refunded' || e.onHold ? 'line-through text-brand-gray' : ''}`}>{money(e.amountCents, data.currency)}</p>
                     {e.status === 'refunded' && <StatusBadge status="refunded" />}
                     {e.onHold && <Badge tone="yellow">On hold</Badge>}
@@ -56,7 +57,7 @@ export const EarningsPanel: React.FC = () => {
             </ul>
           )}
         </Card>
-        <Card>
+        <Card className="min-w-0">
           <h3 className="font-bold mb-3">Payouts</h3>
           {data.payouts.length === 0 ? (
             <EmptyState title="No payouts yet" />
@@ -64,11 +65,11 @@ export const EarningsPanel: React.FC = () => {
             <ul className="divide-y divide-gray-200 dark:divide-gray-800 text-sm">
               {data.payouts.map(p => (
                 <li key={p.id} className="py-2.5 flex justify-between gap-3">
-                  <div>
-                    <p>{p.method || 'Payout'}</p>
-                    <p className="text-xs text-brand-gray">{formatDate(p.createdAt)}{p.note ? ` · ${p.note}` : ''}</p>
+                  <div className="min-w-0">
+                    <p className="truncate">{p.method || 'Payout'}</p>
+                    <p className="text-xs text-brand-gray break-words">{formatDate(p.createdAt)}{p.note ? ` · ${p.note}` : ''}</p>
                   </div>
-                  <p className="font-semibold">{money(p.amountCents, data.currency)}</p>
+                  <p className="font-semibold whitespace-nowrap">{money(p.amountCents, data.currency)}</p>
                 </li>
               ))}
             </ul>
@@ -92,11 +93,14 @@ export const PayoutMethodForm: React.FC<{ me: Me }> = ({ me }) => {
   const [type, setType] = useState<NonNullable<PayoutMethod['type']>>(me.payoutMethod.type || 'etransfer');
   const [details, setDetails] = useState(me.payoutMethod.details || '');
   const [busy, setBusy] = useState(false);
+  useUnsavedWarning(type !== (me.payoutMethod.type || 'etransfer') || details !== (me.payoutMethod.details || ''));
   const save = async () => {
     setBusy(true);
     try {
       const { user } = await api.patch<{ user: Me }>('/me', { payoutMethod: { type, details } });
       setUser(user);
+      setType(user.payoutMethod.type || 'etransfer');
+      setDetails(user.payoutMethod.details || '');
       toast('Payout details saved.');
     } catch (err) {
       toast(errorMessage(err), 'error');

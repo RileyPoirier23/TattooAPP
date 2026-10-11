@@ -102,9 +102,10 @@ const UserMenu: React.FC<{ user: Me }> = ({ user }) => {
           <div className="border-t border-gray-200 dark:border-gray-800 my-1" />
           <button
             onClick={async () => {
+              // Leave the page first, so unsaved changes get the usual "leave without saving?" question.
+              if (!navigate('/')) return;
               setOpen(false);
               await logout();
-              navigate('/');
             }}
             className="w-full text-left px-4 py-2 text-sm text-red-600 dark:text-red-400 hover:bg-gray-100 dark:hover:bg-gray-800"
           >
@@ -219,8 +220,8 @@ export const Header: React.FC = () => {
                 ))}
                 <button
                   onClick={async () => {
+                    if (!navigate('/')) return;
                     await logout();
-                    navigate('/');
                   }}
                   className="block w-full text-left px-3 py-2.5 rounded-lg text-red-600 dark:text-red-400 hover:bg-gray-100 dark:hover:bg-gray-800"
                 >

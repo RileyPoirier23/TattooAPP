@@ -5,7 +5,7 @@ import { prepareImages } from '../lib/images';
 import { useUnsavedWarning } from '../lib/unsaved';
 import { Link, navigate, useLocation } from '../router';
 import { useStore } from '../store';
-import { formatDate, today } from '../lib/format';
+import { currencySymbol, formatDate, today } from '../lib/format';
 import { ArtistRequestCard } from '../components/BookingCards';
 import { Calendar } from '../components/Calendar';
 import { EarningsPanel, PayoutMethodForm } from '../components/Earnings';
@@ -70,7 +70,7 @@ const RequestsTab: React.FC = () => {
         onChange={setView}
         tabs={[
           { id: 'pending', label: 'New requests', count: pending.length },
-          { id: 'upcoming', label: 'Upcoming', count: toClose.length },
+          { id: 'upcoming', label: 'Upcoming', count: upcoming.length + toClose.length },
           { id: 'past', label: 'Past' },
           { id: 'archived', label: 'Archived' },
         ]}
@@ -329,7 +329,10 @@ const ServicesTab: React.FC<{ me: Me }> = ({ me }) => {
       </div>
       <p className="text-sm text-brand-gray mb-6">
         Clients pick a service when they request a booking. The deposit is what they pay online after you approve the request.
-        {!me.subscription.isPro && settings.features.proPlan && ` Clients pay an extra ${settings.depositFeePercent}% booking fee on deposits — go Pro to remove it.`}
+        {settings.depositFeePercent > 0 &&
+          (me.subscription.isPro
+            ? " Your clients don't pay the booking fee because you're on Pro."
+            : ` Clients also pay a ${settings.depositFeePercent}% booking fee on top of the deposit${settings.features.proPlan ? ' — go Pro to remove it for them' : ''}.`)}
       </p>
       {items.length === 0 && <EmptyState title="No services yet">Add at least one service (e.g. "Small tattoo", "Half-day session").</EmptyState>}
       <div className="space-y-4">
@@ -338,8 +341,8 @@ const ServicesTab: React.FC<{ me: Me }> = ({ me }) => {
             <div className="grid gap-3 sm:grid-cols-6">
               <Input className="sm:col-span-3" label="Name" value={s.name} onChange={e => update(i, { name: e.target.value })} placeholder="e.g. Small tattoo" />
               <Input label="Hours" type="number" min="0.25" step="0.25" value={s.duration} onChange={e => update(i, { duration: e.target.value })} />
-              <Input label="From price" type="number" min="0" prefix="$" value={s.price} onChange={e => update(i, { price: e.target.value })} />
-              <Input label="Deposit" type="number" min="0" prefix="$" value={s.deposit} onChange={e => update(i, { deposit: e.target.value })} />
+              <Input label="From price" type="number" min="0" prefix={currencySymbol()} value={s.price} onChange={e => update(i, { price: e.target.value })} />
+              <Input label="Deposit" type="number" min="0" prefix={currencySymbol()} value={s.deposit} onChange={e => update(i, { deposit: e.target.value })} />
               <Input className="sm:col-span-4" label="Description (optional)" value={s.description || ''} onChange={e => update(i, { description: e.target.value })} />
               <Input label="Min size (sq in)" type="number" min="0" value={s.minSize} onChange={e => update(i, { minSize: e.target.value })} />
               <Input label="Max size (sq in)" type="number" min="0" value={s.maxSize} onChange={e => update(i, { maxSize: e.target.value })} />
@@ -408,7 +411,7 @@ const HoursTab: React.FC<{ me: Me }> = ({ me }) => {
                 </div>
                 <div className="flex-1 space-y-2">
                   {slots.map((slot, i) => (
-                    <div key={i} className="grid grid-cols-[1fr_auto_1fr_auto] items-center gap-2 min-w-0">
+                    <div key={i} className="grid grid-cols-[minmax(0,1fr)_auto_minmax(0,1fr)_auto] items-center gap-2 min-w-0">
                       <Input type="time" value={slot.start} onChange={e => setDay(d, slots.map((s, j) => (j === i ? { ...s, start: e.target.value } : s)))} aria-label={`${name} start`} />
                       <span className="text-brand-gray">to</span>
                       <Input type="time" value={slot.end} onChange={e => setDay(d, slots.map((s, j) => (j === i ? { ...s, end: e.target.value } : s)))} aria-label={`${name} end`} />

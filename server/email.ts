@@ -4,6 +4,7 @@ import nodemailer, { type Transporter } from 'nodemailer';
 import { config } from './config';
 import { getSecrets, getSettings } from './settings';
 import { escapeHtml } from './http';
+import { parseHex, solid, toHex } from '../shared/color';
 
 let cached: { key: string; transport: Transporter } | null = null;
 
@@ -66,8 +67,17 @@ export interface EmailInput {
   replyTo?: string;
 }
 
+/** The email button in the brand color, adjusted the same way as on the site so its text stays readable. */
+function buttonColors(hex: string) {
+  const c = parseHex(hex);
+  if (!c) return { bg: '#111111', fg: '#ffffff' };
+  const { bg, fg } = solid(c);
+  return { bg: toHex(bg), fg: toHex(fg) };
+}
+
 export function renderEmail({ subject, lines, action }: EmailInput) {
   const site = getSettings();
+  const button = buttonColors(site.primaryColor);
   const text = [...lines, action ? `${action.label}: ${action.url}` : '', '', `— ${site.siteName}`].join('\n');
   const html = `<!doctype html><html><body style="margin:0;background:#f5f5f7;font-family:Arial,Helvetica,sans-serif;color:#101014">
   <div style="max-width:560px;margin:0 auto;padding:32px 16px">
@@ -76,7 +86,7 @@ export function renderEmail({ subject, lines, action }: EmailInput) {
       ${lines.map(l => `<p style="font-size:15px;line-height:1.5;margin:0 0 12px">${escapeHtml(l)}</p>`).join('')}
       ${
         action
-          ? `<p style="margin:24px 0 8px"><a href="${escapeHtml(action.url)}" style="background:${escapeHtml(site.primaryColor)};color:#fff;text-decoration:none;font-weight:bold;padding:12px 20px;border-radius:8px;display:inline-block">${escapeHtml(action.label)}</a></p>
+          ? `<p style="margin:24px 0 8px"><a href="${escapeHtml(action.url)}" style="background:${button.bg};color:${button.fg};text-decoration:none;font-weight:bold;padding:12px 20px;border-radius:8px;display:inline-block">${escapeHtml(action.label)}</a></p>
              <p style="font-size:12px;color:#777;word-break:break-all">${escapeHtml(action.url)}</p>`
           : ''
       }

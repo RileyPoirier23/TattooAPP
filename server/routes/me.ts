@@ -17,7 +17,13 @@ import type { PortfolioImage } from '../../shared/types';
 export const meRouter = Router();
 
 const zTime = z.string().regex(/^([01]\d|2[0-3]):[0-5]\d$/, 'must be a time like 09:00');
-const zUrl = z.string().trim().max(300).refine(v => v === '' || /^https?:\/\//i.test(v), 'must start with http:// or https://');
+// Links typed without "https://" (e.g. instagram.com/me) get it added.
+const zUrl = z
+  .string()
+  .trim()
+  .max(300)
+  .transform(v => (v && !/^https?:\/\//i.test(v) ? `https://${v.replace(/^\/+/, '')}` : v))
+  .refine(v => v === '' || /^https?:\/\/[^\s/]+\.[^\s]+$/i.test(v), 'must be a web address like https://instagram.com/yourname');
 
 const profileSchema = z.object({
   name: z.string().trim().min(1).max(100).optional(),
@@ -218,6 +224,20 @@ meRouter.delete('/me/card', async (req, res) => {
   getDb()
     .prepare('update users set square_card_id = null, card_label = null, pro_auto_renew = 0, updated_at = ? where id = ?')
     .run(nowIso(), user.id);
+  res.json({ user: toMe(getUser(user.id)!) });
+});
+
+// --- Clients who are also artists ---
+
+/** A client turns on artist features (their account becomes "Artist & Client"; their bookings stay). */
+meRouter.post('/me/become-artist', (req, res) => {
+  const user = requireUser(req);
+  if (user.role !== 'client') throw conflict(isArtistRole(user.role) ? 'Your account already has artist features.' : 'Only client accounts can switch on artist features.');
+  const { city } = parse(z.object({ city: z.string().trim().max(100).optional() }), req.body ?? {});
+  const newCity = city || user.city;
+  if (!newCity) throw badRequest('Please enter the city you work in.');
+  getDb().prepare("update users set role = 'dual', city = ?, updated_at = ? where id = ?").run(newCity, nowIso(), user.id);
+  notifyAdmins(`${user.name} switched on artist features.`, '/admin/users');
   res.json({ user: toMe(getUser(user.id)!) });
 });
 

@@ -6,7 +6,7 @@ import { z } from 'zod';
 import { getUser, isArtistRole, randomToken, requireArtist, requireUser, type UserRow } from '../auth';
 import { getDb, newId, nowIso, parseJson } from '../db';
 import {
-  badRequest, conflict, daysBetweenInclusive, forbidden, formatMoney, formatWhen, HttpError, notFound, parse, parseDate, todayStr,
+  badRequest, conflict, daysBetweenInclusive, forbidden, formatMoney, formatRange, formatWhen, HttpError, notFound, parse, parseDate, todayStr,
   toCents, zDate,
 } from '../http';
 import {
@@ -16,7 +16,7 @@ import {
 import { saveImage, upload, uploadLimiter } from '../uploads';
 import { getSettings } from '../settings';
 import { notify, notifyAdmins } from '../notify';
-import { sendEmail } from '../email';
+import { emailReady, sendEmail } from '../email';
 import { emit } from '../events';
 import { config } from '../config';
 import { boothClash, depositFeeCents, payBoothBooking, payDeposit } from '../billing';
@@ -161,7 +161,7 @@ bookingsRouter.post('/booking-requests', createLimiter, uploadLimiter, upload.ar
   );
 
   const clientName = user?.name || body.guestName!;
-  notify(artist.id, `New booking request from ${clientName} for ${body.date}.`, {
+  notify(artist.id, `New booking request from ${clientName} for ${formatWhen(body.date)}.`, {
     link: '/dashboard',
     email: { subject: `New booking request from ${clientName}`, actionLabel: 'Review request' },
   });
@@ -174,7 +174,7 @@ bookingsRouter.post('/booking-requests', createLimiter, uploadLimiter, upload.ar
       subject: `Your booking request to ${artist.name}`,
       lines: [
         `Hi ${body.guestName},`,
-        `Your request for ${body.date} has been sent to ${artist.name}. We'll email you when they respond.`,
+        `Your request for ${formatWhen(body.date)} has been sent to ${artist.name}. We'll email you when they respond.`,
         'Use the link below any time to check your request or pay your deposit once it is approved.',
       ],
       action: { label: 'View your request', url: guestLink(row) },
@@ -284,8 +284,10 @@ bookingsRouter.post('/booking-requests/:id/action', (req, res) => {
       const depositCents = body.depositAmount !== undefined ? toCents(body.depositAmount) : row.deposit_cents;
       const time = body.time || null;
       set("status = 'approved', deposit_cents = ?, fee_cents = ?, artist_note = ?, appointment_time = ?", depositCents, depositFeeCents(depositCents, artist), body.note ?? row.artist_note, time);
+      const feeCents = depositFeeCents(depositCents, artist);
+      const currency = getSettings().currency;
       const payLine = depositCents > 0
-        ? `Please pay your ${formatMoney(depositCents, getSettings().currency)} deposit to lock in your appointment.`
+        ? `Please pay your ${formatMoney(depositCents, currency)} deposit${feeCents ? ` (plus a ${formatMoney(feeCents, currency)} booking fee, ${formatMoney(depositCents + feeCents, currency)} in total)` : ''} to lock in your appointment.`
         : 'No deposit is required.';
       tellClient(`${artist.name} approved your booking for ${formatWhen(row.date, time)}! ${payLine}`, `${artist.name} approved your booking`, body.note ? [`Note from ${artist.name}: ${body.note}`] : []);
       break;
@@ -397,6 +399,10 @@ bookingsRouter.post('/booking-requests/:id/aftercare', async (req, res) => {
   if (role !== 'artist') throw forbidden();
   const { kind } = parse(z.object({ kind: z.enum(['aftercare', 'healed-photo']) }), req.body);
   if (row.status !== 'completed') throw conflict('Mark the appointment as completed first.');
+  if (!row.client_id && !row.guest_email) throw badRequest('This client has no contact details.');
+  if (!row.client_id && !emailReady()) {
+    throw conflict("Email isn't set up on this site yet, so this can't be sent to a guest. Ask the site owner to set up email.");
+  }
   if (!bookingEmailAllowed(row.id)) throw new HttpError(429, "You've already sent this client several messages today. Please try again tomorrow.");
   const artist = req.user!;
   const text =
@@ -485,14 +491,14 @@ bookingsRouter.post('/booth-bookings/:id/cancel', (req, res) => {
   const wasPaid = b.status === 'paid';
   db.prepare("update booth_bookings set status = 'cancelled' where id = ?").run(b.id);
   if (isOwner) {
-    notify(b.artist_id, `${b.shop_name} cancelled your ${wasPaid ? '' : 'unpaid '}reservation for ${b.booth_name} (${b.start_date} → ${b.end_date}).${wasPaid ? ' Your payment will be refunded.' : ''}`, {
+    notify(b.artist_id, `${b.shop_name} cancelled your ${wasPaid ? '' : 'unpaid '}reservation for ${b.booth_name} (${formatRange(b.start_date, b.end_date)}).${wasPaid ? ' Your payment will be refunded.' : ''}`, {
       link: '/bookings',
       email: wasPaid ? { subject: `${b.shop_name} cancelled your guest spot`, actionLabel: 'View bookings' } : undefined,
     });
   } else {
     notify(shop.owner_id, `${b.artist_name} cancelled their reservation for ${b.booth_name}.`, { link: '/shop' });
   }
-  if (wasPaid) notifyAdmins(`A paid booth rental was cancelled (${b.shop_name}, ${b.start_date}). Refund it in Payments.`, '/admin/payments', true);
+  if (wasPaid) notifyAdmins(`A paid booth rental was cancelled (${b.shop_name}, ${formatRange(b.start_date, b.end_date)}). Refund it in Payments.`, '/admin/payments', true);
   emit(b.artist_id, 'bookings');
   emit(shop.owner_id, 'bookings');
   res.json({ ok: true });

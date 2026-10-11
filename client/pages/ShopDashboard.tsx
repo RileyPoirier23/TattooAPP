@@ -3,10 +3,10 @@ import React, { useState } from 'react';
 import { api, errorMessage } from '../api';
 import { Link, useLocation } from '../router';
 import { useStore } from '../store';
-import { dollars, formatDate, today } from '../lib/format';
+import { currencySymbol, dollars, formatDate, today } from '../lib/format';
 import { geocode } from '../lib/maps';
 import { prepareImage } from '../lib/images';
-import { useUnsavedWarning } from '../lib/unsaved';
+import { confirmLeave, useUnsavedWarning } from '../lib/unsaved';
 import { BoothBookingCard } from '../components/BookingCards';
 import { EarningsPanel, PayoutMethodForm } from '../components/Earnings';
 import {
@@ -113,7 +113,9 @@ interface BoothBlock { id: string; boothId: string; boothName: string; startDate
 const BlockedDates: React.FC<{ shop: Shop }> = ({ shop }) => {
   const toast = useStore(s => s.toast);
   const blocks = useApi<BoothBlock[]>(`/shops/${shop.id}/blocks`);
-  const [boothId, setBoothId] = useState(shop.booths[0]?.id || '');
+  const [chosenBooth, setBoothId] = useState('');
+  // Falls back to the first booth (also when booths were added or removed after this loaded).
+  const boothId = shop.booths.some(b => b.id === chosenBooth) ? chosenBooth : shop.booths[0]?.id || '';
   const [start, setStart] = useState('');
   const [end, setEnd] = useState('');
   const [note, setNote] = useState('');
@@ -210,7 +212,7 @@ const BoothModal: React.FC<{ shopId: string; booth?: Booth; onClose: () => void;
     >
       <div className="space-y-4">
         <Input label="Booth name" value={name} onChange={e => setName(e.target.value)} placeholder="e.g. Front window station" />
-        <Input label="Daily rate" type="number" min="0" prefix="$" value={rate} onChange={e => setRate(e.target.value)} />
+        <Input label="Daily rate" type="number" min="0" prefix={currencySymbol()} value={rate} onChange={e => setRate(e.target.value)} />
         <Textarea label="Description (optional)" rows={3} value={description} onChange={e => setDescription(e.target.value)} placeholder="What's included: chair, light, power supply, ink…" />
         <Toggle checked={active} onChange={setActive} label="Available to book" description="Turn off to hide this booth temporarily." />
       </div>
@@ -308,7 +310,7 @@ export const ShopDashboardPage: React.FC = () => {
       <Tabs
         className="mb-6"
         active={tab}
-        onChange={setTab}
+        onChange={id => confirmLeave() && setTab(id)}
         tabs={[
           { id: 'rentals', label: 'Rentals', count: upcoming.filter(b => b.startDate <= today()).length },
           { id: 'booths', label: `Booths (${shop.booths.length})` },

@@ -14,12 +14,55 @@ export const forbidden = (msg = "You don't have permission to do that.") => new 
 export const notFound = (msg = 'Not found.') => new HttpError(404, msg);
 export const conflict = (msg: string) => new HttpError(409, msg);
 
+const FIELD_LABELS: Record<string, string> = {
+  instagram: 'Instagram link', tiktok: 'TikTok link', facebook: 'Facebook link', website: 'Website link',
+  duration: 'hours', dailyRate: 'Daily rate', guestName: 'Name', guestEmail: 'Email', guestPhone: 'Phone',
+  tattooWidth: 'Width', tattooHeight: 'Height', bodyPlacement: 'Placement', startDate: 'First day', endDate: 'Last day',
+  depositAmount: 'Deposit', minSize: 'Minimum size', maxSize: 'Maximum size', aftercareMessage: 'Aftercare message',
+};
+
+/** "services.0.price" → "Service 1 price"; "socials.instagram" → "Instagram link". */
+function fieldLabel(path: PropertyKey[]): string {
+  const parts: string[] = [];
+  for (let i = 0; i < path.length; i++) {
+    const key = path[i];
+    const next = path[i + 1];
+    if (typeof next === 'number' && typeof key === 'string') {
+      parts.push(`${key.replace(/s$/, '').replace(/^\w/, c => c.toUpperCase())} ${next + 1}`);
+      i++;
+    } else if (typeof key === 'string' && !(key === 'socials' || key === 'settings' || key === 'secrets' || key === 'features')) {
+      parts.push(FIELD_LABELS[key] ?? key.replace(/([a-z])([A-Z])/g, '$1 $2').toLowerCase());
+    }
+  }
+  const label = parts.join(' ');
+  return label.charAt(0).toUpperCase() + label.slice(1);
+}
+
+/** Plain-language wording for zod's built-in messages; messages written in the schemas are kept as they are. */
+function friendlyIssue(issue: z.core.$ZodIssue): string {
+  const i = issue as z.core.$ZodIssue & { minimum?: number | bigint; maximum?: number | bigint; origin?: string; format?: string; input?: unknown };
+  const builtIn = /^(Too small|Too big|Invalid|Expected)/.test(issue.message);
+  if (!builtIn) return issue.message;
+  if (issue.code === 'too_small') {
+    if (i.origin === 'string') return Number(i.minimum) <= 1 ? 'is required' : `must be at least ${i.minimum} characters`;
+    if (i.origin === 'array') return `needs at least ${i.minimum}`;
+    return Number(i.minimum) === 0 ? "can't be negative" : `must be at least ${i.minimum}`;
+  }
+  if (issue.code === 'too_big') return i.origin === 'string' ? `is too long (at most ${i.maximum} characters)` : `must be at most ${i.maximum}`;
+  if (issue.code === 'invalid_format' && i.format === 'email') return 'must be a valid email address';
+  if (issue.code === 'invalid_type') return i.input === undefined ? 'is required' : 'is not valid';
+  return 'is not valid';
+}
+
 export function parse<T extends z.ZodTypeAny>(schema: T, value: unknown): z.infer<T> {
   const result = schema.safeParse(value);
   if (!result.success) {
     const issue = result.error.issues[0];
-    const field = issue.path.join('.');
-    throw badRequest(field ? `${field}: ${issue.message}` : issue.message);
+    const message = friendlyIssue(issue);
+    // Full sentences ("Please enter your name.") stand alone; fragments ("must start with https://") get the field name.
+    const sentence = /^[A-Z]/.test(message);
+    const label = issue.path.length ? fieldLabel(issue.path) : '';
+    throw badRequest(sentence || !label ? message : `${label} ${message}.`);
   }
   return result.data;
 }
@@ -88,6 +131,15 @@ export function parseDate(s: string): Date {
 export function daysBetweenInclusive(start: string, end: string): number {
   const ms = parseDate(end).getTime() - parseDate(start).getTime();
   return Math.round(ms / 86_400_000) + 1;
+}
+
+/** "Sat, Oct 10 – Mon, Oct 12, 2026" (or a single day). */
+export function formatRange(start: string, end: string): string {
+  if (start === end) return formatWhen(start);
+  const a = parseDate(start);
+  const b = parseDate(end);
+  const short = (d: Date, year: boolean) => d.toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric', ...(year ? { year: 'numeric' } : {}) });
+  return `${short(a, a.getFullYear() !== b.getFullYear())} – ${short(b, true)}`;
 }
 
 /** "Sun, Nov 15, 2026 at 1:00 PM" (time optional). */

@@ -2,9 +2,10 @@
 import React, { useMemo, useState } from 'react';
 import { api, errorMessage } from '../api';
 import { prepareImages } from '../lib/images';
+import { useUnsavedWarning } from '../lib/unsaved';
 import { useStore } from '../store';
 import { navigate } from '../router';
-import { dollars, formatDate, parseDate, PREFERRED_TIMES } from '../lib/format';
+import { currencySymbol, dollars, formatDate, parseDate, PREFERRED_TIMES } from '../lib/format';
 import { Calendar } from './Calendar';
 import { Button, Input, Modal, Notice, Select, Textarea, cx } from './ui';
 import { CheckIcon, PhotoIcon, XIcon } from './Icons';
@@ -41,6 +42,16 @@ export const BookingRequestModal: React.FC<{ artist: ArtistDetail; onClose: () =
   const isDisabled = (d: string) => daysOff.has(d) || (hasHours && !artist.hours[String(parseDate(d).getDay())]?.length);
   const service = artist.services.find(s => s.id === serviceId);
   const deposit = service ? service.deposit : settings.defaultDeposit;
+  // Same rule as the server: a percentage on top of the deposit, waived for Pro artists.
+  const fee = artist.isPro ? 0 : Math.round(deposit * settings.depositFeePercent) / 100;
+  // Anything typed counts as unsaved work: leaving the page or closing the dialog asks first.
+  const started = !done && (step > 1 || !!message.trim() || files.length > 0 || !!guestName || !!guestEmail);
+  useUnsavedWarning(started);
+  const close = () => {
+    if (busy) return;
+    if (started && !window.confirm('Discard this booking request? What you entered will be lost.')) return;
+    onClose();
+  };
   const previews = useMemo(() => files.map(f => URL.createObjectURL(f)), [files]);
 
   const step2Error = (() => {
@@ -90,8 +101,8 @@ export const BookingRequestModal: React.FC<{ artist: ArtistDetail; onClose: () =
             <CheckIcon className="w-8 h-8" />
           </div>
           <p>
-            <strong>{artist.name}</strong> will review your request for <strong>{formatDate(done.request.date)}</strong>. You'll get a notification
-            {user ? '' : emailReady ? ' by email' : ' — check back using the link below'} when they respond.
+            <strong>{artist.name}</strong> will review your request for <strong>{formatDate(done.request.date)}</strong>.{' '}
+            {user ? "You'll get a notification when they respond." : emailReady ? "We'll email you when they respond." : 'Use the link below to see when they respond.'}
           </p>
           {!user && (
             <Notice>
@@ -113,7 +124,7 @@ export const BookingRequestModal: React.FC<{ artist: ArtistDetail; onClose: () =
   return (
     <Modal
       title={`Book ${artist.name}`}
-      onClose={onClose}
+      onClose={close}
       size="xl"
       closeDisabled={busy}
       footer={
@@ -194,7 +205,7 @@ export const BookingRequestModal: React.FC<{ artist: ArtistDetail; onClose: () =
               <option value="">Choose…</option>
               {settings.bodyPlacements.map(p => <option key={p} value={p}>{p}</option>)}
             </Select>
-            <Input label={`Budget${req(intake.requireBudget)}`} type="number" min="0" prefix="$" value={budget} onChange={e => setBudget(e.target.value)} />
+            <Input label={`Budget${req(intake.requireBudget)}`} type="number" min="0" prefix={currencySymbol()} value={budget} onChange={e => setBudget(e.target.value)} />
           </div>
           <div className="space-y-4">
             <Textarea
@@ -284,7 +295,11 @@ export const BookingRequestModal: React.FC<{ artist: ArtistDetail; onClose: () =
             {files.length > 0 && <Row k="References" v={`${files.length} photo${files.length > 1 ? 's' : ''}`} />}
             <div className="border-t border-gray-200 dark:border-gray-700 pt-2 mt-2">
               <Row k="Deposit (after approval)" v={deposit > 0 ? dollars(deposit) : 'None'} />
-              <p className="text-xs text-brand-gray mt-1">Nothing is charged now. You'll pay the deposit once {artist.name} approves your request.</p>
+              {deposit > 0 && fee > 0 && <Row k={`Booking fee (${settings.depositFeePercent}%)`} v={dollars(fee)} />}
+              {deposit > 0 && fee > 0 && <Row k="Total due after approval" v={dollars(deposit + fee)} />}
+              <p className="text-xs text-brand-gray mt-1">
+                Nothing is charged now. You'll pay {deposit > 0 ? 'the deposit' : 'any deposit'} once {artist.name} approves your request (they may adjust it). The deposit goes towards the price of your tattoo.
+              </p>
             </div>
           </div>
           <label className="md:col-span-2 flex items-start gap-2 text-sm text-gray-700 dark:text-gray-300">

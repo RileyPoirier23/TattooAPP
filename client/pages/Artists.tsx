@@ -150,9 +150,19 @@ export const ArtistsPage: React.FC = () => {
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
         {filtered.map(a => <ArtistCard key={a.id} artist={a} />)}
       </div>
-      {data && data.length > 0 && (
+      {data && data.length > 0 && !['shop-owner', 'admin'].includes(useStore.getState().user?.role ?? '') && (
         <p className="text-center text-sm text-brand-gray mt-10">
-          Are you an artist? <button className="text-brand-primary font-semibold" onClick={() => (useStore.getState().user ? navigate('/dashboard') : useStore.getState().openAuth('register'))}>List your profile</button>
+          Are you an artist?{' '}
+          <button
+            className="text-brand-primary font-semibold underline"
+            onClick={() => {
+              const u = useStore.getState().user;
+              if (!u) useStore.getState().openAuth('register');
+              else navigate(u.role === 'client' ? '/settings#artist' : '/dashboard');
+            }}
+          >
+            List your profile
+          </button>
         </p>
       )}
     </div>

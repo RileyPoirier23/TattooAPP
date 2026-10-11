@@ -24,7 +24,7 @@ export const PayDepositModal: React.FC<{ request: BookingRequest; token?: string
         buttonLabel={`Pay ${money(total)}`}
         onToken={async (sourceId, idempotencyKey) => {
           await api.post(`/booking-requests/${request.id}/pay`, { sourceId, idempotencyKey, token });
-          toast("Deposit paid — you're booked! A receipt is on its way.");
+          toast(`Deposit paid — you're booked!${useStore.getState().config?.emailReady ? ' A receipt is on its way to your email.' : ''}`);
           onPaid();
         }}
       />

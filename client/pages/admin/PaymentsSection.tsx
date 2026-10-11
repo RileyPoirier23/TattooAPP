@@ -32,7 +32,7 @@ const RefundModal: React.FC<{ payment: AdminPayment; onClose: () => void; onRefu
         onRefunded();
         onClose();
       },
-      `Refunded ${money(p.amountCents, p.currency)}. The payer has been notified.`,
+      `Refunded ${money(p.amountCents, p.currency)}.${useStore.getState().config?.emailReady ? ' The payer has been emailed.' : p.payerName ? ' The payer has been notified on the site.' : ''}`,
     );
   return (
     <Dialog
@@ -60,7 +60,7 @@ const RefundModal: React.FC<{ payment: AdminPayment; onClose: () => void; onRefu
         <p>
           The full amount goes back to the payer&apos;s card through Square. It usually shows up on their statement within 5–10 business days. This can&apos;t be undone.
         </p>
-        {p.kind === 'deposit' && <p>The booking will be marked as refunded.</p>}
+        {p.kind === 'deposit' && <p>If the appointment hasn&apos;t happened yet, it&apos;s cancelled and the artist is told. The booking is marked as refunded.</p>}
         {p.kind === 'booth' && <p>The booth rental will be cancelled and the dates freed up.</p>}
         {p.kind === 'subscription' && <p>Refunding a Pro payment also ends that artist&apos;s Pro plan straight away.</p>}
         {p.payeeAmountCents > 0 && (

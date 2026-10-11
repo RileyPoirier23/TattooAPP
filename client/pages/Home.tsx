@@ -37,7 +37,7 @@ export const HomePage: React.FC = () => {
             {s.heroHighlight && (
               <>
                 <br />
-                <span className="bg-clip-text text-transparent bg-gradient-to-r from-brand-primary to-brand-secondary">{s.heroHighlight}</span>
+                <span className="bg-clip-text text-transparent bg-gradient-to-r from-brand-primary-text to-brand-secondary-text">{s.heroHighlight}</span>
               </>
             )}
           </h1>

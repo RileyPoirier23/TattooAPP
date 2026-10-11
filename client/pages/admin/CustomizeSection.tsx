@@ -98,7 +98,7 @@ const LivePreview: React.FC<{ s: SiteSettings }> = ({ s }) => {
         <div className="relative">
           <h3 className="text-2xl font-black leading-tight tracking-tight">
             {s.heroTitle}
-            {s.heroHighlight && <span className="block bg-gradient-to-r from-brand-primary to-brand-secondary bg-clip-text text-transparent">{s.heroHighlight}</span>}
+            {s.heroHighlight && <span className="block bg-gradient-to-r from-brand-primary-text to-brand-secondary-text bg-clip-text text-transparent">{s.heroHighlight}</span>}
           </h3>
           {s.heroSubtitle && <p className="mt-3 text-xs opacity-80 line-clamp-3">{s.heroSubtitle}</p>}
           <div className="mt-4 flex justify-center gap-2 flex-wrap">
@@ -196,7 +196,7 @@ export const CustomizeSection: React.FC = () => {
                     label="Logo"
                     value={draft.logoUrl}
                     onChange={url => set('logoUrl', url)}
-                    hint="Shown in the header next to your site name. A transparent PNG about 200px wide works best."
+                    hint="Shown in the header and footer in place of your site name. A transparent PNG about 200px wide works best."
                   />
                   <ImageField
                     label="Favicon (browser tab icon)"

@@ -298,10 +298,18 @@ export function usePaged<R extends Paged<unknown>>(base: string, filters: Record
   if (page > 1) params.set('page', String(page));
   const qs = params.toString();
   const api = useApi<R>(`${base}${qs ? `?${qs}` : ''}`);
+  // Jump back to the top once the new page has loaded (scrolling earlier gets cut short as the page changes height).
+  const scrollWhenLoaded = useRef(false);
   const setPage = useCallback((p: number) => {
+    scrollWhenLoaded.current = true;
     setState({ key, page: p });
-    window.scrollTo({ top: 0, behavior: 'smooth' });
   }, [key]);
+  useEffect(() => {
+    if (scrollWhenLoaded.current && api.data) {
+      scrollWhenLoaded.current = false;
+      window.scrollTo(0, 0);
+    }
+  }, [api.data]);
   // If the last item on a later page was removed, step back to the previous page instead of showing it empty.
   const emptyLaterPage = !!api.data && api.data.items.length === 0 && page > 1;
   useEffect(() => {

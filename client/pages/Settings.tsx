@@ -1,5 +1,5 @@
 // Account settings: name, city, password, payout details and plan shortcuts.
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import { api, errorMessage } from '../api';
 import { Link, navigate } from '../router';
 import { isArtist, useStore } from '../store';
@@ -8,7 +8,46 @@ import { PayoutMethodForm } from '../components/Earnings';
 import { ProPlanCard } from '../components/ProPlan';
 import { Badge, Button, Card, Input, Modal, PageHeader } from '../components/ui';
 import { DownloadIcon } from '../components/Icons';
+import { useUnsavedWarning } from '../lib/unsaved';
 import type { Me } from '../../shared/types';
+
+/** Lets a client switch on artist features (their client bookings stay where they are). */
+const BecomeArtistCard: React.FC<{ me: Me }> = ({ me }) => {
+  const setUser = useStore(s => s.setUser);
+  const toast = useStore(s => s.toast);
+  const [city, setCity] = useState(me.city);
+  const [busy, setBusy] = useState(false);
+  const start = async () => {
+    setBusy(true);
+    try {
+      const { user } = await api.post<{ user: Me }>('/me/become-artist', { city });
+      setUser(user);
+      toast('Artist features are on. Set up your profile so clients can find you.');
+      navigate('/dashboard?tab=profile');
+    } catch (err) {
+      toast(errorMessage(err), 'error');
+    } finally {
+      setBusy(false);
+    }
+  };
+  useEffect(() => {
+    if (window.location.hash === '#artist') document.getElementById('artist')?.scrollIntoView({ behavior: 'smooth', block: 'center' });
+  }, []);
+  return (
+    <div id="artist">
+      <Card>
+        <h2 className="text-lg font-bold mb-1">Are you a tattoo artist?</h2>
+        <p className="text-sm text-brand-gray mb-4">
+          Switch on artist features to get a public profile, take bookings and deposits, and rent guest spots at shops. Your own bookings stay in your account.
+        </p>
+        <div className="flex flex-col sm:flex-row sm:items-end gap-3">
+          <Input className="flex-1" label="City you work in" value={city} onChange={e => setCity(e.target.value)} placeholder="e.g. Moncton, NB" />
+          <Button onClick={start} loading={busy} disabled={!city.trim()}>Become an artist</Button>
+        </div>
+      </Card>
+    </div>
+  );
+};
 
 export const SettingsPage: React.FC = () => {
   const me = useStore(s => s.user)!;
@@ -25,6 +64,7 @@ export const SettingsPage: React.FC = () => {
   const [deleting, setDeleting] = useState(false);
   const [deletePassword, setDeletePassword] = useState('');
   const [deleteBusy, setDeleteBusy] = useState(false);
+  useUnsavedWarning(name !== me.name || city !== me.city || !!(current || next || confirm));
 
   const deleteAccount = async () => {
     setDeleteBusy(true);
@@ -46,6 +86,8 @@ export const SettingsPage: React.FC = () => {
     try {
       const { user } = await api.patch<{ user: Me }>('/me', { name, city });
       setUser(user);
+      setName(user.name);
+      setCity(user.city);
       toast('Settings saved.');
     } catch (err) {
       toast(errorMessage(err), 'error');
@@ -98,6 +140,8 @@ export const SettingsPage: React.FC = () => {
           </div>
         </form>
       </Card>
+
+      {me.role === 'client' && <BecomeArtistCard me={me} />}
 
       {(isArtist(me) || me.role === 'shop-owner') && <PayoutMethodForm me={me} />}
       {isArtist(me) && (features.proPlan || me.subscription.isPro || me.subscription.autoRenew) && <ProPlanCard me={me} />}

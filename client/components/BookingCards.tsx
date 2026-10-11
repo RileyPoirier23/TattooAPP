@@ -3,7 +3,7 @@ import React, { useState } from 'react';
 import { api, errorMessage } from '../api';
 import { navigate } from '../router';
 import { useStore } from '../store';
-import { dollars, formatDate, money, parseDate, PREFERRED_TIMES, timeAgo, today } from '../lib/format';
+import { currencySymbol, dollars, formatDate, formatDateTime, money, parseDate, PREFERRED_TIMES, timeAgo, today } from '../lib/format';
 import { PayBoothModal, PayDepositModal } from './PaymentModals';
 import { ReportModal } from './ReportModal';
 import { Calendar } from './Calendar';
@@ -173,7 +173,9 @@ export const ClientRequestCard: React.FC<{ request: BookingRequest; token?: stri
         <div className="mt-4 rounded-xl border border-brand-primary/40 bg-brand-primary/5 p-4 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
           <div>
             <p className="font-semibold">{r.artistName} approved your request! 🎉</p>
-            <p className="text-sm text-brand-gray">Pay your {money(r.depositCents)} deposit to lock in your date.</p>
+            <p className="text-sm text-brand-gray">
+              Pay your {money(r.depositCents)} deposit{r.feeCents > 0 && <> plus a {money(r.feeCents)} booking fee</>} to lock in your date.
+            </p>
           </div>
           <Button onClick={() => setPaying(true)}><CreditCardIcon className="w-5 h-5" /> Pay {money(total)}</Button>
         </div>
@@ -194,8 +196,13 @@ export const ClientRequestCard: React.FC<{ request: BookingRequest; token?: stri
             <ChatIcon className="w-4 h-4" /> Create an account to message {r.artistName}
           </Button>
         )}
-        {r.status === 'completed' && !r.review && features.reviews && (
+        {r.status === 'completed' && !r.review && features.reviews && (!r.isGuest || (r.paymentStatus === 'paid' && r.depositCents > 0)) && (
           <Button size="sm" onClick={() => setReviewing(true)}>Leave a review</Button>
+        )}
+        {r.status === 'completed' && !r.review && features.reviews && r.isGuest && !(r.paymentStatus === 'paid' && r.depositCents > 0) && !user && (
+          <Button variant="outline" size="sm" onClick={() => useStore.getState().openAuth('register')}>
+            Create an account to leave a review
+          </Button>
         )}
         {r.review && <span className="text-sm text-brand-gray self-center">You rated this {r.review.rating}★</span>}
         {(r.status === 'pending' || (r.status === 'approved' && r.date >= today())) && (
@@ -231,6 +238,9 @@ const ApproveModal: React.FC<{ r: BookingRequest; onClose: () => void; onDone: (
   const [startTime, setStartTime] = useState(r.appointmentTime || SUGGESTED_START[r.preferredTime] || '');
   const [note, setNote] = useState('');
   const [busy, setBusy] = useState(false);
+  const emailReady = useStore(s => s.config!.emailReady);
+  const feePercent = useStore(s => s.config!.settings.depositFeePercent);
+  const isProArtist = useStore(s => !!s.user?.subscription.isPro);
   return (
     <Modal
       title={`Approve ${r.clientName}'s request`}
@@ -247,7 +257,11 @@ const ApproveModal: React.FC<{ r: BookingRequest; onClose: () => void; onDone: (
               setBusy(true);
               try {
                 await api.post(`/booking-requests/${r.id}/action`, { action: 'approve', depositAmount: Number(deposit) || 0, time: startTime, note: note || undefined });
-                toast('Approved — the client has been asked to pay the deposit.');
+                const told = !r.isGuest || emailReady;
+                toast(
+                  (Number(deposit) > 0 ? 'Approved — the client has been asked to pay the deposit.' : 'Approved — no deposit needed.') +
+                    (told ? '' : " Email isn't set up yet, so the client won't be emailed — they'll see it on their booking link."),
+                );
                 onDone();
               } catch (err) {
                 toast(errorMessage(err), 'error');
@@ -266,7 +280,16 @@ const ApproveModal: React.FC<{ r: BookingRequest; onClose: () => void; onDone: (
           {formatDate(r.date)} · {PREFERRED_TIMES[r.preferredTime]} · {r.serviceName}
         </p>
         <Input label="Start time" type="time" value={startTime} onChange={e => setStartTime(e.target.value)} required hint={`The client asked for: ${PREFERRED_TIMES[r.preferredTime]}.`} />
-        <Input label="Deposit to collect" type="number" min="0" step="1" prefix="$" value={deposit} onChange={e => setDeposit(e.target.value)} hint="Set to 0 if you don't need a deposit." />
+        <Input
+          label="Deposit to collect"
+          type="number"
+          min="0"
+          step="1"
+          prefix={currencySymbol()}
+          value={deposit}
+          onChange={e => setDeposit(e.target.value)}
+          hint={`Set to 0 if you don't need a deposit.${feePercent > 0 && !isProArtist ? ` The client also pays a ${feePercent}% booking fee on top.` : ''}`}
+        />
         <Textarea label="Note to the client (optional)" value={note} onChange={e => setNote(e.target.value)} rows={3} placeholder="e.g. Let's start at 1pm. Please eat beforehand!" />
       </div>
     </Modal>
@@ -294,7 +317,8 @@ export const RescheduleModal: React.FC<{ r: BookingRequest; onClose: () => void;
               setBusy(true);
               try {
                 await api.post(`/booking-requests/${r.id}/action`, { action: 'reschedule', date, time, note: note || undefined });
-                toast(`Moved to ${formatDate(date)}. The client has been notified.`);
+                const emailReady = useStore.getState().config?.emailReady;
+                toast(`Moved to ${formatDate(date)}.${!r.isGuest || emailReady ? ' The client has been notified.' : " Email isn't set up yet, so let the client know."}`);
                 onDone();
               } catch (err) {
                 toast(errorMessage(err), 'error');
@@ -329,6 +353,15 @@ export const ArtistRequestCard: React.FC<{ request: BookingRequest; onChanged: (
     setBusy(action);
     try {
       await api.post(`/booking-requests/${r.id}/action`, { action, ...extra });
+      const done: Record<string, string> = {
+        decline: 'Request declined.',
+        cancel: 'Appointment cancelled.',
+        complete: 'Marked as completed — it’s now under Past.',
+        'no-show': 'Marked as a no-show — it’s now under Past.',
+        archive: 'Archived.',
+        unarchive: 'Moved back from the archive.',
+      };
+      if (done[action]) toast(done[action]);
       onChanged();
     } catch (err) {
       toast(errorMessage(err), 'error');
@@ -462,7 +495,7 @@ export const BoothBookingCard: React.FC<{ booking: BoothBooking; as: 'artist' | 
         </div>
       </div>
       {b.status === 'unpaid' && b.holdExpiresAt && (
-        <p className="text-xs text-amber-700 dark:text-amber-400 mt-2">Held until {new Date(b.holdExpiresAt).toLocaleString()} — unpaid reservations are released automatically.</p>
+        <p className="text-xs text-amber-700 dark:text-amber-400 mt-2">Held until {formatDateTime(b.holdExpiresAt)} — unpaid reservations are released automatically.</p>
       )}
       <div className="mt-4 pt-4 border-t border-gray-200 dark:border-gray-800 flex flex-wrap gap-2">
         {as === 'artist' && b.status === 'unpaid' && <Button size="sm" onClick={() => setPaying(true)}><CreditCardIcon className="w-4 h-4" /> Pay {money(b.totalCents)}</Button>}

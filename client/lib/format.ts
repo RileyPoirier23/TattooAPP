@@ -12,6 +12,16 @@ export function money(cents: number, currency?: string) {
 
 export const dollars = (amount: number, currency?: string) => money(Math.round(amount * 100), currency);
 
+/** The symbol shown in front of money fields, e.g. "$", "CA$", "£" (matches how amounts are displayed). */
+export function currencySymbol(currency?: string) {
+  const cur = currency || useStore.getState().config?.settings.currency || 'USD';
+  try {
+    return new Intl.NumberFormat(undefined, { style: 'currency', currency: cur }).formatToParts(0).find(p => p.type === 'currency')?.value || '$';
+  } catch {
+    return '$';
+  }
+}
+
 export function toDateStr(d: Date) {
   return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
 }

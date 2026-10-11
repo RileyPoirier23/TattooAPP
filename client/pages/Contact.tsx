@@ -5,6 +5,7 @@ import { Link } from '../router';
 import { useStore } from '../store';
 import { Button, Card, Input, PageHeader, Textarea } from '../components/ui';
 import { CheckIcon, InstagramIcon } from '../components/Icons';
+import { useUnsavedWarning } from '../lib/unsaved';
 
 export const ContactPage: React.FC = () => {
   const user = useStore(s => s.user);
@@ -15,6 +16,7 @@ export const ContactPage: React.FC = () => {
   const [error, setError] = useState<string | null>(null);
   const [sentTo, setSentTo] = useState<string | null>(null);
   const set = (k: keyof typeof form) => (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) => setForm(f => ({ ...f, [k]: e.target.value }));
+  useUnsavedWarning(!!form.message.trim());
 
   useEffect(() => {
     document.title = `Contact · ${settings.siteName}`;

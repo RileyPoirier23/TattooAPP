@@ -6,7 +6,7 @@ import path from 'node:path';
 import { z } from 'zod';
 import { destroyAllSessions, getUser, hashPassword, requireAdmin } from '../auth';
 import { getDb, newId, nowIso, parseJson } from '../db';
-import { badRequest, conflict, notFound, parse, toCents, todayStr, zDate } from '../http';
+import { badRequest, conflict, formatWhen, notFound, parse, toCents, todayStr, zDate } from '../http';
 import { getSecrets, getSettings, saveSecrets, saveSettings } from '../settings';
 import { BOOKING_REQUEST_SELECT, BOOTH_BOOKING_SELECT, recomputeArtistRating, recomputeShopRating, toBookingRequest, toBoothBooking } from '../mappers';
 import { saveImage, upload } from '../uploads';
@@ -442,7 +442,8 @@ adminRouter.post('/booking-requests/:id/status', (req, res) => {
   db.prepare('update booking_requests set status = ?, cancelled_by = ?, updated_at = ? where id = ?')
     .run(status, status === 'cancelled' ? (r.status === 'cancelled' ? r.cancelled_by : 'admin') : null, nowIso(), r.id);
   if (status !== r.status) {
-    const msg = `The site admin changed the booking for ${r.date} to "${status}".`;
+    const label: Record<string, string> = { pending: 'waiting for a reply', approved: 'approved', declined: 'declined', cancelled: 'cancelled', completed: 'completed', 'no-show': 'no-show' };
+    const msg = `The site admin marked the booking for ${formatWhen(r.date, r.appointment_time)} as ${label[status] ?? status}.`;
     notify(r.artist_id, msg, { link: '/dashboard', email: { subject: 'Your booking was updated', actionLabel: 'Open dashboard' } });
     if (r.client_id) notify(r.client_id, msg, { link: '/bookings', email: { subject: 'Your booking was updated', actionLabel: 'View booking' } });
     else if (r.guest_email) sendEmail({ to: r.guest_email, subject: 'Your booking was updated', lines: [`Hi ${r.guest_name},`, msg], action: { label: 'View your booking', url: `${config.appUrl}/booking/${r.id}?token=${r.access_token}` } });

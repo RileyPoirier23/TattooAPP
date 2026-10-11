@@ -268,19 +268,19 @@ export const OverviewSection: React.FC = () => {
                   <div className="grid grid-cols-3 gap-3 mb-5">
                     <div>
                       <p className="text-2xl font-extrabold text-brand-dark dark:text-white">{totalBookings}</p>
-                      <p className="text-xs text-brand-gray">booking requests</p>
+                      <p className="text-xs text-brand-gray">booking request{totalBookings === 1 ? '' : 's'}</p>
                     </div>
                     <div>
                       <p className="text-2xl font-extrabold text-brand-dark dark:text-white">{s.shops}</p>
                       <p className="text-xs text-brand-gray">
                         <Link to="/admin/shops" className="hover:text-brand-primary">
-                          shops
+                          shop{s.shops === 1 ? '' : 's'}
                         </Link>
                       </p>
                     </div>
                     <div>
                       <p className="text-2xl font-extrabold text-brand-dark dark:text-white">{s.upcomingBoothRentals}</p>
-                      <p className="text-xs text-brand-gray">upcoming booth rentals</p>
+                      <p className="text-xs text-brand-gray">upcoming booth rental{s.upcomingBoothRentals === 1 ? '' : 's'}</p>
                     </div>
                   </div>
                   {totalBookings === 0 ? (

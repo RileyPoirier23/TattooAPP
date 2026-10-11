@@ -67,7 +67,7 @@ export const Input = React.forwardRef<HTMLInputElement, InputProps>(({ label, hi
     <Field label={label} hint={hint} error={error} htmlFor={inputId} className={className}>
       <div className="relative">
         {prefix && <span className="absolute left-3 top-1/2 -translate-y-1/2 text-brand-gray text-sm">{prefix}</span>}
-        <input ref={ref} id={inputId} className={cx(inputClass, prefix && 'pl-7')} {...rest} />
+        <input ref={ref} id={inputId} className={cx(inputClass, prefix && (String(prefix).length > 2 ? 'pl-12' : String(prefix).length > 1 ? 'pl-9' : 'pl-7'))} {...rest} />
       </div>
     </Field>
   );

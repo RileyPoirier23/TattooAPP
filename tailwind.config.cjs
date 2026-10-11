@@ -16,6 +16,9 @@ module.exports = {
         'brand-solid': 'rgb(var(--brand-solid) / <alpha-value>)',
         'brand-secondary-solid': 'rgb(var(--brand-secondary-solid) / <alpha-value>)',
         'on-primary': 'rgb(var(--brand-on-primary) / <alpha-value>)',
+        // Brand colors as readable text (for gradient text, which can't use text-* colors).
+        'brand-primary-text': 'rgb(var(--brand-primary-text) / <alpha-value>)',
+        'brand-secondary-text': 'rgb(var(--brand-secondary-text) / <alpha-value>)',
         'on-secondary': 'rgb(var(--brand-on-secondary) / <alpha-value>)',
         'on-gradient': 'rgb(var(--brand-on-gradient) / <alpha-value>)',
       },

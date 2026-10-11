@@ -1,6 +1,7 @@
 // App shell and route table.
 import React, { Suspense, lazy, useEffect } from 'react';
-import { matchPath, useLocation } from './router';
+import { Link, matchPath, useLocation } from './router';
+import { ROLE_LABELS } from './lib/format';
 import { useStore } from './store';
 import { applyBranding, applyTheme } from './lib/theme';
 import { Header } from './components/Header';
@@ -103,7 +104,14 @@ const LoginRequired: React.FC<{ roles?: Role[] }> = ({ roles }) => {
     <Card className="max-w-md mx-auto mt-10">
       <EmptyState icon={<LockIcon />} title={user ? "You don't have access to this page" : 'Please log in'}>
         {user ? (
-          <p>This page is for {roles?.map(r => r.replace('-', ' ')).join(' / ')} accounts.</p>
+          <>
+            <p>This page is for {roles?.filter(r => r !== 'dual').map(r => ROLE_LABELS[r]?.toLowerCase() ?? r).join(' or ')} accounts.</p>
+            {user.role === 'client' && roles?.includes('artist') && (
+              <Link to="/settings#artist" className="inline-block mt-4">
+                <Button>Become an artist</Button>
+              </Link>
+            )}
+          </>
         ) : (
           <>
             <p>Log in or create a free account to continue.</p>
