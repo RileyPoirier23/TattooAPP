@@ -2,7 +2,7 @@
 import React from 'react';
 import { api } from '../api';
 import { useStore } from '../store';
-import { formatDate, money } from '../lib/format';
+import { formatDate, formatDateTime, money } from '../lib/format';
 import { SquareCardForm } from './SquareCardForm';
 import { Modal } from './ui';
 import type { BookingRequest, BoothBooking } from '../../shared/types';
@@ -42,7 +42,7 @@ export const PayBoothModal: React.FC<{ booking: BoothBooking; onClose: () => voi
           {formatDate(booking.startDate)} → {formatDate(booking.endDate)} ({booking.days} day{booking.days > 1 ? 's' : ''})
         </p>
         <div className="flex justify-between font-bold text-base border-t border-gray-200 dark:border-gray-700 pt-2"><span>Total</span><span>{money(booking.totalCents)}</span></div>
-        {booking.holdExpiresAt && <p className="text-xs text-brand-gray pt-1">Held for you until {new Date(booking.holdExpiresAt).toLocaleString()}.</p>}
+        {booking.holdExpiresAt && <p className="text-xs text-brand-gray pt-1">Held for you until {formatDateTime(booking.holdExpiresAt)}.</p>}
       </div>
       <SquareCardForm
         buttonLabel={`Pay ${money(booking.totalCents)}`}

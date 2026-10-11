@@ -40,6 +40,7 @@
 - Faster first visit: member-only pages load when first opened.
 - The rating, "Verified" and "Cover" badges on photos stay readable on light photos (they were faint in dark mode).
 - Admin: on shorter laptop screens the sidebar scrolls on its own, so Payments, Payouts and Backup are always reachable; booking status menus are no longer cut off.
+- The booth payment window shows when the hold ends in a readable form ("Oct 12, 11:12 PM").
 - Clean shutdown on redeploys (finishes in-progress work); database indexes for growing lists.
 - Warns before leaving a form with unsaved changes (admin panel and dashboards), including the back button.
 - Brand colors stay readable: button text turns dark on light colors and brand-colored text is adjusted for contrast.
