@@ -198,7 +198,7 @@ const RequestsTab: React.FC = () => {
                         aria-label="Booking status"
                         disabled={busy(`status:${r.id}`)}
                         onChange={e => changeStatus(r, e.target.value as BookingStatus)}
-                        className={cx(inputClass, 'py-1.5 text-sm w-40')}
+                        className={cx(inputClass, 'py-1.5 pl-2 pr-1 text-sm min-w-[7.25rem]')}
                       >
                         {BOOKING_STATUSES.map(s => (
                           <option key={s.id} value={s.id}>

@@ -39,6 +39,7 @@
 - Meets WCAG 2.1 AA in automated checks (desktop and phone, light and dark): readable button and badge colors for any brand color, labelled controls, underlined inline links.
 - Faster first visit: member-only pages load when first opened.
 - The rating, "Verified" and "Cover" badges on photos stay readable on light photos (they were faint in dark mode).
+- Admin: on shorter laptop screens the sidebar scrolls on its own, so Payments, Payouts and Backup are always reachable; booking status menus are no longer cut off.
 - Clean shutdown on redeploys (finishes in-progress work); database indexes for growing lists.
 - Warns before leaving a form with unsaved changes (admin panel and dashboards), including the back button.
 - Brand colors stay readable: button text turns dark on light colors and brand-colored text is adjusted for contrast.

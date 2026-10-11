@@ -103,7 +103,7 @@ export const AdminPage: React.FC<{ section: string }> = ({ section }) => {
       <div className="lg:grid lg:grid-cols-[220px_minmax(0,1fr)] lg:gap-10">
         {/* Desktop sidebar */}
         <aside className="hidden lg:block">
-          <nav className="sticky top-24 space-y-6" aria-label="Admin sections">
+          <nav className="sticky top-24 max-h-[calc(100vh-7rem)] overflow-y-auto overscroll-contain -mx-2 px-2 pb-4 space-y-6" aria-label="Admin sections">
             <div className="px-3">
               <p className="text-xs font-bold uppercase tracking-wider text-brand-primary">Admin panel</p>
               <p className="text-sm text-brand-gray truncate">{siteName}</p>
