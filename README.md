@@ -1,217 +1,152 @@
-# InkSpace - Tattoo Industry Marketplace
+# InkSpace — tattoo artist & guest-spot marketplace
 
-InkSpace is a dual-sided marketplace connecting tattoo artists with shops for guest spots (B2B) and clients with artists for appointments (B2C).
+A complete website where:
 
-## 🚀 Quick Start & Manual Setup Guide
+- **Clients** find tattoo artists, request appointments (with or without an account), and pay deposits online.
+- **Artists** run their booking business: portfolio, services & prices, working hours and days off, requests, deposits, reviews, messages, aftercare, earnings.
+- **Shop owners** list booths that travelling artists can rent for guest spots, and get paid.
+- **The site owner (admin)** customizes everything — name, logo, colours, homepage text, pages, fees, features — and manages users, shops, bookings, payments, refunds, payouts, reports and reviews from the admin panel.
 
-### 1. Environment Setup
-Create a `.env` file in the root directory and add your API keys.
+Payments are handled by **Square**. Everything else (accounts, database, image uploads, email) runs inside this one app — there are no other services to sign up for.
 
-```
-VITE_SUPABASE_URL=your_supabase_project_url
-VITE_SUPABASE_ANON_KEY=your_supabase_anon_key
-VITE_MAPS_API_KEY=your_google_maps_api_key
-VITE_GEMINI_API_KEY=your_gemini_ai_api_key
-VITE_STRIPE_PUBLISHABLE_KEY=your_stripe_publishable_key
-```
+**Running the site day to day?** Read the [Owner's guide](OWNER_GUIDE.md).
 
-### 2. Backend Setup (Supabase) - CRITICAL STEP
+[![Tests & Docker](https://github.com/rileypoirier23/tattooapp/actions/workflows/ci.yml/badge.svg)](https://github.com/rileypoirier23/tattooapp/actions/workflows/ci.yml)
 
-You **MUST** run the SQL script below to set up the database.
+## Preview it and see the tests on GitHub
 
-1.  Log in to your [Supabase Dashboard](https://supabase.com/dashboard).
-2.  Go to the **SQL Editor** tab.
-3.  Click **New query**.
-4.  Copy the SQL script below and paste it into the editor.
-5.  Click **Run**.
+- **Tests:** every push runs the type check, the API tests, the browser tests and a Docker build. Open the repository's **Actions** tab and pick a run. The summary shows the results, and **Artifacts** has the browser-test report (with screenshots of any failure).
+- **Live preview:** on the repository page, click **Code → Codespaces → Create codespace on** this branch. The site builds, starts and opens on port 3000 by itself (a minute or two the first time). Log in with `admin@example.com` / `preview-password`, or set `ADMIN_EMAIL` and `ADMIN_PASSWORD` as [Codespaces secrets](https://github.com/settings/codespaces). The preview starts empty and uses its own throwaway data; Square and email stay unconnected until you add keys in Admin → Settings. Stop the codespace when you're done (GitHub includes free monthly hours).
+- **Docker image:** each push (not pull requests) publishes an image to the repository's **Packages** (`ghcr.io`). Run it on any machine with Docker using the command in the run summary.
 
-#### 📜 Master SQL Script (Copy All)
+---
 
-```sql
--- 1. EXTENSIONS
-create extension if not exists "moddatetime" schema "extensions";
+## What's included
 
--- 2. SCHEMA FIXES (Aligning with App)
--- Ensure Profiles have correct columns
-alter table public.profiles add column if not exists updated_at timestamptz default now();
-alter table public.profiles alter column hours type jsonb using hours::jsonb;
-alter table public.profiles alter column hours set default '{}'::jsonb;
-alter table public.profiles add column if not exists subscription_tier text default 'free';
+| Area | Features |
+|---|---|
+| Discovery | Artist search (name, city, style, rating, verified, "near me"), shop search (city, amenities), guest-spot badges, optional "not on the platform yet" shop listings from Google Maps |
+| Client bookings | 3-step request (service, date from the artist's real availability, size/placement/budget/idea, up to 5 reference photos), guest booking with a private status link, cancel, add to calendar, reviews, reminder emails before the appointment and when a deposit is still unpaid |
+| Deposits | Artist approves (can adjust the deposit and add a note) → client pays by card via Square → receipt emailed. Optional booking fee on deposits (waived for Pro artists) |
+| Artist dashboard | Requests (approve / decline / reschedule / complete / no-show / archive), profile + portfolio (upload, reorder, delete), services & prices, weekly hours + days-off calendar, booking-form requirements, aftercare message, earnings & payout details, Pro plan, verification request |
+| Booth rentals | Shops list booths with daily rates and can block dates; artists pick dates (double-booking is impossible), pay by card, review the shop afterwards. Unpaid reservations are released automatically; shops can cancel a rental (the admin refunds it) |
+| Pro plan | **Off until you switch it on** (Admin → Settings). Monthly subscription charged to a saved card (Square card on file), auto-renews, cancel/resume, update card. Subscribers pay the listed price: when you change it they're emailed and the new price applies from their next renewal. A failed renewal is retried daily for 3 days before the plan ends |
+| Messaging | Direct messages with photo attachments and live updates |
+| Notifications | In-app bell with live updates, plus emails for the important moments (new request, approval, payment, refunds, password reset) |
+| Accounts | Sign up as client / artist / both / shop owner, login, forgot password, change password, download my data, delete my account |
+| Contact | "Contact us" page; messages land in the admin Inbox and your email (reply goes straight to the sender) |
+| Admin panel | Dashboard, revenue & setup checklist, Customize (branding, colours, homepage, announcement banner, socials, footer), Pages (FAQ, Terms, Privacy, Booking policy — starter text included), Settings (feature switches, fees, Pro price, Square, email, Google Maps), Inbox, Users, Shops, Bookings (change dates), Payments & refunds, Payouts ledger, Verifications, Reports, Reviews, Backups (automatic nightly + download). Long lists are searchable and paged |
 
--- Ensure Booking Requests have correct columns for Guest Flow and Archiving
-alter table public.client_booking_requests add column if not exists updated_at timestamptz default now();
-alter table public.client_booking_requests add column if not exists guest_name text;
-alter table public.client_booking_requests add column if not exists guest_email text;
-alter table public.client_booking_requests add column if not exists guest_phone text;
-alter table public.client_booking_requests add column if not exists preferred_time text;
-alter table public.client_booking_requests add column if not exists budget numeric;
-alter table public.client_booking_requests add column if not exists reference_image_urls text[] default array[]::text[];
-alter table public.client_booking_requests alter column service_id type text;
-alter table public.client_booking_requests alter column client_id drop not null; -- Allow Guests
+### How the money works
 
--- 3. CREATE REPORTS TABLE
-create table if not exists public.reports (
-  id uuid default gen_random_uuid() primary key,
-  reporter_id uuid references public.profiles(id),
-  target_id text not null, -- Can be a User ID or Booking ID
-  type text check (type in ('user', 'booking')),
-  reason text,
-  status text default 'pending', -- pending, resolved, dismissed
-  details text,
-  created_at timestamptz default now()
-);
+Every payment goes into **the site owner's Square account**. The admin panel's **Payouts** page shows what each artist and shop is owed (deposits go to the artist; booth rentals go to the shop minus the platform's cut). Pay them by e-Transfer/PayPal/etc. and click **Record payout** — they see it in their own Earnings page. Refunds are one click in **Admin → Payments**.
 
--- 4. PERMISSION RESET (The "It Just Works" Policy)
-alter table public.profiles enable row level security;
-alter table public.client_booking_requests enable row level security;
-alter table public.notifications enable row level security;
-alter table public.reports enable row level security;
+---
 
-do $$
-begin
-  drop policy if exists "Profiles_Read_All" on public.profiles;
-  drop policy if exists "Profiles_Manage_Own" on public.profiles;
-  drop policy if exists "Bookings_Public_Insert" on public.client_booking_requests;
-  drop policy if exists "Bookings_View_Own" on public.client_booking_requests;
-  drop policy if exists "Bookings_Update_Own" on public.client_booking_requests;
-  drop policy if exists "Notif_View_Own" on public.notifications;
-  drop policy if exists "Notif_Create_Public" on public.notifications;
-  drop policy if exists "Notif_Update_Own" on public.notifications;
-  drop policy if exists "Reports_Insert_Authenticated" on public.reports;
-  drop policy if exists "Reports_View_All" on public.reports;
-  drop policy if exists "Reports_Update_All" on public.reports;
-  drop policy if exists "Public_Upload_Refs" on storage.objects;
-  drop policy if exists "Public_View_Refs" on storage.objects;
-exception when others then null;
-end $$;
+## Run it on your computer
 
--- Profiles: Public Read, Owner Full Manage
-create policy "Profiles_Read_All" on public.profiles for select using (true);
-create policy "Profiles_Manage_Own" on public.profiles for all using (auth.uid() = id) with check (auth.uid() = id);
+Requires [Node.js 22+](https://nodejs.org).
 
--- Bookings: Public Insert (Guests), Owner View/Update
-create policy "Bookings_Public_Insert" on public.client_booking_requests for insert with check (true);
-create policy "Bookings_View_Own" on public.client_booking_requests for select using (auth.uid() = artist_id OR auth.uid() = client_id);
-create policy "Bookings_Update_Own" on public.client_booking_requests for update using (auth.uid() = artist_id OR auth.uid() = client_id);
-
--- Notifications: Public Insert (System triggers), User View
-create policy "Notif_View_Own" on public.notifications for select using (auth.uid() = user_id);
-create policy "Notif_Create_Public" on public.notifications for insert with check (true);
-create policy "Notif_Update_Own" on public.notifications for update using (auth.uid() = user_id);
-
--- Reports: Authenticated Insert, Public View/Update
-create policy "Reports_Insert_Authenticated" on public.reports for insert with check (auth.role() = 'authenticated');
-create policy "Reports_View_All" on public.reports for select using (true); 
-create policy "Reports_Update_All" on public.reports for update using (true);
-
--- Storage: Public Upload for Booking Refs
-insert into storage.buckets (id, name, public) values ('booking-references', 'booking-references', true) on conflict (id) do nothing;
-create policy "Public_Upload_Refs" on storage.objects for insert with check (bucket_id = 'booking-references');
-create policy "Public_View_Refs" on storage.objects for select using (bucket_id = 'booking-references');
-
--- 5. BOOKING RPC
-create or replace function create_booking_request(
-  p_artist_id uuid, p_start_date date, p_end_date date, p_message text, 
-  p_tattoo_width numeric, p_tattoo_height numeric, p_body_placement text, 
-  p_deposit_amount numeric, p_platform_fee numeric, p_service_id text, 
-  p_budget numeric, p_reference_image_urls text[], p_preferred_time text, 
-  p_client_id uuid default null, p_guest_name text default null, 
-  p_guest_email text default null, p_guest_phone text default null
-) returns jsonb language plpgsql security definer as $$
-declare 
-  new_record record; 
-  client_data record; 
-  artist_data record;
-  display_name text;
-begin
-  insert into public.client_booking_requests (
-    artist_id, start_date, end_date, message, tattoo_width, tattoo_height, body_placement, 
-    deposit_amount, platform_fee, service_id, budget, reference_image_urls, preferred_time, 
-    client_id, guest_name, guest_email, guest_phone, updated_at
-  ) values (
-    p_artist_id, p_start_date, p_end_date, p_message, p_tattoo_width, p_tattoo_height, p_body_placement, 
-    p_deposit_amount, p_platform_fee, p_service_id, p_budget, p_reference_image_urls, p_preferred_time, 
-    p_client_id, p_guest_name, p_guest_email, p_guest_phone, now()
-  ) returning * into new_record;
-  
-  select id, full_name from public.profiles where id = new_record.client_id into client_data;
-  select id, full_name, services from public.profiles where id = new_record.artist_id into artist_data;
-  
-  begin
-    if p_guest_name is not null and p_guest_name != '' then display_name := p_guest_name || ' (Guest)';
-    elsif client_data.full_name is not null then display_name := client_data.full_name;
-    else display_name := 'A client'; end if;
-    insert into public.notifications (user_id, message, read) values (p_artist_id, 'New booking request from ' || display_name, false);
-  exception when others then null; end;
-
-  return to_jsonb(new_record) || jsonb_build_object(
-    'client', jsonb_build_object('id', client_data.id, 'full_name', client_data.full_name),
-    'artist', jsonb_build_object('id', artist_data.id, 'full_name', artist_data.full_name, 'services', artist_data.services)
-  );
-end; $$;
-
-grant execute on function create_booking_request to authenticated;
-grant execute on function create_booking_request to anon;
-
-NOTIFY pgrst, 'reload config';
-```
-
-### 3. Commercial Launch Infrastructure (Stripe Payment)
-
-To handle real payments securely, you must deploy a Supabase Edge Function.
-
-**Step 1: Setup Supabase CLI**
-In your project root (or terminal):
 ```bash
-npx supabase login
-npx supabase functions new create-payment-intent
+npm install
+cp .env.example .env        # then edit ADMIN_EMAIL / ADMIN_PASSWORD (npm start reads .env automatically)
+npm run build
+npm start                   # → http://localhost:3000
 ```
 
-**Step 2: Add Function Code**
-Replace the contents of `supabase/functions/create-payment-intent/index.ts` with:
+Log in with your `ADMIN_EMAIL` / `ADMIN_PASSWORD` and open **Admin** from the account menu.
 
-```typescript
-import { serve } from "https://deno.land/std@0.168.0/http/server.ts"
-import Stripe from 'https://esm.sh/stripe?target=deno'
+For development with automatic reloading: `npm run dev`.
 
-const stripe = new Stripe(Deno.env.get('STRIPE_SECRET_KEY') ?? '', {
-  apiVersion: '2022-11-15',
-  httpClient: Stripe.createFetchHttpClient(),
-})
+---
 
-serve(async (req) => {
-  const corsHeaders = {
-    'Access-Control-Allow-Origin': '*',
-    'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
-  }
-  if (req.method === 'OPTIONS') {
-    return new Response('ok', { headers: corsHeaders })
-  }
+## Put it online (recommended: Railway)
 
-  try {
-    const { amount, fee } = await req.json();
-    const paymentIntent = await stripe.paymentIntents.create({
-      amount: Math.round(amount * 100),
-      currency: 'usd',
-      application_fee_amount: Math.round(fee * 100),
-      automatic_payment_methods: { enabled: true },
-    });
+The app is a single Docker container that needs a **persistent disk** for its database and uploaded photos. [Railway](https://railway.app) is the simplest option (about $5/month):
 
-    return new Response(
-      JSON.stringify({ clientSecret: paymentIntent.client_secret }),
-      { headers: { ...corsHeaders, 'Content-Type': 'application/json' } },
-    )
-  } catch (error) {
-    return new Response(JSON.stringify({ error: error.message }), {
-      headers: { ...corsHeaders, 'Content-Type': 'application/json' },
-      status: 400,
-    })
-  }
-})
+1. Push this repository to GitHub.
+2. In Railway: **New Project → Deploy from GitHub repo** → pick this repo. Railway detects the `Dockerfile` automatically.
+3. Add a **Volume** to the service and mount it at **`/data`**. *(Without this, data is lost on every deploy.)*
+4. In the service's **Variables**, add:
+   - `ADMIN_EMAIL` and `ADMIN_PASSWORD` = your admin login
+   - `APP_URL` = your site's address once you add your own domain, e.g. `https://yourstudio.com` (on Railway's own `*.up.railway.app` address this is detected automatically)
+5. Under **Settings → Networking**, generate a domain (or add your own domain).
+6. Open the site, log in as admin, and go to **Admin → Settings** to connect Square and email.
+
+**Other hosts work too** — anything that runs a Docker image with a persistent disk mounted at `/data`: Render (with a Disk), Fly.io (with a Volume), DigitalOcean, or any VPS (`docker build -t inkspace . && docker run -p 3000:3000 -v inkspace-data:/data --env-file .env inkspace`). On your own server, put it behind HTTPS (e.g. Caddy or nginx). If that proxy runs on a different machine, also set `TRUST_PROXY=1` so the rate limits see visitors' real IP addresses.
+
+> Avoid "serverless" hosts like Vercel or Netlify for this app — they can't keep a database file or uploaded images.
+
+---
+
+## Connect Square (payments)
+
+1. Create a free account at [developer.squareup.com](https://developer.squareup.com/apps) and create an application.
+2. In your app, start with **Sandbox** (test mode):
+   - **Credentials** page → copy the *Sandbox Application ID* and *Sandbox Access token*.
+   - **Locations** page → copy the *Location ID*.
+3. In **Admin → Settings → Square payments**, choose *Sandbox*, paste the three values, save, then click **Test connection**.
+4. Make a test booking and pay with Square's test card `4111 1111 1111 1111`, any future expiry, any CVV, postal code `12345`.
+5. When you're ready for real money, switch to **Production** and paste the *Production* Application ID, Access token and Location ID.
+
+The currency is taken automatically from your Square location (e.g. CAD for a Canadian account).
+
+## Connect email
+
+Emails (booking updates, payment links, receipts, password resets) need an email service.
+
+**Recommended — [Resend](https://resend.com)** (free for small volumes):
+1. Sign up, add and verify your domain (Resend shows the DNS records to add).
+2. Create an API key.
+3. In **Admin → Settings → Email**, paste the key into **Resend API key** and set the **From address** to an address on your domain (e.g. `bookings@yourstudio.com`).
+
+> Railway blocks ordinary SMTP email on its Hobby plan, so on Railway use Resend (it sends over HTTPS). SMTP works on Railway's Pro plan and on most other hosts.
+
+**Or any SMTP account** — e.g. Gmail (`smtp.gmail.com`, port 587, your address and an [app password](https://myaccount.google.com/apppasswords)) or Brevo/Mailgun.
+
+Click **Send test email** to check it works. Until email is set up, the site still works, but guests must keep the private link shown after booking and nobody receives email updates.
+
+## Optional: Google Maps
+
+Add a Google Maps API key in **Admin → Settings** (enable *Maps JavaScript API*, *Geocoding API* and *Places API (New)*) to get shop maps, automatic map pins from addresses, the "Near me" button, and nearby shops that haven't joined yet.
+
+---
+
+## Backups
+
+The site saves a copy of its database every night in the `backups` folder of the data directory and keeps the last 7. **Admin → Backup** lists those copies and downloads a fresh one — download one regularly and keep it somewhere other than the server. Uploaded images live in the `uploads` folder of the data directory (`/data/uploads` on Railway). Railway volumes can also be backed up from the Railway dashboard.
+
+## Lost admin access?
+
+Either:
+- set `ADMIN_RESET_PASSWORD=true` (plus `ADMIN_EMAIL` and the new `ADMIN_PASSWORD`) in your host's variables, redeploy once, log in, then remove `ADMIN_RESET_PASSWORD`; or
+- run `node dist/create-admin.js you@example.com "new-password"` on the server (locally: `npm run create-admin -- you@example.com "new-password"` after building).
+
+If `ADMIN_EMAIL` belongs to an existing non-admin account, it's promoted on start-up **and its password is set to `ADMIN_PASSWORD`**.
+
+---
+
+## For developers
+
+```
+client/   React 19 + Tailwind front-end (bundled with esbuild)
+server/   Express 5 API, SQLite (better-sqlite3), Square client, email, background jobs
+shared/   Types shared by both
+tests/    API integration tests (node:test) against a fake Square API
+e2e/      Browser tests (Playwright)
 ```
 
-**Step 3: Deploy & Configure**
-```bash
-npx supabase functions deploy create-payment-intent --no-verify-jwt
-npx supabase secrets set STRIPE_SECRET_KEY=sk_test_... 
-```
+| Command | What it does |
+|---|---|
+| `npm run dev` | Rebuild on change + auto-restart server |
+| `npm run build` | Production build into `dist/` |
+| `npm start` | Run the production build |
+| `npm run typecheck` | TypeScript check |
+| `npm test` | API tests (payments, refunds, payouts, security, bookings…) |
+| `npm run test:e2e` | Browser tests (run `npm run build` first) |
+
+Security notes: passwords are hashed with scrypt and accounts lock for 15 minutes after repeated failed logins; sessions are httpOnly cookies; state-changing requests require a custom header (CSRF protection); a Content-Security-Policy blocks framing, plugins and foreign form targets; uploaded files are checked by their content, not their name, and hidden camera/GPS data is stripped from JPEGs; logins, sign-ups, bookings, uploads and the contact form are rate-limited (with spam traps on public forms); card details never reach the server (Square tokenizes them in the browser); secrets entered in the admin panel are never sent back to browsers; links saved in the admin panel must be web links.
+
+Search engines: `/sitemap.xml` lists public artist, shop and content pages, and `/robots.txt` points to it. Artists are listed once they have a portfolio photo.
+
+Accessibility: pages pass automated WCAG 2.1 AA checks (axe-core) in light and dark mode on desktop and phone. Brand colors chosen in Customize are automatically adjusted where text sits on them, so buttons stay readable whatever color is picked.

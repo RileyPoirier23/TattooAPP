@@ -1,91 +1,105 @@
-# InkSpace Changelog
+# Changelog
 
-All notable changes to this project will be documented in this file.
+## [1.2.0] — 2026-10-10 — Launch readiness
 
-The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
-and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
+### Money
+- A card is never charged twice when Square's reply is lost: the retry re-sends the original request first.
+- Calls to Square, Resend and SMTP time out instead of hanging.
+- Pro renewals after a long gap (site down, payments switched off) charge once and start a new month; missed months are never charged.
+- Money from a paid rental the shop cancelled, or a paid appointment the artist/admin cancelled, is "on hold" (not owed) until it's refunded.
+- Pro subscribers pay the currently listed price. When the admin changes it, subscribers are emailed and the new price applies from their next renewal (this replaces the 1.1.0 price lock).
+- The Pro plan ships switched off; the owner turns it on in Admin → Settings when ready. Subscribers can still manage or cancel their plan if it's switched off later. Pro artists are listed first in search (as the plan promises).
+- The displayed currency always follows the Square location.
 
-## [0.6.2] - 2024-07-28
+### New
+- "Contact us" page with an admin Inbox (replies go straight to the sender).
+- Reminder emails before appointments and when an approved deposit is still unpaid; artists are emailed when an unpaid booth reservation expires.
+- Nightly automatic database backups (last 7 kept), listed and downloadable in Admin → Backup.
+- Members can download all their data from Settings.
+- Starter Terms of Service, Privacy Policy, Booking & Cancellation Policy and FAQ, with the site's name and contact details filled in automatically.
+- Admin: CSV exports of payments (with the current filters) and payout records for bookkeeping.
+- Admin: searchable, paged Users, Bookings, Booth rentals and Payments (with totals); edit a shop's details and cover photo; change a booking's date or time; a fuller setup checklist.
+- `OWNER_GUIDE.md` for the person running the site.
+
+### Security & privacy
+- Fixed: a specially crafted photo could exhaust the server's memory.
+- Rate limits can't be dodged with a fake X-Forwarded-For header (only known hosting proxies are trusted; `TRUST_PROXY` for custom setups).
+- Limits on password-reset emails per account and emails per booking; aftercare only after the appointment.
+- Deleting an account also deletes its photos, attachments and saved card.
+- Accounts lock for 15 minutes after repeated wrong passwords; guest booking and contact-form spam limits and traps.
+- Hidden camera/GPS data is removed from uploaded photos; large photos are shrunk before uploading (no more "over 8 MB" errors from phones).
+- Content-Security-Policy header; admin-entered links must be web links.
+- Sign-ups and bookings record when the terms were accepted.
+
+### Polish
+- The booking fee is shown before booking and in every "pay your deposit" message; artists are told about it.
+- Clients can switch on artist features from Settings ("Become an artist").
+- Plain-language error messages; social links typed without https:// are fixed automatically.
+- Messages only say something was emailed when email is set up.
+- Meets WCAG 2.1 AA in automated checks (desktop and phone, light and dark): readable button and badge colors for any brand color, labelled controls, underlined inline links.
+- Faster first visit: member-only pages load when first opened.
+- The rating, "Verified" and "Cover" badges on photos stay readable on light photos (they were faint in dark mode).
+- Admin: on shorter laptop screens the sidebar scrolls on its own, so Payments, Payouts and Backup are always reachable; booking status menus are no longer cut off.
+- The booth payment window shows when the hold ends in a readable form ("Oct 12, 11:12 PM").
+- Clean shutdown on redeploys (finishes in-progress work); database indexes for growing lists.
+- Warns before leaving a form with unsaved changes (admin panel and dashboards), including the back button.
+- Brand colors stay readable: button text turns dark on light colors and brand-colored text is adjusted for contrast.
+- Artists appear in search once they have a portfolio photo; `/sitemap.xml` for search engines.
+- Admin changes to bookings are attributed to the admin in notifications.
+
+## [1.1.0] — 2026-10-10 — Review fixes
+
+### Money
+- Clients are charged exactly what the Pay button shows (the booking fee updates if the artist joins or leaves Pro).
+- An expired booth reservation can no longer be paid once someone else has booked the dates.
+- If a booking or rental is cancelled while the card is being charged, the charge is refunded automatically.
+- Failed Pro renewals are retried daily for 3 days instead of cancelling on the first failure; suspended accounts are never billed.
+- "Update card" no longer turns a cancelled plan back on; existing subscribers keep their price when the Pro price changes.
+- Test (sandbox) payments are kept apart from real ones in revenue, earnings and payouts.
+- Refunding a deposit cancels the appointment; admins can't delete users who are owed money or have paid bookings.
+- Square "Test connection" now reports wrong keys; unclear payment failures tell the client to check before retrying.
+
+### Security & reliability
+- Upload requests are size- and rate-limited (no more crashing the server or filling the disk).
+- The admin set-up can't promote someone else's account with their own password; added `ADMIN_RESET_PASSWORD` and a working recovery tool.
+- Email can be sent through Resend's API (Railway blocks SMTP on its Hobby plan); private links are no longer written to production logs.
+- Live updates reconnect after a server restart; old tabs recover after an update.
+
+### Bookings & people
+- Artists set an exact start time when approving (shown everywhere and in calendar links).
+- Unanswered requests expire after their date; clients can't cancel after the appointment; one artist can hold at most 3 unpaid booths.
+- New messages notify the recipient (and email them); clients are emailed when the admin changes their booking; artists when a client cancels.
+- Guests can add a booking to their account later; guests' reviews require a paid deposit.
+- Shops can block dates and cancel rentals.
+- Sign-up requires accepting the Terms; booking requires confirming 18+ and the booking policy.
+- Users can delete their account.
+- Artist and shop pages show proper titles and previews when shared; search engines can read the site.
+- Accessibility: dialogs announce their title, keep keyboard focus and restore it; better text contrast; screen-reader labels for ratings and choices.
+- Many smaller fixes (phone layouts, double-sent messages, oversized photos, timezone edge cases, Windows builds, `.env` loading).
+
+## [1.0.0] — 2026-10-10 — Rebuild
+
+The site was rebuilt from the ground up as a single self-hosted app.
 
 ### Changed
-- **Enhanced Documentation:** Significantly expanded the `Troubleshooting` section in `README.md` to include proactive solutions for common issues. The new section covers API key problems, Supabase RLS and Storage policy debugging, and common deployment errors, making setup and maintenance much easier for developers.
+- **No more Supabase, Stripe, Vite or Vercel.** One Node.js server now handles the API, database (SQLite), image uploads, email and the website itself. Deploy anywhere Docker runs (Railway recommended).
+- **Payments moved to Square**: client deposits, booth rentals, and the Pro plan (monthly, card on file). Amounts are always calculated on the server.
+- New design system: consistent buttons, forms, cards and dialogs; full light/dark support; works on phones.
 
-## [0.6.1] - 2024-07-27
+### Added
+- **Admin panel**: customize branding/colours/homepage/pages; feature switches; fees & pricing; Square, email and Maps settings; manage users, shops, bookings, payments (refunds), payouts ledger, verifications, reports, reviews; database backup.
+- Guest booking with a private link to check status and pay the deposit.
+- Artist services editor, weekly hours + days-off calendar, booking-form requirements, editable aftercare message, earnings page, payout details, verification requests.
+- Shop setup with automatic map location, cover photo upload, booth editor, rentals list, earnings.
+- Booth rentals with double-booking protection, automatic release of unpaid holds, and shop reviews.
+- Password reset by email, change password, email notifications, live notifications and messages.
+- Automated API tests and browser tests.
 
 ### Fixed
-- **Profile Creation on Signup:** Resolved a critical bug where new user profiles failed to be created in the database after successful authentication. This was caused by a missing Row Level Security (RLS) policy for `INSERT` operations on the `profiles` table.
-- **Improved Data Integrity:** Refined the registration process to only save role-specific data (e.g., `specialty`, `bio` for artists), preventing irrelevant data from being stored for other user types like clients or shop owners.
-
-## [0.6.0] - 2024-07-27
-
-### Added
-- **Admin Panel:** A hidden "DevLogin" provides access to a new Admin Dashboard (`/components/views/AdminDashboard.tsx`) to view all platform data, including users, shops, and bookings.
-- **Unverified Listings:** Search pages now display "Unverified" shops and artists found in the area. These are non-interactive listings intended to showcase local presence and encourage sign-ups.
-- **About Section:** A new "About InkSpace" section has been added to the main search pages to clarify the platform's mission.
-- **Contact Link:** A "Contact Us" link pointing to an Instagram profile has been added to the footer.
-
-### Fixed
-- **Email-based Authentication:** The sign-up and login forms now correctly use email instead of a username, aligning with authentication standards and fixing validation errors. An email field and validation have been added to the registration process.
-
-### Changed
-- The database schema for `profiles` and `shops` has been updated to include an `is_verified` flag to distinguish between active and unverified listings.
-- User authentication and data models (`types.ts`) now consistently use `email` instead of `username`.
-
-## [0.5.0] - 2024-07-26
-
-### Added
-- `CHANGELOG.md` to track project development history.
-- `.env.template` file to provide a clear guide for required environment variables.
-
-### Fixed
-- Corrected logic in `useAppStore` to properly `await` asynchronous calls to `authService.getCurrentUser`, ensuring user state is managed correctly.
-- Resolved type errors in Google Maps components by adding global `window.google` declarations.
-- Ensured environment variables are correctly accessed using Vite's `VITE_` prefix, resolving blank screen issues on startup.
-
-## [0.4.0] - 2024-07-25
-
-### Added
-- **Full Backend Integration with Supabase.**
-- `services/supabaseClient.ts` to initialize and export the Supabase client.
-- `services/authService.ts` to handle user signup, login, and session management with Supabase Auth.
-- Implemented Supabase Storage for artist portfolio image uploads.
-- Replaced all mock data functions in `services/apiService.ts` with live Supabase database calls.
-- `README.md` updated with comprehensive instructions for setting up a Supabase project, including database schema, storage policies, and environment variables.
-
-### Changed
-- The application is now fully persistent and data-driven. State changes (new bookings, profile updates) are saved to the database.
-
-## [0.3.0] - 2024-07-24
-
-### Added
-- **User-Specific Views and Dashboards.**
-- `components/views/ArtistProfileView.tsx` for artists to edit their profile information.
-- `components/views/ClientProfileView.tsx` for clients to view their booking history.
-- `components/views/ShopOwnerDashboard.tsx` for shop owners to manage their shop details, payment methods, and booths.
-- `components/views/MyBookingsView.tsx` for users to see their upcoming and past bookings.
-- `components/views/SettingsView.tsx` for users to update basic account information.
-- `components/ModalsAndProfile/UploadPortfolioModal.tsx` to allow artists to upload new work.
-- Integrated Gemini API in `ArtistProfileView` to generate artist biographies.
-
-## [0.2.0] - 2024-07-23
-
-### Added
-- **Core Search and Interactive Features.**
-- `components/views/ArtistSearchView.tsx` for artists to find and filter available booths.
-- `components/views/ClientSearchView.tsx` for clients to find artists based on location and specialty.
-- Implemented distance calculation and sorting for search results when user location is provided.
-- `components/ModalsAndProfile/ArtistDetailModal.tsx` and `ShopDetailModal.tsx` to show detailed information.
-- Interactive booking flow with `BookingModal.tsx` (for artists) and `ClientBookingRequestModal.tsx` (for clients).
-- `hooks/useGoogleMaps.ts` and `components/shared/MapEmbed.tsx` to display shop locations on an interactive map.
-- Notification system in the `Header.tsx` component with unread indicators.
-
-## [0.1.0] - 2024-07-22
-
-### Added
-- **Initial Project Setup and Foundation.**
-- Set up project with React, TypeScript, and Vite.
-- Defined all core data structures and interfaces in `types.ts`.
-- Created the main application shell (`App.tsx`) and `Header.tsx`.
-- Implemented the initial state management logic in `hooks/useAppStore.ts` using mock data.
-- Established the visual identity and layout with Tailwind CSS, including custom brand colors.
-- Created a library of shared SVG icons in `components/shared/Icons.tsx`.
+- Payments never worked (Stripe calls were always rejected) and bookings could be marked "paid" without paying.
+- Anyone could make themselves admin, verified or Pro; a hard-coded admin password existed; all users' emails were publicly readable.
+- Shop creation and adding/editing booths failed.
+- Dates showed one day early in North America; past dates could be booked; artists with no hours set couldn't be booked at all.
+- Guests attaching reference photos got an error.
+- Reviews and ratings were invisible to the public.
+- The site crashed on load when the AI key was missing (AI features removed for now).
