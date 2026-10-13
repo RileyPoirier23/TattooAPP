@@ -1,0 +1,13 @@
+// Live preview in GitHub Codespaces: Code → Codespaces → "Create codespace on <branch>".
+// The site starts by itself and opens on port 3000. Log in as admin@example.com / preview-password
+// (or set ADMIN_EMAIL and ADMIN_PASSWORD as Codespaces secrets).
+{
+  "name": "InkSpace preview",
+  "image": "mcr.microsoft.com/devcontainers/javascript-node:22",
+  "postCreateCommand": "npm ci && npm run build",
+  "postStartCommand": "bash .devcontainer/start-preview.sh",
+  "forwardPorts": [3000],
+  "portsAttributes": {
+    "3000": { "label": "InkSpace site", "onAutoForward": "openPreview" }
+  }
+}

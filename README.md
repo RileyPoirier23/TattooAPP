@@ -11,6 +11,14 @@ Payments are handled by **Square**. Everything else (accounts, database, image u
 
 **Running the site day to day?** Read the [Owner's guide](OWNER_GUIDE.md).
 
+[![Tests & Docker](https://github.com/rileypoirier23/tattooapp/actions/workflows/ci.yml/badge.svg)](https://github.com/rileypoirier23/tattooapp/actions/workflows/ci.yml)
+
+## Preview it and see the tests on GitHub
+
+- **Tests:** every push runs the type check, the API tests, the browser tests and a Docker build. Open the repository's **Actions** tab and pick a run. The summary shows the results, and **Artifacts** has the browser-test report (with screenshots of any failure).
+- **Live preview:** on the repository page, click **Code → Codespaces → Create codespace on** this branch. The site builds, starts and opens on port 3000 by itself (a minute or two the first time). Log in with `admin@example.com` / `preview-password`, or set `ADMIN_EMAIL` and `ADMIN_PASSWORD` as [Codespaces secrets](https://github.com/settings/codespaces). The preview starts empty and uses its own throwaway data; Square and email stay unconnected until you add keys in Admin → Settings. Stop the codespace when you're done (GitHub includes free monthly hours).
+- **Docker image:** each push (not pull requests) publishes an image to the repository's **Packages** (`ghcr.io`). Run it on any machine with Docker using the command in the run summary.
+
 ---
 
 ## What's included

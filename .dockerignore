@@ -5,3 +5,6 @@ data
 .git
 test-results
 playwright-report
+reports
+.github
+.devcontainer
