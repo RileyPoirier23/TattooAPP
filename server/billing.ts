@@ -34,6 +34,16 @@ function ensureReady() {
 /** Sandbox (test) and production payments are kept apart so test data never mixes with real money. */
 export const currentEnvironment = () => getSettings().squareEnvironment;
 
+/** Drops every saved card and Square customer (used when Square switches between Sandbox and Production). */
+export function forgetSavedCards(): number {
+  return getDb()
+    .prepare(
+      `update users set square_customer_id = null, square_card_id = null, card_label = null, pro_auto_renew = 0,
+         renewal_failed_at = null, updated_at = ? where square_card_id is not null or square_customer_id is not null`,
+    )
+    .run(nowIso()).changes;
+}
+
 interface PaymentRecord {
   kind: 'deposit' | 'booth' | 'subscription';
   refId: string;

@@ -41,6 +41,9 @@
 - The rating, "Verified" and "Cover" badges on photos stay readable on light photos (they were faint in dark mode).
 - Admin: on shorter laptop screens the sidebar scrolls on its own, so Payments, Payouts and Backup are always reachable; booking status menus are no longer cut off.
 - The booth payment window shows when the hold ends in a readable form ("Oct 12, 11:12 PM").
+- Going live: switching Square between Sandbox and Production removes cards saved in the other environment (they can't be charged there), and **Test connection** catches a Sandbox Application ID used with Production (or the reverse).
+- `/health` now checks the database answers, and `railway.json` makes Railway wait for it before switching to a new deploy and restart the app if it crashes.
+- Google Maps help text names the right API to enable (*Places API (New)*).
 - Green action buttons (Approve, Record payout…) and the "Guest spot in…" badge have stronger contrast, and inline links on booking pages are underlined (all pages pass automated WCAG 2.1 AA checks with real data).
 - Clean shutdown on redeploys (finishes in-progress work); database indexes for growing lists.
 - Warns before leaving a form with unsaved changes (admin panel and dashboards), including the back button.

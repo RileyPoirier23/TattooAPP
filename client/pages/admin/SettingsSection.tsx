@@ -698,7 +698,7 @@ export const SettingsSection: React.FC = () => {
                       <a href="https://console.cloud.google.com/apis/credentials" target="_blank" rel="noopener noreferrer" className="underline">
                         Google Cloud Console
                       </a>
-                      , create a project, enable the <strong>Maps JavaScript API</strong>, <strong>Places API</strong> and <strong>Geocoding API</strong>, then create an API key
+                      , create a project, enable the <strong>Maps JavaScript API</strong>, <strong>Places API (New)</strong> and <strong>Geocoding API</strong>, then create an API key
                       under APIs &amp; Services → Credentials. Restrict it to your website&apos;s address. This key is visible to visitors&apos; browsers, which is normal.
                     </>
                   }
