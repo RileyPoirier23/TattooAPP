@@ -20,7 +20,7 @@ export const ArtistCard: React.FC<{ artist: PublicArtist }> = ({ artist }) => (
       </div>
       {artist.guestSpot && (
         <div className="absolute bottom-2 left-2">
-          <Badge tone="none" className="bg-sky-600 text-white"><CalendarIcon className="w-3.5 h-3.5" />Guest spot in {artist.guestSpot.city}</Badge>
+          <Badge tone="none" className="bg-sky-700 text-white"><CalendarIcon className="w-3.5 h-3.5" />Guest spot in {artist.guestSpot.city}</Badge>
         </div>
       )}
     </div>
