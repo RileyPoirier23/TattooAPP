@@ -10,7 +10,7 @@ import { badRequest, conflict, formatWhen, notFound, parse, toCents, todayStr, z
 import { getSecrets, getSettings, saveSecrets, saveSettings } from '../settings';
 import { BOOKING_REQUEST_SELECT, BOOTH_BOOKING_SELECT, recomputeArtistRating, recomputeShopRating, toBookingRequest, toBoothBooking } from '../mappers';
 import { saveImage, upload } from '../uploads';
-import { ON_HOLD_SQL, announceProPriceChange, currentEnvironment, deletionBlockers, earningsFor, refund } from '../billing';
+import { ON_HOLD_SQL, announceProPriceChange, currentEnvironment, deletionBlockers, earningsFor, forgetSavedCards, refund } from '../billing';
 import { emailReady, sendEmail, sendEmailNow } from '../email';
 import { checkConnection, locationCurrency, paymentsReady } from '../square';
 import { notify } from '../notify';
@@ -186,7 +186,12 @@ const secretsSchema = z
 adminRouter.put('/settings', async (req, res) => {
   const body = parse(z.object({ settings: settingsSchema.optional(), secrets: secretsSchema.optional() }), req.body);
   const oldPrice = getSettings().proMonthlyPrice;
+  const oldEnvironment = getSettings().squareEnvironment;
   if (body.settings) saveSettings(body.settings as any);
+  // Saved cards (for Pro renewals) only exist in the Square environment they were added in, so cards saved
+  // while testing in Sandbox can't be charged in Production (and the other way round). Forget them; members
+  // add a card again, and current plans simply run to the end of the period already paid for.
+  if (getSettings().squareEnvironment !== oldEnvironment) forgetSavedCards();
   if (body.secrets) saveSecrets(body.secrets);
   if (body.settings?.proMonthlyPrice !== undefined && body.settings.proMonthlyPrice !== oldPrice) {
     announceProPriceChange(oldPrice, body.settings.proMonthlyPrice);

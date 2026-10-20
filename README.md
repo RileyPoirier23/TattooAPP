@@ -65,7 +65,7 @@ For development with automatic reloading: `npm run dev`.
 The app is a single Docker container that needs a **persistent disk** for its database and uploaded photos. [Railway](https://railway.app) is the simplest option (about $5/month):
 
 1. Push this repository to GitHub.
-2. In Railway: **New Project → Deploy from GitHub repo** → pick this repo. Railway detects the `Dockerfile` automatically.
+2. In Railway: **New Project → Deploy from GitHub repo** → pick this repo. Railway uses the `Dockerfile`, and `railway.json` tells it to wait for the site's health check before switching to a new version.
 3. Add a **Volume** to the service and mount it at **`/data`**. *(Without this, data is lost on every deploy.)*
 4. In the service's **Variables**, add:
    - `ADMIN_EMAIL` and `ADMIN_PASSWORD` = your admin login

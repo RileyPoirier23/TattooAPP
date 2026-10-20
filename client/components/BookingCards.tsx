@@ -392,9 +392,9 @@ export const ArtistRequestCard: React.FC<{ request: BookingRequest; onChanged: (
             <p className="text-sm text-brand-primary font-semibold">{r.serviceName}{r.servicePrice != null && ` · from ${dollars(r.servicePrice)}`}</p>
             {(r.guestEmail || r.guestPhone) && (
               <p className="text-xs text-brand-gray">
-                {r.guestEmail && <a href={`mailto:${r.guestEmail}`} className="hover:underline">{r.guestEmail}</a>}
+                {r.guestEmail && <a href={`mailto:${r.guestEmail}`} className="underline underline-offset-2">{r.guestEmail}</a>}
                 {r.guestEmail && r.guestPhone && ' · '}
-                {r.guestPhone && <a href={`tel:${r.guestPhone}`} className="hover:underline">{r.guestPhone}</a>}
+                {r.guestPhone && <a href={`tel:${r.guestPhone}`} className="underline underline-offset-2">{r.guestPhone}</a>}
               </p>
             )}
           </div>

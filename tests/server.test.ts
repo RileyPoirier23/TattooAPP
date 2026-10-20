@@ -880,3 +880,29 @@ test('clients can become artists; errors are in plain language', async () => {
   const badLink = await c.c.patch('/api/me', { socials: { website: 'not a link' } });
   assert.match(badLink.body.error, /^Website link must be a web address/);
 });
+
+test('going live: saved test cards are dropped and mismatched Square keys are caught', async () => {
+  const { saveSettings } = await import('../server/settings');
+  saveSettings({ features: { proPlan: true } } as any);
+  const { c: pro } = await register('artist', 'golive-artist@example.com');
+  const sub = await pro.post('/api/me/subscription', { sourceId: 'cnon:ok', idempotencyKey: 'sub-golive-01' });
+  assert.equal(sub.status, 200, JSON.stringify(sub.body));
+  assert.equal(sub.body.user.subscription.cardLabel, 'Visa •••• 1111');
+
+  // Switching Square from Sandbox to Production forgets cards saved while testing (they can't be charged in Production).
+  const live = await admin.put('/api/admin/settings', { settings: { squareEnvironment: 'production' } });
+  assert.equal(live.status, 200, JSON.stringify(live.body));
+  const after = (await pro.get('/api/auth/me')).body.user.subscription;
+  assert.equal(after.cardLabel, null);
+  assert.equal(after.autoRenew, false);
+  assert.equal(after.isPro, true, 'the period already paid for is kept');
+
+  // A Sandbox Application ID with the Production environment is reported clearly by "Test connection".
+  const check = await admin.post('/api/admin/square-check');
+  assert.equal(check.status, 400);
+  assert.match(check.body.error, /Sandbox \(test\) one/);
+
+  await admin.put('/api/admin/settings', { settings: { squareEnvironment: 'sandbox' } });
+  assert.equal((await admin.post('/api/admin/square-check')).status, 200);
+  saveSettings({ features: { proPlan: false } } as any);
+});

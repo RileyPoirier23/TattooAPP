@@ -66,8 +66,15 @@ export function createApp() {
   api.use(errorHandler);
   app.use('/api', api);
 
+  // Used by hosts (Railway, Docker) to decide whether a deploy is working: the database must answer.
   app.get('/health', (_req, res) => {
-    res.json({ ok: true });
+    try {
+      getDb().prepare('select 1').get();
+      res.json({ ok: true });
+    } catch (err) {
+      console.error('[health] database check failed', err);
+      res.status(503).json({ ok: false });
+    }
   });
 
   // --- Search engines ---

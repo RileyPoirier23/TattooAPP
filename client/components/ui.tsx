@@ -15,7 +15,7 @@ const VARIANTS: Record<ButtonVariant, string> = {
   outline: 'border border-gray-300 dark:border-gray-700 text-brand-dark dark:text-white hover:bg-gray-100 dark:hover:bg-gray-800',
   ghost: 'text-gray-600 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-800',
   danger: 'bg-red-600 text-white hover:bg-red-500',
-  success: 'bg-emerald-600 text-white hover:bg-emerald-500',
+  success: 'bg-emerald-700 text-white hover:bg-emerald-800',
 };
 const SIZES = { sm: 'text-sm px-3 py-1.5 rounded-lg', md: 'text-sm px-4 py-2.5 rounded-lg', lg: 'text-base px-6 py-3 rounded-xl' };
 
