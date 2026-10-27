@@ -83,7 +83,8 @@ const Toasts: React.FC = () => {
         <div
           key={t.id}
           className={cx(
-            'pointer-events-auto flex items-start gap-3 sm:max-w-sm rounded-xl px-4 py-3 shadow-lg text-white text-sm font-medium animate-slide-up',
+            'pointer-events-auto flex items-start gap-3 sm:max-w-sm rounded-xl px-4 py-3 shadow-lg text-white text-sm font-medium',
+            t.leaving ? 'animate-toast-out' : 'animate-slide-up',
             t.type === 'error' ? 'bg-red-600' : 'bg-gray-900 dark:bg-gray-800 border border-gray-700',
           )}
         >

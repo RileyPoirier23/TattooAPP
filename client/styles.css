@@ -59,9 +59,11 @@ button, [role='button'], [role='tab'] { -webkit-user-select: none; user-select: 
 /* Reduced motion: pop-ups, sheets and toasts fade in place instead of sliding or growing.
    (The spinner keeps turning: it's how people know something is still loading.) */
 @media (prefers-reduced-motion: reduce) {
-  [class*='animate-']:not(.animate-spin) { animation-name: fade-in !important; }
+  [class*='animate-']:not(.animate-spin):not(.animate-toast-out) { animation-name: fade-in !important; }
+  .animate-toast-out { animation-name: fade-out !important; }
   html { scroll-behavior: auto; }
 }
+@keyframes fade-out { to { opacity: 0; } }
 
 ::-webkit-scrollbar { width: 10px; height: 10px; }
 ::-webkit-scrollbar-track { background: transparent; }
