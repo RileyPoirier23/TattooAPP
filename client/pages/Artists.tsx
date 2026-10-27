@@ -9,7 +9,7 @@ import { CalendarIcon, CheckBadgeIcon, CrosshairsIcon, LocationIcon, SearchIcon,
 import type { PublicArtist } from '../../shared/types';
 
 export const ArtistCard: React.FC<{ artist: PublicArtist }> = ({ artist }) => (
-  <Link to={`/artists/${artist.id}`} className="group block rounded-2xl overflow-hidden bg-white dark:bg-gray-900/60 border border-gray-200 dark:border-gray-800 hover:border-brand-primary/50 hover:-translate-y-1 transition">
+  <Link to={`/artists/${artist.id}`} className="group block rounded-2xl overflow-hidden bg-white dark:bg-gray-900/60 border border-gray-200 dark:border-gray-800 hover:border-brand-primary/50 motion-safe:hover:-translate-y-1 transition duration-200 ease-out-strong">
     <div className="relative">
       <Cover url={artist.portfolio[0]?.url || artist.avatarUrl} alt={artist.name} className="w-full h-60" />
       <div className="absolute top-2 left-2 right-2 flex justify-between gap-2">

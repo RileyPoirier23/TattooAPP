@@ -195,7 +195,7 @@ export const ArtistProfilePage: React.FC<{ id: string }> = ({ id }) => {
               <div className="grid grid-cols-2 md:grid-cols-3 gap-3">
                 {artist.portfolio.map((img, i) => (
                   <button key={img.url} onClick={() => setLightbox(i)} className="relative aspect-square overflow-hidden rounded-xl group bg-gray-200 dark:bg-gray-800">
-                    <img src={img.url} alt={img.caption || `Tattoo by ${artist.name}`} loading="lazy" className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300" />
+                    <img src={img.url} alt={img.caption || `Tattoo by ${artist.name}`} loading="lazy" className="w-full h-full object-cover motion-safe:group-hover:scale-105 transition-transform duration-300 ease-out-strong" />
                   </button>
                 ))}
               </div>

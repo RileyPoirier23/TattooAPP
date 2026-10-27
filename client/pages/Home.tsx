@@ -45,7 +45,7 @@ export const HomePage: React.FC = () => {
           <div className="mt-10 flex flex-col sm:flex-row items-center justify-center gap-3">
             {s.features.clientBooking && (
               <Button size="lg" onClick={() => navigate('/artists')} className="w-full sm:w-auto group">
-                Find an artist <ArrowRightIcon className="w-5 h-5 transition-transform group-hover:translate-x-1" />
+                Find an artist <ArrowRightIcon className="w-5 h-5 transition-transform ease-out-strong motion-safe:group-hover:translate-x-1" />
               </Button>
             )}
             {s.features.boothRental && (

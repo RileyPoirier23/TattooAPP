@@ -56,6 +56,13 @@ button, [role='button'], [role='tab'] { -webkit-user-select: none; user-select: 
 /* Icons keep their size when the text beside them is long. */
 :where(svg) { flex-shrink: 0; }
 
+/* Reduced motion: pop-ups, sheets and toasts fade in place instead of sliding or growing.
+   (The spinner keeps turning: it's how people know something is still loading.) */
+@media (prefers-reduced-motion: reduce) {
+  [class*='animate-']:not(.animate-spin) { animation-name: fade-in !important; }
+  html { scroll-behavior: auto; }
+}
+
 ::-webkit-scrollbar { width: 10px; height: 10px; }
 ::-webkit-scrollbar-track { background: transparent; }
 ::-webkit-scrollbar-thumb { background-color: #d1d5db; border-radius: 5px; border: 2px solid #f5f5f7; }

@@ -11,7 +11,7 @@ import type { Shop } from '../../shared/types';
 export const ShopCard: React.FC<{ shop: Shop }> = ({ shop }) => {
   const minRate = shop.booths.length ? Math.min(...shop.booths.map(b => b.dailyRate)) : null;
   return (
-    <Link to={`/shops/${shop.id}`} className="group block rounded-2xl overflow-hidden bg-white dark:bg-gray-900/60 border border-gray-200 dark:border-gray-800 hover:border-brand-primary/50 hover:-translate-y-1 transition">
+    <Link to={`/shops/${shop.id}`} className="group block rounded-2xl overflow-hidden bg-white dark:bg-gray-900/60 border border-gray-200 dark:border-gray-800 hover:border-brand-primary/50 motion-safe:hover:-translate-y-1 transition duration-200 ease-out-strong">
       <div className="relative">
         <Cover url={shop.imageUrl} alt={shop.name} className="w-full h-48" />
         {shop.isVerified && (

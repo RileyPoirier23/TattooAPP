@@ -183,7 +183,7 @@ export const App: React.FC = () => {
       <main className={cx('flex-1 w-full', route?.wide ? '' : 'container mx-auto px-4 py-8')}>
         <ErrorBoundary resetKey={path}>
           <Suspense fallback={<PageLoader />}>
-            <div key={path} className="animate-fade-in">{content}</div>
+            <div key={path}>{content}</div>
           </Suspense>
         </ErrorBoundary>
       </main>

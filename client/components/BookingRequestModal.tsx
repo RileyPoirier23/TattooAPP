@@ -144,7 +144,7 @@ export const BookingRequestModal: React.FC<{ artist: ArtistDetail; onClose: () =
       }
     >
       <div className="h-1.5 rounded-full bg-gray-200 dark:bg-gray-800 mb-6 overflow-hidden">
-        <div className="h-full bg-brand-primary transition-all" style={{ width: `${(step / 3) * 100}%` }} />
+        <div className="h-full bg-brand-primary origin-left transition-transform duration-300 ease-out-strong" style={{ transform: `scaleX(${step / 3})` }} />
       </div>
 
       {step === 1 && (

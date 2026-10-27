@@ -54,7 +54,7 @@ const Notifications: React.FC = () => {
         )}
       </button>
       {open && (
-        <div className="fixed left-4 right-4 top-16 sm:absolute sm:left-auto sm:right-0 sm:top-auto sm:mt-2 sm:w-[22rem] bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-700 rounded-xl shadow-xl z-50 animate-fade-in overflow-hidden">
+        <div className="fixed left-4 right-4 top-16 sm:absolute sm:left-auto sm:right-0 sm:top-auto sm:mt-2 sm:w-[22rem] bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-700 rounded-xl shadow-xl z-50 animate-pop-in origin-top sm:origin-top-right overflow-hidden">
           <div className="px-4 py-3 border-b border-gray-200 dark:border-gray-800 font-semibold">Notifications</div>
           <ul className="max-h-96 overflow-y-auto overscroll-contain">
             {notifications.length === 0 && <li className="p-6 text-center text-sm text-brand-gray">You're all caught up.</li>}
@@ -92,7 +92,7 @@ const UserMenu: React.FC<{ user: Me }> = ({ user }) => {
         <ChevronDownIcon className="w-4 h-4 text-brand-gray" />
       </button>
       {open && (
-        <div className="absolute right-0 mt-2 w-56 bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-700 rounded-xl shadow-xl z-50 py-1 animate-fade-in">
+        <div className="absolute right-0 mt-2 w-56 bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-700 rounded-xl shadow-xl z-50 py-1 animate-pop-in origin-top-right">
           <div className="px-4 py-2 text-xs text-brand-gray truncate">{user.email}</div>
           {accountLinks(user).map(l => (
             <Link key={l.to} to={l.to} onClick={() => setOpen(false)} className="block px-4 py-2 text-sm hover:bg-gray-100 dark:hover:bg-gray-800">

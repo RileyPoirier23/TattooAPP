@@ -326,7 +326,7 @@ export const Modal: React.FC<{
         aria-modal="true"
         aria-labelledby={titleId}
         className={cx(
-          'bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-700 w-full max-h-[92dvh] flex flex-col rounded-t-2xl sm:rounded-2xl shadow-2xl animate-scale-up outline-none',
+          'bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-700 w-full max-h-[92dvh] flex flex-col rounded-t-2xl sm:rounded-2xl shadow-2xl animate-sheet-up sm:animate-scale-up outline-none',
           { sm: 'sm:max-w-sm', md: 'sm:max-w-lg', lg: 'sm:max-w-2xl', xl: 'sm:max-w-4xl' }[size],
         )}
       >

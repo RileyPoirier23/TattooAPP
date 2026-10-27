@@ -29,15 +29,29 @@ module.exports = {
         'brand-primary': 'rgb(var(--brand-primary-text) / <alpha-value>)',
         'brand-secondary': 'rgb(var(--brand-secondary-text) / <alpha-value>)',
       },
+      // Motion: a strong ease-out for things appearing (moves at once, settles gently) and an iOS-like
+      // curve for bottom sheets. Under prefers-reduced-motion these all become a plain fade (styles.css).
+      transitionTimingFunction: {
+        'out-strong': 'cubic-bezier(0.23, 1, 0.32, 1)',
+        drawer: 'cubic-bezier(0.32, 0.72, 0, 1)',
+      },
       keyframes: {
         'fade-in': { from: { opacity: '0' }, to: { opacity: '1' } },
         'scale-up': { from: { opacity: '0', transform: 'scale(0.96)' }, to: { opacity: '1', transform: 'scale(1)' } },
         'slide-up': { from: { opacity: '0', transform: 'translateY(12px)' }, to: { opacity: '1', transform: 'translateY(0)' } },
+        'sheet-up': { from: { transform: 'translateY(100%)' }, to: { transform: 'translateY(0)' } },
       },
       animation: {
-        'fade-in': 'fade-in 0.2s ease-out',
-        'scale-up': 'scale-up 0.2s ease-out',
-        'slide-up': 'slide-up 0.25s ease-out',
+        'fade-in': 'fade-in 150ms ease-out',
+        // Pop-ups centered on a large screen.
+        'scale-up': 'scale-up 200ms cubic-bezier(0.23, 1, 0.32, 1)',
+        // Dropdown menus; pair with an origin-* class so they grow from their button.
+        'pop-in': 'scale-up 150ms cubic-bezier(0.23, 1, 0.32, 1)',
+        'slide-up': 'slide-up 250ms cubic-bezier(0.23, 1, 0.32, 1)',
+        // Pop-ups on phones, which sit at the bottom of the screen.
+        'sheet-up': 'sheet-up 320ms cubic-bezier(0.32, 0.72, 0, 1)',
+        // A quicker spinner makes waiting feel shorter.
+        spin: 'spin 0.75s linear infinite',
       },
     },
   },
