@@ -8,13 +8,15 @@ module.exports = {
   future: { hoverOnlyWhenSupported: true },
   theme: {
     extend: {
-      // Body text in IBM Plex Sans; large headings in Young Serif (sign-painter warmth that suits tattoo shops).
+      // "Flash sheet" type: condensed poster headlines (Big Shoulders Display), monospace labels and
+      // numbers (IBM Plex Mono), and IBM Plex Sans for reading.
       fontFamily: {
         sans: ['"IBM Plex Sans"', 'ui-sans-serif', 'system-ui', 'sans-serif'],
-        display: ['"Young Serif"', 'Georgia', 'serif'],
+        mono: ['"IBM Plex Mono"', 'ui-monospace', 'SFMono-Regular', 'monospace'],
+        display: ['"Big Shoulders Display"', 'Impact', '"Arial Narrow"', 'sans-serif'],
       },
-      // Tighter corners than Tailwind's defaults: cards 8px, buttons and fields 6px.
-      borderRadius: { lg: '0.375rem', xl: '0.5rem', '2xl': '0.5rem', '3xl': '0.75rem' },
+      // Square corners, like a printed sheet. Only avatars, dots and switches stay round (rounded-full).
+      borderRadius: { none: '0', sm: '0', DEFAULT: '0', md: '0', lg: '0', xl: '0', '2xl': '0', '3xl': '0' },
       colors: {
         // Warm neutrals (paper and ink) instead of Tailwind's blue-tinted grays.
         gray: colors.stone,

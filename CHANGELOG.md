@@ -32,12 +32,12 @@
 - Sign-ups and bookings record when the terms were accepted.
 
 ### New look
-- A design that looks like a tattoo studio, not a template: warm paper and ink colors instead of stark white and cool gray, one tattoo-red accent instead of pink-to-purple gradients, a serif face for headlines (Young Serif) with IBM Plex Sans for text, tighter corners, borders instead of drop shadows, and a solid header instead of frosted glass.
-- Home page: the headline sits beside real work from the site's artists (linking to their profiles) instead of glowing color blobs; a plain two-column explanation replaces the row of icon cards; a solid panel replaces the gradient sign-up band.
-- Quieter details: status labels are neutral with a small colored dot instead of pastel pills, photo labels share one dark style, Pro is a text label instead of a sparkle icon, the Pro plan lists its perks without checkmarks, cards no longer lift or zoom on hover, and artist and shop lists show placeholder cards while loading instead of a spinner.
+- A "flash sheet" design, after the printed sheets of numbered designs in tattoo shops: condensed poster headlines (Big Shoulders Display), small monospace labels and numbers (IBM Plex Mono), IBM Plex Sans for text, square corners, hairline rules, and paper, ink and vermilion colors in place of the pink-to-purple gradients. Fonts are served by the site itself (no Google Fonts request).
+- Home page: a poster headline with real tattoos from the site's artists set into the line, live counts of artists, shops and cities, a scrolling band of tattoo styles (still for visitors who ask for reduced motion), a numbered sheet of recent work, numbered artist and shop cards that invert to ink on hover, and a red sign-up band. Every page ends with the site name set as a full-width poster.
+- Quieter details: buttons, tabs and badges use monospace capitals; status labels are neutral with a small colored dot; Pro is a text label; no checkmark bullets or sparkle icons; the shop's name sits under its cover photo instead of on top of the sign; lists show placeholder cards while loading.
 - Copy: no emoji in messages and notifications, and em dashes replaced with plain punctuation throughout the site, emails and the starter policy pages.
-- Fonts are served by the site itself (no Google Fonts request); the starter Privacy Policy says so.
-- Sites still using the original pink/purple colors, dark theme and "Find Your Space." headline switch to the new defaults automatically, and starter pages nobody edited get the updated text. Anything an owner customized is kept. Admin → Customize has new color presets.
+- Sites still using the original pink/purple colors, dark theme and "Find Your Space." headline switch to the new defaults automatically, and starter pages nobody edited get the updated text (the Privacy Policy no longer mentions Google Fonts). Anything an owner customized is kept. Admin → Customize has new color presets.
+- The previous look is kept on the `backup/original-vibecoded-look` branch.
 
 ### Polish
 - The booking fee is shown before booking and in every "pay your deposit" message; artists are told about it.

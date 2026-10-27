@@ -92,7 +92,7 @@ export const ArtistProfilePage: React.FC<{ id: string }> = ({ id }) => {
 
   return (
     <div className="max-w-6xl mx-auto">
-      <Link to="/artists" className="inline-flex items-center gap-1 text-sm text-brand-gray hover:text-brand-primary mb-4">
+      <Link to="/artists" className="label inline-flex items-center gap-1 text-brand-gray hover:text-brand-primary mb-4">
         <ArrowLeftIcon className="w-4 h-4" /> All artists
       </Link>
 
@@ -102,11 +102,11 @@ export const ArtistProfilePage: React.FC<{ id: string }> = ({ id }) => {
             <div className="flex items-center gap-4">
               <Avatar name={artist.name} url={artist.avatarUrl} size="lg" />
               <div className="min-w-0">
-                <h1 className="text-2xl font-display">
+                <h1 className="text-4xl font-display">
                   {artist.name}
                   {artist.isVerified && <CheckBadgeIcon className="inline w-6 h-6 ml-1.5 align-[-0.25em] text-brand-secondary" title="Verified artist" />}
                 </h1>
-                {artist.specialty && <p className="font-semibold text-brand-primary">{artist.specialty}</p>}
+                {artist.specialty && <p className="label text-brand-primary mt-1">{artist.specialty}</p>}
                 {artist.city && <p className="text-sm text-brand-gray flex items-center gap-1"><LocationIcon className="w-4 h-4" />{artist.city}</p>}
               </div>
             </div>
@@ -147,7 +147,7 @@ export const ArtistProfilePage: React.FC<{ id: string }> = ({ id }) => {
 
           {artist.services.length > 0 && (
             <Card>
-              <h2 className="font-bold text-lg mb-3">Services</h2>
+              <h2 className="font-display text-3xl mb-3">Services</h2>
               <ul className="space-y-3">
                 {artist.services.map(s => (
                   <li key={s.id} className="flex justify-between gap-4">
@@ -167,7 +167,7 @@ export const ArtistProfilePage: React.FC<{ id: string }> = ({ id }) => {
 
           {hasHours && (
             <Card>
-              <h2 className="font-bold text-lg mb-3">Hours</h2>
+              <h2 className="font-display text-3xl mb-3">Hours</h2>
               <ul className="text-sm space-y-1">
                 {workingDays.map(({ day, slots }) => (
                   <li key={day} className="flex justify-between">
@@ -188,7 +188,7 @@ export const ArtistProfilePage: React.FC<{ id: string }> = ({ id }) => {
 
         <div className="lg:col-span-2 space-y-8">
           <section>
-            <h2 className="font-bold text-xl mb-4">Portfolio</h2>
+            <h2 className="font-display text-3xl mb-4">Portfolio</h2>
             {artist.portfolio.length === 0 ? (
               <Card><EmptyState title="No portfolio images yet" /></Card>
             ) : (
@@ -204,7 +204,7 @@ export const ArtistProfilePage: React.FC<{ id: string }> = ({ id }) => {
 
           {settings.features.reviews && (
             <section>
-              <h2 className="font-bold text-xl mb-4">Reviews</h2>
+              <h2 className="font-display text-3xl mb-4">Reviews</h2>
               {artist.reviews.length === 0 ? (
                 <Card><EmptyState title="No reviews yet">Reviews appear here after completed sessions.</EmptyState></Card>
               ) : (

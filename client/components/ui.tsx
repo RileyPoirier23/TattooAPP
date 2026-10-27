@@ -10,14 +10,16 @@ export { cx };
 
 type ButtonVariant = 'primary' | 'secondary' | 'outline' | 'ghost' | 'danger' | 'success';
 const VARIANTS: Record<ButtonVariant, string> = {
-  primary: 'bg-brand-solid text-on-primary hover:brightness-110',
-  secondary: 'bg-brand-secondary-solid text-on-secondary hover:brightness-110',
-  outline: 'border border-gray-300 dark:border-gray-700 text-brand-dark dark:text-white hover:bg-gray-100 dark:hover:bg-gray-800',
+  // Hover inverts to ink (works for any brand color the owner picks).
+  primary: 'bg-brand-solid text-on-primary hover:bg-brand-dark hover:text-brand-light dark:hover:bg-white dark:hover:text-brand-dark',
+  secondary: 'bg-brand-secondary-solid text-on-secondary hover:bg-brand-dark hover:text-brand-light dark:hover:bg-white dark:hover:text-brand-dark',
+  outline: 'border border-gray-900 dark:border-gray-300 text-brand-dark dark:text-white hover:bg-brand-dark hover:text-brand-light dark:hover:bg-white dark:hover:text-brand-dark',
   ghost: 'text-gray-600 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-800',
   danger: 'bg-red-600 text-white hover:bg-red-500',
   success: 'bg-emerald-700 text-white hover:bg-emerald-800',
 };
-const SIZES = { sm: 'text-sm px-3 py-1.5 rounded-lg', md: 'text-sm px-4 py-2.5 rounded-lg', lg: 'text-base px-6 py-3 rounded-xl' };
+// Labels are set in uppercase mono, like the numbers on a flash sheet.
+const SIZES = { sm: 'text-[11px] px-3 py-2', md: 'text-xs px-4 py-3', lg: 'text-sm px-6 py-4' };
 
 export const Button: React.FC<
   React.ButtonHTMLAttributes<HTMLButtonElement> & { variant?: ButtonVariant; size?: keyof typeof SIZES; loading?: boolean; block?: boolean }
@@ -26,7 +28,7 @@ export const Button: React.FC<
     type={type}
     disabled={disabled || loading}
     className={cx(
-      'inline-flex items-center justify-center gap-2 font-semibold transition enabled:active:scale-[0.97] disabled:opacity-50 disabled:cursor-not-allowed focus:outline-none focus-visible:ring-2 focus-visible:ring-brand-primary focus-visible:ring-offset-2 dark:focus-visible:ring-offset-brand-dark',
+      'inline-flex items-center justify-center gap-2 font-mono font-medium uppercase tracking-wider transition-colors enabled:active:scale-[0.97] disabled:opacity-50 disabled:cursor-not-allowed focus:outline-none focus-visible:ring-2 focus-visible:ring-brand-primary focus-visible:ring-offset-2 dark:focus-visible:ring-offset-brand-dark',
       VARIANTS[variant],
       SIZES[size],
       block && 'w-full',
@@ -130,10 +132,10 @@ export const Card: React.FC<{ className?: string; children: React.ReactNode; pad
 );
 
 export const PageHeader: React.FC<{ title: React.ReactNode; subtitle?: React.ReactNode; actions?: React.ReactNode }> = ({ title, subtitle, actions }) => (
-  <div className="flex flex-col sm:flex-row sm:items-end justify-between gap-4 mb-6">
+  <div className="flex flex-col sm:flex-row sm:items-end justify-between gap-4 mb-8 pb-5 border-b border-gray-900 dark:border-gray-700">
     <div>
-      <h1 className="text-3xl sm:text-4xl font-display text-brand-dark dark:text-white">{title}</h1>
-      {subtitle && <p className="text-brand-gray mt-1">{subtitle}</p>}
+      <h1 className="text-5xl sm:text-6xl font-display text-brand-dark dark:text-white">{title}</h1>
+      {subtitle && <p className="text-brand-gray mt-2 max-w-2xl">{subtitle}</p>}
     </div>
     {actions && <div className="flex flex-wrap gap-2">{actions}</div>}
   </div>
@@ -173,7 +175,7 @@ const DOTS = {
 };
 export type Tone = keyof typeof DOTS;
 export const Badge: React.FC<{ tone?: Tone; children: React.ReactNode; className?: string }> = ({ tone = 'gray', children, className }) => (
-  <span className={cx('inline-flex items-center gap-1.5 text-xs font-medium px-2 py-0.5 rounded whitespace-nowrap', tone !== 'none' && OUTLINE, className)}>
+  <span className={cx('inline-flex items-center gap-1.5 font-mono text-[10px] font-medium uppercase tracking-wider px-1.5 py-0.5 whitespace-nowrap', tone !== 'none' && OUTLINE, className)}>
     {DOTS[tone] && <span aria-hidden="true" className={cx('w-1.5 h-1.5 rounded-full flex-shrink-0', DOTS[tone])} />}
     {children}
   </span>
@@ -209,8 +211,8 @@ export const Tabs: React.FC<{ tabs: { id: string; label: React.ReactNode; count?
         key={t.id}
         onClick={() => onChange(t.id)}
         className={cx(
-          'px-4 py-2.5 text-sm font-semibold whitespace-nowrap border-b-2 -mb-px transition-colors',
-          active === t.id ? 'border-brand-primary text-brand-primary' : 'border-transparent text-brand-gray hover:text-brand-dark dark:hover:text-white',
+          'px-4 py-3 font-mono text-xs font-medium uppercase tracking-wider whitespace-nowrap border-b-2 -mb-px transition-colors',
+          active === t.id ? 'border-brand-primary text-brand-dark dark:text-white' : 'border-transparent text-brand-gray hover:text-brand-dark dark:hover:text-white',
         )}
       >
         {t.label}
@@ -233,6 +235,15 @@ export const Spinner: React.FC<{ size?: 'sm' | 'md' | 'lg'; light?: boolean }> =
     )}
   />
 );
+
+/**
+ * Catalog grids, like a printed flash sheet: cells share hairline rules. Put `catalogGrid` on the grid and
+ * `catalogCell` on each item (the grid draws the top/left rules, each cell its right/bottom ones).
+ */
+export const catalogGrid = 'grid border-l border-t border-gray-900 dark:border-gray-700';
+export const catalogCell = 'border-r border-b border-gray-900 dark:border-gray-700';
+/** "No. 01" style numbering. */
+export const catalogNo = (i: number) => `No. ${String(i + 1).padStart(2, '0')}`;
 
 /** A placeholder block shaped like the content that's loading. */
 export const Skeleton: React.FC<{ className?: string }> = ({ className }) => (

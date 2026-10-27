@@ -118,19 +118,21 @@ export const ShopProfilePage: React.FC<{ id: string }> = ({ id }) => {
 
   return (
     <div className="max-w-6xl mx-auto">
-      <Link to="/shops" className="inline-flex items-center gap-1 text-sm text-brand-gray hover:text-brand-primary mb-4">
+      <Link to="/shops" className="label inline-flex items-center gap-1 text-brand-gray hover:text-brand-primary mb-4">
         <ArrowLeftIcon className="w-4 h-4" /> All shops
       </Link>
-      <div className="rounded-3xl overflow-hidden relative mb-8">
-        <Cover url={shop.imageUrl} alt={shop.name} className="w-full h-56 md:h-80" />
-        <div className="absolute inset-0 bg-gradient-to-t from-black/80 to-transparent" />
-        <div className="absolute bottom-0 p-6 text-white">
-          <h1 className="text-3xl md:text-4xl font-display flex items-center gap-2">
-            {shop.name}
-            {shop.isVerified && <CheckBadgeIcon className="w-7 h-7 text-brand-secondary" title="Verified shop" />}
-          </h1>
-          <p className="flex items-center gap-1 text-white/80"><LocationIcon className="w-4 h-4" />{shop.address}, {shop.city}</p>
-          {shop.reviewCount > 0 && <div className="mt-2"><StarRating value={shop.averageRating} showValue count={shop.reviewCount} /></div>}
+      {/* Photo first, then the name as a poster header under it (the photo often has the shop's own sign in it). */}
+      <div className="border border-gray-900 dark:border-gray-700 mb-8">
+        <Cover url={shop.imageUrl} alt={shop.name} className="w-full h-56 md:h-96" />
+        <div className="border-t border-gray-900 dark:border-gray-700 p-5 md:p-6 grid gap-4 md:grid-cols-[minmax(0,1fr)_auto] md:items-end">
+          <div>
+            <p className="label text-brand-gray flex items-center gap-1"><LocationIcon className="w-3.5 h-3.5" />{shop.address}, {shop.city}</p>
+            <h1 className="text-5xl md:text-7xl font-display mt-2">
+              {shop.name}
+              {shop.isVerified && <CheckBadgeIcon className="inline w-7 h-7 ml-2 align-[0.1em] text-brand-secondary" title="Verified shop" />}
+            </h1>
+          </div>
+          {shop.reviewCount > 0 && <StarRating value={shop.averageRating} showValue count={shop.reviewCount} />}
         </div>
       </div>
 
@@ -138,12 +140,12 @@ export const ShopProfilePage: React.FC<{ id: string }> = ({ id }) => {
         <div className="lg:col-span-2 space-y-8">
           {shop.description && (
             <Card>
-              <h2 className="font-bold text-lg mb-2">About the shop</h2>
+              <h2 className="font-display text-3xl mb-2">About the shop</h2>
               <p className="whitespace-pre-line text-gray-700 dark:text-gray-300">{shop.description}</p>
             </Card>
           )}
           <section>
-            <h2 className="font-bold text-xl mb-4">Booths</h2>
+            <h2 className="font-display text-3xl mb-4">Booths</h2>
             {shop.booths.length === 0 ? (
               <Card><EmptyState title="No booths listed right now" /></Card>
             ) : (
@@ -165,7 +167,7 @@ export const ShopProfilePage: React.FC<{ id: string }> = ({ id }) => {
           </section>
           {features.reviews && (
             <section>
-              <h2 className="font-bold text-xl mb-4">Reviews from guest artists</h2>
+              <h2 className="font-display text-3xl mb-4">Reviews from guest artists</h2>
               {shop.reviews.length === 0 ? (
                 <Card><EmptyState title="No reviews yet" /></Card>
               ) : (
@@ -184,13 +186,13 @@ export const ShopProfilePage: React.FC<{ id: string }> = ({ id }) => {
         </div>
         <div className="space-y-6">
           <Card>
-            <h2 className="font-bold text-lg mb-3">Location</h2>
+            <h2 className="font-display text-3xl mb-3">Location</h2>
             <p className="text-sm text-brand-gray mb-3">{shop.address}, {shop.city}</p>
             <MapEmbed lat={shop.lat} lng={shop.lng} address={`${shop.address}, ${shop.city}`} />
           </Card>
           {shop.amenities.length > 0 && (
             <Card>
-              <h2 className="font-bold text-lg mb-3">Amenities</h2>
+              <h2 className="font-display text-3xl mb-3">Amenities</h2>
               <div className="flex flex-wrap gap-2">{shop.amenities.map(a => <Badge key={a} tone="brand" className="!whitespace-normal">{a}</Badge>)}</div>
             </Card>
           )}

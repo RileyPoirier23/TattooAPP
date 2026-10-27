@@ -15,14 +15,11 @@ export const Footer: React.FC = () => {
   ].filter(Boolean) as { href: string; label: string; Icon: React.FC<{ className?: string }> }[];
 
   return (
-    <footer className="mt-20 pb-[env(safe-area-inset-bottom)] border-t border-gray-200 dark:border-gray-800">
+    <footer className="mt-24 pb-[env(safe-area-inset-bottom)] border-t border-gray-900 dark:border-gray-700 overflow-hidden">
       <div className="container mx-auto px-4 py-10 grid gap-8 md:grid-cols-3">
         <div>
-          <div className="flex items-center gap-2">
-            {s.logoUrl ? <img src={s.logoUrl} alt={s.siteName} className="h-8 w-auto" /> : <NeedleIcon className="w-7 h-7 text-brand-primary" />}
-            <span className="text-lg font-extrabold">{s.siteName}</span>
-          </div>
-          <p className="text-sm text-brand-gray mt-2 max-w-xs">{s.tagline}</p>
+          {s.logoUrl && <img src={s.logoUrl} alt={s.siteName} className="h-8 w-auto mb-3" />}
+          <p className="text-sm text-brand-gray max-w-xs">{s.tagline}</p>
           {socials.length > 0 && (
             <div className="flex gap-3 mt-4">
               {socials.map(({ href, label, Icon }) => (
@@ -34,7 +31,7 @@ export const Footer: React.FC = () => {
           )}
         </div>
         <div>
-          <h4 className="font-semibold mb-3">Explore</h4>
+          <h4 className="label mb-3">Explore</h4>
           <ul className="space-y-2 text-sm text-brand-gray">
             {s.features.clientBooking && <li><Link to="/artists" className="hover:text-brand-primary">Find an artist</Link></li>}
             {s.features.boothRental && <li><Link to="/shops" className="hover:text-brand-primary">Guest spots & booths</Link></li>}
@@ -46,7 +43,7 @@ export const Footer: React.FC = () => {
           </ul>
         </div>
         <div>
-          <h4 className="font-semibold mb-3">Contact</h4>
+          <h4 className="label mb-3">Contact</h4>
           <ul className="space-y-2 text-sm text-brand-gray">
             <li>
               <Link to="/contact" className="hover:text-brand-primary">Contact us</Link>
@@ -64,8 +61,15 @@ export const Footer: React.FC = () => {
           </ul>
         </div>
       </div>
-      <div className="border-t border-gray-200 dark:border-gray-800">
-        <div className="container mx-auto px-4 py-5 text-xs text-brand-gray flex flex-col sm:flex-row justify-between gap-2">
+      {/* The site name as a poster across the full width. */}
+      <div className="container mx-auto px-4" aria-hidden="true">
+        <p className="font-display text-[clamp(4rem,17vw,15rem)] leading-[0.8] text-brand-dark dark:text-white whitespace-nowrap overflow-hidden -mb-[0.06em] flex items-end gap-[0.08em]">
+          {!s.logoUrl && <NeedleIcon className="w-[0.6em] h-[0.6em] text-brand-primary mb-[0.08em]" />}
+          <span className="truncate">{s.siteName}</span>
+        </p>
+      </div>
+      <div className="border-t border-gray-900 dark:border-gray-700">
+        <div className="container mx-auto px-4 py-4 label text-brand-gray flex flex-col sm:flex-row justify-between gap-2">
           <span>{s.footerText || `© ${new Date().getFullYear()} ${s.siteName}. All rights reserved.`}</span>
           <span>Payments secured by Square</span>
         </div>

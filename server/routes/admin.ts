@@ -118,7 +118,7 @@ adminRouter.get('/settings', (_req, res) => {
   res.json({ settings: getSettings(), secrets: maskedSecrets() });
 });
 
-const zHex = z.string().regex(/^#[0-9a-fA-F]{6}$/, 'must be a hex color like #B7352B');
+const zHex = z.string().regex(/^#[0-9a-fA-F]{6}$/, 'must be a hex color like #D0281C');
 // Only web links and uploaded images — never javascript: or data: URLs.
 const zLinkUrl = z.string().trim().max(300).refine(v => v === '' || /^https?:\/\/[^\s]+$/i.test(v), 'must be a link starting with https://');
 const zImageUrl = z.string().trim().max(500).refine(v => v === '' || /^(https?:\/\/|\/uploads\/)[^\s"'<>]+$/i.test(v), 'must be an uploaded image or a link starting with https://');

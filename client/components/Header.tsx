@@ -137,9 +137,9 @@ export const Header: React.FC = () => {
   ].filter(Boolean) as { to: string; label: string }[];
 
   return (
-    <header className="sticky top-0 z-50 pt-[env(safe-area-inset-top)] bg-brand-light dark:bg-brand-dark border-b border-gray-200 dark:border-gray-800">
+    <header className="sticky top-0 z-50 pt-[env(safe-area-inset-top)] bg-brand-light dark:bg-brand-dark border-b border-gray-900 dark:border-gray-700">
       {s.announcementEnabled && s.announcementText && (
-        <div className="bg-brand-dark text-brand-light dark:bg-gray-800 dark:text-gray-100 text-center text-sm px-4 py-2">{s.announcementText}</div>
+        <div className="label bg-brand-dark text-brand-light dark:bg-gray-800 dark:text-gray-100 text-center px-4 py-2">{s.announcementText}</div>
       )}
       <div className="container mx-auto px-4 h-16 flex items-center justify-between gap-4">
         <Link to="/" className="flex items-center gap-2.5 min-w-0" aria-label={`${s.siteName} home`}>
@@ -147,8 +147,8 @@ export const Header: React.FC = () => {
             <img src={s.logoUrl} alt={s.siteName} className="h-9 w-auto max-w-[160px] object-contain" />
           ) : (
             <>
-              <NeedleIcon className="w-8 h-8 text-brand-primary flex-shrink-0" />
-              <span className="font-display text-xl sm:text-2xl truncate">{s.siteName}</span>
+              <NeedleIcon className="w-7 h-7 text-brand-primary flex-shrink-0" />
+              <span className="font-display text-3xl truncate">{s.siteName}</span>
             </>
           )}
         </Link>
@@ -159,8 +159,8 @@ export const Header: React.FC = () => {
               key={n.to}
               to={n.to}
               className={cx(
-                'px-3 py-2 rounded-lg text-sm font-semibold transition-colors',
-                path.startsWith(n.to) ? 'text-brand-primary bg-brand-primary/10' : 'text-gray-600 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-800',
+                'label px-3 py-2 transition-colors',
+                path.startsWith(n.to) ? 'bg-brand-dark text-brand-light dark:bg-white dark:text-brand-dark' : 'text-gray-700 dark:text-gray-300 hover:text-brand-primary',
               )}
             >
               {n.label}
@@ -199,7 +199,7 @@ export const Header: React.FC = () => {
         <div className="md:hidden border-t border-gray-200 dark:border-gray-800 bg-brand-light dark:bg-brand-dark animate-fade-in">
           <div className="container mx-auto px-4 py-3 space-y-1">
             {nav.map(n => (
-              <Link key={n.to} to={n.to} className="block px-3 py-2.5 rounded-lg font-semibold hover:bg-gray-100 dark:hover:bg-gray-800">
+              <Link key={n.to} to={n.to} className="block px-3 py-1 font-display text-4xl hover:text-brand-primary">
                 {n.label}
               </Link>
             ))}

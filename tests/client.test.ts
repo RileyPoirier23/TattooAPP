@@ -20,11 +20,11 @@ const contrast = (a: RGB, b: RGB) => {
 };
 
 test('default brand colors keep their look', () => {
-  const v = brandVariables('#B7352B', '#2F5D50');
-  assert.equal(v['--brand-primary'], '183 53 43', 'decorations keep the exact color');
-  assert.equal(v['--brand-solid'], '183 53 43', 'the default red is dark enough for white button text as is');
+  const v = brandVariables('#D0281C', '#2F5D50');
+  assert.equal(v['--brand-primary'], '208 40 28', 'decorations keep the exact color');
+  assert.equal(v['--brand-solid'], '208 40 28', 'the default red is dark enough for white button text as is');
   assert.equal(v['--brand-on-primary'], '255 255 255');
-  assert.equal(buttonStyle('#B7352B'), 'as-is');
+  assert.equal(buttonStyle('#D0281C'), 'as-is');
   assert.equal(buttonStyle('#F04E98'), 'deeper', 'a light pink gets a slightly deeper shade behind white text');
   assert.equal(buttonStyle('#DC2626'), 'as-is');
   assert.equal(buttonStyle('#FFE600'), 'dark-text', 'yellow buttons get dark text');

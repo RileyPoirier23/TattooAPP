@@ -45,7 +45,7 @@ export const Markdown: React.FC<{ text: string; className?: string }> = ({ text,
         if (/^#{1,3}\s/.test(lines[0]) && lines.length === 1) {
           const level = lines[0].match(/^#+/)![0].length;
           const content = inline(lines[0].replace(/^#+\s*/, ''), key);
-          if (level === 1) return <h2 key={key} className="text-2xl font-display mt-8 mb-3 text-brand-dark dark:text-white">{content}</h2>;
+          if (level === 1) return <h2 key={key} className="text-3xl font-display mt-10 mb-3 text-brand-dark dark:text-white">{content}</h2>;
           if (level === 2) return <h3 key={key} className="text-xl font-bold mt-6 mb-2 text-brand-dark dark:text-white">{content}</h3>;
           return <h4 key={key} className="text-lg font-semibold mt-4 mb-2 text-brand-dark dark:text-white">{content}</h4>;
         }

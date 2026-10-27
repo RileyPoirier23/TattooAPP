@@ -4,43 +4,51 @@ import { Link, navigate, useLocation } from '../router';
 import { useStore } from '../store';
 import { cityFromCoords } from '../lib/maps';
 import { formatDate } from '../lib/format';
-import { Badge, Button, Card, Cover, EmptyState, ErrorBox, PageHeader, Select, Skeleton, SkeletonGrid, Toggle, inputClass, useApi } from '../components/ui';
+import { Badge, Button, Card, Cover, EmptyState, ErrorBox, PageHeader, Select, Skeleton, SkeletonGrid, Toggle, catalogCell, catalogGrid, catalogNo, cx, inputClass, useApi } from '../components/ui';
 import { CalendarIcon, CheckBadgeIcon, CrosshairsIcon, LocationIcon, SearchIcon, StarIcon } from '../components/Icons';
 import type { PublicArtist } from '../../shared/types';
 
-export const ArtistCard: React.FC<{ artist: PublicArtist }> = ({ artist }) => (
-  <Link to={`/artists/${artist.id}`} className="group block rounded-2xl overflow-hidden bg-white dark:bg-gray-900/60 border border-gray-200 dark:border-gray-800 hover:border-gray-400 dark:hover:border-gray-600 transition-colors">
-    <div className="relative">
-      <Cover url={artist.portfolio[0]?.url || artist.avatarUrl} alt={artist.name} className="w-full h-60" />
-      <div className="absolute top-2 left-2 right-2 flex justify-between gap-2">
+export const ArtistCard: React.FC<{ artist: PublicArtist; index?: number }> = ({ artist, index }) => (
+  <Link to={`/artists/${artist.id}`} className={cx('group flex flex-col bg-brand-light dark:bg-brand-dark', catalogCell)}>
+    <div className="relative aspect-[4/5] overflow-hidden">
+      <Cover
+        url={artist.portfolio[0]?.url || artist.avatarUrl}
+        alt={artist.name}
+        className="w-full h-full transition-transform duration-500 ease-out-strong motion-safe:group-hover:scale-[1.04]"
+      />
+      <div className="absolute top-0 left-0 right-0 flex justify-between gap-2">
         {artist.averageRating > 0 ? (
-          <Badge tone="none" className="bg-black/75 text-white"><StarIcon className="w-3.5 h-3.5 text-amber-400" />{artist.averageRating.toFixed(1)}</Badge>
+          <Badge tone="none" className="bg-brand-dark text-brand-light"><StarIcon className="w-3 h-3 text-amber-400" />{artist.averageRating.toFixed(1)}</Badge>
         ) : <span />}
-        {artist.isVerified && <Badge tone="none" className="bg-black/75 text-white"><CheckBadgeIcon className="w-3.5 h-3.5" />Verified</Badge>}
+        {artist.isVerified && <Badge tone="none" className="bg-brand-dark text-brand-light"><CheckBadgeIcon className="w-3 h-3" />Verified</Badge>}
       </div>
       {artist.guestSpot && (
-        <div className="absolute bottom-2 left-2 right-2" title={`Guest spot in ${artist.guestSpot.city}`}>
-          <Badge tone="none" className="bg-black/75 text-white max-w-full"><CalendarIcon className="w-3.5 h-3.5" /><span className="truncate">Guest spot in {artist.guestSpot.city}</span></Badge>
+        <div className="absolute bottom-0 left-0 max-w-full" title={`Guest spot in ${artist.guestSpot.city}`}>
+          <Badge tone="none" className="bg-brand-solid text-on-primary max-w-full"><CalendarIcon className="w-3 h-3" /><span className="truncate">Guest spot · {artist.guestSpot.city}</span></Badge>
         </div>
       )}
     </div>
-    <div className="p-4">
-      <h3 className="font-semibold text-lg group-hover:underline underline-offset-4 decoration-1">
+    {/* The caption strip inverts to ink on hover, like a highlighted entry on a sheet. */}
+    <div className="flex-1 border-t border-gray-900 dark:border-gray-700 p-4 transition-colors duration-150 group-hover:bg-brand-dark group-hover:text-brand-light dark:group-hover:bg-white dark:group-hover:text-brand-dark">
+      <div className="label flex justify-between gap-3 text-brand-gray group-hover:text-inherit">
+        <span className="truncate">{artist.specialty || 'Tattoo artist'}</span>
+        {index !== undefined && <span className="flex-shrink-0">{catalogNo(index)}</span>}
+      </div>
+      <h3 className="font-display text-3xl mt-2">
         {artist.name}
-        {artist.isPro && <span className="ml-2 align-[0.15em] text-[10px] font-semibold uppercase tracking-wider text-brand-gray" title="Pro artist">Pro</span>}
+        {artist.isPro && <span className="label ml-2 align-middle" title="Pro artist">Pro</span>}
       </h3>
-      {artist.specialty && <p className="text-sm font-semibold text-brand-primary">{artist.specialty}</p>}
-      {artist.city && <p className="text-sm text-brand-gray flex items-center gap-1 mt-1"><LocationIcon className="w-4 h-4" />{artist.city}</p>}
+      {artist.city && <p className="text-sm text-brand-gray group-hover:text-inherit flex items-center gap-1 mt-1"><LocationIcon className="w-4 h-4" />{artist.city}</p>}
     </div>
   </Link>
 );
 
 export const ArtistCardSkeleton: React.FC = () => (
-  <div className="rounded-2xl overflow-hidden border border-gray-200 dark:border-gray-800 bg-white dark:bg-gray-900/60">
-    <Skeleton className="h-60 rounded-none" />
-    <div className="p-4 space-y-2">
-      <Skeleton className="h-5 w-2/3" />
-      <Skeleton className="h-4 w-1/3" />
+  <div className={cx('flex flex-col', catalogCell)}>
+    <Skeleton className="aspect-[4/5]" />
+    <div className="border-t border-gray-900 dark:border-gray-700 p-4 space-y-2">
+      <Skeleton className="h-3 w-1/3" />
+      <Skeleton className="h-7 w-2/3" />
       <Skeleton className="h-4 w-1/2" />
     </div>
   </div>
@@ -152,15 +160,17 @@ export const ArtistsPage: React.FC = () => {
       )}
 
       {error && <ErrorBox message={error} onRetry={reload} />}
-      {loading && !data && <SkeletonGrid count={8} className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6"><ArtistCardSkeleton /></SkeletonGrid>}
+      {loading && !data && <SkeletonGrid count={8} className={cx(catalogGrid, "grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4")}><ArtistCardSkeleton /></SkeletonGrid>}
       {data && filtered.length === 0 && (
         <EmptyState icon={<SearchIcon />} title={data.length === 0 ? 'No artists yet' : 'No artists match your search'}>
           {data.length === 0 ? 'Check back soon. New artists are joining.' : <button className="text-brand-primary" onClick={clear}>Clear filters</button>}
         </EmptyState>
       )}
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
-        {filtered.map(a => <ArtistCard key={a.id} artist={a} />)}
-      </div>
+      {filtered.length > 0 && (
+        <div className={cx(catalogGrid, 'grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4')}>
+          {filtered.map((a, i) => <ArtistCard key={a.id} artist={a} index={i} />)}
+        </div>
+      )}
       {data && data.length > 0 && !['shop-owner', 'admin'].includes(useStore.getState().user?.role ?? '') && (
         <p className="text-center text-sm text-brand-gray mt-10">
           Are you an artist?{' '}

@@ -18,7 +18,7 @@ const HEX = /^#[0-9a-fA-F]{6}$/;
 const EMAIL = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
 const PRESETS: { name: string; primary: string; secondary: string }[] = [
-  { name: 'Flash red (default)', primary: '#B7352B', secondary: '#2F5D50' },
+  { name: 'Vermilion (default)', primary: '#D0281C', secondary: '#2F5D50' },
   { name: 'Black & bone', primary: '#1C1917', secondary: '#78716C' },
   { name: 'Oxblood & brass', primary: '#7F1D1D', secondary: '#A16207' },
   { name: 'Sailor', primary: '#1E3A5F', secondary: '#B7352B' },
@@ -36,7 +36,7 @@ const ColorField: React.FC<{ label: string; hint: string; value: string; onChang
         ? `${hint} It's a bright color, so text on buttons will be dark to stay easy to read.`
         : hint;
   return (
-    <Field label={label} hint={fullHint} error={valid ? undefined : 'Use a hex color like #B7352B'}>
+    <Field label={label} hint={fullHint} error={valid ? undefined : 'Use a hex color like #D0281C'}>
       <div className="flex items-center gap-2">
         <input
           type="color"

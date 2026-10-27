@@ -9,8 +9,8 @@ export const DEFAULT_SETTINGS: SiteSettings = {
   tagline: 'Tattoo artists, guest spots & bookings',
   logoUrl: '',
   faviconUrl: '',
-  // Tattoo red and a deep green: one accent for actions, a quieter one for badges.
-  primaryColor: '#B7352B',
+  // Flash-sheet vermilion and a deep green: one accent for actions, a quieter one for badges.
+  primaryColor: '#D0281C',
   secondaryColor: '#2F5D50',
   defaultTheme: 'light',
   heroTitle: 'Book tattoo artists near you.',
