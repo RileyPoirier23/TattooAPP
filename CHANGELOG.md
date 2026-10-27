@@ -31,6 +31,14 @@
 - Content-Security-Policy header; admin-entered links must be web links.
 - Sign-ups and bookings record when the terms were accepted.
 
+### New look
+- A design that looks like a tattoo studio, not a template: warm paper and ink colors instead of stark white and cool gray, one tattoo-red accent instead of pink-to-purple gradients, a serif face for headlines (Young Serif) with IBM Plex Sans for text, tighter corners, borders instead of drop shadows, and a solid header instead of frosted glass.
+- Home page: the headline sits beside real work from the site's artists (linking to their profiles) instead of glowing color blobs; a plain two-column explanation replaces the row of icon cards; a solid panel replaces the gradient sign-up band.
+- Quieter details: status labels are neutral with a small colored dot instead of pastel pills, photo labels share one dark style, Pro is a text label instead of a sparkle icon, the Pro plan lists its perks without checkmarks, cards no longer lift or zoom on hover, and artist and shop lists show placeholder cards while loading instead of a spinner.
+- Copy: no emoji in messages and notifications, and em dashes replaced with plain punctuation throughout the site, emails and the starter policy pages.
+- Fonts are served by the site itself (no Google Fonts request); the starter Privacy Policy says so.
+- Sites still using the original pink/purple colors, dark theme and "Find Your Space." headline switch to the new defaults automatically, and starter pages nobody edited get the updated text. Anything an owner customized is kept. Admin → Customize has new color presets.
+
 ### Polish
 - The booking fee is shown before booking and in every "pay your deposit" message; artists are told about it.
 - Clients can switch on artist features from Settings ("Become an artist").
@@ -41,6 +49,14 @@
 - The rating, "Verified" and "Cover" badges on photos stay readable on light photos (they were faint in dark mode).
 - Admin: on shorter laptop screens the sidebar scrolls on its own, so Payments, Payouts and Backup are always reachable; booking status menus are no longer cut off.
 - The booth payment window shows when the hold ends in a readable form ("Oct 12, 11:12 PM").
+- Security updates for six third-party packages (form uploads, request parsing, input validation, email address parsing): each could be used to slow or stall the server, or to misroute an email. Dependabot now opens update pull requests automatically.
+- Going live: switching Square between Sandbox and Production removes cards saved in the other environment (they can't be charged there), and **Test connection** catches a Sandbox Application ID used with Production (or the reverse).
+- `/health` now checks the database answers, and `railway.json` makes Railway wait for it before switching to a new deploy and restart the app if it crashes.
+- Feels like an app on phones: the page extends under the notch and home bar with content kept clear of them, buttons react the moment they are pressed (no tap delay or gray flash), hover effects no longer stick after a tap, typing in a field no longer zooms the page on iPhone, the keyboard shows Search/Send keys and a number pad for amounts, pop-ups and the messages list fit the visible screen as the browser bar shows and hides, scrolling inside a pop-up no longer scrolls the page behind it, and the phone's status bar matches the light or dark theme.
+- Long real-world data fits on every screen, down to a 320px phone: pasted links in bios and messages, long hyphenated names, one-word place names and long amenity, booth and service names wrap instead of pushing the page sideways or overlapping prices and buttons. The admin overview, Reviews and Messages no longer run past the screen edge on small phones (even with ordinary data), Payments totals stack on small phones, icons never get squeezed, names starting with an emoji show correct initials, review counts show thousands separators (1,284), and artists with no city show no empty "Location not set" line.
+- Smoother, quicker motion: on phones pop-ups slide up from the bottom like a native sheet; dropdown menus grow from the button that opened them; pages appear instantly instead of fading in on every click; the loading spinner turns faster; notifications ease out when they close instead of vanishing; and visitors who ask their device for reduced motion get gentle fades instead of sliding, growing or lifting.
+- Google Maps help text names the right API to enable (*Places API (New)*).
+- Green action buttons (Approve, Record payout…) and the "Guest spot in…" badge have stronger contrast, and inline links on booking pages are underlined (all pages pass automated WCAG 2.1 AA checks with real data).
 - Clean shutdown on redeploys (finishes in-progress work); database indexes for growing lists.
 - Warns before leaving a form with unsaved changes (admin panel and dashboards), including the back button.
 - Brand colors stay readable: button text turns dark on light colors and brand-colored text is adjusted for contrast.

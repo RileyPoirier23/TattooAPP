@@ -41,8 +41,8 @@ export const BookingStatusPage: React.FC<{ id: string }> = ({ id }) => {
       <div className="flex items-center gap-4">
         <Avatar name={data.artist.name} url={data.artist.avatarUrl} size="lg" />
         <div>
-          <h1 className="text-2xl font-extrabold">Your booking with {data.artist.name}</h1>
-          <p className="text-brand-gray">{data.artist.city} · <Link to={`/artists/${data.artist.id}`} className="text-brand-primary hover:underline">View profile</Link></p>
+          <h1 className="text-2xl font-display">Your booking with {data.artist.name}</h1>
+          <p className="text-brand-gray">{data.artist.city} · <Link to={`/artists/${data.artist.id}`} className="text-brand-primary underline underline-offset-2">View profile</Link></p>
         </div>
       </div>
       {data.request.isGuest && token && !isArtist && (
@@ -83,7 +83,7 @@ export const BookingStatusPage: React.FC<{ id: string }> = ({ id }) => {
       ) : (
         <ClientRequestCard request={data.request} token={token} onChanged={reload} />
       )}
-      {!user && <p className="text-xs text-center text-brand-gray">Keep this link private — anyone with it can view and manage this booking.</p>}
+      {!user && <p className="text-xs text-center text-brand-gray">Keep this link private. Anyone with it can view and manage this booking.</p>}
     </div>
   );
 };

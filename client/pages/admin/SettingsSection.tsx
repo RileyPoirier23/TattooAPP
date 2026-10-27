@@ -4,7 +4,7 @@ import { api } from '../../api';
 import { useStore } from '../../store';
 import { Badge, Button, Field, Input, Notice, PageHeader, Select, Toggle, cx, inputClass } from '../../components/ui';
 import {
-  CheckIcon, CogIcon, CreditCardIcon, EyeIcon, LocationIcon, PaperAirplaneIcon, PlusIcon, PriceIcon, SparklesIcon, XIcon,
+  CheckIcon, CogIcon, CreditCardIcon, EyeIcon, LocationIcon, PaperAirplaneIcon, PlusIcon, PriceIcon, XIcon,
 } from '../../components/Icons';
 import type { SecretSettings, SiteFeatures } from '../../../shared/types';
 import type { MaskedSecrets } from './types';
@@ -354,7 +354,7 @@ export const SettingsSection: React.FC = () => {
           return (
             <div className="space-y-6">
               {/* Features */}
-              <SettingsCard title="Features" description="Turn parts of the site on or off. Changes apply as soon as you save." icon={<SparklesIcon className="w-5 h-5" />}>
+              <SettingsCard title="Features" description="Turn parts of the site on or off. Changes apply as soon as you save." icon={<CogIcon className="w-5 h-5" />}>
                 <div className="divide-y divide-gray-100 dark:divide-gray-800 -my-2">
                   {FEATURES.map(f => {
                     const needsBooking = f.key === 'guestBooking' && !draft.features.clientBooking;
@@ -493,7 +493,7 @@ export const SettingsSection: React.FC = () => {
                 </Notice>
                 {secrets.squareConfigFromEnv && (
                   <Notice tone="warning">
-                    Some Square settings are set by your hosting provider&apos;s environment variables (SQUARE_APPLICATION_ID, SQUARE_LOCATION_ID or SQUARE_ENVIRONMENT). Those values win over anything saved here — change them in your host&apos;s settings instead.
+                    Some Square settings are set by your hosting provider&apos;s environment variables (SQUARE_APPLICATION_ID, SQUARE_LOCATION_ID or SQUARE_ENVIRONMENT). Those values win over anything saved here, so change them in your host&apos;s settings instead.
                   </Notice>
                 )}
                 <Select
@@ -573,7 +573,7 @@ export const SettingsSection: React.FC = () => {
                   <p className="text-sm">
                     <strong>Recommended: Resend.</strong> Create a free account at{' '}
                     <a href="https://resend.com" target="_blank" rel="noopener noreferrer" className="underline font-semibold">resend.com</a>, verify your domain, create an API key and paste it here.
-                    It works on every host — including Railway's Hobby plan, which blocks the SMTP option below.
+                    It works on every host, including Railway's Hobby plan, which blocks the SMTP option below.
                   </p>
                   {secrets.resendFromEnv ? (
                     <p className="text-sm text-brand-gray">A Resend key is set on the server (RESEND_API_KEY) and is used for all email.</p>
@@ -698,7 +698,7 @@ export const SettingsSection: React.FC = () => {
                       <a href="https://console.cloud.google.com/apis/credentials" target="_blank" rel="noopener noreferrer" className="underline">
                         Google Cloud Console
                       </a>
-                      , create a project, enable the <strong>Maps JavaScript API</strong>, <strong>Places API</strong> and <strong>Geocoding API</strong>, then create an API key
+                      , create a project, enable the <strong>Maps JavaScript API</strong>, <strong>Places API (New)</strong> and <strong>Geocoding API</strong>, then create an API key
                       under APIs &amp; Services → Credentials. Restrict it to your website&apos;s address. This key is visible to visitors&apos; browsers, which is normal.
                     </>
                   }

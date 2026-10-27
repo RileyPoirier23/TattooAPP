@@ -16,7 +16,7 @@ async function main() {
   // Make sure prices are shown in the same currency Square charges in.
   if (paymentsReady()) locationCurrency().catch(() => {});
   if (config.isProduction && config.appUrlMissing) {
-    console.warn('[setup] APP_URL is not set — links in emails will point to localhost. Set APP_URL to your site address.');
+    console.warn('[setup] APP_URL is not set, so links in emails will point to localhost. Set APP_URL to your site address.');
   }
 
   const app = createApp();

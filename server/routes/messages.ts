@@ -98,7 +98,7 @@ messagesRouter.get('/conversations', (req, res) => {
     id: r.id,
     otherUser: { id: r.other_id, name: r.other_name, avatarUrl: r.other_avatar, role: r.other_role },
     lastMessage: r.last_message_at
-      ? { content: r.last_content || (r.last_attachment ? '📷 Photo' : ''), createdAt: r.last_message_at, senderId: r.last_sender }
+      ? { content: r.last_content || (r.last_attachment ? 'Photo' : ''), createdAt: r.last_message_at, senderId: r.last_sender }
       : null,
     unreadCount: r.unread,
   }));

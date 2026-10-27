@@ -106,7 +106,7 @@ export const BookingRequestModal: React.FC<{ artist: ArtistDetail; onClose: () =
           </p>
           {!user && (
             <Notice>
-              Save this link — use it to check your request and pay your deposit:
+              Save this link. You'll use it to check your request and pay your deposit:
               <a href={done.link} className="block mt-2 font-mono text-xs break-all text-brand-primary">{done.link}</a>
             </Notice>
           )}
@@ -144,7 +144,7 @@ export const BookingRequestModal: React.FC<{ artist: ArtistDetail; onClose: () =
       }
     >
       <div className="h-1.5 rounded-full bg-gray-200 dark:bg-gray-800 mb-6 overflow-hidden">
-        <div className="h-full bg-brand-primary transition-all" style={{ width: `${(step / 3) * 100}%` }} />
+        <div className="h-full bg-brand-primary origin-left transition-transform duration-300 ease-out-strong" style={{ transform: `scaleX(${step / 3})` }} />
       </div>
 
       {step === 1 && (
@@ -270,7 +270,7 @@ export const BookingRequestModal: React.FC<{ artist: ArtistDetail; onClose: () =
                   value={guestEmail}
                   onChange={e => setGuestEmail(e.target.value)}
                   autoComplete="email"
-                  hint={emailReady ? "We'll email you updates and a link to pay your deposit." : "You'll get a private link to check your request — save it, as email updates aren't available yet."}
+                  hint={emailReady ? "We'll email you updates and a link to pay your deposit." : "You'll get a private link to check your request. Save it, as email updates aren't available yet."}
                 />
                 <Input label="Phone (optional)" type="tel" value={guestPhone} onChange={e => setGuestPhone(e.target.value)} autoComplete="tel" />
                 <div className="hidden" aria-hidden="true">

@@ -16,7 +16,7 @@ export class SquareError extends HttpError {
 }
 
 const UNCONFIRMED_PAYMENT =
-  "We couldn't confirm whether your payment went through. Please check your bookings or email for a receipt — if you try again, you won't be charged twice.";
+  "We couldn't confirm whether your payment went through. Please check your bookings or email for a receipt. If you try again, you won't be charged twice.";
 
 export function paymentsReady(): boolean {
   const s = getSettings();
@@ -200,6 +200,14 @@ export async function disableCard(cardId: string) {
 /** Looks up the configured location; throws a clear error when the keys are wrong. Used by "Test connection". */
 export async function checkConnection(): Promise<{ currency: string; name: string }> {
   const s = getSettings();
+  // Sandbox Application IDs start with "sandbox-"; Production ones don't. A mix-up only shows when someone tries to pay.
+  const sandboxId = s.squareApplicationId.startsWith('sandbox-');
+  if (s.squareEnvironment === 'production' && sandboxId) {
+    throw new HttpError(400, 'That Application ID is a Sandbox (test) one, but the environment is set to Production. Paste the Production Application ID, access token and Location ID.');
+  }
+  if (s.squareEnvironment === 'sandbox' && !sandboxId) {
+    throw new HttpError(400, 'That Application ID is a Production one, but the environment is set to Sandbox. Either switch the environment to Production or paste the Sandbox Application ID (it starts with "sandbox-").');
+  }
   try {
     const { location } = await request<{ location: { currency?: string; name?: string; status?: string } }>(
       'GET',

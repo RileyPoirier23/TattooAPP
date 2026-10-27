@@ -10,12 +10,12 @@ export { cx };
 
 type ButtonVariant = 'primary' | 'secondary' | 'outline' | 'ghost' | 'danger' | 'success';
 const VARIANTS: Record<ButtonVariant, string> = {
-  primary: 'bg-brand-solid text-on-primary hover:brightness-110 shadow-sm shadow-brand-primary/20',
+  primary: 'bg-brand-solid text-on-primary hover:brightness-110',
   secondary: 'bg-brand-secondary-solid text-on-secondary hover:brightness-110',
   outline: 'border border-gray-300 dark:border-gray-700 text-brand-dark dark:text-white hover:bg-gray-100 dark:hover:bg-gray-800',
   ghost: 'text-gray-600 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-800',
   danger: 'bg-red-600 text-white hover:bg-red-500',
-  success: 'bg-emerald-600 text-white hover:bg-emerald-500',
+  success: 'bg-emerald-700 text-white hover:bg-emerald-800',
 };
 const SIZES = { sm: 'text-sm px-3 py-1.5 rounded-lg', md: 'text-sm px-4 py-2.5 rounded-lg', lg: 'text-base px-6 py-3 rounded-xl' };
 
@@ -26,7 +26,7 @@ export const Button: React.FC<
     type={type}
     disabled={disabled || loading}
     className={cx(
-      'inline-flex items-center justify-center gap-2 font-semibold transition disabled:opacity-50 disabled:cursor-not-allowed focus:outline-none focus-visible:ring-2 focus-visible:ring-brand-primary focus-visible:ring-offset-2 dark:focus-visible:ring-offset-brand-dark',
+      'inline-flex items-center justify-center gap-2 font-semibold transition enabled:active:scale-[0.97] disabled:opacity-50 disabled:cursor-not-allowed focus:outline-none focus-visible:ring-2 focus-visible:ring-brand-primary focus-visible:ring-offset-2 dark:focus-visible:ring-offset-brand-dark',
       VARIANTS[variant],
       SIZES[size],
       block && 'w-full',
@@ -67,7 +67,7 @@ export const Input = React.forwardRef<HTMLInputElement, InputProps>(({ label, hi
     <Field label={label} hint={hint} error={error} htmlFor={inputId} className={className}>
       <div className="relative">
         {prefix && <span className="absolute left-3 top-1/2 -translate-y-1/2 text-brand-gray text-sm">{prefix}</span>}
-        <input ref={ref} id={inputId} className={cx(inputClass, prefix && (String(prefix).length > 2 ? 'pl-12' : String(prefix).length > 1 ? 'pl-9' : 'pl-7'))} {...rest} />
+        <input ref={ref} id={inputId} inputMode={rest.type === 'number' ? 'decimal' : undefined} className={cx(inputClass, prefix && (String(prefix).length > 2 ? 'pl-12' : String(prefix).length > 1 ? 'pl-9' : 'pl-7'))} {...rest} />
       </div>
     </Field>
   );
@@ -132,7 +132,7 @@ export const Card: React.FC<{ className?: string; children: React.ReactNode; pad
 export const PageHeader: React.FC<{ title: React.ReactNode; subtitle?: React.ReactNode; actions?: React.ReactNode }> = ({ title, subtitle, actions }) => (
   <div className="flex flex-col sm:flex-row sm:items-end justify-between gap-4 mb-6">
     <div>
-      <h1 className="text-3xl sm:text-4xl font-extrabold tracking-tight text-brand-dark dark:text-white">{title}</h1>
+      <h1 className="text-3xl sm:text-4xl font-display text-brand-dark dark:text-white">{title}</h1>
       {subtitle && <p className="text-brand-gray mt-1">{subtitle}</p>}
     </div>
     {actions && <div className="flex flex-wrap gap-2">{actions}</div>}
@@ -157,20 +157,26 @@ export const EmptyState: React.FC<{ icon?: React.ReactNode; title: string; child
   </div>
 );
 
-const TONES = {
-  green: 'bg-emerald-500/15 text-emerald-800 dark:text-emerald-400',
-  yellow: 'bg-amber-500/15 text-amber-800 dark:text-amber-400',
-  red: 'bg-red-500/15 text-red-700 dark:text-red-400',
-  blue: 'bg-sky-500/15 text-sky-700 dark:text-sky-400',
-  purple: 'bg-violet-500/15 text-violet-700 dark:text-violet-400',
-  gray: 'bg-gray-500/15 text-gray-700 dark:text-gray-400',
-  brand: 'bg-brand-primary/15 text-brand-primary',
-  // Colors come from className (e.g. badges over photos); a tone's classes could otherwise win over them.
+// Badges are quiet labels: neutral outline and text, with a small colored dot when the tone carries meaning
+// (status). Avoids a page full of tinted pastel pills.
+const OUTLINE = 'border border-gray-300 dark:border-gray-700 text-gray-700 dark:text-gray-300';
+const DOTS = {
+  green: 'bg-emerald-600',
+  yellow: 'bg-amber-500',
+  red: 'bg-red-600',
+  blue: 'bg-sky-600',
+  purple: 'bg-gray-500',
+  gray: 'bg-gray-400 dark:bg-gray-500',
+  brand: '',
+  // Colors come from className (e.g. badges over photos).
   none: '',
 };
-export type Tone = keyof typeof TONES;
+export type Tone = keyof typeof DOTS;
 export const Badge: React.FC<{ tone?: Tone; children: React.ReactNode; className?: string }> = ({ tone = 'gray', children, className }) => (
-  <span className={cx('inline-flex items-center gap-1 text-xs font-bold px-2.5 py-1 rounded-full whitespace-nowrap', TONES[tone], className)}>{children}</span>
+  <span className={cx('inline-flex items-center gap-1.5 text-xs font-medium px-2 py-0.5 rounded whitespace-nowrap', tone !== 'none' && OUTLINE, className)}>
+    {DOTS[tone] && <span aria-hidden="true" className={cx('w-1.5 h-1.5 rounded-full flex-shrink-0', DOTS[tone])} />}
+    {children}
+  </span>
 );
 
 const STATUS: Record<string, [Tone, string]> = {
@@ -226,6 +232,18 @@ export const Spinner: React.FC<{ size?: 'sm' | 'md' | 'lg'; light?: boolean }> =
       light ? 'border-white border-t-transparent' : 'border-brand-primary border-t-transparent',
     )}
   />
+);
+
+/** A placeholder block shaped like the content that's loading. */
+export const Skeleton: React.FC<{ className?: string }> = ({ className }) => (
+  <div aria-hidden="true" className={cx('animate-pulse rounded bg-gray-200 dark:bg-gray-800', className)} />
+);
+
+/** A grid of loading cards, announced once to screen readers. */
+export const SkeletonGrid: React.FC<{ count: number; className: string; children: React.ReactNode }> = ({ count, className, children }) => (
+  <div role="status" aria-label="Loading" className={className}>
+    {Array.from({ length: count }, (_, i) => <React.Fragment key={i}>{children}</React.Fragment>)}
+  </div>
 );
 
 export const PageLoader: React.FC = () => (
@@ -316,7 +334,7 @@ export const Modal: React.FC<{
   }, []);
   return (
     <div
-      className="fixed inset-0 z-[60] bg-black/70 backdrop-blur-sm flex items-end sm:items-center justify-center sm:p-4 animate-fade-in"
+      className="fixed inset-0 z-[60] bg-black/60 flex items-end sm:items-center justify-center sm:p-4 animate-fade-in"
       onMouseDown={e => e.target === e.currentTarget && !closeDisabled && onClose()}
     >
       <div
@@ -326,7 +344,7 @@ export const Modal: React.FC<{
         aria-modal="true"
         aria-labelledby={titleId}
         className={cx(
-          'bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-700 w-full max-h-[92vh] flex flex-col rounded-t-2xl sm:rounded-2xl shadow-2xl animate-scale-up outline-none',
+          'bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-700 w-full max-h-[92dvh] flex flex-col rounded-t-2xl sm:rounded-2xl shadow-lg animate-sheet-up sm:animate-scale-up outline-none',
           { sm: 'sm:max-w-sm', md: 'sm:max-w-lg', lg: 'sm:max-w-2xl', xl: 'sm:max-w-4xl' }[size],
         )}
       >
@@ -336,8 +354,8 @@ export const Modal: React.FC<{
             <XIcon className="w-6 h-6" />
           </button>
         </header>
-        <div className="overflow-y-auto px-5 py-5 flex-1">{children}</div>
-        {footer && <footer className="px-5 py-4 border-t border-gray-200 dark:border-gray-800 flex flex-wrap justify-end gap-2">{footer}</footer>}
+        <div className={cx('overflow-y-auto overscroll-contain px-5 py-5 flex-1', !footer && 'pb-[calc(1.25rem+env(safe-area-inset-bottom))] sm:pb-5')}>{children}</div>
+        {footer && <footer className="px-5 pt-4 pb-[calc(1rem+env(safe-area-inset-bottom))] sm:pb-4 border-t border-gray-200 dark:border-gray-800 flex flex-wrap justify-end gap-2">{footer}</footer>}
       </div>
     </div>
   );
@@ -369,7 +387,7 @@ export const StarRating: React.FC<{ value: number; onChange?: (v: number) => voi
         ))}
       </div>
       {showValue && value > 0 && <span className="text-sm font-semibold text-brand-dark dark:text-white">{value.toFixed(1)}</span>}
-      {count !== undefined && <span className="text-sm text-brand-gray">({count})</span>}
+      {count !== undefined && <span className="text-sm text-brand-gray">({count.toLocaleString()})</span>}
     </div>
   );
 };
@@ -377,9 +395,9 @@ export const StarRating: React.FC<{ value: number; onChange?: (v: number) => voi
 export const Avatar: React.FC<{ name: string; url?: string | null; size?: 'sm' | 'md' | 'lg' | 'xl' }> = ({ name, url, size = 'md' }) => {
   const s = { sm: 'w-8 h-8 text-xs', md: 'w-10 h-10 text-sm', lg: 'w-16 h-16 text-xl', xl: 'w-24 h-24 text-3xl' }[size];
   if (url) return <img src={url} alt={name} className={cx(s, 'rounded-full object-cover flex-shrink-0 bg-gray-200 dark:bg-gray-800')} />;
-  const initials = name.split(/\s+/).filter(Boolean).slice(0, 2).map(w => w[0]?.toUpperCase()).join('');
+  const initials = name.split(/\s+/).filter(w => /^[\p{L}\p{N}]/u.test(w)).slice(0, 2).map(w => [...w][0].toUpperCase()).join('');
   return (
-    <span className={cx(s, 'rounded-full flex-shrink-0 flex items-center justify-center font-bold text-on-gradient bg-gradient-to-br from-brand-solid to-brand-secondary-solid')}>
+    <span className={cx(s, 'rounded-full flex-shrink-0 flex items-center justify-center font-semibold bg-gray-200 text-gray-700 dark:bg-gray-800 dark:text-gray-300')}>
       {initials || '?'}
     </span>
   );
@@ -390,9 +408,9 @@ export const Cover: React.FC<{ url?: string | null; alt: string; className?: str
   url ? (
     <img src={url} alt={alt} loading="lazy" className={cx('object-cover bg-gray-200 dark:bg-gray-800', className)} />
   ) : (
-    <div className={cx('bg-gradient-to-br from-brand-primary/40 via-brand-secondary/30 to-gray-900/50 flex items-center justify-center', className)}>
-      <span className="text-5xl font-black tracking-tight text-white/80">
-        {alt.split(/[\s&]+/).filter(w => /^[\p{L}\p{N}]/u.test(w)).slice(0, 2).map(w => w[0].toUpperCase()).join('') || '•'}
+    <div className={cx('bg-gray-200 dark:bg-gray-800 flex items-center justify-center', className)}>
+      <span className="font-display text-5xl text-gray-500">
+        {alt.split(/[\s&]+/).filter(w => /^[\p{L}\p{N}]/u.test(w)).slice(0, 2).map(w => [...w][0].toUpperCase()).join('') || '•'}
       </span>
     </div>
   );

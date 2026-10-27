@@ -1,3 +1,5 @@
+import { PAGES_1_2_0 } from './previousPages';
+
 // Starting content for the FAQ and policy pages. The owner edits them in Admin → Pages.
 // {{siteName}}, {{siteUrl}} and {{contact}} are filled in when a page is shown (see fillPageTokens).
 
@@ -9,7 +11,7 @@ export const DEFAULT_PAGES: { slug: string; title: string; body: string }[] = [
 Find an artist you like, open their profile and choose **Request a booking**. Pick a service and a date when they're available, describe your idea and add reference photos if you have them. The artist reviews your request and approves it, suggests changes or declines it.
 
 ## Do I need an account?
-No. You can book as a guest — you'll get a private link (also sent by email) to check your request and pay your deposit. With a free account all your bookings, messages and receipts are in one place.
+No. You can book as a guest. You'll get a private link (also sent by email) to check your request and pay your deposit. With a free account all your bookings, messages and receipts are in one place.
 
 ## How do deposits work?
 When an artist approves your request, you pay a deposit online to lock in your date. The deposit goes towards the price of your tattoo. A small booking fee may be added; you always see the total before you pay. See the [Booking & Cancellation Policy](/p/booking-policy) for refunds.
@@ -35,7 +37,7 @@ Reach us through {{contact}}.`,
   {
     slug: 'booking-policy',
     title: 'Booking & Cancellation Policy',
-    body: `This policy applies to tattoo appointments and booth rentals booked on {{siteName}}. Individual artists and shops may have their own additional policies — ask them before you book.
+    body: `This policy applies to tattoo appointments and booth rentals booked on {{siteName}}. Individual artists and shops may have their own additional policies, so ask them before you book.
 
 ## Requests and confirmation
 A booking request is not confirmed until the artist approves it **and** any deposit has been paid. If the artist hasn't answered by the requested date, the request expires automatically.
@@ -44,7 +46,7 @@ A booking request is not confirmed until the artist approves it **and** any depo
 Deposits secure your appointment and are applied to the final price of your tattoo. Any booking fee shown at checkout covers payment processing and is not part of the deposit.
 
 ## If you cancel or reschedule
-Please let your artist know as early as possible — at least 48 hours before your appointment. Deposits are non-refundable when you cancel, unless your artist agrees otherwise. Moving your appointment to a new date is up to the artist.
+Please let your artist know as early as possible, and at least 48 hours before your appointment. Deposits are non-refundable when you cancel, unless your artist agrees otherwise. Moving your appointment to a new date is up to the artist.
 
 ## If the artist cancels
 If your artist cancels your appointment, your deposit is refunded in full.
@@ -121,19 +123,19 @@ Questions about these terms? Contact us through {{contact}}.`,
 - **Artist and shop profiles:** bio, photos, services and prices, working hours, shop address and payout details.
 - **Bookings:** the date, your tattoo idea, size, placement, budget and any reference photos you attach. Guests also give their name, email and (optionally) phone number.
 - **Messages** you send through the site, and **reviews** you write.
-- **Payments:** Square processes all card payments. We receive the payment result and, for saved cards, the card brand and last four digits — never your full card number.
+- **Payments:** Square processes all card payments. We receive the payment result and, for saved cards, the card brand and last four digits, never your full card number.
 - **Technical information:** a login cookie, and your IP address, which our server uses for security and to prevent abuse.
 
 ## How we use it
-To run the marketplace — bookings, payments, payouts, messages and reviews; to send you emails about your bookings and account; to keep the site secure and prevent fraud and spam; and to meet legal and accounting obligations. We do not sell your personal information and we don't use advertising trackers.
+To run the marketplace (bookings, payments, payouts, messages and reviews); to send you emails about your bookings and account; to keep the site secure and prevent fraud and spam; and to meet legal and accounting obligations. We do not sell your personal information and we don't use advertising trackers.
 
 ## Who we share it with
-- **The artist or shop you book with** — your name, contact details and booking details, so they can serve you.
-- **Square** — to process payments.
-- **Our email provider** — to deliver emails to you.
-- **Our hosting provider** — which stores the site and its data.
-- **Google** — the site loads fonts from Google Fonts and, on shop pages, maps from Google Maps, so Google receives your IP address when those load.
-- **Authorities** — only when the law requires it.
+- **The artist or shop you book with:** your name, contact details and booking details, so they can serve you.
+- **Square,** to process payments.
+- **Our email provider,** to deliver emails to you.
+- **Our hosting provider,** which stores the site and its data.
+- **Google,** only on shop pages that show a map: the map is loaded from Google Maps, so Google receives your IP address. Fonts and everything else are served by {{siteName}} itself.
+- **Authorities,** only when the law requires it.
 
 ## Photos
 Portfolio and shop photos are public. Reference photos you attach to a booking are shared with that artist and aren't listed publicly. We automatically remove hidden location data from uploaded JPEG photos.
@@ -167,7 +169,7 @@ Questions or requests about your privacy? Contact us through {{contact}}.`,
 ];
 
 /** Placeholder text used by earlier versions; pages still showing it are upgraded to the templates above. */
-export const OLD_PLACEHOLDERS: Record<string, string[]> = {
+const FIRST_PLACEHOLDERS: Record<string, string[]> = {
   faq: [`## How do deposits work?
 When an artist approves your request you'll be asked to pay a deposit to lock in your date. The deposit is put towards the price of your tattoo.
 
@@ -187,6 +189,11 @@ Missing an appointment without notice may forfeit your deposit.`],
   terms: ['Edit this page from the admin panel (Admin → Pages) to add your terms of service.'],
   privacy: ['Edit this page from the admin panel (Admin → Pages) to add your privacy policy.'],
 };
+
+/** Every earlier default text per page: the one-line placeholders, then the 1.2.0 templates. */
+export const OLD_PLACEHOLDERS: Record<string, string[]> = Object.fromEntries(
+  DEFAULT_PAGES.map(p => [p.slug, [...(FIRST_PLACEHOLDERS[p.slug] ?? []), ...(PAGES_1_2_0[p.slug] ? [PAGES_1_2_0[p.slug]] : [])]]),
+);
 
 /** Fills in {{siteName}}, {{siteUrl}} and {{contact}} (the contact email if set, otherwise the contact form). */
 export function fillPageTokens(body: string, s: { siteName: string; contactEmail: string }, siteUrl: string): string {

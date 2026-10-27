@@ -17,6 +17,14 @@ The **Overview** page in the admin panel has a setup checklist that ticks itself
 5. **Settings → Features** and **Fees & pricing** — choose what's switched on (bookings, guest bookings, booth rentals, messaging, reviews, the Pro plan) and set your booking fee, booth commission, default deposit and how long unpaid booth reservations are held.
 6. Optional: a **Google Maps** key for shop maps, "near me" search and listings of shops that haven't joined yet.
 
+### Going live (switching Square to real payments)
+
+1. In your Square Developer dashboard, switch to **Production** and copy the *Production* Application ID, Access token and Location ID (Production Application IDs don't start with `sandbox-`).
+2. In **Settings → Square payments**, choose **Production**, paste all three, save, and click **Test connection**. It tells you if a key is from the wrong environment or account.
+3. Make one small real booking with your own card, check the receipt email, then refund it from **Payments**.
+
+Cards saved while testing (artists' Pro plan cards) only work in Sandbox, so they're removed when you switch. Anyone on a test Pro plan keeps it until the end of the month, then adds a real card to continue. Test payments stay hidden from your Production totals.
+
 ## 2. How the money works
 
 Every payment goes into **your Square account**:

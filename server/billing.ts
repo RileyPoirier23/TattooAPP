@@ -34,6 +34,16 @@ function ensureReady() {
 /** Sandbox (test) and production payments are kept apart so test data never mixes with real money. */
 export const currentEnvironment = () => getSettings().squareEnvironment;
 
+/** Drops every saved card and Square customer (used when Square switches between Sandbox and Production). */
+export function forgetSavedCards(): number {
+  return getDb()
+    .prepare(
+      `update users set square_customer_id = null, square_card_id = null, card_label = null, pro_auto_renew = 0,
+         renewal_failed_at = null, updated_at = ? where square_card_id is not null or square_customer_id is not null`,
+    )
+    .run(nowIso()).changes;
+}
+
 interface PaymentRecord {
   kind: 'deposit' | 'booth' | 'subscription';
   refId: string;
@@ -156,7 +166,7 @@ export async function payDeposit(requestId: string, sourceId: string, clientKey:
     if (payerEmail) {
       sendEmail({
         to: payerEmail,
-        subject: `Deposit received — you're booked with ${artist.name}`,
+        subject: `Deposit received: you're booked with ${artist.name}`,
         lines: [
           `Hi ${clientName},`,
           `We've received your deposit of ${formatMoney(total, currency)} for ${r.service_name} with ${artist.name} on ${when}.`,
@@ -294,7 +304,7 @@ async function chargeSubscription(user: UserRow, customerId: string, cardId: str
     amountCents: amount,
     currency,
     idempotencyKey: key,
-    note: `${getSettings().siteName} Pro — monthly`,
+    note: `${getSettings().siteName} Pro, monthly`,
     referenceId: user.id,
     buyerEmail: user.email,
     ref: `pro:${user.id}`,
@@ -303,7 +313,7 @@ async function chargeSubscription(user: UserRow, customerId: string, cardId: str
   amount = payment.amount_money?.amount ?? amount;
   insertPayment({
     kind: 'subscription', refId: user.id, userId: user.id, payerEmail: user.email,
-    description: `Pro plan — 1 month`, amountCents: amount, feeCents: amount, payeeId: null, payeeAmountCents: 0,
+    description: `Pro plan, 1 month`, amountCents: amount, feeCents: amount, payeeId: null, payeeAmountCents: 0,
     currency, squarePaymentId: payment.id, receiptUrl: payment.receipt_url ?? null,
   });
   return { amount, currency };
@@ -330,7 +340,7 @@ export async function subscribePro(user: UserRow, sourceId: string, clientKey: s
     ).run(until, nowIso(), user.id);
     notify(user.id, `Welcome to Pro! Your plan renews on ${until.slice(0, 10)}.`, {
       link: '/settings',
-      email: { subject: `You're on ${getSettings().siteName} Pro`, lines: [`Thanks! We charged ${formatMoney(amount, currency)}. Your plan renews automatically each month — cancel any time in Settings.`] },
+      email: { subject: `You're on ${getSettings().siteName} Pro`, lines: [`Thanks! We charged ${formatMoney(amount, currency)}. Your plan renews automatically each month. Cancel any time in Settings.`] },
     });
     return { charged: true };
   });
@@ -388,7 +398,7 @@ export async function processRenewals() {
         end('We could not renew your Pro plan, so it has ended. Add a working card in Settings to resubscribe.');
       } else {
         if (!user.renewal_failed_at) {
-          notify(user.id, `We couldn't renew your Pro plan (${(err as Error).message}). We'll try again tomorrow — update your card in Settings to keep Pro.`, {
+          notify(user.id, `We couldn't renew your Pro plan (${(err as Error).message}). We'll try again tomorrow. Update your card in Settings to keep Pro.`, {
             link: '/settings',
             email: { subject: 'Problem renewing your Pro plan', actionLabel: 'Update card' },
           });

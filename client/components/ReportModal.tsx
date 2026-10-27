@@ -14,7 +14,7 @@ export const ReportModal: React.FC<{ targetType: 'user' | 'booking' | 'shop' | '
     setBusy(true);
     try {
       await api.post('/reports', { targetType, targetId, reason });
-      toast('Thanks — our team will review this.');
+      toast('Thanks. Our team will review this.');
       onClose();
     } catch (err) {
       toast(errorMessage(err), 'error');

@@ -4,8 +4,8 @@ import { BLACK, INK, WHITE, contrast, mix, parseHex, solid, type RGB } from '../
 
 const css = (c: RGB) => c.join(' ');
 
-const LIGHT_SURFACE: RGB = [243, 244, 246]; // the darkest light-mode background text sits on
-const DARK_SURFACE: RGB = [31, 41, 55]; // the lightest dark-mode background text sits on
+const LIGHT_SURFACE: RGB = [231, 229, 228]; // the darkest light-mode background text sits on (stone-200)
+const DARK_SURFACE: RGB = [41, 37, 36]; // the lightest dark-mode background text sits on (stone-800)
 
 /**
  * The brand color, darkened or lightened just enough to be readable as text on the given backgrounds
@@ -74,4 +74,7 @@ export function applyBranding(s: SiteSettings) {
 
 export function applyTheme(theme: 'light' | 'dark') {
   document.documentElement.classList.toggle('dark', theme === 'dark');
+  // Phone status bar / browser chrome follows the theme (the header's background colour).
+  const meta = document.querySelector<HTMLMetaElement>('meta[name="theme-color"]');
+  if (meta) meta.content = theme === 'dark' ? '#14120F' : '#F2EEE6';
 }

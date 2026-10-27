@@ -57,7 +57,7 @@ const BookBoothModal: React.FC<{ shop: ShopDetail; boothId: string; onClose: () 
     >
       <div className="space-y-4">
         <Select label="Booth" value={selected} onChange={e => setSelected(e.target.value)}>
-          {shop.booths.map(b => <option key={b.id} value={b.id}>{b.name} — {dollars(b.dailyRate)}/day</option>)}
+          {shop.booths.map(b => <option key={b.id} value={b.id}>{b.name}, {dollars(b.dailyRate)}/day</option>)}
         </Select>
         <div className="grid grid-cols-2 gap-3">
           <Input label="First day" type="date" min={today()} value={start} onChange={e => { setStart(e.target.value); if (!end || end < e.target.value) setEnd(e.target.value); }} />
@@ -125,7 +125,7 @@ export const ShopProfilePage: React.FC<{ id: string }> = ({ id }) => {
         <Cover url={shop.imageUrl} alt={shop.name} className="w-full h-56 md:h-80" />
         <div className="absolute inset-0 bg-gradient-to-t from-black/80 to-transparent" />
         <div className="absolute bottom-0 p-6 text-white">
-          <h1 className="text-3xl md:text-4xl font-extrabold flex items-center gap-2">
+          <h1 className="text-3xl md:text-4xl font-display flex items-center gap-2">
             {shop.name}
             {shop.isVerified && <CheckBadgeIcon className="w-7 h-7 text-brand-secondary" title="Verified shop" />}
           </h1>
@@ -191,7 +191,7 @@ export const ShopProfilePage: React.FC<{ id: string }> = ({ id }) => {
           {shop.amenities.length > 0 && (
             <Card>
               <h2 className="font-bold text-lg mb-3">Amenities</h2>
-              <div className="flex flex-wrap gap-2">{shop.amenities.map(a => <Badge key={a} tone="brand">{a}</Badge>)}</div>
+              <div className="flex flex-wrap gap-2">{shop.amenities.map(a => <Badge key={a} tone="brand" className="!whitespace-normal">{a}</Badge>)}</div>
             </Card>
           )}
           {!isOwner && features.messaging && (

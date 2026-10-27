@@ -78,20 +78,20 @@ function buttonColors(hex: string) {
 export function renderEmail({ subject, lines, action }: EmailInput) {
   const site = getSettings();
   const button = buttonColors(site.primaryColor);
-  const text = [...lines, action ? `${action.label}: ${action.url}` : '', '', `— ${site.siteName}`].join('\n');
-  const html = `<!doctype html><html><body style="margin:0;background:#f5f5f7;font-family:Arial,Helvetica,sans-serif;color:#101014">
+  const text = [...lines, action ? `${action.label}: ${action.url}` : '', '', site.siteName].join('\n');
+  const html = `<!doctype html><html><body style="margin:0;background:#F2EEE6;font-family:Arial,Helvetica,sans-serif;color:#14120F">
   <div style="max-width:560px;margin:0 auto;padding:32px 16px">
-    <div style="background:#fff;border-radius:12px;padding:28px">
-      <h1 style="font-size:20px;margin:0 0 16px">${escapeHtml(subject)}</h1>
+    <div style="background:#fff;border:1px solid #E7E5E4;border-radius:8px;padding:28px">
+      <h1 style="font-family:Georgia,'Times New Roman',serif;font-weight:normal;font-size:22px;margin:0 0 16px">${escapeHtml(subject)}</h1>
       ${lines.map(l => `<p style="font-size:15px;line-height:1.5;margin:0 0 12px">${escapeHtml(l)}</p>`).join('')}
       ${
         action
-          ? `<p style="margin:24px 0 8px"><a href="${escapeHtml(action.url)}" style="background:${button.bg};color:${button.fg};text-decoration:none;font-weight:bold;padding:12px 20px;border-radius:8px;display:inline-block">${escapeHtml(action.label)}</a></p>
-             <p style="font-size:12px;color:#777;word-break:break-all">${escapeHtml(action.url)}</p>`
+          ? `<p style="margin:24px 0 8px"><a href="${escapeHtml(action.url)}" style="background:${button.bg};color:${button.fg};text-decoration:none;font-weight:bold;padding:12px 20px;border-radius:6px;display:inline-block">${escapeHtml(action.label)}</a></p>
+             <p style="font-size:12px;color:#78716C;word-break:break-all">${escapeHtml(action.url)}</p>`
           : ''
       }
     </div>
-    <p style="font-size:12px;color:#888;text-align:center;margin-top:16px">${escapeHtml(site.siteName)}</p>
+    <p style="font-size:12px;color:#78716C;text-align:center;margin-top:16px">${escapeHtml(site.siteName)}</p>
   </div></body></html>`;
   return { text, html };
 }

@@ -103,7 +103,7 @@ export const AdminPage: React.FC<{ section: string }> = ({ section }) => {
       <div className="lg:grid lg:grid-cols-[220px_minmax(0,1fr)] lg:gap-10">
         {/* Desktop sidebar */}
         <aside className="hidden lg:block">
-          <nav className="sticky top-24 max-h-[calc(100vh-7rem)] overflow-y-auto overscroll-contain -mx-2 px-2 pb-4 space-y-6" aria-label="Admin sections">
+          <nav className="sticky top-24 max-h-[calc(100dvh-7rem)] overflow-y-auto overscroll-contain -mx-2 px-2 pb-4 space-y-6" aria-label="Admin sections">
             <div className="px-3">
               <p className="text-xs font-bold uppercase tracking-wider text-brand-primary">Admin panel</p>
               <p className="text-sm text-brand-gray truncate">{siteName}</p>
@@ -156,9 +156,9 @@ export const AdminPage: React.FC<{ section: string }> = ({ section }) => {
                   to={s.id === 'overview' ? '/admin' : `/admin/${s.id}`}
                   aria-current={active ? 'page' : undefined}
                   className={cx(
-                    'flex items-center gap-2 px-3.5 py-2 rounded-full text-sm font-semibold whitespace-nowrap border transition-colors',
+                    'flex items-center gap-2 px-3.5 py-2 rounded-lg text-sm font-medium whitespace-nowrap border transition-colors',
                     active
-                      ? 'bg-brand-solid text-on-primary border-brand-primary'
+                      ? 'bg-brand-dark text-brand-light border-brand-dark dark:bg-gray-100 dark:text-gray-900 dark:border-gray-100'
                       : 'bg-white dark:bg-gray-900 border-gray-200 dark:border-gray-800 text-gray-600 dark:text-gray-300',
                   )}
                 >

@@ -110,7 +110,7 @@ test('artist sets up profile, guest books and pays a deposit', async ({ page }) 
   await page.getByRole('button', { name: 'Approve' }).click();
   await page.getByRole('dialog').getByLabel('Start time').fill('13:30');
   await page.getByRole('dialog').getByRole('button', { name: 'Approve' }).click();
-  await expect(page.getByText(/Approved — the client/)).toBeVisible();
+  await expect(page.getByText(/Approved. The client/)).toBeVisible();
 
   // The guest pays from their private link.
   await logOut(page);
@@ -119,7 +119,7 @@ test('artist sets up profile, guest books and pays a deposit', async ({ page }) 
   await page.getByRole('button', { name: /Pay \$61\.74|Pay CA\$61\.74/ }).click();
   await expect(page.getByTestId('fake-card')).toBeVisible();
   await page.getByRole('dialog').getByRole('button', { name: /Pay .*61\.74/ }).click();
-  await expect(page.getByText("Deposit paid — you're booked!")).toBeVisible();
+  await expect(page.getByText("Deposit paid. You're booked.")).toBeVisible();
   await expect(page.getByText('Deposit paid', { exact: true })).toBeVisible();
   await expect(page.getByText(/1:30\s?PM/)).toBeVisible();
 });
@@ -156,7 +156,7 @@ test('shop owner lists a booth and an artist rents it', async ({ page }) => {
   await dialog.getByRole('button', { name: 'Reserve & pay' }).click();
   await expect(page.getByTestId('fake-card')).toBeVisible();
   await page.getByRole('dialog').getByRole('button', { name: /Pay .*270\.00/ }).click();
-  await expect(page.getByText('Booth paid — your guest spot is confirmed!')).toBeVisible();
+  await expect(page.getByText('Booth paid. Your guest spot is confirmed.')).toBeVisible();
   await expect(page).toHaveURL(/\/bookings/);
   await expect(page.getByText('Window station at Ink & Dagger')).toBeVisible();
 });
@@ -171,6 +171,27 @@ test('pages work on a phone', async ({ page }) => {
   expect(overflow).toBe(false);
   await page.goto('/p/faq');
   await expect(page.getByRole('heading', { name: 'FAQ' })).toBeVisible();
+});
+
+test('long names, links and place names fit on a small phone', async ({ page }) => {
+  // Realistic worst-case data: diacritics, an unbroken link in the bio and a one-word place name.
+  const longCity = 'Llanfairpwllgwyngyllgogerychwyrndrobwllllantysiliogogogoch, Wales';
+  const api = (method: string, url: string, data: object) =>
+    page.request.fetch(url, { method, data, headers: { 'x-requested-with': 'inkspace' } });
+  const reg = await api('POST', '/api/auth/register', {
+    name: 'Aleksandra Wiśniewska-Kowalczyk', email: `long-${stamp}@example.com`, password: 'password123', role: 'artist', city: longCity, acceptTerms: true,
+  });
+  expect(reg.ok()).toBe(true);
+  const { user } = await reg.json();
+  const patch = await api('PATCH', '/api/me', {
+    specialty: 'Fine line, micro-realism & single-needle botanicals',
+    bio: 'Booking through https://www.instagram.com/aleksandra.wisniewska.kowalczyk.tattoo.studio/ or here.',
+  });
+  expect(patch.ok()).toBe(true);
+  await page.setViewportSize({ width: 320, height: 640 });
+  await page.goto(`/artists/${user.id}`);
+  await expect(page.getByRole('heading', { name: /Aleksandra/ })).toBeVisible();
+  expect(await page.evaluate(() => document.documentElement.scrollWidth)).toBeLessThanOrEqual(320);
 });
 
 test('visitors can contact the owner, who answers from the admin inbox', async ({ page }) => {

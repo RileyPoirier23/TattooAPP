@@ -880,3 +880,61 @@ test('clients can become artists; errors are in plain language', async () => {
   const badLink = await c.c.patch('/api/me', { socials: { website: 'not a link' } });
   assert.match(badLink.body.error, /^Website link must be a web address/);
 });
+
+test('going live: saved test cards are dropped and mismatched Square keys are caught', async () => {
+  const { saveSettings } = await import('../server/settings');
+  saveSettings({ features: { proPlan: true } } as any);
+  const { c: pro } = await register('artist', 'golive-artist@example.com');
+  const sub = await pro.post('/api/me/subscription', { sourceId: 'cnon:ok', idempotencyKey: 'sub-golive-01' });
+  assert.equal(sub.status, 200, JSON.stringify(sub.body));
+  assert.equal(sub.body.user.subscription.cardLabel, 'Visa •••• 1111');
+
+  // Switching Square from Sandbox to Production forgets cards saved while testing (they can't be charged in Production).
+  const live = await admin.put('/api/admin/settings', { settings: { squareEnvironment: 'production' } });
+  assert.equal(live.status, 200, JSON.stringify(live.body));
+  const after = (await pro.get('/api/auth/me')).body.user.subscription;
+  assert.equal(after.cardLabel, null);
+  assert.equal(after.autoRenew, false);
+  assert.equal(after.isPro, true, 'the period already paid for is kept');
+
+  // A Sandbox Application ID with the Production environment is reported clearly by "Test connection".
+  const check = await admin.post('/api/admin/square-check');
+  assert.equal(check.status, 400);
+  assert.match(check.body.error, /Sandbox \(test\) one/);
+
+  await admin.put('/api/admin/settings', { settings: { squareEnvironment: 'sandbox' } });
+  assert.equal((await admin.post('/api/admin/square-check')).status, 200);
+  saveSettings({ features: { proPlan: false } } as any);
+});
+
+test('sites left on old defaults get the new look; customized ones keep theirs', async () => {
+  const { getDb } = await import('../server/db');
+  const { getSettings, saveSettings, seedDefaults, DEFAULT_SETTINGS } = await import('../server/settings');
+  const { PAGES_1_2_0 } = await import('../server/previousPages');
+  const { DEFAULT_PAGES } = await import('../server/defaultPages');
+  const db = getDb();
+  const before = getSettings();
+
+  // Untouched pink/purple branding and hero text from 1.2.0 move to the current defaults.
+  saveSettings({ primaryColor: '#F04E98', secondaryColor: '#8A4EFC', defaultTheme: 'dark', heroTitle: 'Find Your Space.', heroHighlight: 'Make Your Mark.' });
+  let s = getSettings();
+  assert.equal(s.primaryColor, DEFAULT_SETTINGS.primaryColor);
+  assert.equal(s.secondaryColor, DEFAULT_SETTINGS.secondaryColor);
+  assert.equal(s.defaultTheme, 'light');
+  assert.equal(s.heroTitle, DEFAULT_SETTINGS.heroTitle);
+  // A color the owner picked, or old colors with a deliberately chosen theme, are kept.
+  saveSettings({ primaryColor: '#112233', secondaryColor: '#8A4EFC', defaultTheme: 'dark' });
+  assert.equal(getSettings().primaryColor, '#112233');
+  assert.equal(getSettings().defaultTheme, 'dark');
+
+  // An unedited 1.2.0 privacy policy (which said fonts come from Google) is updated; an edited one is not.
+  const privacy = DEFAULT_PAGES.find(p => p.slug === 'privacy')!;
+  db.prepare("update pages set body = ? where slug = 'privacy'").run(PAGES_1_2_0.privacy);
+  db.prepare("update pages set body = ? where slug = 'faq'").run(PAGES_1_2_0.faq + '\n\nOur own note.');
+  seedDefaults();
+  assert.equal((db.prepare("select body from pages where slug = 'privacy'").get() as { body: string }).body, privacy.body);
+  assert.doesNotMatch(privacy.body, /Google Fonts/);
+  assert.match((db.prepare("select body from pages where slug = 'faq'").get() as { body: string }).body, /Our own note\./);
+
+  saveSettings({ primaryColor: before.primaryColor, secondaryColor: before.secondaryColor, defaultTheme: before.defaultTheme, heroTitle: before.heroTitle, heroHighlight: before.heroHighlight });
+});

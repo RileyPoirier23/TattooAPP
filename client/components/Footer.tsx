@@ -15,7 +15,7 @@ export const Footer: React.FC = () => {
   ].filter(Boolean) as { href: string; label: string; Icon: React.FC<{ className?: string }> }[];
 
   return (
-    <footer className="mt-20 border-t border-gray-200 dark:border-gray-800">
+    <footer className="mt-20 pb-[env(safe-area-inset-bottom)] border-t border-gray-200 dark:border-gray-800">
       <div className="container mx-auto px-4 py-10 grid gap-8 md:grid-cols-3">
         <div>
           <div className="flex items-center gap-2">

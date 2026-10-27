@@ -62,10 +62,10 @@ const Thread: React.FC<{ convo: Conversation; onSent: () => void }> = ({ convo, 
         </div>
         <button onClick={() => setReporting(true)} className="text-xs text-brand-gray hover:text-red-500">Report</button>
       </header>
-      <div className="flex-1 overflow-y-auto p-4 space-y-3">
+      <div className="flex-1 overflow-y-auto overscroll-contain p-4 space-y-3" tabIndex={0} role="log" aria-label="Messages">
         {error && <ErrorBox message={error} onRetry={reload} />}
         {loading && !messages && <div className="flex justify-center py-10"><Spinner /></div>}
-        {messages?.length === 0 && <p className="text-center text-sm text-brand-gray py-10">Say hi 👋</p>}
+        {messages?.length === 0 && <p className="text-center text-sm text-brand-gray py-10">No messages yet.</p>}
         {messages?.map(m => {
           const mine = m.senderId === me.id;
           return (
@@ -116,6 +116,7 @@ const Thread: React.FC<{ convo: Conversation; onSent: () => void }> = ({ convo, 
             }}
             rows={1}
             placeholder="Write a message…"
+            enterKeyHint="send"
             className="flex-1 resize-none rounded-2xl border border-gray-300 dark:border-gray-700 bg-white dark:bg-gray-900 px-4 py-2.5 focus:outline-none focus:ring-2 focus:ring-brand-primary/40 max-h-32"
           />
           <Button type="submit" loading={sending} disabled={!text.trim() && !file} className="rounded-full !px-3" aria-label="Send">
@@ -137,10 +138,10 @@ export const MessagesPage: React.FC<{ conversationId?: string }> = ({ conversati
   if (loading && !data) return <PageLoader />;
 
   return (
-    <Card padded={false} className="max-w-6xl mx-auto overflow-hidden h-[calc(100vh-10rem)] min-h-[480px] grid md:grid-cols-[320px_1fr]">
+    <Card padded={false} className="max-w-6xl mx-auto overflow-hidden h-[calc(100dvh-10rem)] min-h-[480px] grid md:grid-cols-[320px_1fr]">
       <aside className={cx('border-r border-gray-200 dark:border-gray-800 flex flex-col min-h-0', conversationId && 'hidden md:flex')}>
         <h1 className="px-4 py-3 text-lg font-bold border-b border-gray-200 dark:border-gray-800">Messages</h1>
-        <div className="overflow-y-auto flex-1">
+        <div className="overflow-y-auto overscroll-contain flex-1">
           {data?.length === 0 && (
             <EmptyState icon={<ChatIcon />} title="No conversations yet">Message an artist or shop from their profile page.</EmptyState>
           )}

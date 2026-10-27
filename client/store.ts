@@ -8,6 +8,8 @@ export interface Toast {
   id: number;
   message: string;
   type: 'success' | 'error';
+  /** Set while the toast plays its exit animation, just before it's removed. */
+  leaving?: boolean;
 }
 
 interface State {
@@ -122,7 +124,11 @@ export const useStore = create<State>()((set, get) => ({
     set(s => ({ toasts: [...s.toasts.slice(-3), { id, message, type }] }));
     setTimeout(() => get().dismissToast(id), type === 'error' ? 6000 : 4000);
   },
-  dismissToast: id => set(s => ({ toasts: s.toasts.filter(t => t.id !== id) })),
+  dismissToast: id => {
+    if (!get().toasts.some(t => t.id === id && !t.leaving)) return;
+    set(s => ({ toasts: s.toasts.map(t => (t.id === id ? { ...t, leaving: true } : t)) }));
+    setTimeout(() => set(s => ({ toasts: s.toasts.filter(t => t.id !== id) })), 150);
+  },
 
   openAuth: (mode = 'login') => set({ authModal: mode }),
   closeAuth: () => set({ authModal: null }),

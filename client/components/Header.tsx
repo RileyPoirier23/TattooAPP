@@ -54,9 +54,9 @@ const Notifications: React.FC = () => {
         )}
       </button>
       {open && (
-        <div className="fixed left-4 right-4 top-16 sm:absolute sm:left-auto sm:right-0 sm:top-auto sm:mt-2 sm:w-[22rem] bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-700 rounded-xl shadow-xl z-50 animate-fade-in overflow-hidden">
+        <div className="fixed left-4 right-4 top-16 sm:absolute sm:left-auto sm:right-0 sm:top-auto sm:mt-2 sm:w-[22rem] bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-700 rounded-xl shadow-lg shadow-black/10 z-50 animate-pop-in origin-top sm:origin-top-right overflow-hidden">
           <div className="px-4 py-3 border-b border-gray-200 dark:border-gray-800 font-semibold">Notifications</div>
-          <ul className="max-h-96 overflow-y-auto">
+          <ul className="max-h-96 overflow-y-auto overscroll-contain">
             {notifications.length === 0 && <li className="p-6 text-center text-sm text-brand-gray">You're all caught up.</li>}
             {notifications.map(n => (
               <li key={n.id}>
@@ -92,7 +92,7 @@ const UserMenu: React.FC<{ user: Me }> = ({ user }) => {
         <ChevronDownIcon className="w-4 h-4 text-brand-gray" />
       </button>
       {open && (
-        <div className="absolute right-0 mt-2 w-56 bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-700 rounded-xl shadow-xl z-50 py-1 animate-fade-in">
+        <div className="absolute right-0 mt-2 w-56 bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-700 rounded-xl shadow-lg shadow-black/10 z-50 py-1 animate-pop-in origin-top-right">
           <div className="px-4 py-2 text-xs text-brand-gray truncate">{user.email}</div>
           {accountLinks(user).map(l => (
             <Link key={l.to} to={l.to} onClick={() => setOpen(false)} className="block px-4 py-2 text-sm hover:bg-gray-100 dark:hover:bg-gray-800">
@@ -137,9 +137,9 @@ export const Header: React.FC = () => {
   ].filter(Boolean) as { to: string; label: string }[];
 
   return (
-    <header className="sticky top-0 z-50 bg-brand-light/85 dark:bg-brand-dark/85 backdrop-blur border-b border-gray-200 dark:border-gray-800">
+    <header className="sticky top-0 z-50 pt-[env(safe-area-inset-top)] bg-brand-light dark:bg-brand-dark border-b border-gray-200 dark:border-gray-800">
       {s.announcementEnabled && s.announcementText && (
-        <div className="bg-gradient-to-r from-brand-solid to-brand-secondary-solid text-on-gradient text-center text-sm font-medium px-4 py-2">{s.announcementText}</div>
+        <div className="bg-brand-dark text-brand-light dark:bg-gray-800 dark:text-gray-100 text-center text-sm px-4 py-2">{s.announcementText}</div>
       )}
       <div className="container mx-auto px-4 h-16 flex items-center justify-between gap-4">
         <Link to="/" className="flex items-center gap-2.5 min-w-0" aria-label={`${s.siteName} home`}>
@@ -148,7 +148,7 @@ export const Header: React.FC = () => {
           ) : (
             <>
               <NeedleIcon className="w-8 h-8 text-brand-primary flex-shrink-0" />
-              <span className="text-xl sm:text-2xl font-extrabold tracking-tight truncate">{s.siteName}</span>
+              <span className="font-display text-xl sm:text-2xl truncate">{s.siteName}</span>
             </>
           )}
         </Link>
