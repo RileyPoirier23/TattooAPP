@@ -19,18 +19,18 @@ export const ArtistCard: React.FC<{ artist: PublicArtist }> = ({ artist }) => (
         {artist.isVerified && <Badge tone="none" className="bg-brand-secondary-solid text-on-secondary"><CheckBadgeIcon className="w-3.5 h-3.5" />Verified</Badge>}
       </div>
       {artist.guestSpot && (
-        <div className="absolute bottom-2 left-2">
-          <Badge tone="none" className="bg-sky-700 text-white"><CalendarIcon className="w-3.5 h-3.5" />Guest spot in {artist.guestSpot.city}</Badge>
+        <div className="absolute bottom-2 left-2 right-2" title={`Guest spot in ${artist.guestSpot.city}`}>
+          <Badge tone="none" className="bg-sky-700 text-white max-w-full"><CalendarIcon className="w-3.5 h-3.5" /><span className="truncate">Guest spot in {artist.guestSpot.city}</span></Badge>
         </div>
       )}
     </div>
     <div className="p-4">
-      <h3 className="font-bold text-lg group-hover:text-brand-primary transition-colors flex items-center gap-1.5">
+      <h3 className="font-bold text-lg group-hover:text-brand-primary transition-colors">
         {artist.name}
-        {artist.isPro && <SparklesIcon className="w-4 h-4 text-brand-secondary" title="Pro artist" />}
+        {artist.isPro && <SparklesIcon className="inline w-4 h-4 ml-1.5 align-[-0.15em] text-brand-secondary" title="Pro artist" />}
       </h3>
       {artist.specialty && <p className="text-sm font-semibold text-brand-primary">{artist.specialty}</p>}
-      <p className="text-sm text-brand-gray flex items-center gap-1 mt-1"><LocationIcon className="w-4 h-4" />{artist.city || 'Location not set'}</p>
+      {artist.city && <p className="text-sm text-brand-gray flex items-center gap-1 mt-1"><LocationIcon className="w-4 h-4" />{artist.city}</p>}
     </div>
   </Link>
 );

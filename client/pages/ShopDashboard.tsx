@@ -350,12 +350,12 @@ export const ShopDashboardPage: React.FC = () => {
           ) : (
             <ul className="divide-y divide-gray-200 dark:divide-gray-800">
               {shop.booths.map(b => (
-                <li key={b.id} className="py-3 flex items-center justify-between gap-3">
-                  <div className="min-w-0">
+                <li key={b.id} className="py-3 flex flex-wrap items-center justify-between gap-x-3 gap-y-1">
+                  <div className="min-w-0 flex-1 basis-40">
                     <p className="font-semibold flex items-center gap-2">{b.name}{!b.active && <Badge tone="gray">Hidden</Badge>}</p>
                     {b.description && <p className="text-sm text-brand-gray truncate">{b.description}</p>}
                   </div>
-                  <div className="flex items-center gap-2">
+                  <div className="flex items-center gap-2 ml-auto">
                     <span className="font-bold whitespace-nowrap">{dollars(b.dailyRate)}<span className="text-sm font-normal text-brand-gray">/day</span></span>
                     <button onClick={() => setBoothModal(b)} className="p-2 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-800" aria-label="Edit booth"><EditIcon className="w-5 h-5" /></button>
                     <button onClick={() => deleteBooth(b)} className="p-2 rounded-lg text-red-600 dark:text-red-400 hover:bg-red-500/10" aria-label="Delete booth"><TrashIcon className="w-5 h-5" /></button>

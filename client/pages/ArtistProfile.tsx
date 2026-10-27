@@ -102,12 +102,12 @@ export const ArtistProfilePage: React.FC<{ id: string }> = ({ id }) => {
             <div className="flex items-center gap-4">
               <Avatar name={artist.name} url={artist.avatarUrl} size="lg" />
               <div className="min-w-0">
-                <h1 className="text-2xl font-extrabold flex items-center gap-2">
+                <h1 className="text-2xl font-extrabold">
                   {artist.name}
-                  {artist.isVerified && <CheckBadgeIcon className="w-6 h-6 text-brand-secondary" title="Verified artist" />}
+                  {artist.isVerified && <CheckBadgeIcon className="inline w-6 h-6 ml-1.5 align-[-0.25em] text-brand-secondary" title="Verified artist" />}
                 </h1>
                 {artist.specialty && <p className="font-semibold text-brand-primary">{artist.specialty}</p>}
-                <p className="text-sm text-brand-gray flex items-center gap-1"><LocationIcon className="w-4 h-4" />{artist.city}</p>
+                {artist.city && <p className="text-sm text-brand-gray flex items-center gap-1"><LocationIcon className="w-4 h-4" />{artist.city}</p>}
               </div>
             </div>
             <div className="flex flex-wrap items-center gap-2 mt-4">

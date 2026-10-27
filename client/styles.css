@@ -47,6 +47,15 @@ button, [role='button'], [role='tab'] { -webkit-user-select: none; user-select: 
   input:not([type='checkbox']):not([type='radio']):not([type='range']), textarea, select { font-size: 16px !important; }
 }
 
+/* Long data (pasted links, emails, one-word place names) wraps instead of pushing its card past the
+   screen edge. :where() keeps these at zero specificity, so a utility class on an element still wins. */
+:where(p, li, dd, dt, h1, h2, h3, h4, h5, h6, blockquote, figcaption, label, legend) { overflow-wrap: anywhere; }
+:where(td, th) :where(p, li, dd, dt, h1, h2, h3, h4, h5, h6) { overflow-wrap: break-word; } /* tables scroll instead */
+/* Grid columns can shrink below their content's longest line (truncated text otherwise widens the column). */
+:where(.grid) > * { min-width: 0; }
+/* Icons keep their size when the text beside them is long. */
+:where(svg) { flex-shrink: 0; }
+
 ::-webkit-scrollbar { width: 10px; height: 10px; }
 ::-webkit-scrollbar-track { background: transparent; }
 ::-webkit-scrollbar-thumb { background-color: #d1d5db; border-radius: 5px; border: 2px solid #f5f5f7; }

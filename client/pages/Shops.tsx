@@ -26,9 +26,9 @@ export const ShopCard: React.FC<{ shop: Shop }> = ({ shop }) => {
           )}
         </div>
         <p className="text-sm text-brand-gray flex items-center gap-1 mt-0.5"><LocationIcon className="w-4 h-4" />{shop.city}</p>
-        <div className="flex items-center justify-between mt-3">
-          <div className="flex flex-wrap gap-1">
-            {shop.amenities.slice(0, 3).map(a => <Badge key={a} tone="brand">{a}</Badge>)}
+        <div className="flex items-center justify-between gap-3 mt-3">
+          <div className="flex flex-wrap gap-1 min-w-0">
+            {shop.amenities.slice(0, 3).map(a => <Badge key={a} tone="brand" className="max-w-full"><span className="truncate" title={a}>{a}</span></Badge>)}
           </div>
           {minRate !== null && <span className="text-sm whitespace-nowrap"><strong>{dollars(minRate)}</strong><span className="text-brand-gray">/day</span></span>}
         </div>

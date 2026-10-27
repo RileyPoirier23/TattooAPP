@@ -115,7 +115,8 @@ const RevenueChart: React.FC<{ monthly: AdminStats['monthly']; currency: string 
               </span>
             ))}
           </div>
-          <table className="sr-only">
+          <div className="sr-only">
+          <table>
             <caption>Revenue by month</caption>
             <thead>
               <tr>
@@ -134,6 +135,7 @@ const RevenueChart: React.FC<{ monthly: AdminStats['monthly']; currency: string 
               ))}
             </tbody>
           </table>
+          </div>
         </>
       )}
     </Card>

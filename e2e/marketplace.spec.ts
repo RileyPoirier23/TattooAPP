@@ -173,6 +173,27 @@ test('pages work on a phone', async ({ page }) => {
   await expect(page.getByRole('heading', { name: 'FAQ' })).toBeVisible();
 });
 
+test('long names, links and place names fit on a small phone', async ({ page }) => {
+  // Realistic worst-case data: diacritics, an unbroken link in the bio and a one-word place name.
+  const longCity = 'Llanfairpwllgwyngyllgogerychwyrndrobwllllantysiliogogogoch, Wales';
+  const api = (method: string, url: string, data: object) =>
+    page.request.fetch(url, { method, data, headers: { 'x-requested-with': 'inkspace' } });
+  const reg = await api('POST', '/api/auth/register', {
+    name: 'Aleksandra Wiśniewska-Kowalczyk', email: `long-${stamp}@example.com`, password: 'password123', role: 'artist', city: longCity, acceptTerms: true,
+  });
+  expect(reg.ok()).toBe(true);
+  const { user } = await reg.json();
+  const patch = await api('PATCH', '/api/me', {
+    specialty: 'Fine line, micro-realism & single-needle botanicals',
+    bio: 'Booking through https://www.instagram.com/aleksandra.wisniewska.kowalczyk.tattoo.studio/ or here.',
+  });
+  expect(patch.ok()).toBe(true);
+  await page.setViewportSize({ width: 320, height: 640 });
+  await page.goto(`/artists/${user.id}`);
+  await expect(page.getByRole('heading', { name: /Aleksandra/ })).toBeVisible();
+  expect(await page.evaluate(() => document.documentElement.scrollWidth)).toBeLessThanOrEqual(320);
+});
+
 test('visitors can contact the owner, who answers from the admin inbox', async ({ page }) => {
   await page.goto('/');
   await page.getByRole('link', { name: 'Contact us' }).click();

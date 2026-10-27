@@ -191,7 +191,7 @@ export const ShopProfilePage: React.FC<{ id: string }> = ({ id }) => {
           {shop.amenities.length > 0 && (
             <Card>
               <h2 className="font-bold text-lg mb-3">Amenities</h2>
-              <div className="flex flex-wrap gap-2">{shop.amenities.map(a => <Badge key={a} tone="brand">{a}</Badge>)}</div>
+              <div className="flex flex-wrap gap-2">{shop.amenities.map(a => <Badge key={a} tone="brand" className="!whitespace-normal">{a}</Badge>)}</div>
             </Card>
           )}
           {!isOwner && features.messaging && (

@@ -62,7 +62,7 @@ const Thread: React.FC<{ convo: Conversation; onSent: () => void }> = ({ convo, 
         </div>
         <button onClick={() => setReporting(true)} className="text-xs text-brand-gray hover:text-red-500">Report</button>
       </header>
-      <div className="flex-1 overflow-y-auto overscroll-contain p-4 space-y-3">
+      <div className="flex-1 overflow-y-auto overscroll-contain p-4 space-y-3" tabIndex={0} role="log" aria-label="Messages">
         {error && <ErrorBox message={error} onRetry={reload} />}
         {loading && !messages && <div className="flex justify-center py-10"><Spinner /></div>}
         {messages?.length === 0 && <p className="text-center text-sm text-brand-gray py-10">Say hi 👋</p>}

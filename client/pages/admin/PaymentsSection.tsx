@@ -123,7 +123,7 @@ export const PaymentsSection: React.FC = () => {
 
           return (
             <>
-              <div className="grid grid-cols-2 xl:grid-cols-4 gap-3 sm:gap-4 mb-6">
+              <div className="grid min-[400px]:grid-cols-2 xl:grid-cols-4 gap-3 sm:gap-4 mb-6">
                 {totals.map(t => (
                   <div
                     key={t.label}
@@ -134,7 +134,7 @@ export const PaymentsSection: React.FC = () => {
                     }
                   >
                     <p className="text-xs sm:text-sm font-medium text-brand-gray">{t.label}</p>
-                    <p className="mt-1 text-xl sm:text-2xl font-extrabold text-brand-dark dark:text-white">{t.value}</p>
+                    <p className="mt-1 text-xl sm:text-2xl font-extrabold tabular-nums text-brand-dark dark:text-white">{t.value}</p>
                     <p className="text-xs text-brand-gray mt-0.5">{t.hint}</p>
                   </div>
                 ))}

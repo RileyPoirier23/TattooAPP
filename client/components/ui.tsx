@@ -369,7 +369,7 @@ export const StarRating: React.FC<{ value: number; onChange?: (v: number) => voi
         ))}
       </div>
       {showValue && value > 0 && <span className="text-sm font-semibold text-brand-dark dark:text-white">{value.toFixed(1)}</span>}
-      {count !== undefined && <span className="text-sm text-brand-gray">({count})</span>}
+      {count !== undefined && <span className="text-sm text-brand-gray">({count.toLocaleString()})</span>}
     </div>
   );
 };
@@ -377,7 +377,7 @@ export const StarRating: React.FC<{ value: number; onChange?: (v: number) => voi
 export const Avatar: React.FC<{ name: string; url?: string | null; size?: 'sm' | 'md' | 'lg' | 'xl' }> = ({ name, url, size = 'md' }) => {
   const s = { sm: 'w-8 h-8 text-xs', md: 'w-10 h-10 text-sm', lg: 'w-16 h-16 text-xl', xl: 'w-24 h-24 text-3xl' }[size];
   if (url) return <img src={url} alt={name} className={cx(s, 'rounded-full object-cover flex-shrink-0 bg-gray-200 dark:bg-gray-800')} />;
-  const initials = name.split(/\s+/).filter(Boolean).slice(0, 2).map(w => w[0]?.toUpperCase()).join('');
+  const initials = name.split(/\s+/).filter(w => /^[\p{L}\p{N}]/u.test(w)).slice(0, 2).map(w => [...w][0].toUpperCase()).join('');
   return (
     <span className={cx(s, 'rounded-full flex-shrink-0 flex items-center justify-center font-bold text-on-gradient bg-gradient-to-br from-brand-solid to-brand-secondary-solid')}>
       {initials || '?'}
@@ -392,7 +392,7 @@ export const Cover: React.FC<{ url?: string | null; alt: string; className?: str
   ) : (
     <div className={cx('bg-gradient-to-br from-brand-primary/40 via-brand-secondary/30 to-gray-900/50 flex items-center justify-center', className)}>
       <span className="text-5xl font-black tracking-tight text-white/80">
-        {alt.split(/[\s&]+/).filter(w => /^[\p{L}\p{N}]/u.test(w)).slice(0, 2).map(w => w[0].toUpperCase()).join('') || '•'}
+        {alt.split(/[\s&]+/).filter(w => /^[\p{L}\p{N}]/u.test(w)).slice(0, 2).map(w => [...w][0].toUpperCase()).join('') || '•'}
       </span>
     </div>
   );
