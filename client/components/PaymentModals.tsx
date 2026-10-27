@@ -24,7 +24,7 @@ export const PayDepositModal: React.FC<{ request: BookingRequest; token?: string
         buttonLabel={`Pay ${money(total)}`}
         onToken={async (sourceId, idempotencyKey) => {
           await api.post(`/booking-requests/${request.id}/pay`, { sourceId, idempotencyKey, token });
-          toast(`Deposit paid — you're booked!${useStore.getState().config?.emailReady ? ' A receipt is on its way to your email.' : ''}`);
+          toast(`Deposit paid. You're booked.${useStore.getState().config?.emailReady ? ' A receipt is on its way to your email.' : ''}`);
           onPaid();
         }}
       />
@@ -48,7 +48,7 @@ export const PayBoothModal: React.FC<{ booking: BoothBooking; onClose: () => voi
         buttonLabel={`Pay ${money(booking.totalCents)}`}
         onToken={async (sourceId, idempotencyKey) => {
           await api.post(`/booth-bookings/${booking.id}/pay`, { sourceId, idempotencyKey });
-          toast('Booth paid — your guest spot is confirmed!');
+          toast('Booth paid. Your guest spot is confirmed.');
           onPaid();
         }}
       />

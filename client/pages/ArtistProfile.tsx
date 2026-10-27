@@ -9,7 +9,7 @@ import { ReportModal } from '../components/ReportModal';
 import { Avatar, Badge, Button, Card, EmptyState, ErrorBox, PageLoader, StarRating, useApi } from '../components/ui';
 import {
   ArrowLeftIcon, ArrowRightIcon, CalendarIcon, ChatIcon, CheckBadgeIcon, FacebookIcon, FlagIcon, GlobeIcon, InstagramIcon,
-  LocationIcon, SparklesIcon, TikTokIcon, XIcon,
+  LocationIcon, TikTokIcon, XIcon,
 } from '../components/Icons';
 import type { ArtistDetail } from '../../shared/types';
 
@@ -102,7 +102,7 @@ export const ArtistProfilePage: React.FC<{ id: string }> = ({ id }) => {
             <div className="flex items-center gap-4">
               <Avatar name={artist.name} url={artist.avatarUrl} size="lg" />
               <div className="min-w-0">
-                <h1 className="text-2xl font-extrabold">
+                <h1 className="text-2xl font-display">
                   {artist.name}
                   {artist.isVerified && <CheckBadgeIcon className="inline w-6 h-6 ml-1.5 align-[-0.25em] text-brand-secondary" title="Verified artist" />}
                 </h1>
@@ -112,11 +112,11 @@ export const ArtistProfilePage: React.FC<{ id: string }> = ({ id }) => {
             </div>
             <div className="flex flex-wrap items-center gap-2 mt-4">
               {artist.reviewCount > 0 ? <StarRating value={artist.averageRating} showValue count={artist.reviewCount} /> : <span className="text-sm text-brand-gray">No reviews yet</span>}
-              {artist.isPro && <Badge tone="purple"><SparklesIcon className="w-3.5 h-3.5" />Pro</Badge>}
+              {artist.isPro && <Badge tone="brand">Pro artist</Badge>}
             </div>
             {artist.guestSpot && (
-              <div className="mt-4 rounded-xl bg-sky-500/10 border border-sky-500/30 p-3 text-sm">
-                <p className="font-semibold text-sky-700 dark:text-sky-300 flex items-center gap-1.5"><CalendarIcon className="w-4 h-4" /> Guest spot in {artist.guestSpot.city}</p>
+              <div className="mt-4 rounded-lg border border-gray-200 dark:border-gray-800 p-3 text-sm">
+                <p className="font-semibold flex items-center gap-1.5"><CalendarIcon className="w-4 h-4 text-brand-primary" /> Guest spot in {artist.guestSpot.city}</p>
                 <p className="text-brand-gray">
                   At <Link className="underline" to={`/shops/${artist.guestSpot.shopId}`}>{artist.guestSpot.shopName}</Link>, {formatDate(artist.guestSpot.startDate, { month: 'short', day: 'numeric' })} – {formatDate(artist.guestSpot.endDate, { month: 'short', day: 'numeric' })}
                 </p>
@@ -195,7 +195,7 @@ export const ArtistProfilePage: React.FC<{ id: string }> = ({ id }) => {
               <div className="grid grid-cols-2 md:grid-cols-3 gap-3">
                 {artist.portfolio.map((img, i) => (
                   <button key={img.url} onClick={() => setLightbox(i)} className="relative aspect-square overflow-hidden rounded-xl group bg-gray-200 dark:bg-gray-800">
-                    <img src={img.url} alt={img.caption || `Tattoo by ${artist.name}`} loading="lazy" className="w-full h-full object-cover motion-safe:group-hover:scale-105 transition-transform duration-300 ease-out-strong" />
+                    <img src={img.url} alt={img.caption || `Tattoo by ${artist.name}`} loading="lazy" className="w-full h-full object-cover" />
                   </button>
                 ))}
               </div>

@@ -105,6 +105,8 @@ export function createApp() {
   app.use('/assets', (_req, res) => {
     res.status(404).type('text/plain').send('Not found');
   });
+  // Font files never change under the same name.
+  app.use('/fonts', express.static(path.join(config.publicDir, 'fonts'), { maxAge: '1y', immutable: true }));
   app.use(express.static(config.publicDir, { index: false, maxAge: '1h' }));
 
   // Every other path renders the single-page app (the client-side router takes over).
@@ -158,7 +160,7 @@ function pageMeta(urlPath: string): { title: string; description: string; image:
       if (u) {
         const photo = parseJson<{ url: string }[]>(u.portfolio, [])[0]?.url || u.avatar_url || base.image;
         return {
-          title: `${u.name}${u.specialty ? ` — ${u.specialty}` : ''} tattoo artist${u.city ? ` in ${u.city}` : ''} | ${s.siteName}`,
+          title: `${u.name}${u.specialty ? `, ${u.specialty}` : ''} tattoo artist${u.city ? ` in ${u.city}` : ''} | ${s.siteName}`,
           description: (u.bio || `Book ${u.name} on ${s.siteName}.`).slice(0, 200),
           image: photo,
         };
@@ -169,7 +171,7 @@ function pageMeta(urlPath: string): { title: string; description: string; image:
       const r = getDb().prepare('select name, city, description, image_url from shops where id = ?').get(shop[1]) as any;
       if (r) {
         return {
-          title: `${r.name}${r.city ? `, ${r.city}` : ''} — guest spots | ${s.siteName}`,
+          title: `${r.name}${r.city ? `, ${r.city}` : ''}: guest spots | ${s.siteName}`,
           description: (r.description || `Rent a booth at ${r.name}.`).slice(0, 200),
           image: r.image_url || base.image,
         };

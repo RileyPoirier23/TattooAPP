@@ -25,7 +25,7 @@ export const ResetPasswordPage: React.FC = () => {
     try {
       const { user } = await api.post<{ user: Me }>('/auth/reset', { token, password });
       setUser(user);
-      toast('Password updated — you are now logged in.');
+      toast('Password updated. You are now logged in.');
       navigate(user.role === 'admin' ? '/admin' : '/');
     } catch (err) {
       setError(errorMessage(err));
@@ -36,7 +36,7 @@ export const ResetPasswordPage: React.FC = () => {
 
   return (
     <Card className="max-w-md mx-auto mt-6">
-      <h1 className="text-2xl font-extrabold mb-1">Choose a new password</h1>
+      <h1 className="text-2xl font-display mb-1">Choose a new password</h1>
       <p className="text-sm text-brand-gray mb-6">Pick something at least 8 characters long.</p>
       {!token ? (
         <p className="text-sm">This link is missing its code. <button className="text-brand-primary" onClick={() => openAuth('login')}>Request a new reset email</button>.</p>

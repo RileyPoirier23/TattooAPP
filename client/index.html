@@ -3,7 +3,7 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, interactive-widget=resizes-content" />
-    <meta name="theme-color" content="#101014" />
+    <meta name="theme-color" content="#14120F" />
     <title>%PAGE_TITLE%</title>
     <meta name="description" content="%PAGE_DESCRIPTION%" />
     <meta property="og:site_name" content="%SITE_NAME%" />
@@ -15,9 +15,8 @@
     <meta property="og:image" content="%OG_IMAGE%" />
     <meta name="twitter:card" content="summary_large_image" />
     <link rel="icon" href="%FAVICON%" />
-    <link rel="preconnect" href="https://fonts.googleapis.com" />
-    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
-    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&display=swap" rel="stylesheet" />
+    <link rel="preload" href="/fonts/ibm-plex-sans-latin-400-normal.woff2" as="font" type="font/woff2" crossorigin />
+    <link rel="preload" href="/fonts/young-serif-latin-400-normal.woff2" as="font" type="font/woff2" crossorigin />
     <script>
       // Apply the visitor's saved theme before first paint to avoid a flash.
       try {
@@ -25,7 +24,7 @@
         if (t === 'light') document.documentElement.classList.remove('dark');
         if (t === 'dark') document.documentElement.classList.add('dark');
         // Phone status bar / browser chrome matches the page.
-        document.querySelector('meta[name="theme-color"]').content = document.documentElement.classList.contains('dark') ? '#101014' : '#F5F5F7';
+        document.querySelector('meta[name="theme-color"]').content = document.documentElement.classList.contains('dark') ? '#14120F' : '#F2EEE6';
       } catch (e) {}
     </script>
     <link rel="stylesheet" href="/assets/app.css?v=%BUILD%" />

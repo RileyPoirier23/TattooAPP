@@ -13,7 +13,7 @@ import { ProPlanCard } from '../components/ProPlan';
 import {
   Avatar, Badge, Button, Card, EmptyState, ErrorBox, Input, Notice, PageHeader, PageLoader, Select, Tabs, Textarea, Toggle, cx, useApi,
 } from '../components/ui';
-import { CalendarIcon, CashIcon, CheckBadgeIcon, CogIcon, InboxStackIcon, PhotoIcon, PlusIcon, SparklesIcon, TrashIcon, UserCircleIcon, ArrowLeftIcon, ArrowRightIcon } from '../components/Icons';
+import { CalendarIcon, CashIcon, CheckBadgeIcon, CogIcon, CreditCardIcon, InboxStackIcon, PhotoIcon, PlusIcon, TrashIcon, UserCircleIcon, ArrowLeftIcon, ArrowRightIcon } from '../components/Icons';
 import type { ArtistService, Me, MyBookings, TimeSlot, WeeklyHours } from '../../shared/types';
 
 const TABS = [
@@ -23,7 +23,7 @@ const TABS = [
   { id: 'hours', label: 'Hours & days off', Icon: CalendarIcon },
   { id: 'settings', label: 'Booking settings', Icon: CogIcon },
   { id: 'earnings', label: 'Earnings & payouts', Icon: CashIcon },
-  { id: 'plan', label: 'Pro plan', Icon: SparklesIcon },
+  { id: 'plan', label: 'Pro plan', Icon: CreditCardIcon },
 ] as const;
 
 function useSave() {
@@ -152,7 +152,7 @@ const ProfileTab: React.FC<{ me: Me }> = ({ me }) => {
     try {
       const { user } = await api.post<{ user: Me }>('/me/verification');
       setUser(user);
-      toast("Verification requested — we'll let you know once it's reviewed.");
+      toast("Verification requested. We'll let you know once it's reviewed.");
     } catch (err) {
       toast(errorMessage(err), 'error');
     } finally {
@@ -243,7 +243,7 @@ const ProfileTab: React.FC<{ me: Me }> = ({ me }) => {
               multiple
               className="sr-only"
               onChange={e => {
-                if ((e.target.files?.length || 0) > 6) toast('You can upload up to 6 photos at a time — please pick fewer.', 'error');
+                if ((e.target.files?.length || 0) > 6) toast('You can upload up to 6 photos at a time. Please pick fewer.', 'error');
                 else upload('/me/portfolio', e.target.files, 'images');
                 e.target.value = '';
               }}
@@ -252,14 +252,14 @@ const ProfileTab: React.FC<{ me: Me }> = ({ me }) => {
         </div>
         {me.portfolio.length === 0 ? (
           <EmptyState icon={<PhotoIcon />} title="No photos yet">
-            Upload your best work — clients book artists whose portfolios they love. Your profile appears in the artist search once it has at least one photo.
+            Upload your best work. Clients book artists whose portfolios they love. Your profile appears in the artist search once it has at least one photo.
           </EmptyState>
         ) : (
           <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-3">
             {me.portfolio.map((img, i) => (
               <div key={img.url} className="relative group aspect-square rounded-xl overflow-hidden bg-gray-200 dark:bg-gray-800">
                 <img src={img.url} alt="" className="w-full h-full object-cover" />
-                {i === 0 && <Badge tone="none" className="absolute top-2 left-2 bg-black/60 text-white">Cover</Badge>}
+                {i === 0 && <Badge tone="none" className="absolute top-2 left-2 bg-black/75 text-white">Cover</Badge>}
                 <div className="absolute inset-x-0 bottom-0 p-2 flex justify-between bg-gradient-to-t from-black/70 opacity-100 sm:opacity-0 group-hover:opacity-100 transition">
                   <div className="flex gap-1">
                     <button onClick={() => move(i, -1)} disabled={i === 0} className="p-1.5 rounded bg-white/20 text-white disabled:opacity-30" aria-label="Move left"><ArrowLeftIcon className="w-4 h-4" /></button>
@@ -332,7 +332,7 @@ const ServicesTab: React.FC<{ me: Me }> = ({ me }) => {
         {settings.depositFeePercent > 0 &&
           (me.subscription.isPro
             ? " Your clients don't pay the booking fee because you're on Pro."
-            : ` Clients also pay a ${settings.depositFeePercent}% booking fee on top of the deposit${settings.features.proPlan ? ' — go Pro to remove it for them' : ''}.`)}
+            : ` Clients also pay a ${settings.depositFeePercent}% booking fee on top of the deposit${settings.features.proPlan ? ' (go Pro to remove it for them)' : ''}.`)}
       </p>
       {items.length === 0 && <EmptyState title="No services yet">Add at least one service (e.g. "Small tattoo", "Half-day session").</EmptyState>}
       <div className="space-y-4">

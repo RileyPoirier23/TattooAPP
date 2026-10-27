@@ -16,7 +16,7 @@ export class SquareError extends HttpError {
 }
 
 const UNCONFIRMED_PAYMENT =
-  "We couldn't confirm whether your payment went through. Please check your bookings or email for a receipt — if you try again, you won't be charged twice.";
+  "We couldn't confirm whether your payment went through. Please check your bookings or email for a receipt. If you try again, you won't be charged twice.";
 
 export function paymentsReady(): boolean {
   const s = getSettings();

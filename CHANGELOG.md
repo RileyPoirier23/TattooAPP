@@ -31,6 +31,14 @@
 - Content-Security-Policy header; admin-entered links must be web links.
 - Sign-ups and bookings record when the terms were accepted.
 
+### New look
+- A design that looks like a tattoo studio, not a template: warm paper and ink colors instead of stark white and cool gray, one tattoo-red accent instead of pink-to-purple gradients, a serif face for headlines (Young Serif) with IBM Plex Sans for text, tighter corners, borders instead of drop shadows, and a solid header instead of frosted glass.
+- Home page: the headline sits beside real work from the site's artists (linking to their profiles) instead of glowing color blobs; a plain two-column explanation replaces the row of icon cards; a solid panel replaces the gradient sign-up band.
+- Quieter details: status labels are neutral with a small colored dot instead of pastel pills, photo labels share one dark style, Pro is a text label instead of a sparkle icon, the Pro plan lists its perks without checkmarks, cards no longer lift or zoom on hover, and artist and shop lists show placeholder cards while loading instead of a spinner.
+- Copy: no emoji in messages and notifications, and em dashes replaced with plain punctuation throughout the site, emails and the starter policy pages.
+- Fonts are served by the site itself (no Google Fonts request); the starter Privacy Policy says so.
+- Sites still using the original pink/purple colors, dark theme and "Find Your Space." headline switch to the new defaults automatically, and starter pages nobody edited get the updated text. Anything an owner customized is kept. Admin → Customize has new color presets.
+
 ### Polish
 - The booking fee is shown before booking and in every "pay your deposit" message; artists are told about it.
 - Clients can switch on artist features from Settings ("Become an artist").

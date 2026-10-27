@@ -4,35 +4,46 @@ import { Link, navigate, useLocation } from '../router';
 import { useStore } from '../store';
 import { cityFromCoords } from '../lib/maps';
 import { formatDate } from '../lib/format';
-import { Badge, Button, Card, Cover, EmptyState, ErrorBox, PageHeader, PageLoader, Select, Toggle, inputClass, useApi } from '../components/ui';
-import { CalendarIcon, CheckBadgeIcon, CrosshairsIcon, LocationIcon, SearchIcon, SparklesIcon, StarIcon } from '../components/Icons';
+import { Badge, Button, Card, Cover, EmptyState, ErrorBox, PageHeader, Select, Skeleton, SkeletonGrid, Toggle, inputClass, useApi } from '../components/ui';
+import { CalendarIcon, CheckBadgeIcon, CrosshairsIcon, LocationIcon, SearchIcon, StarIcon } from '../components/Icons';
 import type { PublicArtist } from '../../shared/types';
 
 export const ArtistCard: React.FC<{ artist: PublicArtist }> = ({ artist }) => (
-  <Link to={`/artists/${artist.id}`} className="group block rounded-2xl overflow-hidden bg-white dark:bg-gray-900/60 border border-gray-200 dark:border-gray-800 hover:border-brand-primary/50 motion-safe:hover:-translate-y-1 transition duration-200 ease-out-strong">
+  <Link to={`/artists/${artist.id}`} className="group block rounded-2xl overflow-hidden bg-white dark:bg-gray-900/60 border border-gray-200 dark:border-gray-800 hover:border-gray-400 dark:hover:border-gray-600 transition-colors">
     <div className="relative">
       <Cover url={artist.portfolio[0]?.url || artist.avatarUrl} alt={artist.name} className="w-full h-60" />
       <div className="absolute top-2 left-2 right-2 flex justify-between gap-2">
         {artist.averageRating > 0 ? (
-          <Badge tone="none" className="bg-black/60 text-white backdrop-blur"><StarIcon className="w-3.5 h-3.5 text-amber-400" />{artist.averageRating.toFixed(1)}</Badge>
+          <Badge tone="none" className="bg-black/75 text-white"><StarIcon className="w-3.5 h-3.5 text-amber-400" />{artist.averageRating.toFixed(1)}</Badge>
         ) : <span />}
-        {artist.isVerified && <Badge tone="none" className="bg-brand-secondary-solid text-on-secondary"><CheckBadgeIcon className="w-3.5 h-3.5" />Verified</Badge>}
+        {artist.isVerified && <Badge tone="none" className="bg-black/75 text-white"><CheckBadgeIcon className="w-3.5 h-3.5" />Verified</Badge>}
       </div>
       {artist.guestSpot && (
         <div className="absolute bottom-2 left-2 right-2" title={`Guest spot in ${artist.guestSpot.city}`}>
-          <Badge tone="none" className="bg-sky-700 text-white max-w-full"><CalendarIcon className="w-3.5 h-3.5" /><span className="truncate">Guest spot in {artist.guestSpot.city}</span></Badge>
+          <Badge tone="none" className="bg-black/75 text-white max-w-full"><CalendarIcon className="w-3.5 h-3.5" /><span className="truncate">Guest spot in {artist.guestSpot.city}</span></Badge>
         </div>
       )}
     </div>
     <div className="p-4">
-      <h3 className="font-bold text-lg group-hover:text-brand-primary transition-colors">
+      <h3 className="font-semibold text-lg group-hover:underline underline-offset-4 decoration-1">
         {artist.name}
-        {artist.isPro && <SparklesIcon className="inline w-4 h-4 ml-1.5 align-[-0.15em] text-brand-secondary" title="Pro artist" />}
+        {artist.isPro && <span className="ml-2 align-[0.15em] text-[10px] font-semibold uppercase tracking-wider text-brand-gray" title="Pro artist">Pro</span>}
       </h3>
       {artist.specialty && <p className="text-sm font-semibold text-brand-primary">{artist.specialty}</p>}
       {artist.city && <p className="text-sm text-brand-gray flex items-center gap-1 mt-1"><LocationIcon className="w-4 h-4" />{artist.city}</p>}
     </div>
   </Link>
+);
+
+export const ArtistCardSkeleton: React.FC = () => (
+  <div className="rounded-2xl overflow-hidden border border-gray-200 dark:border-gray-800 bg-white dark:bg-gray-900/60">
+    <Skeleton className="h-60 rounded-none" />
+    <div className="p-4 space-y-2">
+      <Skeleton className="h-5 w-2/3" />
+      <Skeleton className="h-4 w-1/3" />
+      <Skeleton className="h-4 w-1/2" />
+    </div>
+  </div>
 );
 
 export const ArtistsPage: React.FC = () => {
@@ -67,9 +78,9 @@ export const ArtistsPage: React.FC = () => {
         try {
           const found = await cityFromCoords(settings.googleMapsApiKey, pos.coords.latitude, pos.coords.longitude);
           if (found) setCity(found);
-          else toast("Couldn't work out your city — type it instead.", 'error');
+          else toast("Couldn't work out your city. Type it instead.", 'error');
         } catch {
-          toast("Couldn't work out your city — type it instead.", 'error');
+          toast("Couldn't work out your city. Type it instead.", 'error');
         } finally {
           setLocating(false);
         }
@@ -141,10 +152,10 @@ export const ArtistsPage: React.FC = () => {
       )}
 
       {error && <ErrorBox message={error} onRetry={reload} />}
-      {loading && !data && <PageLoader />}
+      {loading && !data && <SkeletonGrid count={8} className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6"><ArtistCardSkeleton /></SkeletonGrid>}
       {data && filtered.length === 0 && (
         <EmptyState icon={<SearchIcon />} title={data.length === 0 ? 'No artists yet' : 'No artists match your search'}>
-          {data.length === 0 ? 'Check back soon — new artists are joining.' : <button className="text-brand-primary" onClick={clear}>Clear filters</button>}
+          {data.length === 0 ? 'Check back soon. New artists are joining.' : <button className="text-brand-primary" onClick={clear}>Clear filters</button>}
         </EmptyState>
       )}
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">

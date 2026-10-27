@@ -5,7 +5,6 @@ import { useStore } from '../store';
 import { dollars, formatDate } from '../lib/format';
 import { SquareCardForm } from './SquareCardForm';
 import { Badge, Button, Card, Modal } from './ui';
-import { CheckIcon, SparklesIcon } from './Icons';
 import type { Me } from '../../shared/types';
 
 export const ProPlanCard: React.FC<{ me: Me }> = ({ me }) => {
@@ -40,19 +39,15 @@ export const ProPlanCard: React.FC<{ me: Me }> = ({ me }) => {
   const offered = settings.features.proPlan;
 
   return (
-    <Card className="relative overflow-hidden">
-      <div className="absolute -top-24 -right-24 w-64 h-64 rounded-full bg-brand-secondary/20 blur-3xl pointer-events-none" />
-      <div className="relative">
+    <Card>
+      <div>
         <div className="flex items-center gap-3 mb-2">
-          <SparklesIcon className="w-8 h-8 text-brand-secondary" />
-          <h2 className="text-2xl font-extrabold">{settings.siteName} Pro</h2>
-          {sub.isPro && <Badge tone="purple">Active</Badge>}
+          <h2 className="text-2xl font-display">{settings.siteName} Pro</h2>
+          {sub.isPro && <Badge tone="green">Active</Badge>}
         </div>
-        <p className="text-3xl font-black">{price}<span className="text-base font-medium text-brand-gray">/month</span></p>
-        <ul className="mt-4 space-y-2">
-          {perks.map(p => (
-            <li key={p} className="flex items-center gap-2 text-sm"><CheckIcon className="w-5 h-5 text-emerald-500" />{p}</li>
-          ))}
+        <p className="text-3xl font-semibold tabular-nums">{price}<span className="text-base font-normal text-brand-gray"> a month</span></p>
+        <ul className="mt-4 max-w-md divide-y divide-gray-200 dark:divide-gray-800 border-y border-gray-200 dark:border-gray-800 text-sm">
+          {perks.map(p => <li key={p} className="py-2">{p}</li>)}
         </ul>
 
         <div className="mt-6 space-y-3">
@@ -80,7 +75,7 @@ export const ProPlanCard: React.FC<{ me: Me }> = ({ me }) => {
               </div>
             </>
           ) : offered ? (
-            <Button size="lg" onClick={() => setCardModal('subscribe')}><SparklesIcon className="w-5 h-5" /> Upgrade for {price}/month</Button>
+            <Button size="lg" onClick={() => setCardModal('subscribe')}>Upgrade for {price} a month</Button>
           ) : (
             <p className="text-sm text-brand-gray">The Pro plan isn&apos;t available right now.</p>
           )}
@@ -93,7 +88,7 @@ export const ProPlanCard: React.FC<{ me: Me }> = ({ me }) => {
         </div>
       </div>
       {cardModal && (
-        <Modal title={cardModal === 'subscribe' ? `Upgrade to Pro — ${price}/month` : cardModal === 'resume' ? 'Resume your Pro plan' : 'Update your card'} onClose={() => setCardModal(null)} size="md">
+        <Modal title={cardModal === 'subscribe' ? `Upgrade to Pro (${price} a month)` : cardModal === 'resume' ? 'Resume your Pro plan' : 'Update your card'} onClose={() => setCardModal(null)} size="md">
           <SquareCardForm
             buttonLabel={cardModal === 'subscribe' ? `Pay ${price} & upgrade` : cardModal === 'resume' ? 'Save card & resume' : 'Save card'}
             note={cardModal === 'subscribe' ? `You'll be charged ${price} today and every month until you cancel. Card payments are processed by Square.` : undefined}
@@ -101,7 +96,7 @@ export const ProPlanCard: React.FC<{ me: Me }> = ({ me }) => {
               // Updating the card never changes whether the plan renews; resuming does.
               const { user } = await api.post<{ user: Me }>(cardModal === 'update' ? '/me/card' : '/me/subscription', { sourceId, idempotencyKey });
               setUser(user);
-              toast(cardModal === 'subscribe' ? "You're on Pro! 🎉" : cardModal === 'resume' ? 'Your plan will renew again.' : 'Card updated.');
+              toast(cardModal === 'subscribe' ? "You're on Pro." : cardModal === 'resume' ? 'Your plan will renew again.' : 'Card updated.');
               setCardModal(null);
             }}
           />

@@ -1,13 +1,30 @@
-// Landing page: admin-editable hero + about, featured artists and shops.
+// Landing page: admin-editable hero + about, real work from the site's artists, featured artists and shops.
 import React from 'react';
 import { Link, navigate } from '../router';
 import { useStore } from '../store';
 import { Markdown } from '../lib/markdown';
-import { Button, Card, useApi } from '../components/ui';
-import { ArrowRightIcon, CalendarIcon, CashIcon, ChatIcon, StoreIcon } from '../components/Icons';
-import { ArtistCard } from './Artists';
+import { Button, useApi } from '../components/ui';
+import { ArtistCard, ArtistCardSkeleton } from './Artists';
 import { ShopCard } from './Shops';
 import type { PublicArtist, Shop } from '../../shared/types';
+
+/** Three recent pieces from different artists, linking to their profiles. Shown beside the headline. */
+const WorkPreview: React.FC<{ artists: PublicArtist[] }> = ({ artists }) => {
+  const picks = artists.filter(a => a.portfolio.length > 0).slice(0, 3);
+  if (picks.length < 3) return null;
+  return (
+    <div className="grid grid-cols-2 grid-rows-2 gap-3 h-[26rem]" aria-label="Recent work">
+      {picks.map((a, i) => (
+        <Link key={a.id} to={`/artists/${a.id}`} className={`group relative overflow-hidden rounded-lg bg-gray-200 dark:bg-gray-800 ${i === 0 ? 'row-span-2' : ''}`}>
+          <img src={a.portfolio[0].url} alt={a.portfolio[0].caption || `Tattoo by ${a.name}`} className="w-full h-full object-cover" />
+          <span className="absolute left-2 bottom-2 max-w-[calc(100%-1rem)] truncate rounded bg-black/75 px-2 py-1 text-xs text-white">
+            {a.name}{a.specialty ? ` · ${a.specialty}` : ''}
+          </span>
+        </Link>
+      ))}
+    </div>
+  );
+};
 
 export const HomePage: React.FC = () => {
   const s = useStore(st => st.config!.settings);
@@ -15,81 +32,79 @@ export const HomePage: React.FC = () => {
   const openAuth = useStore(st => st.openAuth);
   const artists = useApi<PublicArtist[]>(s.features.clientBooking ? '/artists' : null);
   const shops = useApi<Shop[]>(s.features.boothRental ? '/shops' : null);
+  const onPhoto = !!s.heroImageUrl;
+  const preview = !onPhoto && artists.data ? <WorkPreview artists={artists.data} /> : null;
 
   return (
     <div>
-      <section className="relative overflow-hidden">
-        {s.heroImageUrl && (
+      <section className={`relative ${onPhoto ? 'text-white' : ''}`}>
+        {onPhoto && (
           <>
             <img src={s.heroImageUrl} alt="" className="absolute inset-0 w-full h-full object-cover" />
-            <div className="absolute inset-0 bg-gradient-to-b from-black/70 via-black/60 to-brand-light dark:to-brand-dark" />
+            <div className="absolute inset-0 bg-black/60" />
           </>
         )}
-        {!s.heroImageUrl && (
-          <div className="absolute inset-0 pointer-events-none">
-            <div className="absolute -top-40 -left-32 w-[32rem] h-[32rem] rounded-full bg-brand-primary/20 blur-3xl" />
-            <div className="absolute -bottom-40 -right-32 w-[32rem] h-[32rem] rounded-full bg-brand-secondary/20 blur-3xl" />
+        <div className={`relative container mx-auto px-4 ${onPhoto ? 'py-24 md:py-32' : 'py-12 md:py-20'} grid gap-10 lg:grid-cols-[minmax(0,1fr)_minmax(0,1fr)] lg:items-center`}>
+          <div className="max-w-xl">
+            <h1 className="font-display text-4xl sm:text-5xl md:text-6xl leading-[1.05]">
+              {s.heroTitle}
+              {s.heroHighlight && <span className={`block ${onPhoto ? '' : 'text-brand-primary'}`}>{s.heroHighlight}</span>}
+            </h1>
+            {s.heroSubtitle && <p className={`mt-5 text-lg leading-relaxed ${onPhoto ? 'text-gray-200' : 'text-brand-gray'}`}>{s.heroSubtitle}</p>}
+            <div className="mt-8 flex flex-col sm:flex-row gap-3">
+              {s.features.clientBooking && (
+                <Button size="lg" onClick={() => navigate('/artists')} className="w-full sm:w-auto">Find an artist</Button>
+              )}
+              {s.features.boothRental && (
+                <Button size="lg" variant="outline" onClick={() => navigate('/shops')} className={`w-full sm:w-auto ${onPhoto ? 'text-white border-white/50 hover:bg-white/10' : ''}`}>
+                  Find a guest spot
+                </Button>
+              )}
+            </div>
           </div>
-        )}
-        <div className="relative container mx-auto px-4 py-20 md:py-32 text-center">
-          <h1 className={`text-5xl md:text-7xl font-black tracking-tighter leading-[1.05] ${s.heroImageUrl ? 'text-white' : 'text-brand-dark dark:text-white'}`}>
-            {s.heroTitle}
-            {s.heroHighlight && (
-              <>
-                <br />
-                <span className="bg-clip-text text-transparent bg-gradient-to-r from-brand-primary-text to-brand-secondary-text">{s.heroHighlight}</span>
-              </>
-            )}
-          </h1>
-          <p className={`max-w-2xl mx-auto mt-6 text-lg ${s.heroImageUrl ? 'text-gray-200' : 'text-brand-gray'}`}>{s.heroSubtitle}</p>
-          <div className="mt-10 flex flex-col sm:flex-row items-center justify-center gap-3">
-            {s.features.clientBooking && (
-              <Button size="lg" onClick={() => navigate('/artists')} className="w-full sm:w-auto group">
-                Find an artist <ArrowRightIcon className="w-5 h-5 transition-transform ease-out-strong motion-safe:group-hover:translate-x-1" />
-              </Button>
-            )}
-            {s.features.boothRental && (
-              <Button size="lg" variant="outline" onClick={() => navigate('/shops')} className={`w-full sm:w-auto ${s.heroImageUrl ? 'text-white border-white/40 hover:bg-white/10' : ''}`}>
-                Find a guest spot
-              </Button>
-            )}
-          </div>
+          {preview && <div className="hidden lg:block">{preview}</div>}
         </div>
       </section>
 
-      <div className="container mx-auto px-4 space-y-20">
-        <section className="grid gap-4 md:grid-cols-4">
-          {[
-            { Icon: CalendarIcon, title: 'Request a booking', text: 'Share your idea, size and placement, and pick a day that works.' },
-            { Icon: ChatIcon, title: 'Chat with your artist', text: 'Send reference photos and finalize the design together.' },
-            { Icon: CashIcon, title: 'Secure deposits', text: 'Lock in your appointment with a deposit paid safely online.' },
-            { Icon: StoreIcon, title: 'Guest spots for artists', text: 'Rent a booth at a shop in a new city for a day or a month.' },
-          ].map(({ Icon, title, text }) => (
-            <Card key={title}>
-              <Icon className="w-8 h-8 text-brand-primary mb-3" />
-              <h3 className="font-bold">{title}</h3>
-              <p className="text-sm text-brand-gray mt-1">{text}</p>
-            </Card>
-          ))}
+      <div className="container mx-auto px-4 space-y-16 md:space-y-20 pb-4">
+        <section className="grid gap-8 md:grid-cols-2 border-t border-gray-300 dark:border-gray-800 pt-10">
+          {s.features.clientBooking && (
+            <div>
+              <h2 className="text-sm font-semibold uppercase tracking-wider text-brand-gray">Getting tattooed</h2>
+              <p className="mt-3 text-lg leading-relaxed">
+                Look through an artist&apos;s portfolio, prices and hours, then send your idea with the size, placement and reference photos.
+                When they approve it, a deposit holds your date{s.features.messaging ? ' and you can work out the design together in messages' : ''}.
+              </p>
+            </div>
+          )}
+          <div>
+            <h2 className="text-sm font-semibold uppercase tracking-wider text-brand-gray">For artists and shops</h2>
+            <p className="mt-3 text-lg leading-relaxed">
+              Artists take requests and deposits online{s.features.boothRental ? ' and book guest spots at shops in other cities' : ''}.
+              {s.features.boothRental ? ' Shops list their chairs by the day and get paid when an artist reserves one.' : ''}
+            </p>
+          </div>
         </section>
 
-        {s.features.clientBooking && artists.data && artists.data.length > 0 && (
+        {s.features.clientBooking && (artists.loading || (artists.data && artists.data.length > 0)) && (
           <section>
-            <div className="flex items-end justify-between mb-6">
-              <h2 className="text-3xl font-extrabold tracking-tight">Featured artists</h2>
-              <Link to="/artists" className="text-sm font-semibold text-brand-primary hover:underline">See all →</Link>
+            <div className="flex items-baseline justify-between gap-4 mb-6">
+              <h2 className="font-display text-3xl">Artists</h2>
+              <Link to="/artists" className="text-sm font-semibold text-brand-primary underline underline-offset-4 decoration-1">See all artists</Link>
             </div>
             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
-              {artists.data.slice(0, 4).map(a => <ArtistCard key={a.id} artist={a} />)}
+              {artists.data
+                ? artists.data.slice(0, 4).map(a => <ArtistCard key={a.id} artist={a} />)
+                : Array.from({ length: 4 }, (_, i) => <ArtistCardSkeleton key={i} />)}
             </div>
           </section>
         )}
 
         {s.features.boothRental && shops.data && shops.data.length > 0 && (
           <section>
-            <div className="flex items-end justify-between mb-6">
-              <h2 className="text-3xl font-extrabold tracking-tight">Shops hosting guest artists</h2>
-              <Link to="/shops" className="text-sm font-semibold text-brand-primary hover:underline">See all →</Link>
+            <div className="flex items-baseline justify-between gap-4 mb-6">
+              <h2 className="font-display text-3xl">Shops with guest spots</h2>
+              <Link to="/shops" className="text-sm font-semibold text-brand-primary underline underline-offset-4 decoration-1">See all shops</Link>
             </div>
             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
               {shops.data.slice(0, 3).map(sh => <ShopCard key={sh.id} shop={sh} />)}
@@ -98,20 +113,23 @@ export const HomePage: React.FC = () => {
         )}
 
         {s.aboutText && (
-          <section>
-            <Card className="md:p-10">
-              <h2 className="text-3xl font-extrabold tracking-tight mb-2">{s.aboutTitle}</h2>
-              <Markdown text={s.aboutText} className="text-brand-gray max-w-3xl" />
-            </Card>
+          <section className="grid gap-4 md:grid-cols-[minmax(0,1fr)_minmax(0,2fr)] border-t border-gray-300 dark:border-gray-800 pt-10">
+            <h2 className="font-display text-3xl">{s.aboutTitle}</h2>
+            <Markdown text={s.aboutText} className="text-lg leading-relaxed text-brand-gray max-w-2xl" />
           </section>
         )}
 
         {!user && (
-          <section className="rounded-3xl bg-gradient-to-r from-brand-solid to-brand-secondary-solid text-on-gradient p-8 md:p-12 text-center">
-            <h2 className="text-3xl font-extrabold tracking-tight">Are you a tattoo artist or shop?</h2>
-            <p className="mt-2 opacity-90 max-w-xl mx-auto">Create a free profile to take bookings and deposits online, or list your booths for guest artists.</p>
-            <button onClick={() => openAuth('register')} className="mt-6 inline-flex items-center justify-center font-semibold px-6 py-3 rounded-xl bg-white text-gray-900 hover:bg-white/90 transition">
-              Join for free
+          <section className="rounded-lg bg-brand-dark text-brand-light dark:bg-gray-900 dark:border dark:border-gray-800 p-8 md:p-12 md:flex md:items-center md:justify-between gap-8">
+            <div className="max-w-xl">
+              <h2 className="font-display text-3xl">Tattoo artist or shop owner?</h2>
+              <p className="mt-2 text-gray-300">A profile is free. Take bookings and deposits online, or list your chairs for guest artists.</p>
+            </div>
+            <button
+              onClick={() => openAuth('register')}
+              className="mt-6 md:mt-0 flex-shrink-0 inline-flex items-center justify-center font-semibold px-6 py-3 rounded-lg bg-brand-light text-brand-dark hover:bg-white transition-colors"
+            >
+              Create a profile
             </button>
           </section>
         )}

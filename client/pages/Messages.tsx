@@ -65,7 +65,7 @@ const Thread: React.FC<{ convo: Conversation; onSent: () => void }> = ({ convo, 
       <div className="flex-1 overflow-y-auto overscroll-contain p-4 space-y-3" tabIndex={0} role="log" aria-label="Messages">
         {error && <ErrorBox message={error} onRetry={reload} />}
         {loading && !messages && <div className="flex justify-center py-10"><Spinner /></div>}
-        {messages?.length === 0 && <p className="text-center text-sm text-brand-gray py-10">Say hi 👋</p>}
+        {messages?.length === 0 && <p className="text-center text-sm text-brand-gray py-10">No messages yet.</p>}
         {messages?.map(m => {
           const mine = m.senderId === me.id;
           return (

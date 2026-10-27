@@ -1,8 +1,8 @@
 // Admin → Customize: branding, colors, home page content, announcement, contact & social links.
 import React from 'react';
 import { Button, Field, Input, PageHeader, Select, Textarea, Toggle, cx, inputClass } from '../../components/ui';
-import { BellIcon, DocumentIcon, EyeIcon, GlobeIcon, PaletteIcon, PhotoIcon, SparklesIcon } from '../../components/Icons';
-import { FacebookIcon, InstagramIcon, TikTokIcon } from '../../components/Icons';
+import { BellIcon, DocumentIcon, EyeIcon, GlobeIcon, PaletteIcon, PhotoIcon } from '../../components/Icons';
+import { FacebookIcon, InstagramIcon, NeedleIcon, TikTokIcon } from '../../components/Icons';
 import type { SiteSettings } from '../../../shared/types';
 import { brandVariables, buttonStyle } from '../../lib/theme';
 import { AsyncView, ImageField, LinkButton, SaveBar, SettingsCard, useRunner, useUnsavedWarning } from './shared';
@@ -18,12 +18,12 @@ const HEX = /^#[0-9a-fA-F]{6}$/;
 const EMAIL = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
 const PRESETS: { name: string; primary: string; secondary: string }[] = [
-  { name: 'Neon (default)', primary: '#F04E98', secondary: '#8A4EFC' },
-  { name: 'Crimson & gold', primary: '#DC2626', secondary: '#D4A017' },
-  { name: 'Ocean', primary: '#0EA5E9', secondary: '#6366F1' },
-  { name: 'Jungle', primary: '#10B981', secondary: '#0D9488' },
-  { name: 'Sunset', primary: '#F97316', secondary: '#E11D48' },
-  { name: 'Ink', primary: '#64748B', secondary: '#334155' },
+  { name: 'Flash red (default)', primary: '#B7352B', secondary: '#2F5D50' },
+  { name: 'Black & bone', primary: '#1C1917', secondary: '#78716C' },
+  { name: 'Oxblood & brass', primary: '#7F1D1D', secondary: '#A16207' },
+  { name: 'Sailor', primary: '#1E3A5F', secondary: '#B7352B' },
+  { name: 'Moss', primary: '#3F6212', secondary: '#57534E' },
+  { name: 'Rose', primary: '#9F1239', secondary: '#57534E' },
 ];
 
 const ColorField: React.FC<{ label: string; hint: string; value: string; onChange: (v: string) => void }> = ({ label, hint, value, onChange }) => {
@@ -36,7 +36,7 @@ const ColorField: React.FC<{ label: string; hint: string; value: string; onChang
         ? `${hint} It's a bright color, so text on buttons will be dark to stay easy to read.`
         : hint;
   return (
-    <Field label={label} hint={fullHint} error={valid ? undefined : 'Use a hex color like #F04E98'}>
+    <Field label={label} hint={fullHint} error={valid ? undefined : 'Use a hex color like #B7352B'}>
       <div className="flex items-center gap-2">
         <input
           type="color"
@@ -73,22 +73,22 @@ const LivePreview: React.FC<{ s: SiteSettings }> = ({ s }) => {
   const socials = [s.instagramUrl && InstagramIcon, s.tiktokUrl && TikTokIcon, s.facebookUrl && FacebookIcon].filter(Boolean) as React.FC<{ className?: string }>[];
 
   return (
-    <div style={style} className={cx('rounded-2xl overflow-hidden border shadow-lg text-left select-none', dark ? 'bg-brand-dark text-white border-gray-800' : 'bg-brand-light text-brand-dark border-gray-200')}>
+    <div style={style} className={cx('rounded-2xl overflow-hidden border text-left select-none', dark ? 'bg-brand-dark text-white border-gray-800' : 'bg-brand-light text-brand-dark border-gray-200')}>
       {s.announcementEnabled && s.announcementText.trim() && (
-        <div className="bg-gradient-to-r from-brand-solid to-brand-secondary-solid text-on-gradient text-[11px] text-center px-3 py-1.5 font-medium">{s.announcementText}</div>
+        <div className={cx('text-[11px] text-center px-3 py-1.5', dark ? 'bg-gray-800 text-gray-100' : 'bg-brand-dark text-brand-light')}>{s.announcementText}</div>
       )}
       <div className={cx('flex items-center justify-between gap-2 px-4 py-3 border-b', dark ? 'border-white/10' : 'border-black/10')}>
         <div className="flex items-center gap-2 min-w-0">
           {s.logoUrl ? (
             <img src={s.logoUrl} alt="" className="h-6 w-auto max-w-[80px] object-contain" />
           ) : (
-            <span className="w-6 h-6 rounded-md bg-gradient-to-br from-brand-primary to-brand-secondary flex-shrink-0" />
+            <NeedleIcon className="w-5 h-5 text-brand-primary flex-shrink-0" />
           )}
-          <span className="font-extrabold text-sm truncate">{s.siteName || 'Your site'}</span>
+          <span className="font-display text-sm truncate">{s.siteName || 'Your site'}</span>
         </div>
-        <span className="text-[11px] px-2.5 py-1 rounded-full bg-brand-solid text-on-primary font-semibold flex-shrink-0">Sign up</span>
+        <span className="text-[11px] px-2.5 py-1 rounded bg-brand-solid text-on-primary font-semibold flex-shrink-0">Sign up</span>
       </div>
-      <div className="relative px-5 py-10 text-center overflow-hidden">
+      <div className="relative px-5 py-10 text-left overflow-hidden">
         {s.heroImageUrl && (
           <>
             <img src={s.heroImageUrl} alt="" className="absolute inset-0 w-full h-full object-cover" />
@@ -96,12 +96,12 @@ const LivePreview: React.FC<{ s: SiteSettings }> = ({ s }) => {
           </>
         )}
         <div className="relative">
-          <h3 className="text-2xl font-black leading-tight tracking-tight">
+          <h3 className="text-2xl font-display leading-tight">
             {s.heroTitle}
-            {s.heroHighlight && <span className="block bg-gradient-to-r from-brand-primary-text to-brand-secondary-text bg-clip-text text-transparent">{s.heroHighlight}</span>}
+            {s.heroHighlight && <span className={cx('block', !s.heroImageUrl && 'text-brand-primary')}>{s.heroHighlight}</span>}
           </h3>
           {s.heroSubtitle && <p className="mt-3 text-xs opacity-80 line-clamp-3">{s.heroSubtitle}</p>}
-          <div className="mt-4 flex justify-center gap-2 flex-wrap">
+          <div className="mt-4 flex gap-2 flex-wrap">
             <span className="bg-brand-solid text-on-primary text-xs font-semibold px-3 py-2 rounded-lg">Find an artist</span>
             <span className={cx('text-xs font-semibold px-3 py-2 rounded-lg border', dark ? 'border-white/20' : 'border-black/15')}>Find a guest spot</span>
           </div>
@@ -175,7 +175,7 @@ export const CustomizeSection: React.FC = () => {
               </div>
 
               <div className="xl:order-1 space-y-6 min-w-0">
-                <SettingsCard title="Brand" description="Your name and logo appear in the header, emails and browser tab." icon={<SparklesIcon className="w-5 h-5" />}>
+                <SettingsCard title="Brand" description="Your name and logo appear in the header, emails and browser tab." icon={<NeedleIcon className="w-5 h-5" />}>
                   <div className="grid gap-5 sm:grid-cols-2">
                     <Input
                       label="Site name"

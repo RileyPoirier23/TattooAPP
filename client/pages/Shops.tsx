@@ -4,23 +4,23 @@ import { Link } from '../router';
 import { useStore } from '../store';
 import { dollars } from '../lib/format';
 import { findTattooShops, type UnclaimedShop } from '../lib/maps';
-import { Badge, Button, Card, Cover, EmptyState, ErrorBox, PageHeader, PageLoader, Toggle, inputClass, useApi } from '../components/ui';
+import { Badge, Button, Card, Cover, EmptyState, ErrorBox, PageHeader, Skeleton, SkeletonGrid, Toggle, inputClass, useApi } from '../components/ui';
 import { CheckBadgeIcon, LocationIcon, SearchIcon, StarIcon, StoreIcon } from '../components/Icons';
 import type { Shop } from '../../shared/types';
 
 export const ShopCard: React.FC<{ shop: Shop }> = ({ shop }) => {
   const minRate = shop.booths.length ? Math.min(...shop.booths.map(b => b.dailyRate)) : null;
   return (
-    <Link to={`/shops/${shop.id}`} className="group block rounded-2xl overflow-hidden bg-white dark:bg-gray-900/60 border border-gray-200 dark:border-gray-800 hover:border-brand-primary/50 motion-safe:hover:-translate-y-1 transition duration-200 ease-out-strong">
+    <Link to={`/shops/${shop.id}`} className="group block rounded-2xl overflow-hidden bg-white dark:bg-gray-900/60 border border-gray-200 dark:border-gray-800 hover:border-gray-400 dark:hover:border-gray-600 transition-colors">
       <div className="relative">
         <Cover url={shop.imageUrl} alt={shop.name} className="w-full h-48" />
         {shop.isVerified && (
-          <Badge tone="none" className="absolute top-2 right-2 bg-brand-secondary-solid text-on-secondary"><CheckBadgeIcon className="w-3.5 h-3.5" />Verified</Badge>
+          <Badge tone="none" className="absolute top-2 right-2 bg-black/75 text-white"><CheckBadgeIcon className="w-3.5 h-3.5" />Verified</Badge>
         )}
       </div>
       <div className="p-4">
         <div className="flex justify-between gap-2">
-          <h3 className="font-bold text-lg group-hover:text-brand-primary transition-colors">{shop.name}</h3>
+          <h3 className="font-semibold text-lg group-hover:underline underline-offset-4 decoration-1">{shop.name}</h3>
           {shop.reviewCount > 0 && (
             <span className="flex items-center gap-1 text-sm font-semibold"><StarIcon className="w-4 h-4 text-amber-400" />{shop.averageRating.toFixed(1)}</span>
           )}
@@ -36,6 +36,17 @@ export const ShopCard: React.FC<{ shop: Shop }> = ({ shop }) => {
     </Link>
   );
 };
+
+const ShopCardSkeleton: React.FC = () => (
+  <div className="rounded-2xl overflow-hidden border border-gray-200 dark:border-gray-800 bg-white dark:bg-gray-900/60">
+    <Skeleton className="h-48 rounded-none" />
+    <div className="p-4 space-y-2">
+      <Skeleton className="h-5 w-1/2" />
+      <Skeleton className="h-4 w-1/3" />
+      <div className="flex gap-1 pt-1"><Skeleton className="h-5 w-14" /><Skeleton className="h-5 w-16" /></div>
+    </div>
+  </div>
+);
 
 const UnclaimedCard: React.FC<{ shop: UnclaimedShop }> = ({ shop }) => (
   <div className="rounded-2xl overflow-hidden bg-white dark:bg-gray-900/60 border border-dashed border-gray-300 dark:border-gray-700 opacity-80">
@@ -126,7 +137,7 @@ export const ShopsPage: React.FC = () => {
       </Card>
 
       {error && <ErrorBox message={error} onRetry={reload} />}
-      {loading && !data && <PageLoader />}
+      {loading && !data && <SkeletonGrid count={6} className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6"><ShopCardSkeleton /></SkeletonGrid>}
       {data && filtered.length === 0 && (
         <EmptyState icon={<StoreIcon />} title={data.length === 0 ? 'No shops listed yet' : 'No shops match your search'}>
           {user?.role === 'shop-owner' ? <Link to="/shop" className="text-brand-primary">List your shop</Link> : !user && <button className="text-brand-primary" onClick={() => openAuth('register')}>Own a shop? List it for free</button>}

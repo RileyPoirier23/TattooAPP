@@ -1,4 +1,6 @@
 /** @type {import('tailwindcss').Config} */
+const colors = require('tailwindcss/colors');
+
 module.exports = {
   content: ['./client/**/*.{ts,tsx,html}'],
   darkMode: 'class',
@@ -6,12 +8,20 @@ module.exports = {
   future: { hoverOnlyWhenSupported: true },
   theme: {
     extend: {
-      fontFamily: { sans: ['Inter', 'ui-sans-serif', 'system-ui', 'sans-serif'] },
+      // Body text in IBM Plex Sans; large headings in Young Serif (sign-painter warmth that suits tattoo shops).
+      fontFamily: {
+        sans: ['"IBM Plex Sans"', 'ui-sans-serif', 'system-ui', 'sans-serif'],
+        display: ['"Young Serif"', 'Georgia', 'serif'],
+      },
+      // Tighter corners than Tailwind's defaults: cards 8px, buttons and fields 6px.
+      borderRadius: { lg: '0.375rem', xl: '0.5rem', '2xl': '0.5rem', '3xl': '0.75rem' },
       colors: {
+        // Warm neutrals (paper and ink) instead of Tailwind's blue-tinted grays.
+        gray: colors.stone,
         'brand-primary': 'rgb(var(--brand-primary) / <alpha-value>)',
         'brand-secondary': 'rgb(var(--brand-secondary) / <alpha-value>)',
-        'brand-dark': '#101014',
-        'brand-light': '#F5F5F7',
+        'brand-dark': '#14120F', // ink
+        'brand-light': '#F2EEE6', // paper
         // Secondary text: darker in light mode, lighter in dark mode, so it stays readable (WCAG AA) in both.
         'brand-gray': 'rgb(var(--brand-gray) / <alpha-value>)',
         // Brand-colored backgrounds that carry text (a deeper shade when needed), and the text on them.

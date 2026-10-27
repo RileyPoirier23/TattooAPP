@@ -9,13 +9,14 @@ export const DEFAULT_SETTINGS: SiteSettings = {
   tagline: 'Tattoo artists, guest spots & bookings',
   logoUrl: '',
   faviconUrl: '',
-  primaryColor: '#F04E98',
-  secondaryColor: '#8A4EFC',
-  defaultTheme: 'dark',
-  heroTitle: 'Find Your Space.',
-  heroHighlight: 'Make Your Mark.',
+  // Tattoo red and a deep green: one accent for actions, a quieter one for badges.
+  primaryColor: '#B7352B',
+  secondaryColor: '#2F5D50',
+  defaultTheme: 'light',
+  heroTitle: 'Book tattoo artists near you.',
+  heroHighlight: '',
   heroSubtitle:
-    'Book talented tattoo artists near you, or find a guest spot at a shop in your next city — all in one place.',
+    'Browse portfolios, send your idea with reference photos and hold your date with a deposit. Travelling artists can rent a chair at a shop in their next city.',
   heroImageUrl: '',
   aboutTitle: 'Welcome to InkSpace',
   aboutText:
@@ -67,6 +68,23 @@ export const DEFAULT_SECRETS: SecretSettings = {
   resendApiKey: '',
 };
 
+// Defaults from earlier versions. A site still using them (never customized) moves to the current defaults;
+// anything an owner chose stays as it is.
+const OLD_DEFAULTS: Partial<SiteSettings>[] = [
+  { primaryColor: '#F04E98', secondaryColor: '#8A4EFC', defaultTheme: 'dark' },
+  { primaryColor: '#F04E98', secondaryColor: '#8A4EFC' },
+  { heroTitle: 'Find Your Space.', heroHighlight: 'Make Your Mark.' },
+  { heroSubtitle: 'Book talented tattoo artists near you, or find a guest spot at a shop in your next city — all in one place.' },
+];
+
+function upgradeOldDefaults(s: SiteSettings): SiteSettings {
+  for (const old of OLD_DEFAULTS) {
+    const keys = Object.keys(old) as (keyof SiteSettings)[];
+    if (keys.every(k => s[k] === old[k])) for (const k of keys) (s as any)[k] = DEFAULT_SETTINGS[k];
+  }
+  return s;
+}
+
 function readKey<T extends object>(key: string, defaults: T): T {
   const row = getDb().prepare('select value from settings where key = ?').get(key) as { value: string } | undefined;
   const stored = parseJson<Partial<T>>(row?.value, {});
@@ -85,7 +103,7 @@ function writeKey(key: string, value: object) {
 }
 
 export function getSettings(): SiteSettings {
-  const s = readKey('site', DEFAULT_SETTINGS);
+  const s = upgradeOldDefaults(readKey('site', DEFAULT_SETTINGS));
   // Environment variables win over values saved in the admin panel.
   if (config.squareApplicationId) s.squareApplicationId = config.squareApplicationId;
   if (config.squareLocationId) s.squareLocationId = config.squareLocationId;
@@ -94,7 +112,7 @@ export function getSettings(): SiteSettings {
 }
 
 export function saveSettings(patch: Partial<SiteSettings>): SiteSettings {
-  const current = readKey('site', DEFAULT_SETTINGS);
+  const current = upgradeOldDefaults(readKey('site', DEFAULT_SETTINGS));
   const next = { ...current, ...patch, features: { ...current.features, ...(patch.features || {}) } };
   writeKey('site', next);
   return getSettings();

@@ -118,7 +118,7 @@ adminRouter.get('/settings', (_req, res) => {
   res.json({ settings: getSettings(), secrets: maskedSecrets() });
 });
 
-const zHex = z.string().regex(/^#[0-9a-fA-F]{6}$/, 'must be a hex color like #F04E98');
+const zHex = z.string().regex(/^#[0-9a-fA-F]{6}$/, 'must be a hex color like #B7352B');
 // Only web links and uploaded images — never javascript: or data: URLs.
 const zLinkUrl = z.string().trim().max(300).refine(v => v === '' || /^https?:\/\/[^\s]+$/i.test(v), 'must be a link starting with https://');
 const zImageUrl = z.string().trim().max(500).refine(v => v === '' || /^(https?:\/\/|\/uploads\/)[^\s"'<>]+$/i.test(v), 'must be an uploaded image or a link starting with https://');
@@ -209,7 +209,7 @@ adminRouter.post('/test-email', async (req, res) => {
   const { to } = parse(z.object({ to: z.string().trim().email() }), req.body);
   if (!emailReady()) throw badRequest('Email is not configured yet. Fill in the SMTP settings first.');
   try {
-    await sendEmailNow({ to, subject: `Test email from ${getSettings().siteName}`, lines: ['Email is working! 🎉'] });
+    await sendEmailNow({ to, subject: `Test email from ${getSettings().siteName}`, lines: ['Email is working.'] });
   } catch (err) {
     throw badRequest(`Sending failed: ${(err as Error).message}`);
   }
@@ -356,7 +356,7 @@ adminRouter.patch('/users/:id', async (req, res) => {
     db.prepare('update users set pro_until = null where id = ?').run(u.id);
   }
   if (b.status === 'suspended' || b.password) destroyAllSessions(u.id);
-  if (b.isVerified && !u.is_verified) notify(u.id, 'Your profile is now verified! ✅', { link: '/dashboard' });
+  if (b.isVerified && !u.is_verified) notify(u.id, 'Your profile is now verified.', { link: '/dashboard' });
   emit(u.id, 'me');
   res.json(toAdminUser(getUser(u.id)));
 });
@@ -406,7 +406,7 @@ adminRouter.patch('/shops/:id', (req, res) => {
   db.prepare('update shops set name = ?, is_verified = ?, updated_at = ? where id = ?').run(
     b.name ?? s.name, b.isVerified === undefined ? s.is_verified : b.isVerified ? 1 : 0, nowIso(), s.id,
   );
-  if (b.isVerified && !s.is_verified) notify(s.owner_id, 'Your shop is now verified! ✅', { link: '/shop' });
+  if (b.isVerified && !s.is_verified) notify(s.owner_id, 'Your shop is now verified.', { link: '/shop' });
   res.json({ ok: true });
 });
 
@@ -476,7 +476,7 @@ adminRouter.post('/booth-bookings/:id/cancel', (req, res) => {
   const db = getDb();
   const b = db.prepare('select * from booth_bookings where id = ?').get(req.params.id) as any;
   if (!b) throw notFound();
-  if (b.status === 'paid') throw conflict('Refund the payment first (Payments tab) — that also cancels the rental.');
+  if (b.status === 'paid') throw conflict('Refund the payment first (Payments tab). That also cancels the rental.');
   db.prepare("update booth_bookings set status = 'cancelled' where id = ?").run(b.id);
   emit(b.artist_id, 'bookings');
   res.json({ ok: true });
@@ -670,7 +670,7 @@ adminRouter.post('/verifications/:id', (req, res) => {
   })();
   notify(
     v.user_id,
-    status === 'approved' ? `Your ${v.type === 'shop' ? 'shop' : 'profile'} is now verified! ✅` : 'Your verification request was not approved. Contact us if you have questions.',
+    status === 'approved' ? `Your ${v.type === 'shop' ? 'shop' : 'profile'} is now verified.` : 'Your verification request was not approved. Contact us if you have questions.',
     { link: v.type === 'shop' ? '/shop' : '/dashboard' },
   );
   emit(v.user_id, 'me');

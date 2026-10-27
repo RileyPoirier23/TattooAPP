@@ -82,7 +82,7 @@ export function errorHandler(err: unknown, _req: Request, res: Response, _next: 
     return;
   }
   if (e?.code === 'LIMIT_FILE_COUNT' || e?.code === 'LIMIT_UNEXPECTED_FILE') {
-    res.status(400).json({ error: 'Too many images at once — please upload up to 6 at a time.' });
+    res.status(400).json({ error: 'Too many images at once. Please upload up to 6 at a time.' });
     return;
   }
   if (typeof e?.code === 'string' && e.code.startsWith('LIMIT_')) {

@@ -94,7 +94,7 @@ export const LinkButton: React.FC<React.AnchorHTMLAttributes<HTMLAnchorElement> 
     className={cx(
       'inline-flex items-center justify-center gap-2 text-sm font-semibold px-4 py-2.5 rounded-lg transition focus:outline-none focus-visible:ring-2 focus-visible:ring-brand-primary',
       primary
-        ? 'bg-brand-solid text-on-primary hover:brightness-110 shadow-sm shadow-brand-primary/20'
+        ? 'bg-brand-solid text-on-primary hover:brightness-110'
         : 'border border-gray-300 dark:border-gray-700 text-brand-dark dark:text-white hover:bg-gray-100 dark:hover:bg-gray-800',
       className,
     )}
@@ -263,9 +263,9 @@ export const FilterPills: React.FC<{
         aria-selected={value === o.id}
         onClick={() => onChange(o.id)}
         className={cx(
-          'px-3 py-1.5 rounded-full text-sm font-semibold whitespace-nowrap border transition-colors',
+          'px-3 py-1.5 rounded-lg text-sm font-medium whitespace-nowrap border transition-colors',
           value === o.id
-            ? 'bg-brand-solid text-on-primary border-brand-primary'
+            ? 'bg-brand-dark text-brand-light border-brand-dark dark:bg-gray-100 dark:text-gray-900 dark:border-gray-100'
             : 'border-gray-300 dark:border-gray-700 text-gray-600 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-800',
         )}
       >
@@ -381,7 +381,7 @@ export const SaveBar: React.FC<{ dirty: boolean; saving: boolean; canSave?: bool
   if (!dirty) return null;
   return (
     <div className="sticky bottom-[calc(0.75rem+env(safe-area-inset-bottom))] z-30 mt-6 animate-slide-up">
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 rounded-2xl border border-brand-primary/40 bg-white/95 dark:bg-gray-900/95 backdrop-blur px-4 py-3 shadow-xl">
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 rounded-2xl border border-brand-primary/40 bg-white dark:bg-gray-900 px-4 py-3 shadow-xl">
         <p className="text-sm font-medium text-brand-dark dark:text-white">
           {problem ? <span className="text-red-600 dark:text-red-400">{problem}</span> : 'You have unsaved changes.'}
         </p>

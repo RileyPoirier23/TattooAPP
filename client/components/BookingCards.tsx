@@ -139,7 +139,7 @@ export const ClientRequestCard: React.FC<{ request: BookingRequest; token?: stri
   const [busy, setBusy] = useState(false);
 
   const cancel = async () => {
-    const paidWarning = r.paymentStatus === 'paid' ? '\n\nYour deposit has been paid — the site admin will review it for a refund according to the booking policy.' : '';
+    const paidWarning = r.paymentStatus === 'paid' ? '\n\nYour deposit has been paid, so the site admin will review it for a refund according to the booking policy.' : '';
     if (!window.confirm(`Cancel your booking with ${r.artistName}?${paidWarning}`)) return;
     setBusy(true);
     try {
@@ -172,7 +172,7 @@ export const ClientRequestCard: React.FC<{ request: BookingRequest; token?: stri
       {needsPayment && (
         <div className="mt-4 rounded-xl border border-brand-primary/40 bg-brand-primary/5 p-4 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
           <div>
-            <p className="font-semibold">{r.artistName} approved your request! 🎉</p>
+            <p className="font-semibold">{r.artistName} approved your request.</p>
             <p className="text-sm text-brand-gray">
               Pay your {money(r.depositCents)} deposit{r.feeCents > 0 && <> plus a {money(r.feeCents)} booking fee</>} to lock in your date.
             </p>
@@ -259,8 +259,8 @@ const ApproveModal: React.FC<{ r: BookingRequest; onClose: () => void; onDone: (
                 await api.post(`/booking-requests/${r.id}/action`, { action: 'approve', depositAmount: Number(deposit) || 0, time: startTime, note: note || undefined });
                 const told = !r.isGuest || emailReady;
                 toast(
-                  (Number(deposit) > 0 ? 'Approved — the client has been asked to pay the deposit.' : 'Approved — no deposit needed.') +
-                    (told ? '' : " Email isn't set up yet, so the client won't be emailed — they'll see it on their booking link."),
+                  (Number(deposit) > 0 ? 'Approved. The client has been asked to pay the deposit.' : 'Approved. No deposit needed.') +
+                    (told ? '' : " Email isn't set up yet, so the client won't be emailed. They'll see it on their booking link."),
                 );
                 onDone();
               } catch (err) {
@@ -356,8 +356,8 @@ export const ArtistRequestCard: React.FC<{ request: BookingRequest; onChanged: (
       const done: Record<string, string> = {
         decline: 'Request declined.',
         cancel: 'Appointment cancelled.',
-        complete: 'Marked as completed — it’s now under Past.',
-        'no-show': 'Marked as a no-show — it’s now under Past.',
+        complete: 'Marked as completed. It’s now under Past.',
+        'no-show': 'Marked as a no-show. It’s now under Past.',
         archive: 'Archived.',
         unarchive: 'Moved back from the archive.',
       };
@@ -427,7 +427,7 @@ export const ArtistRequestCard: React.FC<{ request: BookingRequest; onChanged: (
           </>
         )}
         {r.status === 'approved' && !isPast && (
-          <Button variant="ghost" size="sm" className="text-red-600 dark:text-red-400" loading={busy === 'cancel'} onClick={() => act('cancel', `Cancel this appointment? ${r.paymentStatus === 'paid' ? 'The deposit was paid — the admin will be notified to arrange a refund.' : ''}`)}>
+          <Button variant="ghost" size="sm" className="text-red-600 dark:text-red-400" loading={busy === 'cancel'} onClick={() => act('cancel', `Cancel this appointment? ${r.paymentStatus === 'paid' ? 'The deposit was paid, so the admin will be notified to arrange a refund.' : ''}`)}>
             Cancel appointment
           </Button>
         )}
@@ -495,7 +495,7 @@ export const BoothBookingCard: React.FC<{ booking: BoothBooking; as: 'artist' | 
         </div>
       </div>
       {b.status === 'unpaid' && b.holdExpiresAt && (
-        <p className="text-xs text-amber-700 dark:text-amber-400 mt-2">Held until {formatDateTime(b.holdExpiresAt)} — unpaid reservations are released automatically.</p>
+        <p className="text-xs text-amber-700 dark:text-amber-400 mt-2">Held until {formatDateTime(b.holdExpiresAt)}. Unpaid reservations are released automatically.</p>
       )}
       <div className="mt-4 pt-4 border-t border-gray-200 dark:border-gray-800 flex flex-wrap gap-2">
         {as === 'artist' && b.status === 'unpaid' && <Button size="sm" onClick={() => setPaying(true)}><CreditCardIcon className="w-4 h-4" /> Pay {money(b.totalCents)}</Button>}

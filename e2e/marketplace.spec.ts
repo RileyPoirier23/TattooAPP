@@ -110,7 +110,7 @@ test('artist sets up profile, guest books and pays a deposit', async ({ page }) 
   await page.getByRole('button', { name: 'Approve' }).click();
   await page.getByRole('dialog').getByLabel('Start time').fill('13:30');
   await page.getByRole('dialog').getByRole('button', { name: 'Approve' }).click();
-  await expect(page.getByText(/Approved — the client/)).toBeVisible();
+  await expect(page.getByText(/Approved. The client/)).toBeVisible();
 
   // The guest pays from their private link.
   await logOut(page);
@@ -119,7 +119,7 @@ test('artist sets up profile, guest books and pays a deposit', async ({ page }) 
   await page.getByRole('button', { name: /Pay \$61\.74|Pay CA\$61\.74/ }).click();
   await expect(page.getByTestId('fake-card')).toBeVisible();
   await page.getByRole('dialog').getByRole('button', { name: /Pay .*61\.74/ }).click();
-  await expect(page.getByText("Deposit paid — you're booked!")).toBeVisible();
+  await expect(page.getByText("Deposit paid. You're booked.")).toBeVisible();
   await expect(page.getByText('Deposit paid', { exact: true })).toBeVisible();
   await expect(page.getByText(/1:30\s?PM/)).toBeVisible();
 });
@@ -156,7 +156,7 @@ test('shop owner lists a booth and an artist rents it', async ({ page }) => {
   await dialog.getByRole('button', { name: 'Reserve & pay' }).click();
   await expect(page.getByTestId('fake-card')).toBeVisible();
   await page.getByRole('dialog').getByRole('button', { name: /Pay .*270\.00/ }).click();
-  await expect(page.getByText('Booth paid — your guest spot is confirmed!')).toBeVisible();
+  await expect(page.getByText('Booth paid. Your guest spot is confirmed.')).toBeVisible();
   await expect(page).toHaveURL(/\/bookings/);
   await expect(page.getByText('Window station at Ink & Dagger')).toBeVisible();
 });

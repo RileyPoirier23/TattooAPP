@@ -147,7 +147,7 @@ const BlockedDates: React.FC<{ shop: Shop }> = ({ shop }) => {
   return (
     <Card>
       <h2 className="text-xl font-bold mb-1">Blocked dates</h2>
-      <p className="text-sm text-brand-gray mb-4">Block days when a booth can't be rented — holidays, private bookings or renovations.</p>
+      <p className="text-sm text-brand-gray mb-4">Block days when a booth can't be rented, such as holidays, private bookings or renovations.</p>
       <div className="grid gap-3 sm:grid-cols-5 items-end">
         <label className="sm:col-span-2 text-sm">
           <span className="block font-medium text-gray-700 dark:text-gray-300 mb-1">Booth</span>
@@ -286,7 +286,7 @@ export const ShopDashboardPage: React.FC = () => {
     try {
       const { user } = await api.post<{ user: Me }>('/me/verification');
       setUser(user);
-      toast("Verification requested — we'll let you know once it's reviewed.");
+      toast("Verification requested. We'll let you know once it's reviewed.");
     } catch (err) {
       toast(errorMessage(err), 'error');
     } finally {
