@@ -2,6 +2,8 @@
 module.exports = {
   content: ['./client/**/*.{ts,tsx,html}'],
   darkMode: 'class',
+  // `hover:` only applies on devices that can really hover (no stuck hover states after a tap on phones).
+  future: { hoverOnlyWhenSupported: true },
   theme: {
     extend: {
       fontFamily: { sans: ['Inter', 'ui-sans-serif', 'system-ui', 'sans-serif'] },

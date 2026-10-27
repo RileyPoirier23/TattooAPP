@@ -227,6 +227,7 @@ export const SearchInput: React.FC<{ value: string; onChange: (v: string) => voi
     <SearchIcon className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-brand-gray pointer-events-none" />
     <input
       type="search"
+      enterKeyHint="search"
       value={value}
       onChange={e => onChange(e.target.value)}
       placeholder={placeholder}
@@ -379,7 +380,7 @@ export const SaveBar: React.FC<{ dirty: boolean; saving: boolean; canSave?: bool
 }) => {
   if (!dirty) return null;
   return (
-    <div className="sticky bottom-3 z-30 mt-6 animate-slide-up">
+    <div className="sticky bottom-[calc(0.75rem+env(safe-area-inset-bottom))] z-30 mt-6 animate-slide-up">
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 rounded-2xl border border-brand-primary/40 bg-white/95 dark:bg-gray-900/95 backdrop-blur px-4 py-3 shadow-xl">
         <p className="text-sm font-medium text-brand-dark dark:text-white">
           {problem ? <span className="text-red-600 dark:text-red-400">{problem}</span> : 'You have unsaved changes.'}

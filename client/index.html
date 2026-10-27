@@ -2,7 +2,8 @@
 <html lang="en" class="%THEME%">
   <head>
     <meta charset="UTF-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, interactive-widget=resizes-content" />
+    <meta name="theme-color" content="#101014" />
     <title>%PAGE_TITLE%</title>
     <meta name="description" content="%PAGE_DESCRIPTION%" />
     <meta property="og:site_name" content="%SITE_NAME%" />
@@ -23,6 +24,8 @@
         var t = localStorage.getItem('theme');
         if (t === 'light') document.documentElement.classList.remove('dark');
         if (t === 'dark') document.documentElement.classList.add('dark');
+        // Phone status bar / browser chrome matches the page.
+        document.querySelector('meta[name="theme-color"]').content = document.documentElement.classList.contains('dark') ? '#101014' : '#F5F5F7';
       } catch (e) {}
     </script>
     <link rel="stylesheet" href="/assets/app.css?v=%BUILD%" />

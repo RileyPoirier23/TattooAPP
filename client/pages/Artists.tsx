@@ -98,7 +98,7 @@ export const ArtistsPage: React.FC = () => {
         <div className="grid gap-3 md:grid-cols-2 lg:grid-cols-4">
           <div className="relative">
             <SearchIcon className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-brand-gray" />
-            <input className={`${inputClass} pl-10`} placeholder="Artist name or keyword" value={q} onChange={e => setQ(e.target.value)} aria-label="Search artists" />
+            <input type="search" enterKeyHint="search" className={`${inputClass} pl-10`} placeholder="Artist name or keyword" value={q} onChange={e => setQ(e.target.value)} aria-label="Search artists" />
           </div>
           <div className="relative">
             <LocationIcon className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-brand-gray" />

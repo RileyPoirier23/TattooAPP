@@ -33,7 +33,7 @@ const Lightbox: React.FC<{ images: { url: string; caption?: string }[]; index: n
         </>
       )}
       <figure onClick={e => e.stopPropagation()} className="max-w-5xl max-h-full">
-        <img src={img.url} alt={img.caption || ''} className="max-h-[85vh] max-w-full object-contain rounded-lg" />
+        <img src={img.url} alt={img.caption || ''} className="max-h-[85dvh] max-w-full object-contain rounded-lg" />
         {img.caption && <figcaption className="text-center text-white/80 text-sm mt-3">{img.caption}</figcaption>}
       </figure>
     </div>

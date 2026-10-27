@@ -26,7 +26,7 @@ export const Button: React.FC<
     type={type}
     disabled={disabled || loading}
     className={cx(
-      'inline-flex items-center justify-center gap-2 font-semibold transition disabled:opacity-50 disabled:cursor-not-allowed focus:outline-none focus-visible:ring-2 focus-visible:ring-brand-primary focus-visible:ring-offset-2 dark:focus-visible:ring-offset-brand-dark',
+      'inline-flex items-center justify-center gap-2 font-semibold transition enabled:active:scale-[0.97] disabled:opacity-50 disabled:cursor-not-allowed focus:outline-none focus-visible:ring-2 focus-visible:ring-brand-primary focus-visible:ring-offset-2 dark:focus-visible:ring-offset-brand-dark',
       VARIANTS[variant],
       SIZES[size],
       block && 'w-full',
@@ -67,7 +67,7 @@ export const Input = React.forwardRef<HTMLInputElement, InputProps>(({ label, hi
     <Field label={label} hint={hint} error={error} htmlFor={inputId} className={className}>
       <div className="relative">
         {prefix && <span className="absolute left-3 top-1/2 -translate-y-1/2 text-brand-gray text-sm">{prefix}</span>}
-        <input ref={ref} id={inputId} className={cx(inputClass, prefix && (String(prefix).length > 2 ? 'pl-12' : String(prefix).length > 1 ? 'pl-9' : 'pl-7'))} {...rest} />
+        <input ref={ref} id={inputId} inputMode={rest.type === 'number' ? 'decimal' : undefined} className={cx(inputClass, prefix && (String(prefix).length > 2 ? 'pl-12' : String(prefix).length > 1 ? 'pl-9' : 'pl-7'))} {...rest} />
       </div>
     </Field>
   );
@@ -326,7 +326,7 @@ export const Modal: React.FC<{
         aria-modal="true"
         aria-labelledby={titleId}
         className={cx(
-          'bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-700 w-full max-h-[92vh] flex flex-col rounded-t-2xl sm:rounded-2xl shadow-2xl animate-scale-up outline-none',
+          'bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-700 w-full max-h-[92dvh] flex flex-col rounded-t-2xl sm:rounded-2xl shadow-2xl animate-scale-up outline-none',
           { sm: 'sm:max-w-sm', md: 'sm:max-w-lg', lg: 'sm:max-w-2xl', xl: 'sm:max-w-4xl' }[size],
         )}
       >
@@ -336,8 +336,8 @@ export const Modal: React.FC<{
             <XIcon className="w-6 h-6" />
           </button>
         </header>
-        <div className="overflow-y-auto px-5 py-5 flex-1">{children}</div>
-        {footer && <footer className="px-5 py-4 border-t border-gray-200 dark:border-gray-800 flex flex-wrap justify-end gap-2">{footer}</footer>}
+        <div className={cx('overflow-y-auto overscroll-contain px-5 py-5 flex-1', !footer && 'pb-[calc(1.25rem+env(safe-area-inset-bottom))] sm:pb-5')}>{children}</div>
+        {footer && <footer className="px-5 pt-4 pb-[calc(1rem+env(safe-area-inset-bottom))] sm:pb-4 border-t border-gray-200 dark:border-gray-800 flex flex-wrap justify-end gap-2">{footer}</footer>}
       </div>
     </div>
   );

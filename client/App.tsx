@@ -78,7 +78,7 @@ const Toasts: React.FC = () => {
   const toasts = useStore(s => s.toasts);
   const dismiss = useStore(s => s.dismissToast);
   return (
-    <div className="fixed bottom-4 right-4 left-4 sm:left-auto z-[70] flex flex-col gap-2 items-stretch sm:items-end pointer-events-none" aria-live="polite">
+    <div className="fixed bottom-[calc(1rem+env(safe-area-inset-bottom))] right-4 left-4 sm:left-auto z-[70] flex flex-col gap-2 items-stretch sm:items-end pointer-events-none" aria-live="polite">
       {toasts.map(t => (
         <div
           key={t.id}
@@ -139,11 +139,11 @@ export const App: React.FC = () => {
   }, [config]);
 
   if (!ready) {
-    return <div className="min-h-screen flex items-center justify-center"><PageLoader /></div>;
+    return <div className="min-h-svh flex items-center justify-center"><PageLoader /></div>;
   }
   if (bootError || !config) {
     return (
-      <div className="min-h-screen flex items-center justify-center p-6">
+      <div className="min-h-svh flex items-center justify-center p-6">
         <Card className="max-w-md text-center">
           <h1 className="text-xl font-bold mb-2">We can't load the site right now</h1>
           <p className="text-brand-gray mb-4">{bootError}</p>
@@ -178,7 +178,7 @@ export const App: React.FC = () => {
   }
 
   return (
-    <div className="min-h-screen flex flex-col">
+    <div className="min-h-svh flex flex-col">
       <Header />
       <main className={cx('flex-1 w-full', route?.wide ? '' : 'container mx-auto px-4 py-8')}>
         <ErrorBoundary resetKey={path}>

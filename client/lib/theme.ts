@@ -74,4 +74,7 @@ export function applyBranding(s: SiteSettings) {
 
 export function applyTheme(theme: 'light' | 'dark') {
   document.documentElement.classList.toggle('dark', theme === 'dark');
+  // Phone status bar / browser chrome follows the theme (the header's background colour).
+  const meta = document.querySelector<HTMLMetaElement>('meta[name="theme-color"]');
+  if (meta) meta.content = theme === 'dark' ? '#101014' : '#F5F5F7';
 }
