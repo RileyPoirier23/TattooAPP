@@ -41,7 +41,7 @@ export const BookingStatusPage: React.FC<{ id: string }> = ({ id }) => {
       <div className="flex items-center gap-4">
         <Avatar name={data.artist.name} url={data.artist.avatarUrl} size="lg" />
         <div>
-          <h1 className="text-4xl font-display">Your booking with {data.artist.name}</h1>
+          <h1 className="text-2xl sm:text-3xl font-display">Your booking with {data.artist.name}</h1>
           <p className="text-brand-gray">{data.artist.city} · <Link to={`/artists/${data.artist.id}`} className="text-brand-primary underline underline-offset-2">View profile</Link></p>
         </div>
       </div>

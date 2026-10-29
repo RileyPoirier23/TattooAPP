@@ -3,53 +3,71 @@ import React, { useMemo, useState } from 'react';
 import { Link, navigate, useLocation } from '../router';
 import { useStore } from '../store';
 import { cityFromCoords } from '../lib/maps';
-import { formatDate } from '../lib/format';
-import { Badge, Button, Card, Cover, EmptyState, ErrorBox, PageHeader, Select, Skeleton, SkeletonGrid, Toggle, catalogCell, catalogGrid, catalogNo, cx, inputClass, useApi } from '../components/ui';
+import { dollars, formatDate } from '../lib/format';
+import { Avatar, Badge, Button, Card, Cover, EmptyState, ErrorBox, PageHeader, Select, Skeleton, SkeletonGrid, Toggle, inputClass, useApi } from '../components/ui';
 import { CalendarIcon, CheckBadgeIcon, CrosshairsIcon, LocationIcon, SearchIcon, StarIcon } from '../components/Icons';
 import type { PublicArtist } from '../../shared/types';
 
-export const ArtistCard: React.FC<{ artist: PublicArtist; index?: number }> = ({ artist, index }) => (
-  <Link to={`/artists/${artist.id}`} className={cx('group flex flex-col bg-brand-light dark:bg-brand-dark', catalogCell)}>
-    <div className="relative aspect-[4/5] overflow-hidden">
-      <Cover
-        url={artist.portfolio[0]?.url || artist.avatarUrl}
-        alt={artist.name}
-        className="w-full h-full transition-transform duration-500 ease-out-strong motion-safe:group-hover:scale-[1.04]"
-      />
-      <div className="absolute top-0 left-0 right-0 flex justify-between gap-2">
-        {artist.averageRating > 0 ? (
-          <Badge tone="none" className="bg-brand-dark text-brand-light"><StarIcon className="w-3 h-3 text-amber-400" />{artist.averageRating.toFixed(1)}</Badge>
-        ) : <span />}
-        {artist.isVerified && <Badge tone="none" className="bg-brand-dark text-brand-light"><CheckBadgeIcon className="w-3 h-3" />Verified</Badge>}
-      </div>
-      {artist.guestSpot && (
-        <div className="absolute bottom-0 left-0 max-w-full" title={`Guest spot in ${artist.guestSpot.city}`}>
-          <Badge tone="none" className="bg-brand-solid text-on-primary max-w-full"><CalendarIcon className="w-3 h-3" /><span className="truncate">Guest spot · {artist.guestSpot.city}</span></Badge>
+/** The lowest starting price across an artist's services, if they list any. */
+export const fromPrice = (a: PublicArtist) => (a.services.length ? Math.min(...a.services.map(s => s.price)) : null);
+
+export const ArtistCard: React.FC<{ artist: PublicArtist }> = ({ artist }) => {
+  const price = fromPrice(artist);
+  return (
+    <Link
+      to={`/artists/${artist.id}`}
+      className="group w-full flex flex-col rounded-2xl border border-gray-200 dark:border-gray-800 bg-white dark:bg-gray-900 p-2.5 transition-shadow hover:shadow-xl hover:shadow-gray-900/[0.07] dark:hover:shadow-black/40"
+    >
+      <div className="relative aspect-[4/3] overflow-hidden rounded-xl">
+        <Cover
+          url={artist.portfolio[0]?.url || artist.avatarUrl}
+          alt={artist.name}
+          className="w-full h-full transition-transform duration-500 ease-out-strong motion-safe:group-hover:scale-[1.04]"
+        />
+        <div className="absolute top-2 left-2 right-2 flex justify-between gap-2">
+          {artist.isVerified ? <Badge tone="none" className="bg-white/95 text-gray-900"><CheckBadgeIcon className="w-3.5 h-3.5 text-brand-secondary" />Verified</Badge> : <span />}
+          {artist.isPro && <Badge tone="none" className="bg-brand-solid text-on-primary">Pro</Badge>}
         </div>
-      )}
-    </div>
-    {/* The caption strip inverts to ink on hover, like a highlighted entry on a sheet. */}
-    <div className="flex-1 border-t border-gray-900 dark:border-gray-700 p-4 transition-colors duration-150 group-hover:bg-brand-dark group-hover:text-brand-light dark:group-hover:bg-white dark:group-hover:text-brand-dark">
-      <div className="label flex justify-between gap-3 text-brand-gray group-hover:text-inherit">
-        <span className="truncate">{artist.specialty || 'Tattoo artist'}</span>
-        {index !== undefined && <span className="flex-shrink-0">{catalogNo(index)}</span>}
+        {artist.guestSpot && (
+          <div className="absolute bottom-2 left-2 right-2" title={`Guest spot in ${artist.guestSpot.city}`}>
+            <Badge tone="none" className="bg-gray-900/85 text-white max-w-full"><CalendarIcon className="w-3.5 h-3.5" /><span className="truncate">Guest spot in {artist.guestSpot.city}</span></Badge>
+          </div>
+        )}
       </div>
-      <h3 className="font-display text-3xl mt-2">
-        {artist.name}
-        {artist.isPro && <span className="label ml-2 align-middle" title="Pro artist">Pro</span>}
-      </h3>
-      {artist.city && <p className="text-sm text-brand-gray group-hover:text-inherit flex items-center gap-1 mt-1"><LocationIcon className="w-4 h-4" />{artist.city}</p>}
-    </div>
-  </Link>
-);
+      <div className="flex-1 flex flex-col px-2 pt-3 pb-1">
+        <div className="flex items-center justify-between gap-3 text-sm text-brand-gray">
+          <span className="truncate">{artist.specialty || 'Tattoo artist'}</span>
+          {artist.reviewCount > 0 && (
+            <span className="flex-shrink-0 flex items-center gap-1 text-gray-800 dark:text-gray-200">
+              <StarIcon className="w-4 h-4 text-amber-400" />{artist.averageRating.toFixed(1)}
+              <span className="text-brand-gray">({artist.reviewCount.toLocaleString()})</span>
+            </span>
+          )}
+        </div>
+        <h3 className="text-lg font-semibold mt-1 group-hover:text-brand-primary transition-colors">{artist.name}</h3>
+        <div className="flex items-center gap-2 mt-2 text-sm text-brand-gray">
+          <Avatar name={artist.name} url={artist.avatarUrl} size="xs" />
+          {artist.city ? <span className="flex items-center gap-1 min-w-0"><LocationIcon className="w-4 h-4" /><span className="truncate">{artist.city}</span></span> : <span>Location not listed</span>}
+        </div>
+        <div className="mt-auto pt-3">
+          <div className="flex items-center justify-between gap-3 border-t border-gray-100 dark:border-gray-800 pt-3">
+            <p className="text-sm text-brand-gray whitespace-nowrap">{price !== null ? <>From <strong className="text-base text-brand-dark dark:text-white">{dollars(price)}</strong></> : 'Custom quotes'}</p>
+            <span className="flex-shrink-0 whitespace-nowrap rounded-full border border-gray-200 dark:border-gray-700 px-4 py-1.5 text-sm font-medium transition-colors group-hover:bg-brand-solid group-hover:text-on-primary group-hover:border-transparent">Book now</span>
+          </div>
+        </div>
+      </div>
+    </Link>
+  );
+};
 
 export const ArtistCardSkeleton: React.FC = () => (
-  <div className={cx('flex flex-col', catalogCell)}>
-    <Skeleton className="aspect-[4/5]" />
-    <div className="border-t border-gray-900 dark:border-gray-700 p-4 space-y-2">
-      <Skeleton className="h-3 w-1/3" />
-      <Skeleton className="h-7 w-2/3" />
+  <div className="rounded-2xl border border-gray-200 dark:border-gray-800 bg-white dark:bg-gray-900 p-2.5">
+    <Skeleton className="aspect-[4/3] rounded-xl" />
+    <div className="px-2 pt-3 pb-1 space-y-2">
+      <Skeleton className="h-4 w-1/3" />
+      <Skeleton className="h-5 w-2/3" />
       <Skeleton className="h-4 w-1/2" />
+      <Skeleton className="h-8 w-full mt-3" />
     </div>
   </div>
 );
@@ -160,15 +178,15 @@ export const ArtistsPage: React.FC = () => {
       )}
 
       {error && <ErrorBox message={error} onRetry={reload} />}
-      {loading && !data && <SkeletonGrid count={8} className={cx(catalogGrid, "grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4")}><ArtistCardSkeleton /></SkeletonGrid>}
+      {loading && !data && <SkeletonGrid count={8} className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6"><ArtistCardSkeleton /></SkeletonGrid>}
       {data && filtered.length === 0 && (
         <EmptyState icon={<SearchIcon />} title={data.length === 0 ? 'No artists yet' : 'No artists match your search'}>
           {data.length === 0 ? 'Check back soon. New artists are joining.' : <button className="text-brand-primary" onClick={clear}>Clear filters</button>}
         </EmptyState>
       )}
       {filtered.length > 0 && (
-        <div className={cx(catalogGrid, 'grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4')}>
-          {filtered.map((a, i) => <ArtistCard key={a.id} artist={a} index={i} />)}
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
+          {filtered.map(a => <ArtistCard key={a.id} artist={a} />)}
         </div>
       )}
       {data && data.length > 0 && !['shop-owner', 'admin'].includes(useStore.getState().user?.role ?? '') && (

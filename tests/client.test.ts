@@ -20,11 +20,11 @@ const contrast = (a: RGB, b: RGB) => {
 };
 
 test('default brand colors keep their look', () => {
-  const v = brandVariables('#D0281C', '#2F5D50');
-  assert.equal(v['--brand-primary'], '208 40 28', 'decorations keep the exact color');
-  assert.equal(v['--brand-solid'], '208 40 28', 'the default red is dark enough for white button text as is');
+  const v = brandVariables('#0066F5', '#0F766E');
+  assert.equal(v['--brand-primary'], '0 102 245', 'decorations keep the exact color');
+  assert.equal(v['--brand-solid'], '0 102 245', 'the default blue is dark enough for white button text as is');
   assert.equal(v['--brand-on-primary'], '255 255 255');
-  assert.equal(buttonStyle('#D0281C'), 'as-is');
+  assert.equal(buttonStyle('#0066F5'), 'as-is');
   assert.equal(buttonStyle('#F04E98'), 'deeper', 'a light pink gets a slightly deeper shade behind white text');
   assert.equal(buttonStyle('#DC2626'), 'as-is');
   assert.equal(buttonStyle('#FFE600'), 'dark-text', 'yellow buttons get dark text');
@@ -35,9 +35,9 @@ test('default brand colors keep their look', () => {
 test('any brand color stays readable as text and behind button text', () => {
   let seed = 42;
   const next = () => (seed = (seed * 1103515245 + 12345) % 2 ** 31) % 256;
-  // The darkest light-mode and lightest dark-mode surfaces text sits on (stone-200 / stone-800, see theme.ts).
-  const light: RGB = [231, 229, 228];
-  const dark: RGB = [41, 37, 36];
+  // The darkest light-mode and lightest dark-mode surfaces text sits on (gray-200 / gray-800, see theme.ts).
+  const light: RGB = [229, 231, 235];
+  const dark: RGB = [31, 41, 55];
   for (let i = 0; i < 300; i++) {
     const c: RGB = [next(), next(), next()];
     const hex = `#${c.map(n => n.toString(16).padStart(2, '0')).join('')}`;

@@ -4,31 +4,40 @@ import { Link } from '../router';
 import { useStore } from '../store';
 import { dollars } from '../lib/format';
 import { findTattooShops, type UnclaimedShop } from '../lib/maps';
-import { Badge, Button, Card, Cover, EmptyState, ErrorBox, PageHeader, Skeleton, SkeletonGrid, Toggle, catalogCell, catalogGrid, catalogNo, cx, inputClass, useApi } from '../components/ui';
+import { Badge, Button, Card, Cover, EmptyState, ErrorBox, PageHeader, Skeleton, SkeletonGrid, Toggle, inputClass, useApi } from '../components/ui';
 import { CheckBadgeIcon, LocationIcon, SearchIcon, StarIcon, StoreIcon } from '../components/Icons';
 import type { Shop } from '../../shared/types';
 
-export const ShopCard: React.FC<{ shop: Shop; index?: number }> = ({ shop, index }) => {
+export const ShopCard: React.FC<{ shop: Shop }> = ({ shop }) => {
   const minRate = shop.booths.length ? Math.min(...shop.booths.map(b => b.dailyRate)) : null;
   return (
-    <Link to={`/shops/${shop.id}`} className={cx('group flex flex-col bg-brand-light dark:bg-brand-dark', catalogCell)}>
-      <div className="relative aspect-[16/10] overflow-hidden">
+    <Link
+      to={`/shops/${shop.id}`}
+      className="group w-full flex flex-col rounded-2xl border border-gray-200 dark:border-gray-800 bg-white dark:bg-gray-900 p-2.5 transition-shadow hover:shadow-xl hover:shadow-gray-900/[0.07] dark:hover:shadow-black/40"
+    >
+      <div className="relative aspect-[16/10] overflow-hidden rounded-xl">
         <Cover url={shop.imageUrl} alt={shop.name} className="w-full h-full transition-transform duration-500 ease-out-strong motion-safe:group-hover:scale-[1.04]" />
         {shop.isVerified && (
-          <Badge tone="none" className="absolute top-0 right-0 bg-brand-dark text-brand-light"><CheckBadgeIcon className="w-3 h-3" />Verified</Badge>
+          <Badge tone="none" className="absolute top-2 left-2 bg-white/95 text-gray-900"><CheckBadgeIcon className="w-3.5 h-3.5 text-brand-secondary" />Verified</Badge>
         )}
       </div>
-      <div className="flex-1 border-t border-gray-900 dark:border-gray-700 p-4 transition-colors duration-150 group-hover:bg-brand-dark group-hover:text-brand-light dark:group-hover:bg-white dark:group-hover:text-brand-dark">
-        <div className="label flex justify-between gap-3 text-brand-gray group-hover:text-inherit">
-          <span className="truncate">{shop.city}</span>
-          {index !== undefined && <span className="flex-shrink-0">{catalogNo(index)}</span>}
+      <div className="flex-1 flex flex-col px-2 pt-3 pb-1">
+        <div className="flex items-start justify-between gap-3">
+          <h3 className="text-lg font-semibold group-hover:text-brand-primary transition-colors">{shop.name}</h3>
+          {shop.reviewCount > 0 && (
+            <span className="flex-shrink-0 flex items-center gap-1 text-sm mt-1"><StarIcon className="w-4 h-4 text-amber-400" />{shop.averageRating.toFixed(1)}</span>
+          )}
         </div>
-        <h3 className="font-display text-3xl mt-2">{shop.name}</h3>
-        <div className="flex items-end justify-between gap-3 mt-3">
-          <p className="label text-brand-gray group-hover:text-inherit min-w-0 truncate" title={shop.amenities.join(', ')}>{shop.amenities.slice(0, 3).join(' / ')}</p>
-          <div className="flex-shrink-0 text-right">
-            {shop.reviewCount > 0 && <p className="text-sm flex items-center justify-end gap-1"><StarIcon className="w-3.5 h-3.5 text-amber-400" />{shop.averageRating.toFixed(1)}</p>}
-            {minRate !== null && <p className="text-sm whitespace-nowrap"><span className="label text-brand-gray group-hover:text-inherit">From </span><strong>{dollars(minRate)}</strong>/day</p>}
+        <p className="text-sm text-brand-gray flex items-center gap-1 mt-1 min-w-0"><LocationIcon className="w-4 h-4" /><span className="truncate">{shop.city}</span></p>
+        {shop.amenities.length > 0 && <p className="text-sm text-brand-gray mt-1 truncate" title={shop.amenities.join(', ')}>{shop.amenities.slice(0, 3).join(' · ')}</p>}
+        <div className="mt-auto pt-3">
+          <div className="flex items-center justify-between gap-3 border-t border-gray-100 dark:border-gray-800 pt-3">
+            <p className="text-sm text-brand-gray whitespace-nowrap">
+              {minRate !== null ? <>From <strong className="text-base text-brand-dark dark:text-white">{dollars(minRate)}</strong>/day</> : 'No booths listed'}
+            </p>
+            <span className="flex-shrink-0 whitespace-nowrap rounded-full border border-gray-200 dark:border-gray-700 px-4 py-1.5 text-sm font-medium transition-colors group-hover:bg-brand-solid group-hover:text-on-primary group-hover:border-transparent">
+              {shop.booths.length === 1 ? '1 booth' : `${shop.booths.length} booths`}
+            </span>
           </div>
         </div>
       </div>
@@ -37,12 +46,12 @@ export const ShopCard: React.FC<{ shop: Shop; index?: number }> = ({ shop, index
 };
 
 const ShopCardSkeleton: React.FC = () => (
-  <div className={cx('flex flex-col', catalogCell)}>
-    <Skeleton className="aspect-[16/10]" />
-    <div className="border-t border-gray-900 dark:border-gray-700 p-4 space-y-2">
-      <Skeleton className="h-3 w-1/3" />
-      <Skeleton className="h-7 w-1/2" />
-      <Skeleton className="h-4 w-2/3" />
+  <div className="rounded-2xl border border-gray-200 dark:border-gray-800 bg-white dark:bg-gray-900 p-2.5">
+    <Skeleton className="aspect-[16/10] rounded-xl" />
+    <div className="px-2 pt-3 pb-1 space-y-2">
+      <Skeleton className="h-5 w-1/2" />
+      <Skeleton className="h-4 w-1/3" />
+      <Skeleton className="h-8 w-full mt-3" />
     </div>
   </div>
 );
@@ -136,15 +145,15 @@ export const ShopsPage: React.FC = () => {
       </Card>
 
       {error && <ErrorBox message={error} onRetry={reload} />}
-      {loading && !data && <SkeletonGrid count={6} className={cx(catalogGrid, "grid-cols-1 sm:grid-cols-2 lg:grid-cols-3")}><ShopCardSkeleton /></SkeletonGrid>}
+      {loading && !data && <SkeletonGrid count={6} className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6"><ShopCardSkeleton /></SkeletonGrid>}
       {data && filtered.length === 0 && (
         <EmptyState icon={<StoreIcon />} title={data.length === 0 ? 'No shops listed yet' : 'No shops match your search'}>
           {user?.role === 'shop-owner' ? <Link to="/shop" className="text-brand-primary">List your shop</Link> : !user && <button className="text-brand-primary" onClick={() => openAuth('register')}>Own a shop? List it for free</button>}
         </EmptyState>
       )}
       {filtered.length > 0 && (
-        <div className={cx(catalogGrid, 'grid-cols-1 sm:grid-cols-2 lg:grid-cols-3')}>
-          {filtered.map((s, i) => <ShopCard key={s.id} shop={s} index={i} />)}
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
+          {filtered.map(s => <ShopCard key={s.id} shop={s} />)}
         </div>
       )}
 

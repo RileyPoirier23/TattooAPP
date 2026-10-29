@@ -156,9 +156,9 @@ export const AdminPage: React.FC<{ section: string }> = ({ section }) => {
                   to={s.id === 'overview' ? '/admin' : `/admin/${s.id}`}
                   aria-current={active ? 'page' : undefined}
                   className={cx(
-                    'flex items-center gap-2 px-3.5 py-2 rounded-lg text-sm font-medium whitespace-nowrap border transition-colors',
+                    'flex items-center gap-2 px-4 py-2 rounded-full text-sm font-medium whitespace-nowrap border transition-colors',
                     active
-                      ? 'bg-brand-dark text-brand-light border-brand-dark dark:bg-gray-100 dark:text-gray-900 dark:border-gray-100'
+                      ? 'bg-brand-solid text-on-primary border-transparent'
                       : 'bg-white dark:bg-gray-900 border-gray-200 dark:border-gray-800 text-gray-600 dark:text-gray-300',
                   )}
                 >

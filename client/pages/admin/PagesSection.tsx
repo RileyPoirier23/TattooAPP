@@ -174,7 +174,7 @@ const PageEditor: React.FC<{ page: Page | null; nextSortOrder: number; onDone: (
             <div className={cx(tab !== 'preview' && 'hidden lg:block', 'min-w-0')}>
               <p className="text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Preview</p>
               <div className="rounded-lg border border-gray-200 dark:border-gray-800 bg-gray-50 dark:bg-gray-950/40 px-5 py-4 min-h-[200px] lg:max-h-[470px] overflow-y-auto">
-                <h1 className="text-4xl font-display text-brand-dark dark:text-white">{d.title || 'Untitled page'}</h1>
+                <h1 className="text-3xl font-display text-brand-dark dark:text-white">{d.title || 'Untitled page'}</h1>
                 {d.body.trim() ? (
                   <Markdown text={settings ? fillPageTokens(d.body, settings, window.location.origin) : d.body} className="text-gray-700 dark:text-gray-300 break-words" />
                 ) : (

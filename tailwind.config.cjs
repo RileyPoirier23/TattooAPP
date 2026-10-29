@@ -1,6 +1,4 @@
 /** @type {import('tailwindcss').Config} */
-const colors = require('tailwindcss/colors');
-
 module.exports = {
   content: ['./client/**/*.{ts,tsx,html}'],
   darkMode: 'class',
@@ -8,22 +6,18 @@ module.exports = {
   future: { hoverOnlyWhenSupported: true },
   theme: {
     extend: {
-      // "Flash sheet" type: condensed poster headlines (Big Shoulders Display), monospace labels and
-      // numbers (IBM Plex Mono), and IBM Plex Sans for reading.
+      // Headings in Fira Sans, text in Poppins.
       fontFamily: {
-        sans: ['"IBM Plex Sans"', 'ui-sans-serif', 'system-ui', 'sans-serif'],
-        mono: ['"IBM Plex Mono"', 'ui-monospace', 'SFMono-Regular', 'monospace'],
-        display: ['"Big Shoulders Display"', 'Impact', '"Arial Narrow"', 'sans-serif'],
+        sans: ['Poppins', 'ui-sans-serif', 'system-ui', 'sans-serif'],
+        display: ['"Fira Sans"', 'ui-sans-serif', 'system-ui', 'sans-serif'],
       },
-      // Square corners, like a printed sheet. Only avatars, dots and switches stay round (rounded-full).
-      borderRadius: { none: '0', sm: '0', DEFAULT: '0', md: '0', lg: '0', xl: '0', '2xl': '0', '3xl': '0' },
       colors: {
-        // Warm neutrals (paper and ink) instead of Tailwind's blue-tinted grays.
-        gray: colors.stone,
         'brand-primary': 'rgb(var(--brand-primary) / <alpha-value>)',
         'brand-secondary': 'rgb(var(--brand-secondary) / <alpha-value>)',
-        'brand-dark': '#14120F', // ink
-        'brand-light': '#F2EEE6', // paper
+        'brand-dark': '#0E1116',
+        'brand-light': '#FFFFFF',
+        // Alternate section background (a light tint of the page color).
+        'brand-tint': '#F2F6FC',
         // Secondary text: darker in light mode, lighter in dark mode, so it stays readable (WCAG AA) in both.
         'brand-gray': 'rgb(var(--brand-gray) / <alpha-value>)',
         // Brand-colored backgrounds that carry text (a deeper shade when needed), and the text on them.

@@ -9,9 +9,9 @@ export const DEFAULT_SETTINGS: SiteSettings = {
   tagline: 'Tattoo artists, guest spots & bookings',
   logoUrl: '',
   faviconUrl: '',
-  // Flash-sheet vermilion and a deep green: one accent for actions, a quieter one for badges.
-  primaryColor: '#D0281C',
-  secondaryColor: '#2F5D50',
+  // A bright blue for actions and a deep teal for badges.
+  primaryColor: '#0066F5',
+  secondaryColor: '#0F766E',
   defaultTheme: 'light',
   heroTitle: 'Book tattoo artists near you.',
   heroHighlight: '',
@@ -73,6 +73,7 @@ export const DEFAULT_SECRETS: SecretSettings = {
 const OLD_DEFAULTS: Partial<SiteSettings>[] = [
   { primaryColor: '#F04E98', secondaryColor: '#8A4EFC', defaultTheme: 'dark' },
   { primaryColor: '#F04E98', secondaryColor: '#8A4EFC' },
+  { primaryColor: '#B7352B', secondaryColor: '#2F5D50' }, // the 1.2 studio look
   { heroTitle: 'Find Your Space.', heroHighlight: 'Make Your Mark.' },
   { heroSubtitle: 'Book talented tattoo artists near you, or find a guest spot at a shop in your next city — all in one place.' },
 ];

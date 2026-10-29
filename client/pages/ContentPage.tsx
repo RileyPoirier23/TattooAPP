@@ -19,7 +19,7 @@ export const ContentPage: React.FC<{ slug: string }> = ({ slug }) => {
   if (loading || !data) return <PageLoader />;
   return (
     <article className="max-w-3xl mx-auto">
-      <h1 className="text-5xl sm:text-6xl font-display mb-4">{data.title}</h1>
+      <h1 className="text-3xl sm:text-4xl font-display mb-3">{data.title}</h1>
       <p className="text-xs text-brand-gray mb-6">Last updated {new Date(data.updatedAt).toLocaleDateString()}</p>
       <Markdown text={data.body} className="text-gray-700 dark:text-gray-300" />
     </article>

@@ -263,9 +263,9 @@ export const FilterPills: React.FC<{
         aria-selected={value === o.id}
         onClick={() => onChange(o.id)}
         className={cx(
-          'px-3 py-1.5 rounded-lg text-sm font-medium whitespace-nowrap border transition-colors',
+          'px-4 py-1.5 rounded-full text-sm font-medium whitespace-nowrap border transition-colors',
           value === o.id
-            ? 'bg-brand-dark text-brand-light border-brand-dark dark:bg-gray-100 dark:text-gray-900 dark:border-gray-100'
+            ? 'bg-brand-solid text-on-primary border-transparent'
             : 'border-gray-300 dark:border-gray-700 text-gray-600 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-800',
         )}
       >

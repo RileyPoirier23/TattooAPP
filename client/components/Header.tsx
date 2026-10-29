@@ -15,6 +15,10 @@ function useClickOutside(ref: React.RefObject<HTMLElement | null>, onOutside: ()
   }, [ref, onOutside]);
 }
 
+/** Round icon button styles: normal, or white while the header sits over the home page photo. */
+const iconButton = (onPhoto: boolean) =>
+  cx('relative p-2 rounded-full transition-colors', onPhoto ? 'text-white/90 hover:text-white hover:bg-white/10' : 'text-gray-500 hover:text-brand-dark dark:hover:text-white hover:bg-gray-100 dark:hover:bg-gray-800');
+
 function accountLinks(user: Me): { to: string; label: string }[] {
   const links: { to: string; label: string }[] = [];
   if (user.role === 'admin') links.push({ to: '/admin', label: 'Admin panel' });
@@ -26,7 +30,7 @@ function accountLinks(user: Me): { to: string; label: string }[] {
   return links;
 }
 
-const Notifications: React.FC = () => {
+const Notifications: React.FC<{ onPhoto: boolean }> = ({ onPhoto }) => {
   const notifications = useStore(s => s.notifications);
   const markRead = useStore(s => s.markNotificationsRead);
   const [open, setOpen] = useState(false);
@@ -41,7 +45,7 @@ const Notifications: React.FC = () => {
           setOpen(o => !o);
           if (!open && unread) setTimeout(markRead, 800);
         }}
-        className="relative p-2 rounded-lg text-gray-500 hover:text-brand-dark dark:hover:text-white hover:bg-gray-100 dark:hover:bg-gray-800"
+        className={iconButton(onPhoto)}
         aria-expanded={open}
       >
         <BellIcon className="w-6 h-6" />
@@ -79,17 +83,17 @@ const Notifications: React.FC = () => {
   );
 };
 
-const UserMenu: React.FC<{ user: Me }> = ({ user }) => {
+const UserMenu: React.FC<{ user: Me; onPhoto: boolean }> = ({ user, onPhoto }) => {
   const logout = useStore(s => s.logout);
   const [open, setOpen] = useState(false);
   const ref = useRef<HTMLDivElement>(null);
   useClickOutside(ref, () => setOpen(false));
   return (
     <div className="relative hidden md:block" ref={ref}>
-      <button onClick={() => setOpen(o => !o)} className="flex items-center gap-2 pl-1 pr-2 py-1 rounded-full hover:bg-gray-100 dark:hover:bg-gray-800">
+      <button onClick={() => setOpen(o => !o)} className={cx('flex items-center gap-2 pl-1 pr-2 py-1 rounded-full', onPhoto ? 'hover:bg-white/10' : 'hover:bg-gray-100 dark:hover:bg-gray-800')}>
         <Avatar name={user.name} url={user.avatarUrl} size="sm" />
-        <span className="text-sm font-semibold max-w-[10rem] truncate">{user.name}</span>
-        <ChevronDownIcon className="w-4 h-4 text-brand-gray" />
+        <span className="text-sm font-medium max-w-[10rem] truncate">{user.name}</span>
+        <ChevronDownIcon className={cx('w-4 h-4', onPhoto ? 'text-white/80' : 'text-brand-gray')} />
       </button>
       {open && (
         <div className="absolute right-0 mt-2 w-56 bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-700 rounded-xl shadow-lg shadow-black/10 z-50 py-1 animate-pop-in origin-top-right">
@@ -131,36 +135,67 @@ export const Header: React.FC = () => {
 
   useEffect(() => setMobileOpen(false), [path]);
 
+  // On the home page the header floats over the hero photo until the page is scrolled.
+  const home = path === '/';
+  const [scrolled, setScrolled] = useState(false);
+  useEffect(() => {
+    if (!home) return;
+    const onScroll = () => setScrolled(window.scrollY > 24);
+    onScroll();
+    window.addEventListener('scroll', onScroll, { passive: true });
+    return () => window.removeEventListener('scroll', onScroll);
+  }, [home]);
+  const onPhoto = home && !scrolled && !mobileOpen;
+  // The home hero pads itself by the header's real height (it grows with a long announcement).
+  const headerRef = useRef<HTMLElement>(null);
+  useEffect(() => {
+    const el = headerRef.current;
+    if (!el) return;
+    const set = () => document.documentElement.style.setProperty('--header-h', `${el.offsetHeight}px`);
+    set();
+    const ro = new ResizeObserver(set);
+    ro.observe(el);
+    return () => ro.disconnect();
+  }, []);
+
   const nav = [
     s.features.clientBooking && { to: '/artists', label: 'Find an artist' },
     s.features.boothRental && { to: '/shops', label: 'Guest spots' },
   ].filter(Boolean) as { to: string; label: string }[];
 
   return (
-    <header className="sticky top-0 z-50 pt-[env(safe-area-inset-top)] bg-brand-light dark:bg-brand-dark border-b border-gray-900 dark:border-gray-700">
-      {s.announcementEnabled && s.announcementText && (
-        <div className="label bg-brand-dark text-brand-light dark:bg-gray-800 dark:text-gray-100 text-center px-4 py-2">{s.announcementText}</div>
+    <header
+      ref={headerRef}
+      className={cx(
+        home ? 'fixed inset-x-0' : 'sticky',
+        'top-0 z-50 pt-[env(safe-area-inset-top)] border-b transition-colors duration-200',
+        onPhoto ? 'bg-transparent border-transparent text-white' : 'bg-brand-light dark:bg-brand-dark border-gray-200 dark:border-gray-800',
+        home && scrolled && 'shadow-sm',
       )}
-      <div className="container mx-auto px-4 h-16 flex items-center justify-between gap-4">
+    >
+      {s.announcementEnabled && s.announcementText && (
+        <div className="bg-brand-solid text-on-primary text-center text-sm px-4 py-2">{s.announcementText}</div>
+      )}
+      <div className="container mx-auto px-4 h-[4.5rem] flex items-center justify-between gap-4">
         <Link to="/" className="flex items-center gap-2.5 min-w-0" aria-label={`${s.siteName} home`}>
           {s.logoUrl ? (
             <img src={s.logoUrl} alt={s.siteName} className="h-9 w-auto max-w-[160px] object-contain" />
           ) : (
             <>
-              <NeedleIcon className="w-7 h-7 text-brand-primary flex-shrink-0" />
-              <span className="font-display text-3xl truncate">{s.siteName}</span>
+              <NeedleIcon className={cx('w-7 h-7 flex-shrink-0', onPhoto ? 'text-white' : 'text-brand-primary')} />
+              <span className="font-display font-bold text-2xl truncate">{s.siteName}</span>
             </>
           )}
         </Link>
 
-        <nav className="hidden md:flex items-center gap-1">
+        <nav className="hidden md:flex items-center gap-2">
           {nav.map(n => (
             <Link
               key={n.to}
               to={n.to}
               className={cx(
-                'label px-3 py-2 transition-colors',
-                path.startsWith(n.to) ? 'bg-brand-dark text-brand-light dark:bg-white dark:text-brand-dark' : 'text-gray-700 dark:text-gray-300 hover:text-brand-primary',
+                'px-3 py-2 text-[15px] font-medium transition-colors',
+                onPhoto ? 'text-white/90 hover:text-white' : path.startsWith(n.to) ? 'text-brand-primary' : 'text-gray-700 dark:text-gray-300 hover:text-brand-primary',
               )}
             >
               {n.label}
@@ -169,27 +204,27 @@ export const Header: React.FC = () => {
         </nav>
 
         <div className="flex items-center gap-1 sm:gap-2">
-          <button onClick={toggleTheme} className="p-2 rounded-lg text-gray-500 hover:text-brand-dark dark:hover:text-white hover:bg-gray-100 dark:hover:bg-gray-800" aria-label="Toggle dark mode">
+          <button onClick={toggleTheme} className={iconButton(onPhoto)} aria-label="Toggle dark mode">
             {theme === 'dark' ? <SunIcon className="w-6 h-6" /> : <MoonIcon className="w-6 h-6" />}
           </button>
           {user ? (
             <>
               {user.role !== 'admin' && s.features.messaging && (
-                <Link to="/messages" className="relative p-2 rounded-lg text-gray-500 hover:text-brand-dark dark:hover:text-white hover:bg-gray-100 dark:hover:bg-gray-800" aria-label="Messages">
+                <Link to="/messages" className={iconButton(onPhoto)} aria-label="Messages">
                   <ChatIcon className="w-6 h-6" />
                   {unreadMessages > 0 && <span className="absolute top-1.5 right-1.5 w-2.5 h-2.5 rounded-full bg-brand-primary" />}
                 </Link>
               )}
-              <Notifications />
-              <UserMenu user={user} />
+              <Notifications onPhoto={onPhoto} />
+              <UserMenu user={user} onPhoto={onPhoto} />
             </>
           ) : (
             <div className="hidden md:flex items-center gap-2">
-              <Button variant="ghost" onClick={() => openAuth('login')}>Log in</Button>
+              <Button variant="ghost" onClick={() => openAuth('login')} className={onPhoto ? '!text-white hover:!bg-white/10' : undefined}>Log in</Button>
               <Button onClick={() => openAuth('register')}>Sign up</Button>
             </div>
           )}
-          <button className="md:hidden p-2 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-800" onClick={() => setMobileOpen(o => !o)} aria-label="Menu">
+          <button className={cx('md:hidden', iconButton(onPhoto))} onClick={() => setMobileOpen(o => !o)} aria-label="Menu">
             {mobileOpen ? <XIcon className="w-6 h-6" /> : <MenuIcon className="w-6 h-6" />}
           </button>
         </div>
@@ -199,7 +234,7 @@ export const Header: React.FC = () => {
         <div className="md:hidden border-t border-gray-200 dark:border-gray-800 bg-brand-light dark:bg-brand-dark animate-fade-in">
           <div className="container mx-auto px-4 py-3 space-y-1">
             {nav.map(n => (
-              <Link key={n.to} to={n.to} className="block px-3 py-1 font-display text-4xl hover:text-brand-primary">
+              <Link key={n.to} to={n.to} className="block px-3 py-2.5 rounded-lg font-medium hover:bg-gray-100 dark:hover:bg-gray-800">
                 {n.label}
               </Link>
             ))}

@@ -32,12 +32,13 @@
 - Sign-ups and bookings record when the terms were accepted.
 
 ### New look
-- A "flash sheet" design, after the printed sheets of numbered designs in tattoo shops: condensed poster headlines (Big Shoulders Display), small monospace labels and numbers (IBM Plex Mono), IBM Plex Sans for text, square corners, hairline rules, and paper, ink and vermilion colors in place of the pink-to-purple gradients. Fonts are served by the site itself (no Google Fonts request).
-- Home page: a poster headline with real tattoos from the site's artists set into the line, live counts of artists, shops and cities, a scrolling band of tattoo styles (still for visitors who ask for reduced motion), a numbered sheet of recent work, numbered artist and shop cards that invert to ink on hover, and a red sign-up band. Every page ends with the site name set as a full-width poster.
-- Quieter details: buttons, tabs and badges use monospace capitals; status labels are neutral with a small colored dot; Pro is a text label; no checkmark bullets or sparkle icons; the shop's name sits under its cover photo instead of on top of the sign; lists show placeholder cards while loading.
+- A redesign based on the BookApp "Home 2" template the owner picked, adapted for tattoos and filled with real data instead of placeholders: Fira Sans headings, Poppins text, a bright blue accent (#0066F5, changeable in Admin → Customize, which also has a Vermilion preset), rounded cards, pill buttons and light tinted sections. Fonts are served by the site itself (no Google Fonts request).
+- Home page: a full-width hero (the owner's photo, or a mosaic of real work) with the header floating over it and a city + style search that opens the artist search already filtered; popular styles with a real piece and artist count for each; how booking works in four numbered steps; featured artists and shops in scrolling rows with arrows; two promo banners; artists filtered by style with pill buttons; and a dark sign-up banner for artists and shop owners.
+- Artist cards show the style, rating, city, starting price and a Book now button; shop cards show amenities, starting rate per day and number of booths. Lists show placeholder cards while loading.
+- Centered footer with the logo, contact email, social links and all pages.
 - Copy: no emoji in messages and notifications, and em dashes replaced with plain punctuation throughout the site, emails and the starter policy pages.
-- Sites still using the original pink/purple colors, dark theme and "Find Your Space." headline switch to the new defaults automatically, and starter pages nobody edited get the updated text (the Privacy Policy no longer mentions Google Fonts). Anything an owner customized is kept. Admin → Customize has new color presets.
-- The previous look is kept on the `backup/original-vibecoded-look` branch.
+- Sites still using an earlier default look (the original pink/purple, or the 1.2 studio red) switch to the new defaults automatically, and starter pages nobody edited get the updated text (the Privacy Policy no longer mentions Google Fonts). Anything an owner customized is kept.
+- Earlier looks are kept on the `backup/original-vibecoded-look`, `backup/studio-look` and `backup/flash-sheet-look` branches.
 
 ### Polish
 - The booking fee is shown before booking and in every "pay your deposit" message; artists are told about it.

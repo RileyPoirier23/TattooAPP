@@ -42,7 +42,7 @@ export const ProPlanCard: React.FC<{ me: Me }> = ({ me }) => {
     <Card>
       <div>
         <div className="flex items-center gap-3 mb-2">
-          <h2 className="text-4xl font-display">{settings.siteName} Pro</h2>
+          <h2 className="text-2xl font-display">{settings.siteName} Pro</h2>
           {sub.isPro && <Badge tone="green">Active</Badge>}
         </div>
         <p className="text-3xl font-semibold tabular-nums">{price}<span className="text-base font-normal text-brand-gray"> a month</span></p>

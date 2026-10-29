@@ -10,16 +10,15 @@ export { cx };
 
 type ButtonVariant = 'primary' | 'secondary' | 'outline' | 'ghost' | 'danger' | 'success';
 const VARIANTS: Record<ButtonVariant, string> = {
-  // Hover inverts to ink (works for any brand color the owner picks).
-  primary: 'bg-brand-solid text-on-primary hover:bg-brand-dark hover:text-brand-light dark:hover:bg-white dark:hover:text-brand-dark',
-  secondary: 'bg-brand-secondary-solid text-on-secondary hover:bg-brand-dark hover:text-brand-light dark:hover:bg-white dark:hover:text-brand-dark',
-  outline: 'border border-gray-900 dark:border-gray-300 text-brand-dark dark:text-white hover:bg-brand-dark hover:text-brand-light dark:hover:bg-white dark:hover:text-brand-dark',
+  // A soft brand-colored shadow under the main button (the template's glow, toned down).
+  primary: 'bg-brand-solid text-on-primary shadow-lg shadow-brand-primary/25 hover:brightness-110',
+  secondary: 'bg-brand-secondary-solid text-on-secondary hover:brightness-110',
+  outline: 'border border-gray-300 dark:border-gray-600 text-brand-dark dark:text-white hover:border-brand-primary hover:text-brand-primary',
   ghost: 'text-gray-600 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-800',
   danger: 'bg-red-600 text-white hover:bg-red-500',
   success: 'bg-emerald-700 text-white hover:bg-emerald-800',
 };
-// Labels are set in uppercase mono, like the numbers on a flash sheet.
-const SIZES = { sm: 'text-[11px] px-3 py-2', md: 'text-xs px-4 py-3', lg: 'text-sm px-6 py-4' };
+const SIZES = { sm: 'text-sm px-4 py-1.5', md: 'text-sm px-5 py-2.5', lg: 'text-base px-7 py-3.5' };
 
 export const Button: React.FC<
   React.ButtonHTMLAttributes<HTMLButtonElement> & { variant?: ButtonVariant; size?: keyof typeof SIZES; loading?: boolean; block?: boolean }
@@ -28,7 +27,7 @@ export const Button: React.FC<
     type={type}
     disabled={disabled || loading}
     className={cx(
-      'inline-flex items-center justify-center gap-2 font-mono font-medium uppercase tracking-wider transition-colors enabled:active:scale-[0.97] disabled:opacity-50 disabled:cursor-not-allowed focus:outline-none focus-visible:ring-2 focus-visible:ring-brand-primary focus-visible:ring-offset-2 dark:focus-visible:ring-offset-brand-dark',
+      'inline-flex items-center justify-center gap-2 rounded-full font-medium transition enabled:active:scale-[0.97] disabled:opacity-50 disabled:cursor-not-allowed focus:outline-none focus-visible:ring-2 focus-visible:ring-brand-primary focus-visible:ring-offset-2 dark:focus-visible:ring-offset-brand-dark',
       VARIANTS[variant],
       SIZES[size],
       block && 'w-full',
@@ -132,9 +131,9 @@ export const Card: React.FC<{ className?: string; children: React.ReactNode; pad
 );
 
 export const PageHeader: React.FC<{ title: React.ReactNode; subtitle?: React.ReactNode; actions?: React.ReactNode }> = ({ title, subtitle, actions }) => (
-  <div className="flex flex-col sm:flex-row sm:items-end justify-between gap-4 mb-8 pb-5 border-b border-gray-900 dark:border-gray-700">
+  <div className="flex flex-col sm:flex-row sm:items-end justify-between gap-4 mb-8">
     <div>
-      <h1 className="text-5xl sm:text-6xl font-display text-brand-dark dark:text-white">{title}</h1>
+      <h1 className="text-3xl sm:text-4xl font-display text-brand-dark dark:text-white">{title}</h1>
       {subtitle && <p className="text-brand-gray mt-2 max-w-2xl">{subtitle}</p>}
     </div>
     {actions && <div className="flex flex-wrap gap-2">{actions}</div>}
@@ -161,7 +160,7 @@ export const EmptyState: React.FC<{ icon?: React.ReactNode; title: string; child
 
 // Badges are quiet labels: neutral outline and text, with a small colored dot when the tone carries meaning
 // (status). Avoids a page full of tinted pastel pills.
-const OUTLINE = 'border border-gray-300 dark:border-gray-700 text-gray-700 dark:text-gray-300';
+const OUTLINE = 'border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-900 text-gray-700 dark:text-gray-300';
 const DOTS = {
   green: 'bg-emerald-600',
   yellow: 'bg-amber-500',
@@ -175,7 +174,7 @@ const DOTS = {
 };
 export type Tone = keyof typeof DOTS;
 export const Badge: React.FC<{ tone?: Tone; children: React.ReactNode; className?: string }> = ({ tone = 'gray', children, className }) => (
-  <span className={cx('inline-flex items-center gap-1.5 font-mono text-[10px] font-medium uppercase tracking-wider px-1.5 py-0.5 whitespace-nowrap', tone !== 'none' && OUTLINE, className)}>
+  <span className={cx('inline-flex items-center gap-1.5 rounded-full text-xs font-medium px-2.5 py-0.5 whitespace-nowrap', tone !== 'none' && OUTLINE, className)}>
     {DOTS[tone] && <span aria-hidden="true" className={cx('w-1.5 h-1.5 rounded-full flex-shrink-0', DOTS[tone])} />}
     {children}
   </span>
@@ -211,8 +210,8 @@ export const Tabs: React.FC<{ tabs: { id: string; label: React.ReactNode; count?
         key={t.id}
         onClick={() => onChange(t.id)}
         className={cx(
-          'px-4 py-3 font-mono text-xs font-medium uppercase tracking-wider whitespace-nowrap border-b-2 -mb-px transition-colors',
-          active === t.id ? 'border-brand-primary text-brand-dark dark:text-white' : 'border-transparent text-brand-gray hover:text-brand-dark dark:hover:text-white',
+          'px-4 py-2.5 text-sm font-medium whitespace-nowrap border-b-2 -mb-px transition-colors',
+          active === t.id ? 'border-brand-primary text-brand-primary' : 'border-transparent text-brand-gray hover:text-brand-dark dark:hover:text-white',
         )}
       >
         {t.label}
@@ -235,15 +234,6 @@ export const Spinner: React.FC<{ size?: 'sm' | 'md' | 'lg'; light?: boolean }> =
     )}
   />
 );
-
-/**
- * Catalog grids, like a printed flash sheet: cells share hairline rules. Put `catalogGrid` on the grid and
- * `catalogCell` on each item (the grid draws the top/left rules, each cell its right/bottom ones).
- */
-export const catalogGrid = 'grid border-l border-t border-gray-900 dark:border-gray-700';
-export const catalogCell = 'border-r border-b border-gray-900 dark:border-gray-700';
-/** "No. 01" style numbering. */
-export const catalogNo = (i: number) => `No. ${String(i + 1).padStart(2, '0')}`;
 
 /** A placeholder block shaped like the content that's loading. */
 export const Skeleton: React.FC<{ className?: string }> = ({ className }) => (
@@ -403,8 +393,8 @@ export const StarRating: React.FC<{ value: number; onChange?: (v: number) => voi
   );
 };
 
-export const Avatar: React.FC<{ name: string; url?: string | null; size?: 'sm' | 'md' | 'lg' | 'xl' }> = ({ name, url, size = 'md' }) => {
-  const s = { sm: 'w-8 h-8 text-xs', md: 'w-10 h-10 text-sm', lg: 'w-16 h-16 text-xl', xl: 'w-24 h-24 text-3xl' }[size];
+export const Avatar: React.FC<{ name: string; url?: string | null; size?: 'xs' | 'sm' | 'md' | 'lg' | 'xl' }> = ({ name, url, size = 'md' }) => {
+  const s = { xs: 'w-6 h-6 text-[10px]', sm: 'w-8 h-8 text-xs', md: 'w-10 h-10 text-sm', lg: 'w-16 h-16 text-xl', xl: 'w-24 h-24 text-3xl' }[size];
   if (url) return <img src={url} alt={name} className={cx(s, 'rounded-full object-cover flex-shrink-0 bg-gray-200 dark:bg-gray-800')} />;
   const initials = name.split(/\s+/).filter(w => /^[\p{L}\p{N}]/u.test(w)).slice(0, 2).map(w => [...w][0].toUpperCase()).join('');
   return (
