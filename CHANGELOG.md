@@ -1,5 +1,18 @@
 # Changelog
 
+## [1.3.0] — 2026-11-03 — Beauty marketplace
+
+### New
+- Open to every kind of beauty pro, not just tattoo artists: each pro picks a category (Tattoo, Piercing, Barber, Hair, Nails, Lashes & Brows, Makeup, Skin & Spa; the owner edits the list in Admin → Settings → Choices on forms). Everyone who already took bookings is set to Tattoo.
+- Pros page like the template's services page: filters for category (with live counts), keyword, specialty, city or "near me", **available on a date** (pros who work that day), starting price range, rating and verified, plus sorting by rating, reviews, price or name.
+- Pro profiles like the template's service details page: photo gallery with arrows and thumbnails, starting price and rating, about, services with a Book button each, opening hours, reviews with a summary, and a side card with booking, messaging, social links and location. Pros can add a studio address (shown with a map link).
+- Home page by category: search by city and category, category cards with counts, featured pros, pros by category.
+- The booking form only asks for size and placement for tattoos (placement also for piercings).
+
+### Changed
+- Reviews come from accounts only. Guests still book without signing up; after the appointment they're invited to create a free account, and signing up or logging in from their booking link adds the booking to the account so they can review.
+- Wording: "pro" instead of "artist", "Booth rentals" instead of "guest spots", and general appointment wording in the site, emails and starter pages (unedited pages update automatically; the Privacy Policy notes that profiles, including studio addresses, are public).
+
 ## [1.2.0] — 2026-10-10 — Launch readiness
 
 ### Money

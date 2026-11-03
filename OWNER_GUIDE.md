@@ -53,6 +53,10 @@ The Pro plan is **switched off** until you turn it on in **Settings → Features
 - **Turning Pro off later** stops new sign-ups. Current subscribers keep their plan (and can still cancel it) until they cancel.
 - You can also give someone Pro for free from **Users** (pick an end date or leave it open-ended).
 
+## Categories (tattoo, barber, nails and more)
+
+Every pro chooses a category when they sign up, and clients browse and search by it. Change the list in **Admin → Settings → Choices on forms → Categories**: add one (for example "Massage") and pros can pick it straight away. Removing a category doesn't change pros who already use it; ask them to pick another in their dashboard. Tattoo and piercing bookings ask for size and placement; other categories skip those questions.
+
 ## 4. Day to day
 
 - **Inbox** — messages from the **Contact us** page. They're also emailed to your contact email (or every admin if none is set). **Reply by email** opens your email app with their address filled in.

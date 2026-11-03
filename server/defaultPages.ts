@@ -120,7 +120,7 @@ Questions about these terms? Contact us through {{contact}}.`,
 
 ## What we collect
 - **Account details:** your name, email address, city and account type. Your password is stored only in scrambled (hashed) form.
-- **Pro and shop profiles:** bio, photos, services and prices, working hours, shop address and payout details.
+- **Pro and shop profiles:** bio, photos, services and prices, working hours, studio or shop address and payout details. Everything on a profile except payout details is public.
 - **Bookings:** the date, what you'd like done (for tattoos, also size and placement), budget and any reference photos you attach. Guests also give their name, email and (optionally) phone number.
 - **Messages** you send through the site, and **reviews** you write.
 - **Payments:** Square processes all card payments. We receive the payment result and, for saved cards, the card brand and last four digits, never your full card number.

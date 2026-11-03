@@ -159,7 +159,7 @@ test('shop owner lists a booth and an artist rents it', async ({ page }) => {
   await dialog.getByRole('button', { name: 'Reserve & pay' }).click();
   await expect(page.getByTestId('fake-card')).toBeVisible();
   await page.getByRole('dialog').getByRole('button', { name: /Pay .*270\.00/ }).click();
-  await expect(page.getByText('Booth paid. Your guest spot is confirmed.')).toBeVisible();
+  await expect(page.getByText('Booth paid. Your rental is confirmed.')).toBeVisible();
   await expect(page).toHaveURL(/\/bookings/);
   await expect(page.getByText('Window station at Ink & Dagger')).toBeVisible();
 });
@@ -168,8 +168,8 @@ test('pages work on a phone', async ({ page }) => {
   await page.setViewportSize({ width: 390, height: 844 });
   await page.goto('/');
   await page.getByRole('button', { name: 'Menu' }).click();
-  await page.getByRole('link', { name: 'Find an artist' }).first().click();
-  await expect(page.getByRole('heading', { name: 'Find an artist' })).toBeVisible();
+  await page.getByRole('link', { name: 'Find a pro' }).first().click();
+  await expect(page.getByRole('heading', { name: 'Find a pro' })).toBeVisible();
   const overflow = await page.evaluate(() => document.documentElement.scrollWidth > window.innerWidth);
   expect(overflow).toBe(false);
   await page.goto('/p/faq');

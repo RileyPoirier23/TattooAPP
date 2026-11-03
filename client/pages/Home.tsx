@@ -1,27 +1,21 @@
-// Landing page: hero with a city + style search, popular styles, how booking works, featured artists,
-// promo banners, artists by style, a call to artists, and shops with guest spots. Everything shown is
-// real data from the site; sections without enough data are left out.
+// Landing page: hero with a city + category search, categories, how booking works, featured pros,
+// promo banners, pros by category, a call to pros and shop owners, and shops with booths for rent.
+// Everything shown is real data from the site; sections without enough data are left out.
 import React, { useMemo, useRef, useState } from 'react';
 import { Link, navigate } from '../router';
 import { useStore } from '../store';
 import { Markdown } from '../lib/markdown';
 import { Button, cx, useApi } from '../components/ui';
-import { ArrowLeftIcon, ArrowRightIcon, CalendarIcon, ChatIcon, CreditCardIcon, LocationIcon, PaletteIcon, SearchIcon } from '../components/Icons';
+import { ArrowLeftIcon, ArrowRightIcon, CalendarIcon, CategoryIcon, ChatIcon, CreditCardIcon, LocationIcon, SearchIcon, StoreIcon } from '../components/Icons';
 import { ArtistCard, ArtistCardSkeleton } from './Artists';
 import { ShopCard } from './Shops';
 import type { PublicArtist, Shop } from '../../shared/types';
 
-/** Styles that at least one artist lists, most popular first, each with a piece to show. */
-function popularStyles(artists: PublicArtist[]) {
-  const by = new Map<string, { style: string; count: number; image?: string }>();
-  for (const a of artists) {
-    if (!a.specialty) continue;
-    const e = by.get(a.specialty) ?? { style: a.specialty, count: 0 };
-    e.count++;
-    e.image ??= a.portfolio[0]?.url || a.avatarUrl || undefined;
-    by.set(a.specialty, e);
-  }
-  return [...by.values()].sort((x, y) => y.count - x.count || x.style.localeCompare(y.style));
+/** The owner's categories with how many pros list under each, busiest first. */
+function categoryCounts(categories: string[], pros: PublicArtist[]) {
+  return categories
+    .map((name, i) => ({ name, count: pros.filter(p => p.category === name).length, order: i }))
+    .sort((a, b) => b.count - a.count || a.order - b.order);
 }
 
 const SectionTitle: React.FC<{ title: string; subtitle?: string; center?: boolean; children?: React.ReactNode }> = ({ title, subtitle, center, children }) => (
@@ -59,10 +53,10 @@ const Carousel: React.FC<{ title: string; label: string; action?: React.ReactNod
 const slide = 'snap-start flex-shrink-0 w-[82%] sm:w-[calc(50%-12px)] lg:w-[calc(33.333%-16px)] xl:w-[calc(25%-18px)] flex';
 
 const STEPS = [
-  { Icon: SearchIcon, title: 'Find your artist', text: 'Browse portfolios by style and city, and check prices and opening hours.' },
-  { Icon: ChatIcon, title: 'Send your idea', text: 'Describe the piece, its size and placement, and attach reference photos.' },
-  { Icon: CreditCardIcon, title: 'Pay the deposit', text: 'When the artist approves, a deposit paid safely online holds your date.' },
-  { Icon: CalendarIcon, title: 'Get tattooed', text: 'Show up on the day. Your booking and messages stay in one place.' },
+  { Icon: SearchIcon, title: 'Find your pro', text: 'Search by category, city and day, then look through their work, prices and reviews.' },
+  { Icon: ChatIcon, title: 'Send your request', text: 'Pick a service and a day, say what you would like and add photos if you have them.' },
+  { Icon: CreditCardIcon, title: 'Pay the deposit', text: 'When your pro approves, a deposit paid safely online holds your spot.' },
+  { Icon: CalendarIcon, title: 'Show up', text: 'Your booking, messages and receipt stay in one place. Leave a review after.' },
 ];
 
 export const HomePage: React.FC = () => {
@@ -72,23 +66,30 @@ export const HomePage: React.FC = () => {
   const artists = useApi<PublicArtist[]>(s.features.clientBooking ? '/artists' : null);
   const shops = useApi<Shop[]>(s.features.boothRental ? '/shops' : null);
   const list = artists.data ?? [];
-  const styles = useMemo(() => popularStyles(list), [list]);
+  const cats = useMemo(() => categoryCounts(s.categories, list), [s.categories, list]);
+  // Categories with pros first; if only a few are filled yet, show the whole list so the site doesn't look empty.
+  const shownCats = cats.filter(c => c.count > 0).length >= 4 ? cats.filter(c => c.count > 0) : cats;
   const cities = useMemo(() => [...new Set([...list.map(a => a.city), ...(shops.data ?? []).map(sh => sh.city)].filter(Boolean))].sort(), [list, shops.data]);
   const mosaic = list.flatMap(a => a.portfolio.slice(0, 2).map(p => p.url)).slice(0, 8);
 
   const [city, setCity] = useState('');
-  const [style, setStyle] = useState('');
+  const [category, setCategory] = useState('');
   const search = (e: React.FormEvent) => {
     e.preventDefault();
     const q = new URLSearchParams();
     if (city.trim()) q.set('city', city.trim());
-    if (style && s.features.clientBooking) q.set('style', style);
+    if (category && s.features.clientBooking) q.set('category', category);
     navigate(`${s.features.clientBooking ? '/artists' : '/shops'}${q.toString() ? `?${q}` : ''}`);
   };
 
   const [filter, setFilter] = useState('');
-  const byStyle = (filter ? list.filter(a => a.specialty === filter) : list).slice(0, 8);
-  const showcase = list.flatMap(a => a.portfolio.slice(0, 1).map(p => ({ url: p.url, alt: p.caption || `Tattoo by ${a.name}` }))).slice(0, 2);
+  const byCategory = (filter ? list.filter(a => a.category === filter) : list).slice(0, 8);
+  // One piece each from different categories where possible, for the banners.
+  const showcase = [...new Map(list.filter(a => a.portfolio[0]).map(a => [a.category, a])).values(), ...list]
+    .filter(a => a.portfolio[0])
+    .map(a => ({ url: a.portfolio[0].url, alt: a.portfolio[0].caption || `Work by ${a.name}` }))
+    .filter((p, i, all) => all.findIndex(q => q.url === p.url) === i)
+    .slice(0, 3);
 
   return (
     <div>
@@ -118,8 +119,8 @@ export const HomePage: React.FC = () => {
             >
               <label className="flex items-center gap-2 flex-1 px-4 py-2.5 min-w-0">
                 <LocationIcon className="w-5 h-5 text-brand-primary" />
-                <span className="sr-only">City</span>
                 <input
+                  aria-label="City"
                   value={city}
                   onChange={e => setCity(e.target.value)}
                   list="home-cities"
@@ -135,17 +136,16 @@ export const HomePage: React.FC = () => {
                   <span aria-hidden="true" className="hidden sm:block w-px h-8 bg-gray-200 dark:bg-gray-700" />
                   <span aria-hidden="true" className="sm:hidden h-px mx-4 bg-gray-200 dark:bg-gray-700" />
                   <label className="flex items-center gap-2 flex-1 px-4 py-2.5 min-w-0">
-                    <PaletteIcon className="w-5 h-5 text-brand-primary" />
-                    <span className="sr-only">Tattoo style</span>
-                    <select value={style} onChange={e => setStyle(e.target.value)} className="w-full bg-transparent outline-none appearance-none cursor-pointer">
-                      <option value="">Any style</option>
-                      {s.specialties.map(st => <option key={st} value={st}>{st}</option>)}
+                    <StoreIcon className="w-5 h-5 text-brand-primary" />
+                    <select aria-label="Category" value={category} onChange={e => setCategory(e.target.value)} className="w-full bg-transparent outline-none appearance-none cursor-pointer">
+                      <option value="">All categories</option>
+                      {s.categories.map(c => <option key={c} value={c}>{c}</option>)}
                     </select>
                   </label>
                 </>
               )}
               <Button type="submit" size="lg" className="sm:flex-shrink-0">
-                <SearchIcon className="w-5 h-5" /> {s.features.clientBooking ? 'Find artists' : 'Find shops'}
+                <SearchIcon className="w-5 h-5" /> {s.features.clientBooking ? 'Find pros' : 'Find shops'}
               </Button>
             </form>
           )}
@@ -153,23 +153,23 @@ export const HomePage: React.FC = () => {
       </section>
 
       <div className="container mx-auto px-4">
-        {s.features.clientBooking && styles.length >= 2 && (
+        {s.features.clientBooking && shownCats.length > 0 && (
           <section className="py-20 md:py-24">
-            <SectionTitle title="Popular styles" subtitle="Find artists who specialize in the look you want." center />
-            <ul className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-4 sm:gap-6">
-              {styles.slice(0, 5).map(st => (
-                <li key={st.style}>
+            <SectionTitle title="Browse by category" subtitle="Tattoo artists, barbers, nail techs, lash artists and more, all in one place." center />
+            <ul className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-4 sm:gap-6">
+              {shownCats.slice(0, 8).map(c => (
+                <li key={c.name}>
                   <Link
-                    to={`/artists?style=${encodeURIComponent(st.style)}`}
-                    className="group block h-full rounded-2xl border border-gray-200 dark:border-gray-800 bg-white dark:bg-gray-900 p-5 transition-shadow hover:shadow-xl hover:shadow-gray-900/[0.07] dark:hover:shadow-black/40"
+                    to={`/artists?category=${encodeURIComponent(c.name)}`}
+                    className="group flex items-center gap-4 h-full rounded-2xl border border-gray-200 dark:border-gray-800 bg-white dark:bg-gray-900 p-5 transition-shadow hover:shadow-xl hover:shadow-gray-900/[0.07] dark:hover:shadow-black/40"
                   >
-                    {st.image ? (
-                      <img src={st.image} alt="" className="w-16 h-16 rounded-full object-cover ring-4 ring-brand-primary/10" />
-                    ) : (
-                      <span className="w-16 h-16 rounded-full bg-brand-primary/10 text-brand-primary flex items-center justify-center"><PaletteIcon className="w-7 h-7" /></span>
-                    )}
-                    <h3 className="mt-4 text-lg font-semibold line-clamp-2 group-hover:text-brand-primary transition-colors" title={st.style}>{st.style}</h3>
-                    <p className="text-sm text-brand-gray mt-0.5">{st.count === 1 ? '1 artist' : `${st.count} artists`}</p>
+                    <span className="flex-shrink-0 w-14 h-14 rounded-full bg-brand-primary/10 text-brand-primary flex items-center justify-center transition-colors group-hover:bg-brand-solid group-hover:text-on-primary">
+                      <CategoryIcon category={c.name} className="w-7 h-7" />
+                    </span>
+                    <span className="min-w-0">
+                      <span className="block text-lg font-semibold font-display line-clamp-2 group-hover:text-brand-primary transition-colors">{c.name}</span>
+                      <span className="block text-sm text-brand-gray mt-0.5">{c.count === 0 ? 'Coming soon' : c.count === 1 ? '1 pro' : `${c.count} pros`}</span>
+                    </span>
                   </Link>
                 </li>
               ))}
@@ -203,7 +203,7 @@ export const HomePage: React.FC = () => {
 
       <div className="container mx-auto px-4 space-y-20 md:space-y-24 py-20 md:py-24">
         {s.features.clientBooking && (artists.loading || list.length > 0) && (
-          <Carousel title="Featured artists" label="artists" action={<Link to="/artists" className="hidden md:inline text-sm font-medium text-brand-primary hover:underline">View all</Link>}>
+          <Carousel title="Featured pros" label="pros" action={<Link to="/artists" className="hidden md:inline text-sm font-medium text-brand-primary hover:underline">View all</Link>}>
             {artists.data
               ? list.slice(0, 8).map(a => <div key={a.id} className={slide}><ArtistCard artist={a} /></div>)
               : Array.from({ length: 4 }, (_, i) => <div key={i} className={slide}><div className="w-full"><ArtistCardSkeleton /></div></div>)}
@@ -214,18 +214,18 @@ export const HomePage: React.FC = () => {
           <section className="grid gap-6 md:grid-cols-2">
             {s.features.clientBooking && (
               <PromoBanner
-                title="Got a tattoo idea?"
-                text="Send it to an artist with your reference photos and get a reply."
-                action="Find an artist"
+                title="Ready for a fresh look?"
+                text="Book a barber, nail tech, lash artist or tattoo artist near you."
+                action="Find a pro"
                 to="/artists"
                 image={showcase[0]}
               />
             )}
             {s.features.boothRental && (
               <PromoBanner
-                title="Tattooing on the road?"
-                text="Rent a chair at a shop in your next city, by the day."
-                action="Find a guest spot"
+                title="Need a chair for a few days?"
+                text="Shops and salons rent booths and chairs to visiting pros by the day."
+                action="Find a booth"
                 to="/shops"
                 image={shops.data?.find(sh => sh.imageUrl) ? { url: shops.data.find(sh => sh.imageUrl)!.imageUrl!, alt: '' } : showcase[1]}
               />
@@ -233,11 +233,11 @@ export const HomePage: React.FC = () => {
           </section>
         )}
 
-        {s.features.clientBooking && list.length >= 4 && styles.length >= 2 && (
+        {s.features.clientBooking && list.length >= 4 && cats.filter(c => c.count > 0).length >= 2 && (
           <section>
-            <SectionTitle title="Browse by style" center />
-            <div className="flex flex-wrap justify-center gap-2 -mt-4 mb-10" role="group" aria-label="Filter artists by style">
-              {[{ id: '', label: 'All artists' }, ...styles.slice(0, 5).map(st => ({ id: st.style, label: st.style }))].map(o => (
+            <SectionTitle title="Popular pros" center />
+            <div className="flex flex-wrap justify-center gap-2 -mt-4 mb-10" role="group" aria-label="Filter pros by category">
+              {[{ id: '', label: 'All' }, ...cats.filter(c => c.count > 0).slice(0, 6).map(c => ({ id: c.name, label: c.name }))].map(o => (
                 <button
                   key={o.id || 'all'}
                   type="button"
@@ -253,14 +253,14 @@ export const HomePage: React.FC = () => {
               ))}
             </div>
             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
-              {byStyle.map((a, i) => (
+              {byCategory.map((a, i) => (
                 <div key={a.id} className={cx('flex', i >= 4 && 'hidden sm:flex')}>
                   <ArtistCard artist={a} />
                 </div>
               ))}
             </div>
             <div className="mt-10 text-center">
-              <Button size="lg" onClick={() => navigate(filter ? `/artists?style=${encodeURIComponent(filter)}` : '/artists')}>View all artists</Button>
+              <Button size="lg" onClick={() => navigate(filter ? `/artists?category=${encodeURIComponent(filter)}` : '/artists')}>View all pros</Button>
             </div>
           </section>
         )}
@@ -269,13 +269,14 @@ export const HomePage: React.FC = () => {
           <section className="relative overflow-hidden rounded-3xl bg-gray-950 text-white dark:border dark:border-gray-800">
             <div className="grid md:grid-cols-[minmax(0,1.1fr)_minmax(0,1fr)] items-center">
               <div className="p-8 sm:p-12 lg:p-16">
-                <h2 className="font-display text-3xl md:text-[2.75rem] md:leading-tight">Tattoo artist or shop owner?</h2>
+                <h2 className="font-display text-3xl md:text-[2.75rem] md:leading-tight">Do you take bookings?</h2>
                 <p className="mt-4 text-gray-300 max-w-md">
-                  Create a free profile to take bookings and deposits online{s.features.boothRental ? ', or list your chairs for travelling artists' : ''}.
+                  Tattoo artists, barbers, nail techs, lash artists and other pros: create a free profile to take bookings and deposits online
+                  {s.features.boothRental ? '. Shop and salon owners can list booths and chairs for visiting pros' : ''}.
                 </p>
                 <Button size="lg" className="mt-8" onClick={() => openAuth('register')}>Create a free profile</Button>
               </div>
-              {showcase.length === 2 && (
+              {showcase.length >= 2 && (
                 <div aria-hidden="true" className="relative hidden md:block h-full min-h-[320px]">
                   {/* Two pieces laid down like prints on a table. */}
                   <img src={showcase[0].url} alt="" className="absolute right-[38%] top-10 w-52 aspect-[4/5] object-cover rounded-xl border-4 border-white shadow-2xl -rotate-6" />
@@ -287,7 +288,7 @@ export const HomePage: React.FC = () => {
         )}
 
         {s.features.boothRental && shops.data && shops.data.length > 0 && (
-          <Carousel title="Shops with guest spots" label="shops" action={<Button variant="outline" onClick={() => navigate('/shops')} className="hidden md:inline-flex">View all shops</Button>}>
+          <Carousel title="Booths for rent" label="shops" action={<Button variant="outline" onClick={() => navigate('/shops')} className="hidden md:inline-flex">View all shops</Button>}>
             {shops.data.slice(0, 8).map(sh => <div key={sh.id} className={slide}><ShopCard shop={sh} /></div>)}
           </Carousel>
         )}

@@ -232,3 +232,37 @@ export const FacebookIcon: React.FC<IconProps> = ({ className, style, title }) =
     <path d="M14 13.5h2.5l1-4H14v-2c0-1.03 0-2 2-2h1.5V2.14c-.326-.043-1.557-.14-2.857-.14C11.928 2 10 3.657 10 6.7v2.8H7v4h3V22h4v-8.5Z" />
   </svg>
 );
+
+// ---------- Business categories ----------
+// Circles drawn as two arcs so the outline() helper (paths only) can draw them.
+const circle = (cx: number, cy: number, r: number) => `M${cx - r} ${cy}a${r} ${r} 0 1 0 ${2 * r} 0a${r} ${r} 0 1 0 ${-2 * r} 0`;
+export const ScissorsIcon = outline(circle(6, 7, 3), circle(6, 17, 3), 'M8.6 8.6 20 18M8.6 15.4 20 6');
+export const CombIcon = outline('M3.75 6.75h16.5v4.5H3.75z', 'M6 11.25V18M9 11.25V18M12 11.25V18M15 11.25V18M18 11.25V18');
+export const NailPolishIcon = outline('M10 3h4v4.5h-4z', 'M8.25 7.5h7.5A2.25 2.25 0 0 1 18 9.75v9A2.25 2.25 0 0 1 15.75 21h-7.5A2.25 2.25 0 0 1 6 18.75v-9A2.25 2.25 0 0 1 8.25 7.5z', 'M9 14.25h6');
+export const LashesIcon = outline('M4 10c2.2 2.6 5 4 8 4s5.8-1.4 8-4', 'M6.5 12.4l-1.3 2.1M9.5 13.6l-.7 2.4M12 14v2.6M14.5 13.6l.7 2.4M17.5 12.4l1.3 2.1', 'M6 6.25c2-1.25 4-1.75 6-1.75s4 .5 6 1.75');
+export const LipstickIcon = outline('M9 21v-8.25h6V21', 'M10 12.75V8l4-3v7.75', 'M7.5 21h9');
+export const HoopIcon = outline(circle(12, 13.5, 6), 'M12 7.5V3', circle(12, 19.5, 1));
+export const DropIcon = outline('M12 3c3.6 4.4 6 7.9 6 10.9a6 6 0 0 1-12 0C6 10.9 8.4 7.4 12 3z', 'M9.5 15a2.5 2.5 0 0 0 2.5 2.5');
+
+/** An icon for a business category, matched by name so owner-added categories still get a sensible one. */
+export const CategoryIcon: React.FC<IconProps & { category: string }> = ({ category, ...props }) => {
+  const c = category.toLowerCase();
+  const Icon = /tattoo/.test(c)
+    ? NeedleIcon
+    : /pierc/.test(c)
+      ? HoopIcon
+      : /barber/.test(c)
+        ? ScissorsIcon
+        : /hair|braid|wig/.test(c)
+          ? CombIcon
+          : /nail|mani|pedi/.test(c)
+            ? NailPolishIcon
+            : /lash|brow/.test(c)
+              ? LashesIcon
+              : /make ?up|mua/.test(c)
+                ? LipstickIcon
+                : /skin|spa|facial|massage|wax/.test(c)
+                  ? DropIcon
+                  : StoreIcon;
+  return <Icon {...props} />;
+};

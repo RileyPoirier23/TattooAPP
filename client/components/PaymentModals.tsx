@@ -48,7 +48,7 @@ export const PayBoothModal: React.FC<{ booking: BoothBooking; onClose: () => voi
         buttonLabel={`Pay ${money(booking.totalCents)}`}
         onToken={async (sourceId, idempotencyKey) => {
           await api.post(`/booth-bookings/${booking.id}/pay`, { sourceId, idempotencyKey });
-          toast('Booth paid. Your guest spot is confirmed.');
+          toast('Booth paid. Your rental is confirmed.');
           onPaid();
         }}
       />
