@@ -60,10 +60,10 @@ Every pro chooses a category when they sign up, and clients browse and search by
 ## 4. Day to day
 
 - **Inbox** — messages from the **Contact us** page. They're also emailed to your contact email (or every admin if none is set). **Reply by email** opens your email app with their address filled in.
-- **Bookings** — every client booking and booth rental, searchable. Open **Details** to see the whole request, or **Change date or time** (the client and artist are notified). Changing a status doesn't move money — use Payments for refunds.
-- **Verifications** — artists and shops can request a verified badge; approve or reject here.
+- **Bookings** — every client booking and booth rental, searchable. Open **Details** to see the whole request, or **Change date or time** (the client and pro are notified). Changing a status doesn't move money — use Payments for refunds.
+- **Verifications** — pros and shops can request a verified badge; approve or reject here.
 - **Reports** and **Reviews** — handle reports from members, and hide reviews that break your rules.
-- **Users** — search everyone; edit details, suspend (logs them out), give Pro, copy a password-reset link, or delete an account. (Clients who are also tattoo artists can switch on artist features themselves in **Settings → Become an artist**.) Accounts that are still owed money or have upcoming paid bookings can't be deleted — suspend them instead.
+- **Users** — search everyone; edit details, suspend (logs them out), give Pro, copy a password-reset link, or delete an account. (Clients who also take bookings can switch on pro features themselves in **Settings → Become a pro**.) Accounts that are still owed money or have upcoming paid bookings can't be deleted — suspend them instead.
 - **Shops** — verify shops, edit their details and cover photo, or remove them.
 
 Badges in the admin menu show what needs attention (new messages, pending verifications and reports).
