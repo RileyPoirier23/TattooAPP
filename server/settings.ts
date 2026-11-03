@@ -6,21 +6,21 @@ import { DEFAULT_PAGES, OLD_PLACEHOLDERS } from './defaultPages';
 
 export const DEFAULT_SETTINGS: SiteSettings = {
   siteName: 'InkSpace',
-  tagline: 'Tattoo artists, guest spots & bookings',
+  tagline: 'Tattoo, barber, nail, lash and beauty pros, booked online',
   logoUrl: '',
   faviconUrl: '',
   // A bright blue for actions and a deep teal for badges.
   primaryColor: '#0066F5',
   secondaryColor: '#0F766E',
   defaultTheme: 'light',
-  heroTitle: 'Book tattoo artists near you.',
+  heroTitle: 'Book your next appointment in minutes.',
   heroHighlight: '',
   heroSubtitle:
-    'Browse portfolios, send your idea with reference photos and hold your date with a deposit. Travelling artists can rent a chair at a shop in their next city.',
+    'Tattoo artists, barbers, nail techs, lash artists and more. Look through their work, pick a day and hold it with a deposit.',
   heroImageUrl: '',
   aboutTitle: 'Welcome to InkSpace',
   aboutText:
-    'InkSpace connects tattoo artists, shops and clients. Artists find and book guest spots at shops around the world. Clients discover artists in their city and request appointments, with deposits handled securely online.',
+    'InkSpace connects beauty and tattoo professionals, shops and clients. Clients find pros in their city and request appointments, with deposits handled securely online. Pros who travel can rent a chair at a shop in their next city.',
   announcementEnabled: false,
   announcementText: '',
   contactEmail: '',
@@ -47,9 +47,16 @@ export const DEFAULT_SETTINGS: SiteSettings = {
     'Upper arm', 'Forearm', 'Hand', 'Shoulder', 'Chest', 'Stomach', 'Ribs', 'Upper back', 'Lower back',
     'Neck', 'Head', 'Thigh', 'Calf', 'Foot', 'Other',
   ],
+  categories: ['Tattoo', 'Piercing', 'Barber', 'Hair', 'Nails', 'Lashes & Brows', 'Makeup', 'Skin & Spa'],
   specialties: [
+    // Tattoo
     'Traditional', 'Neo-Traditional', 'Realism', 'Black & Grey', 'Fine Line', 'Japanese', 'Blackwork',
     'Geometric', 'Watercolor', 'Script / Lettering', 'Illustrative', 'Cover-ups',
+    // Barber and hair
+    'Fades', 'Beard trims', 'Classic cuts', 'Colour', 'Balayage', 'Braids', 'Extensions',
+    // Nails, lashes, brows, makeup, skin
+    'Gel nails', 'Acrylics', 'Nail art', 'Lash extensions', 'Lash lift', 'Brow lamination', 'Microblading',
+    'Bridal makeup', 'Facials',
   ],
   squareApplicationId: '',
   squareLocationId: '',
@@ -76,12 +83,29 @@ const OLD_DEFAULTS: Partial<SiteSettings>[] = [
   { primaryColor: '#B7352B', secondaryColor: '#2F5D50' }, // the 1.2 studio look
   { heroTitle: 'Find Your Space.', heroHighlight: 'Make Your Mark.' },
   { heroSubtitle: 'Book talented tattoo artists near you, or find a guest spot at a shop in your next city — all in one place.' },
+  // 1.2: tattoo-only wording, before the site opened to barbers, nails, lashes and other pros
+  { tagline: 'Tattoo artists, guest spots & bookings' },
+  {
+    heroTitle: 'Book tattoo artists near you.',
+    heroSubtitle: 'Browse portfolios, send your idea with reference photos and hold your date with a deposit. Travelling artists can rent a chair at a shop in their next city.',
+  },
+  {
+    aboutText:
+      'InkSpace connects tattoo artists, shops and clients. Artists find and book guest spots at shops around the world. Clients discover artists in their city and request appointments, with deposits handled securely online.',
+  },
+  {
+    specialties: [
+      'Traditional', 'Neo-Traditional', 'Realism', 'Black & Grey', 'Fine Line', 'Japanese', 'Blackwork',
+      'Geometric', 'Watercolor', 'Script / Lettering', 'Illustrative', 'Cover-ups',
+    ],
+  },
 ];
 
 function upgradeOldDefaults(s: SiteSettings): SiteSettings {
   for (const old of OLD_DEFAULTS) {
     const keys = Object.keys(old) as (keyof SiteSettings)[];
-    if (keys.every(k => s[k] === old[k])) for (const k of keys) (s as any)[k] = DEFAULT_SETTINGS[k];
+    // Compared by value, so lists (like the specialties) match too.
+    if (keys.every(k => JSON.stringify(s[k]) === JSON.stringify(old[k]))) for (const k of keys) (s as any)[k] = DEFAULT_SETTINGS[k];
   }
   return s;
 }

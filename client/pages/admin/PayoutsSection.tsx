@@ -247,7 +247,7 @@ export const PayoutsSection: React.FC = () => {
     <>
       <PageHeader
         title="Payouts"
-        subtitle="Keep track of what you owe each artist and shop."
+        subtitle="Keep track of what you owe each pro and shop."
         actions={
           <LinkButton href="/api/admin/payouts/export" download>
             <DownloadIcon className="w-4 h-4" /> Export payout records
@@ -300,7 +300,7 @@ export const PayoutsSection: React.FC = () => {
               {visible.length === 0 ? (
                 <Card>
                   <EmptyState icon={<CashIcon className="w-12 h-12" />} title={rows.length ? 'All paid up!' : 'Nothing to pay out yet'}>
-                    {rows.length ? 'You don’t owe anyone right now.' : 'Once clients pay deposits or artists rent booths, the money owed to artists and shops shows up here.'}
+                    {rows.length ? 'You don’t owe anyone right now.' : 'Once clients pay deposits or pros rent booths, the money owed to pros and shops shows up here.'}
                   </EmptyState>
                 </Card>
               ) : (

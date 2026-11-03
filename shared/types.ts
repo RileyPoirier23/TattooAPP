@@ -68,6 +68,10 @@ export interface PublicArtist {
   id: string;
   name: string;
   city: string;
+  /** Business category from the admin's list, e.g. "Tattoo", "Barber", "Nails". */
+  category: string;
+  /** Where they work (optional), shown with a map link on their profile. */
+  address: string;
   specialty: string;
   bio: string;
   avatarUrl: string | null;
@@ -139,6 +143,8 @@ export interface Me {
   role: Role;
   name: string;
   city: string;
+  address: string;
+  category: string;
   specialty: string;
   bio: string;
   avatarUrl: string | null;
@@ -323,6 +329,8 @@ export interface SiteSettings {
   defaultDeposit: number;
   currency: string;
   boothHoldHours: number;
+  /** The kinds of business pros can list under (Tattoo, Barber, Nails…). */
+  categories: string[];
   bodyPlacements: string[];
   specialties: string[];
   squareApplicationId: string;

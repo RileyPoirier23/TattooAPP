@@ -67,7 +67,7 @@ export async function findTattooShops(apiKey: string, city: string): Promise<Unc
   const google = await loadMaps(apiKey);
   const { Place } = await google.maps.importLibrary('places');
   const { places } = await Place.searchByText({
-    textQuery: `tattoo shops in ${city}`,
+    textQuery: `tattoo shops, barbershops and beauty salons in ${city}`,
     fields: ['id', 'displayName', 'formattedAddress', 'rating', 'photos', 'googleMapsURI'],
     maxResultCount: 12,
   });

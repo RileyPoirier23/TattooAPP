@@ -28,7 +28,7 @@ export const VerificationsSection: React.FC = () => {
     <>
       <PageHeader
         title="Verifications"
-        subtitle="Artists and shops can ask for a verified badge. Check their profile looks genuine (real work, real address) before approving."
+        subtitle="Pros and shops can ask for a verified badge. Check their profile looks genuine (real work, real address) before approving."
       />
       <AsyncView state={state}>
         {list => {
@@ -48,7 +48,7 @@ export const VerificationsSection: React.FC = () => {
               {visible.length === 0 ? (
                 <Card>
                   <EmptyState icon={<CheckBadgeIcon className="w-12 h-12" />} title={filter === 'pending' ? 'All caught up' : 'No requests yet'}>
-                    {filter === 'pending' ? 'There are no verification requests waiting for you.' : 'Requests appear here when artists or shops ask to be verified.'}
+                    {filter === 'pending' ? 'There are no verification requests waiting for you.' : 'Requests appear here when pros or shops ask to be verified.'}
                   </EmptyState>
                 </Card>
               ) : (
@@ -65,7 +65,7 @@ export const VerificationsSection: React.FC = () => {
                           <div className="flex-1 min-w-0">
                             <div className="flex flex-wrap items-center gap-2">
                               <span className="font-semibold text-brand-dark dark:text-white">{isShop ? v.shopName || 'Deleted shop' : v.userName}</span>
-                              <Badge tone={isShop ? 'blue' : 'brand'}>{isShop ? 'Shop' : 'Artist'}</Badge>
+                              <Badge tone={isShop ? 'blue' : 'brand'}>{isShop ? 'Shop' : 'Pro'}</Badge>
                               {v.status !== 'pending' && <StatusBadge status={v.status} />}
                             </div>
                             <p className="text-sm text-brand-gray">

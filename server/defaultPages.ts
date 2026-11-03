@@ -1,4 +1,4 @@
-import { PAGES_1_2_0 } from './previousPages';
+import { PAGES_1_2_0, PAGES_1_2_1 } from './previousPages';
 
 // Starting content for the FAQ and policy pages. The owner edits them in Admin → Pages.
 // {{siteName}}, {{siteUrl}} and {{contact}} are filled in when a page is shown (see fillPageTokens).
@@ -7,29 +7,29 @@ export const DEFAULT_PAGES: { slug: string; title: string; body: string }[] = [
   {
     slug: 'faq',
     title: 'FAQ',
-    body: `## How do I book a tattoo?
-Find an artist you like, open their profile and choose **Request a booking**. Pick a service and a date when they're available, describe your idea and add reference photos if you have them. The artist reviews your request and approves it, suggests changes or declines it.
+    body: `## How do I book an appointment?
+Find a pro you like (tattoo artist, barber, nail tech, lash artist and more), open their profile and choose **Request a booking**. Pick a service and a day they're working, tell them what you'd like and add reference photos if you have them. They review your request and approve it, suggest changes or decline it.
 
 ## Do I need an account?
-No. You can book as a guest. You'll get a private link (also sent by email) to check your request and pay your deposit. With a free account all your bookings, messages and receipts are in one place.
+Not to book. You can book as a guest and get a private link (also sent by email) to check your request and pay your deposit. To leave a review you'll need a free account, which also keeps all your bookings, messages and receipts in one place.
 
 ## How do deposits work?
-When an artist approves your request, you pay a deposit online to lock in your date. The deposit goes towards the price of your tattoo. A small booking fee may be added; you always see the total before you pay. See the [Booking & Cancellation Policy](/p/booking-policy) for refunds.
+When a pro approves your request, you pay a deposit online to hold your date. The deposit goes towards the price of your appointment. A small booking fee may be added; you always see the total before you pay. See the [Booking & Cancellation Policy](/p/booking-policy) for refunds.
 
 ## Is paying online safe?
 Payments are processed by Square. Your card details go straight to Square and are never stored on {{siteName}}.
 
 ## Can I cancel or reschedule?
-Contact your artist through Messages as early as possible. You can cancel a request from **My bookings** (or your private booking link) before the appointment. Deposits follow the [Booking & Cancellation Policy](/p/booking-policy).
+Contact your pro through Messages as early as possible. You can cancel a request from **My bookings** (or your private booking link) before the appointment. Deposits follow the [Booking & Cancellation Policy](/p/booking-policy).
 
-## I'm a tattoo artist. How do I join?
-Sign up as an artist, then fill in your dashboard: profile, at least one portfolio photo, your services and prices, and your working hours. Your profile appears in the artist search as soon as it has a photo.
+## I take bookings. How do I join?
+Sign up as a pro and choose your category, then fill in your dashboard: profile, at least one photo of your work, your services and prices, and your working hours. Your profile appears in search as soon as it has a photo.
 
-## How do guest spots work?
-Shops list booths that travelling artists can rent by the day. Choose your dates, then pay to confirm the booth. Unpaid reservations are released automatically after a while so others can book.
+## How do booth rentals work?
+Shops list booths and chairs that visiting pros can rent by the day. Choose your dates, then pay to confirm. Unpaid reservations are released automatically after a while so others can book.
 
-## How do artists and shops get paid?
-Payments are collected by {{siteName}}. Artists receive their clients' deposits, and shops receive their booth rentals minus the platform fee. Add your payout details in your dashboard; the Earnings page shows what you've earned and what has been paid out.
+## How do pros and shops get paid?
+Payments are collected by {{siteName}}. Pros receive their clients' deposits, and shops receive their booth rentals minus the platform fee. Add your payout details in your dashboard; the Earnings page shows what you've earned and what has been paid out.
 
 ## How do I contact you?
 Reach us through {{contact}}.`,
@@ -37,28 +37,28 @@ Reach us through {{contact}}.`,
   {
     slug: 'booking-policy',
     title: 'Booking & Cancellation Policy',
-    body: `This policy applies to tattoo appointments and booth rentals booked on {{siteName}}. Individual artists and shops may have their own additional policies, so ask them before you book.
+    body: `This policy applies to appointments and booth rentals booked on {{siteName}}. Individual pros and shops may have their own additional policies, so ask them before you book.
 
 ## Requests and confirmation
-A booking request is not confirmed until the artist approves it **and** any deposit has been paid. If the artist hasn't answered by the requested date, the request expires automatically.
+A booking request is not confirmed until the pro approves it **and** any deposit has been paid. If the pro hasn't answered by the requested date, the request expires automatically.
 
 ## Deposits
-Deposits secure your appointment and are applied to the final price of your tattoo. Any booking fee shown at checkout covers payment processing and is not part of the deposit.
+Deposits secure your appointment and are applied to its final price. Any booking fee shown at checkout covers payment processing and is not part of the deposit.
 
 ## If you cancel or reschedule
-Please let your artist know as early as possible, and at least 48 hours before your appointment. Deposits are non-refundable when you cancel, unless your artist agrees otherwise. Moving your appointment to a new date is up to the artist.
+Please let your pro know as early as possible, and at least 48 hours before your appointment. Deposits are non-refundable when you cancel, unless your pro agrees otherwise. Moving your appointment to a new date is up to the pro.
 
-## If the artist cancels
-If your artist cancels your appointment, your deposit is refunded in full.
+## If the pro cancels
+If your pro cancels your appointment, your deposit is refunded in full.
 
 ## No-shows and lateness
 Missing your appointment without notice may forfeit your deposit. Arriving very late may mean your appointment is shortened or rescheduled.
 
 ## Age and health
-You must be 18 or older and bring valid photo ID. Tell your artist about any allergies, medical conditions or medications before your appointment. Artists may refuse service for health or safety reasons, or if you are under the influence of alcohol or drugs.
+Tattoos and piercings are for people 18 or older with valid photo ID (or the age the law sets where you live). Tell your pro about any allergies, medical conditions or medications before your appointment. Pros may refuse service for health or safety reasons, or if you are under the influence of alcohol or drugs.
 
-## Booth rentals (guest spots)
-A booth is confirmed once the rental is paid in full. Unpaid reservations are released automatically after the hold time shown at checkout. If the shop cancels a paid rental, it is refunded in full. If the artist cancels a paid rental, refunds are up to the shop.
+## Booth rentals
+A booth or chair is confirmed once the rental is paid in full. Unpaid reservations are released automatically after the hold time shown at checkout. If the shop cancels a paid rental, it is refunded in full. If the renter cancels a paid rental, refunds are up to the shop.
 
 ## Refunds
 Approved refunds go back to the card used to pay. They usually appear within 5–10 business days, depending on your bank.
@@ -72,22 +72,22 @@ Contact us through {{contact}}.`,
     body: `These terms apply when you use {{siteName}} ({{siteUrl}}). By creating an account or making a booking you agree to them. Please also read our [Privacy Policy](/p/privacy) and [Booking & Cancellation Policy](/p/booking-policy).
 
 ## 1. What {{siteName}} is
-{{siteName}} is an online marketplace that connects clients with independent tattoo artists, and travelling artists with tattoo shops that rent out booths. {{siteName}} is not a tattoo studio. Artists and shops are independent businesses and are solely responsible for their services, their work, their licences and permits, and for following health, safety and hygiene rules.
+{{siteName}} is an online marketplace that connects clients with independent beauty and tattoo professionals (\"pros\"), and visiting pros with shops that rent out booths and chairs. {{siteName}} is not a studio or salon. Pros and shops are independent businesses and are solely responsible for their services, their work, their licences and permits, and for following health, safety and hygiene rules.
 
 ## 2. Who can use it
-You must be at least 18 years old (or the age of majority where you live) to create an account or book a tattoo. The information you give us must be accurate and kept up to date.
+You must be at least 18 years old (or the age of majority where you live) to create an account. Some services, such as tattoos and piercings, have their own legal minimum age. The information you give us must be accurate and kept up to date.
 
 ## 3. Your account
 Keep your password private; you are responsible for what happens under your account. Tell us straight away if you think someone else has access to it. We may suspend or close accounts that break these terms or put other people at risk.
 
 ## 4. Bookings and deposits
-A booking is a direct arrangement between the client and the artist. It is confirmed only once the artist approves it and any deposit has been paid. Deposits are collected by {{siteName}} on the artist's behalf and passed on to the artist. Cancellations, rescheduling and refunds follow the [Booking & Cancellation Policy](/p/booking-policy).
+A booking is a direct arrangement between the client and the pro. It is confirmed only once the pro approves it and any deposit has been paid. Deposits are collected by {{siteName}} on the pro's behalf and passed on to the pro. Cancellations, rescheduling and refunds follow the [Booking & Cancellation Policy](/p/booking-policy).
 
 ## 5. Booth rentals
-Artists who rent a booth pay the price shown when booking, and must follow the shop's rules and all local regulations while working there. Rental payments are collected by {{siteName}} and passed on to the shop, minus the platform fee shown to the shop.
+Pros who rent a booth or chair pay the price shown when booking, and must follow the shop's rules and all local regulations while working there. Rental payments are collected by {{siteName}} and passed on to the shop, minus the platform fee shown to the shop.
 
 ## 6. Paid plans
-Artists may be offered an optional monthly plan ("Pro"). It is charged to the card you save and renews automatically each month until you cancel. You can cancel any time in Settings; you keep the plan until the end of the period you've paid for. If the price changes, we'll tell you in advance by email and the new price applies from your next renewal. Payments for past periods are not refunded, except where the law requires it.
+Pros may be offered an optional monthly plan ("Pro"). It is charged to the card you save and renews automatically each month until you cancel. You can cancel any time in Settings; you keep the plan until the end of the period you've paid for. If the price changes, we'll tell you in advance by email and the new price applies from your next renewal. Payments for past periods are not refunded, except where the law requires it.
 
 ## 7. Payments
 Payments are processed by Square, subject to Square's own terms. {{siteName}} never sees or stores your full card number. Fees are always shown before you pay.
@@ -99,10 +99,10 @@ You keep ownership of the photos, text and reviews you post. You give {{siteName
 Don't harass, threaten or deceive other people; post illegal, hateful or sexually explicit content; make fake bookings or reviews; send spam; impersonate anyone; or try to break, overload or get around the security of the site.
 
 ## 10. Health and safety
-Tattooing carries health risks. Clients should discuss allergies, medical conditions and aftercare with their artist. {{siteName}} does not give medical advice and is not responsible for the work or advice of artists and shops.
+Tattooing, piercing and many beauty treatments carry health risks. Clients should discuss allergies, medical conditions and aftercare with their pro. {{siteName}} does not give medical advice and is not responsible for the work or advice of pros and shops.
 
 ## 11. Disclaimers and liability
-The site is provided "as is". To the fullest extent the law allows, {{siteName}} is not responsible for the work, conduct or premises of artists and shops, for disputes between users, or for indirect or consequential losses. Where we are responsible, our total liability is limited to the fees you paid to {{siteName}} in the 12 months before the claim. Nothing in these terms limits rights you have under consumer protection law.
+The site is provided "as is". To the fullest extent the law allows, {{siteName}} is not responsible for the work, conduct or premises of pros and shops, for disputes between users, or for indirect or consequential losses. Where we are responsible, our total liability is limited to the fees you paid to {{siteName}} in the 12 months before the claim. Nothing in these terms limits rights you have under consumer protection law.
 
 ## 12. Ending your account
 You can delete your account at any time in Settings. We may suspend or end access to the site for anyone who breaks these terms.
@@ -120,8 +120,8 @@ Questions about these terms? Contact us through {{contact}}.`,
 
 ## What we collect
 - **Account details:** your name, email address, city and account type. Your password is stored only in scrambled (hashed) form.
-- **Artist and shop profiles:** bio, photos, services and prices, working hours, shop address and payout details.
-- **Bookings:** the date, your tattoo idea, size, placement, budget and any reference photos you attach. Guests also give their name, email and (optionally) phone number.
+- **Pro and shop profiles:** bio, photos, services and prices, working hours, shop address and payout details.
+- **Bookings:** the date, what you'd like done (for tattoos, also size and placement), budget and any reference photos you attach. Guests also give their name, email and (optionally) phone number.
 - **Messages** you send through the site, and **reviews** you write.
 - **Payments:** Square processes all card payments. We receive the payment result and, for saved cards, the card brand and last four digits, never your full card number.
 - **Technical information:** a login cookie, and your IP address, which our server uses for security and to prevent abuse.
@@ -130,21 +130,21 @@ Questions about these terms? Contact us through {{contact}}.`,
 To run the marketplace (bookings, payments, payouts, messages and reviews); to send you emails about your bookings and account; to keep the site secure and prevent fraud and spam; and to meet legal and accounting obligations. We do not sell your personal information and we don't use advertising trackers.
 
 ## Who we share it with
-- **The artist or shop you book with:** your name, contact details and booking details, so they can serve you.
+- **The pro or shop you book with:** your name, contact details and booking details, so they can serve you.
 - **Square,** to process payments.
 - **Our email provider,** to deliver emails to you.
 - **Our hosting provider,** which stores the site and its data.
-- **Google,** only on shop pages that show a map: the map is loaded from Google Maps, so Google receives your IP address. Fonts and everything else are served by {{siteName}} itself.
+- **Google,** only on pages that show a map: the map is loaded from Google Maps, so Google receives your IP address. Fonts and everything else are served by {{siteName}} itself.
 - **Authorities,** only when the law requires it.
 
 ## Photos
-Portfolio and shop photos are public. Reference photos you attach to a booking are shared with that artist and aren't listed publicly. We automatically remove hidden location data from uploaded JPEG photos.
+Portfolio and shop photos are public. Reference photos you attach to a booking are shared with that pro and aren't listed publicly. We automatically remove hidden location data from uploaded JPEG photos.
 
 ## Cookies
 We use one essential cookie to keep you logged in, and your browser remembers display preferences such as light or dark mode. Square's payment form may use its own cookies to prevent fraud. There are no advertising or tracking cookies.
 
 ## How long we keep it
-We keep your information while your account is open. When you delete your account, your profile, photos, messages and reviews are deleted. Records of bookings and payments are kept without your account where the artist or shop needs them for their own records, and for as long as accounting and tax law requires. Automatic backup copies are replaced within about a week.
+We keep your information while your account is open. When you delete your account, your profile, photos, messages and reviews are deleted. Records of bookings and payments are kept without your account where the pro or shop needs them for their own records, and for as long as accounting and tax law requires. Automatic backup copies are replaced within about a week.
 
 ## Your choices and rights
 - **See your data:** download a copy any time in **Settings → Download my data**.
@@ -190,9 +190,12 @@ Missing an appointment without notice may forfeit your deposit.`],
   privacy: ['Edit this page from the admin panel (Admin → Pages) to add your privacy policy.'],
 };
 
-/** Every earlier default text per page: the one-line placeholders, then the 1.2.0 templates. */
+/** Every earlier default text per page: the one-line placeholders, then the 1.2.0 and 1.2.1 templates. */
 export const OLD_PLACEHOLDERS: Record<string, string[]> = Object.fromEntries(
-  DEFAULT_PAGES.map(p => [p.slug, [...(FIRST_PLACEHOLDERS[p.slug] ?? []), ...(PAGES_1_2_0[p.slug] ? [PAGES_1_2_0[p.slug]] : [])]]),
+  DEFAULT_PAGES.map(p => [
+    p.slug,
+    [...(FIRST_PLACEHOLDERS[p.slug] ?? []), ...[PAGES_1_2_0, PAGES_1_2_1].map(v => v[p.slug]).filter(b => b && b !== p.body)],
+  ]),
 );
 
 /** Fills in {{siteName}}, {{siteUrl}} and {{contact}} (the contact email if set, otherwise the contact form). */

@@ -314,6 +314,13 @@ const MIGRATIONS: string[] = [
     created_at text not null
   );
   `,
+  // v7 — business category (Tattoo, Barber, Nails…; everyone who already takes bookings was a tattoo artist)
+  // and an optional studio address shown on a pro's profile
+  `
+  alter table users add column category text not null default '';
+  alter table users add column address text not null default '';
+  update users set category = 'Tattoo' where role in ('artist', 'dual');
+  `,
 ];
 
 let db: DB | null = null;

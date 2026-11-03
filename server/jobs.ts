@@ -68,7 +68,7 @@ export function sendReminders() {
     db.prepare('update booking_requests set reminder_sent_at = ? where id = ?').run(nowIso(), r.id);
     remindClient(
       r,
-      `Reminder: your tattoo appointment with ${r.artist_name} is on ${formatWhen(r.date, r.appointment_time)}.${r.artist_note ? ` Note from the artist: ${r.artist_note}` : ''}`,
+      `Reminder: your appointment with ${r.artist_name} is on ${formatWhen(r.date, r.appointment_time)}.${r.artist_note ? ` Note from ${r.artist_name}: ${r.artist_note}` : ''}`,
       `Reminder: your appointment with ${r.artist_name}`,
       'View booking',
     );

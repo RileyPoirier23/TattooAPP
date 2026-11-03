@@ -103,8 +103,8 @@ const LivePreview: React.FC<{ s: SiteSettings }> = ({ s }) => {
           </h3>
           {s.heroSubtitle && <p className="mt-3 text-xs opacity-80 line-clamp-3">{s.heroSubtitle}</p>}
           <div className="mt-4 flex gap-2 flex-wrap">
-            <span className="bg-brand-solid text-on-primary text-xs font-semibold px-3 py-2 rounded-lg">Find an artist</span>
-            <span className={cx('text-xs font-semibold px-3 py-2 rounded-lg border', dark ? 'border-white/20' : 'border-black/15')}>Find a guest spot</span>
+            <span className="bg-brand-solid text-on-primary text-xs font-semibold px-3 py-2 rounded-lg">Find a pro</span>
+            <span className={cx('text-xs font-semibold px-3 py-2 rounded-lg border', dark ? 'border-white/20' : 'border-black/15')}>Find a booth</span>
           </div>
         </div>
       </div>

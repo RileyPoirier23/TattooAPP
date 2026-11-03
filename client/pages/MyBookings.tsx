@@ -36,8 +36,8 @@ export const MyBookingsPage: React.FC = () => {
   const boothsPast = data.boothBookings.filter(b => !boothsUpcoming.includes(b));
 
   const tabs = [
-    { id: 'tattoos', label: 'Tattoo appointments', count: data.asClient.filter(r => r.status === 'approved' && r.paymentStatus === 'unpaid').length },
-    ...(artist && features.boothRental ? [{ id: 'booths', label: 'Guest spots', count: data.boothBookings.filter(b => b.status === 'unpaid').length }] : []),
+    { id: 'tattoos', label: 'Appointments', count: data.asClient.filter(r => r.status === 'approved' && r.paymentStatus === 'unpaid').length },
+    ...(artist && features.boothRental ? [{ id: 'booths', label: 'Booth rentals', count: data.boothBookings.filter(b => b.status === 'unpaid').length }] : []),
   ];
 
   return (
@@ -45,7 +45,7 @@ export const MyBookingsPage: React.FC = () => {
       <PageHeader
         title="My bookings"
         subtitle={artist ? 'Appointments you booked and booths you rented. Requests from your clients are in your dashboard.' : 'Track your requests, pay deposits and leave reviews.'}
-        actions={artist ? <Link to="/dashboard"><Button variant="outline">Artist dashboard</Button></Link> : undefined}
+        actions={artist ? <Link to="/dashboard"><Button variant="outline">Pro dashboard</Button></Link> : undefined}
       />
       {tabs.length > 1 && <Tabs tabs={tabs} active={tab} onChange={id => setTab(id as typeof tab)} className="mb-6" />}
 
@@ -55,7 +55,7 @@ export const MyBookingsPage: React.FC = () => {
             <h2 className="text-xl font-bold">Upcoming & pending</h2>
             {upcoming.length === 0 ? (
               <EmptyState icon={<CalendarIcon />} title="No upcoming appointments">
-                {features.clientBooking && <Link to="/artists" className="text-brand-primary">Find an artist</Link>}
+                {features.clientBooking && <Link to="/artists" className="text-brand-primary">Find a pro</Link>}
               </EmptyState>
             ) : upcoming.map(r => <ClientRequestCard key={r.id} request={r} onChanged={reload} />)}
           </section>

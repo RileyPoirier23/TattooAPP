@@ -143,7 +143,7 @@ export const MessagesPage: React.FC<{ conversationId?: string }> = ({ conversati
         <h1 className="px-4 py-3 text-lg font-bold border-b border-gray-200 dark:border-gray-800">Messages</h1>
         <div className="overflow-y-auto overscroll-contain flex-1">
           {data?.length === 0 && (
-            <EmptyState icon={<ChatIcon />} title="No conversations yet">Message an artist or shop from their profile page.</EmptyState>
+            <EmptyState icon={<ChatIcon />} title="No conversations yet">Message a pro or shop from their profile page.</EmptyState>
           )}
           {data?.map(c => (
             <Link

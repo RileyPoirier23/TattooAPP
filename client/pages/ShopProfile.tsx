@@ -7,8 +7,8 @@ import { daysInclusive, dollars, formatDate, money, timeAgo, today } from '../li
 import { MapEmbed } from '../components/MapEmbed';
 import { PayBoothModal } from '../components/PaymentModals';
 import { ReportModal } from '../components/ReportModal';
-import { Badge, Button, Card, Cover, EmptyState, ErrorBox, Input, Modal, Notice, PageLoader, Select, StarRating, useApi } from '../components/ui';
-import { ArrowLeftIcon, ChatIcon, CheckBadgeIcon, FlagIcon, LocationIcon } from '../components/Icons';
+import { Badge, Button, Card, Cover, EmptyState, ErrorBox, Input, Modal, Notice, PageBanner, PageLoader, Select, StarRating, useApi } from '../components/ui';
+import { ChatIcon, CheckBadgeIcon, FlagIcon, LocationIcon } from '../components/Icons';
 import type { BoothBooking, ShopDetail } from '../../shared/types';
 
 const BookBoothModal: React.FC<{ shop: ShopDetail; boothId: string; onClose: () => void; onBooked: () => void }> = ({ shop, boothId, onClose, onBooked }) => {
@@ -94,16 +94,16 @@ export const ShopProfilePage: React.FC<{ id: string }> = ({ id }) => {
   const [bookBooth, setBookBooth] = useState<string | null>(null);
   const [reporting, setReporting] = useState(false);
 
-  if (error) return <ErrorBox message={error} onRetry={reload} />;
+  if (error) return <div className="container mx-auto px-4 py-10"><ErrorBox message={error} onRetry={reload} /></div>;
   if (loading || !shop) return <PageLoader />;
 
   const isOwner = user?.id === shop.ownerId;
   const startBooking = (boothId: string) => {
     if (!user) {
-      toast('Log in with an artist account to rent a booth.');
+      toast('Log in with a pro account to rent a booth.');
       return openAuth('login');
     }
-    if (!isArtist(user)) return toast('Only artist accounts can rent booths.', 'error');
+    if (!isArtist(user)) return toast('Only pro accounts can rent booths.', 'error');
     setBookBooth(boothId);
   };
   const messageShop = async () => {
@@ -117,20 +117,20 @@ export const ShopProfilePage: React.FC<{ id: string }> = ({ id }) => {
   };
 
   return (
-    <div className="max-w-6xl mx-auto">
-      <Link to="/shops" className="inline-flex items-center gap-1 text-sm text-brand-gray hover:text-brand-primary mb-4">
-        <ArrowLeftIcon className="w-4 h-4" /> All shops
-      </Link>
+    <div>
+      <PageBanner title={shop.name} crumbs={[{ label: 'Home', to: '/' }, { label: 'Booth rentals', to: '/shops' }, { label: shop.name }]} />
+      <div className="container mx-auto px-4 py-10 md:py-14">
+      <div className="max-w-6xl mx-auto">
       {/* Photo first, then the name as a poster header under it (the photo often has the shop's own sign in it). */}
       <div className="rounded-2xl overflow-hidden border border-gray-200 dark:border-gray-800 bg-white dark:bg-gray-900 mb-8">
         <Cover url={shop.imageUrl} alt={shop.name} className="w-full h-56 md:h-96" />
         <div className="p-5 md:p-6 grid gap-4 md:grid-cols-[minmax(0,1fr)_auto] md:items-end">
           <div>
             <p className="text-sm text-brand-gray flex items-center gap-1"><LocationIcon className="w-4 h-4" />{shop.address}, {shop.city}</p>
-            <h1 className="text-3xl md:text-4xl font-display mt-1">
+            <p className="text-3xl md:text-4xl font-display mt-1">
               {shop.name}
               {shop.isVerified && <CheckBadgeIcon className="inline w-7 h-7 ml-2 align-[0.1em] text-brand-secondary" title="Verified shop" />}
-            </h1>
+            </p>
           </div>
           {shop.reviewCount > 0 && <StarRating value={shop.averageRating} showValue count={shop.reviewCount} />}
         </div>
@@ -167,7 +167,7 @@ export const ShopProfilePage: React.FC<{ id: string }> = ({ id }) => {
           </section>
           {features.reviews && (
             <section>
-              <h2 className="text-xl font-semibold mb-4">Reviews from guest artists</h2>
+              <h2 className="text-xl font-semibold mb-4">Reviews from visiting pros</h2>
               {shop.reviews.length === 0 ? (
                 <Card><EmptyState title="No reviews yet" /></Card>
               ) : (
@@ -209,6 +209,8 @@ export const ShopProfilePage: React.FC<{ id: string }> = ({ id }) => {
       </div>
       {bookBooth && <BookBoothModal shop={shop} boothId={bookBooth} onClose={() => setBookBooth(null)} onBooked={reload} />}
       {reporting && <ReportModal targetType="shop" targetId={shop.id} label={shop.name} onClose={() => setReporting(false)} />}
+      </div>
+      </div>
     </div>
   );
 };

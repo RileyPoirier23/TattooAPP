@@ -18,7 +18,7 @@ export const PayDepositModal: React.FC<{ request: BookingRequest; token?: string
         <div className="flex justify-between pt-2"><span>Deposit</span><span>{money(request.depositCents)}</span></div>
         {request.feeCents > 0 && <div className="flex justify-between"><span>Booking fee</span><span>{money(request.feeCents)}</span></div>}
         <div className="flex justify-between font-bold text-base border-t border-gray-200 dark:border-gray-700 pt-2"><span>Total</span><span>{money(total)}</span></div>
-        <p className="text-xs text-brand-gray pt-1">The deposit is put towards the price of your tattoo.</p>
+        <p className="text-xs text-brand-gray pt-1">The deposit is put towards the price of your appointment.</p>
       </div>
       <SquareCardForm
         buttonLabel={`Pay ${money(total)}`}

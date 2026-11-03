@@ -121,7 +121,7 @@ export const ContactPage: React.FC = () => {
             </Card>
           )}
           <p className="text-xs text-brand-gray px-1">
-            For a question about a specific appointment, it&apos;s usually fastest to message your artist directly{user ? ' from Messages' : ''}.
+            For a question about a specific appointment, it&apos;s usually fastest to message your pro directly{user ? ' from Messages' : ''}.
           </p>
         </aside>
       </div>

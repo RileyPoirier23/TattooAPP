@@ -1,9 +1,9 @@
 // A single booking request, reachable by the client (account or private guest link) — check status and pay.
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import { api, errorMessage } from '../api';
 import { useLocation, Link } from '../router';
 import { useStore } from '../store';
-import { ClientRequestCard, ArtistRequestCard } from '../components/BookingCards';
+import { ClientRequestCard, ArtistRequestCard, claimAfterSignUp } from '../components/BookingCards';
 import { Avatar, Button, Card, EmptyState, ErrorBox, Notice, PageLoader, useApi } from '../components/ui';
 import { ArrowLeftIcon } from '../components/Icons';
 import type { GuestBookingView } from '../../shared/types';
@@ -15,8 +15,35 @@ export const BookingStatusPage: React.FC<{ id: string }> = ({ id }) => {
   const version = useStore(s => s.bookingsVersion);
   const { data, error, loading, reload } = useApi<GuestBookingView>(`/booking-requests/${id}${token ? `?token=${encodeURIComponent(token)}` : ''}`, [version]);
   const toast = useStore(s => s.toast);
-  const openAuth = useStore(s => s.openAuth);
   const [claiming, setClaiming] = useState(false);
+
+  const claim = async (afterSignUp = false) => {
+    setClaiming(true);
+    try {
+      await api.post(`/booking-requests/${id}/claim`, { token });
+      toast(afterSignUp && data?.request.status === 'completed' ? 'Booking added to your account. You can leave your review now.' : 'Added to your account.');
+      reload();
+    } catch (err) {
+      toast(errorMessage(err), 'error');
+    } finally {
+      setClaiming(false);
+    }
+  };
+
+  // Signed up or logged in from this page to review or keep the booking: add it to the account straight away.
+  useEffect(() => {
+    if (!user || !token || !data?.request.isGuest || user.id === data.request.artistId) return;
+    let pending: string | null = null;
+    try {
+      pending = sessionStorage.getItem('claimBooking');
+    } catch {}
+    if (pending !== id) return;
+    try {
+      sessionStorage.removeItem('claimBooking');
+    } catch {}
+    claim(true);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [user?.id, data?.request.isGuest]);
 
   if (error && !/not found/i.test(error)) return <ErrorBox message={error} onRetry={reload} />;
   if (error) {
@@ -50,30 +77,15 @@ export const BookingStatusPage: React.FC<{ id: string }> = ({ id }) => {
           {user && (user.role === 'client' || user.role === 'dual' || user.role === 'artist') ? (
             <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
               <span>Add this booking to your account to keep everything in one place and message {data.artist.name}.</span>
-              <Button
-                size="sm"
-                loading={claiming}
-                onClick={async () => {
-                  setClaiming(true);
-                  try {
-                    await api.post(`/booking-requests/${id}/claim`, { token });
-                    toast('Added to your account.');
-                    reload();
-                  } catch (err) {
-                    toast(errorMessage(err), 'error');
-                  } finally {
-                    setClaiming(false);
-                  }
-                }}
-              >
+              <Button size="sm" loading={claiming} onClick={() => claim()}>
                 Add to my account
               </Button>
             </div>
           ) : !user ? (
             <span>
-              Want to message {data.artist.name} or keep track of your bookings?{' '}
-              <button className="font-semibold underline" onClick={() => openAuth('register')}>Create a free account</button> (or{' '}
-              <button className="font-semibold underline" onClick={() => openAuth('login')}>log in</button>), then come back to this link to add the booking.
+              Want to message {data.artist.name}, leave a review or keep track of your bookings?{' '}
+              <button className="font-semibold underline" onClick={() => claimAfterSignUp(id)}>Create a free account</button> (or{' '}
+              <button className="font-semibold underline" onClick={() => claimAfterSignUp(id, 'login')}>log in</button>) and this booking is added to it.
             </span>
           ) : null}
         </Notice>

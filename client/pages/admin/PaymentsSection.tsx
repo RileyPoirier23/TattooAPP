@@ -60,9 +60,9 @@ const RefundModal: React.FC<{ payment: AdminPayment; onClose: () => void; onRefu
         <p>
           The full amount goes back to the payer&apos;s card through Square. It usually shows up on their statement within 5–10 business days. This can&apos;t be undone.
         </p>
-        {p.kind === 'deposit' && <p>If the appointment hasn&apos;t happened yet, it&apos;s cancelled and the artist is told. The booking is marked as refunded.</p>}
+        {p.kind === 'deposit' && <p>If the appointment hasn&apos;t happened yet, it&apos;s cancelled and the pro is told. The booking is marked as refunded.</p>}
         {p.kind === 'booth' && <p>The booth rental will be cancelled and the dates freed up.</p>}
-        {p.kind === 'subscription' && <p>Refunding a Pro payment also ends that artist&apos;s Pro plan straight away.</p>}
+        {p.kind === 'subscription' && <p>Refunding a Pro payment also ends that pro&apos;s Pro plan straight away.</p>}
         {p.payeeAmountCents > 0 && (
           <p className="text-amber-700 dark:text-amber-300">
             {p.payeeName || 'The payee'}&apos;s share ({money(p.payeeAmountCents, p.currency)}) is taken off what you owe them. If you already paid them, their balance goes
@@ -74,7 +74,7 @@ const RefundModal: React.FC<{ payment: AdminPayment; onClose: () => void; onRefu
           value={reason}
           maxLength={190}
           onChange={e => setReason(e.target.value)}
-          placeholder="e.g. Artist cancelled the appointment"
+          placeholder="e.g. The pro cancelled the appointment"
           hint="Shown on the refund in Square."
         />
       </div>
@@ -117,7 +117,7 @@ export const PaymentsSection: React.FC = () => {
           const totals = [
             { label: 'Collected', value: money(t.grossCents), hint: `${t.completedCount} payment${t.completedCount === 1 ? '' : 's'}` },
             { label: 'Your fees', value: money(t.feesCents), hint: 'Booking fees, booth commission & Pro plans', highlight: true },
-            { label: 'Artists’ & shops’ share', value: money(t.payeeCents), hint: 'See Payouts for what is still owed' },
+            { label: 'Pros’ & shops’ share', value: money(t.payeeCents), hint: 'See Payouts for what is still owed' },
             { label: 'Refunded', value: money(t.refundedCents), hint: `${t.refundedCount} refund${t.refundedCount === 1 ? '' : 's'}` },
           ];
 
@@ -161,7 +161,7 @@ export const PaymentsSection: React.FC = () => {
                   <EmptyState icon={<CreditCardIcon className="w-12 h-12" />} title={filtered ? 'No matches' : 'No payments yet'}>
                     {filtered
                       ? 'Try a different search or filter.'
-                      : 'When clients pay deposits, artists rent booths or subscribe to Pro, the payments show up here.'}
+                      : 'When clients pay deposits, pros rent booths or subscribe to Pro, the payments show up here.'}
                   </EmptyState>
                 </Card>
               ) : (

@@ -90,7 +90,7 @@ export const ShopDetailsForm: React.FC<{ shop?: Shop | null; onSaved: (s: Shop) 
         </p>
       ) : (
         <p className="sm:col-span-2 text-xs text-brand-gray">
-          Optional: add map coordinates so artists can see your exact location.{' '}
+          Optional: add map coordinates so pros can see your exact location.{' '}
           <button type="button" className="underline" onClick={() => setShowCoords(v => !v)}>{showCoords ? 'Hide' : 'Add coordinates'}</button>
         </p>
       )}
@@ -242,7 +242,7 @@ export const ShopDashboardPage: React.FC = () => {
   if (!shop) {
     return (
       <div className="max-w-2xl mx-auto">
-        <PageHeader title="List your shop" subtitle="Tell guest artists about your shop. You can add booths right after." />
+        <PageHeader title="List your shop" subtitle="Tell visiting pros about your shop. You can add booths or chairs right after." />
         <Card>
           <ShopDetailsForm
             submitLabel="Create my shop"
@@ -306,7 +306,7 @@ export const ShopDashboardPage: React.FC = () => {
         actions={<Link to={`/shops/${shop.id}`}><Button variant="outline">View public page</Button></Link>}
       />
       {!settings.features.boothRental && <Notice tone="warning" className="mb-6">Booth rentals are currently turned off site-wide by the admin.</Notice>}
-      {shop.booths.length === 0 && <Notice className="mb-6">Add at least one booth so artists can book a guest spot at your shop.</Notice>}
+      {shop.booths.length === 0 && <Notice className="mb-6">Add at least one booth so pros can rent a spot at your shop.</Notice>}
       <Tabs
         className="mb-6"
         active={tab}

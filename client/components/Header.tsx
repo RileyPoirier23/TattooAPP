@@ -159,8 +159,8 @@ export const Header: React.FC = () => {
   }, []);
 
   const nav = [
-    s.features.clientBooking && { to: '/artists', label: 'Find an artist' },
-    s.features.boothRental && { to: '/shops', label: 'Guest spots' },
+    s.features.clientBooking && { to: '/artists', label: 'Find a pro' },
+    s.features.boothRental && { to: '/shops', label: 'Booth rentals' },
   ].filter(Boolean) as { to: string; label: string }[];
 
   return (

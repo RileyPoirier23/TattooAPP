@@ -22,7 +22,7 @@ const BecomeArtistCard: React.FC<{ me: Me }> = ({ me }) => {
     try {
       const { user } = await api.post<{ user: Me }>('/me/become-artist', { city });
       setUser(user);
-      toast('Artist features are on. Set up your profile so clients can find you.');
+      toast('Pro features are on. Set up your profile so clients can find you.');
       navigate('/dashboard?tab=profile');
     } catch (err) {
       toast(errorMessage(err), 'error');
@@ -36,13 +36,13 @@ const BecomeArtistCard: React.FC<{ me: Me }> = ({ me }) => {
   return (
     <div id="artist">
       <Card>
-        <h2 className="text-lg font-bold mb-1">Are you a tattoo artist?</h2>
+        <h2 className="text-lg font-bold mb-1">Do you take bookings?</h2>
         <p className="text-sm text-brand-gray mb-4">
-          Switch on artist features to get a public profile, take bookings and deposits, and rent guest spots at shops. Your own bookings stay in your account.
+          Switch on pro features to get a public profile, take bookings and deposits, and rent booths at shops. Your own bookings stay in your account.
         </p>
         <div className="flex flex-col sm:flex-row sm:items-end gap-3">
           <Input className="flex-1" label="City you work in" value={city} onChange={e => setCity(e.target.value)} placeholder="e.g. Moncton, NB" />
-          <Button onClick={start} loading={busy} disabled={!city.trim()}>Become an artist</Button>
+          <Button onClick={start} loading={busy} disabled={!city.trim()}>Become a pro</Button>
         </div>
       </Card>
     </div>

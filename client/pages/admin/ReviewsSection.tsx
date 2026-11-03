@@ -47,7 +47,7 @@ export const ReviewsSection: React.FC = () => {
                     onChange={setType}
                     options={[
                       { id: 'all', label: 'All' },
-                      { id: 'artist', label: 'Artists' },
+                      { id: 'artist', label: 'Pros' },
                       { id: 'shop', label: 'Shops' },
                     ]}
                   />
@@ -65,7 +65,7 @@ export const ReviewsSection: React.FC = () => {
               {visible.length === 0 ? (
                 <Card>
                   <EmptyState icon={<StarIcon className="w-12 h-12" />} title={list.length ? 'No matches' : 'No reviews yet'}>
-                    {list.length ? 'Try a different search or filter.' : 'Reviews of artists and shops will appear here.'}
+                    {list.length ? 'Try a different search or filter.' : 'Reviews of pros and shops will appear here.'}
                   </EmptyState>
                 </Card>
               ) : (
@@ -77,7 +77,7 @@ export const ReviewsSection: React.FC = () => {
                           <p className="font-semibold text-brand-dark dark:text-white truncate">{r.subject}</p>
                           <div className="flex flex-wrap items-center gap-2 mt-0.5">
                             <StarRating value={r.rating} size="w-4 h-4" />
-                            <Badge tone={r.type === 'shop' ? 'blue' : 'brand'}>{r.type === 'shop' ? 'Shop' : 'Artist'}</Badge>
+                            <Badge tone={r.type === 'shop' ? 'blue' : 'brand'}>{r.type === 'shop' ? 'Shop' : 'Pro'}</Badge>
                             {r.hidden && <Badge tone="red">Hidden</Badge>}
                           </div>
                         </div>

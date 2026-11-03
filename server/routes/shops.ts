@@ -154,7 +154,7 @@ shopsRouter.post('/booths/:id/blocks', (req, res) => {
   const paid = db
     .prepare("select 1 from booth_bookings where booth_id = ? and status = 'paid' and start_date <= ? and end_date >= ? limit 1")
     .get(booth.id, b.endDate, b.startDate);
-  if (paid) throw conflict('An artist has already paid for some of those dates. Cancel that rental first if you need to.');
+  if (paid) throw conflict('Someone has already paid for some of those dates. Cancel that rental first if you need to.');
   db.prepare('insert into booth_blocks (id, booth_id, start_date, end_date, note, created_at) values (?, ?, ?, ?, ?, ?)')
     .run(newId(), booth.id, b.startDate, b.endDate, b.note, nowIso());
   res.status(201).json({ ok: true });

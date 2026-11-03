@@ -162,6 +162,7 @@ const settingsSchema = z
     currency: z.string().regex(/^[A-Z]{3}$/, 'must be a 3-letter currency code like USD'),
     boothHoldHours: z.coerce.number().int().min(1).max(720),
     bodyPlacements: z.array(z.string().trim().min(1).max(60)).max(60),
+    categories: z.array(z.string().trim().min(1).max(40)).min(1, 'Keep at least one category.').max(30),
     specialties: z.array(z.string().trim().min(1).max(60)).max(100),
     squareApplicationId: z.string().trim().max(200),
     squareLocationId: z.string().trim().max(200),

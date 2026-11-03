@@ -39,7 +39,10 @@ async function signUp(page: Page, role: RegExp, user: { name: string; email: str
   const dialog = page.getByRole('dialog');
   await dialog.getByRole('button', { name: role }).click();
   await dialog.getByLabel(/name/i).first().fill(user.name);
-  if (city) await dialog.getByLabel('City you work in').fill(city);
+  if (city) {
+    await dialog.getByLabel('What do you do?').selectOption('Tattoo');
+    await dialog.getByLabel('City you work in').fill(city);
+  }
   await dialog.getByLabel('Email').fill(user.email);
   await dialog.getByLabel('Password').fill(user.password);
   await dialog.getByRole('checkbox').check();
@@ -62,11 +65,11 @@ async function logOut(page: Page) {
 }
 
 test('artist sets up profile, guest books and pays a deposit', async ({ page }) => {
-  await signUp(page, /^Artist I tattoo/, artist, 'Moncton, NB');
+  await signUp(page, /^Pro I take bookings/, artist, 'Moncton, NB');
   await expect(page).toHaveURL(/\/dashboard\?tab=profile/);
 
   await page.getByLabel('Bio').fill('Fine line and botanical tattoos. 10 years of experience.');
-  await page.getByLabel('Main style').selectOption('Fine Line');
+  await page.getByLabel('Main specialty').selectOption('Fine Line');
   await page.getByRole('button', { name: 'Save profile' }).click();
   await expect(page.getByText('Profile saved!')).toBeVisible();
   // Artists show up in search once they have a portfolio photo.

@@ -155,12 +155,12 @@ function pageMeta(urlPath: string): { title: string; description: string; image:
     const artist = /^\/artists\/([^/]+)$/.exec(urlPath);
     if (artist) {
       const u = getDb()
-        .prepare("select name, specialty, city, bio, portfolio, avatar_url from users where id = ? and role in ('artist','dual') and status = 'active'")
+        .prepare("select name, category, specialty, city, bio, portfolio, avatar_url from users where id = ? and role in ('artist','dual') and status = 'active'")
         .get(artist[1]) as any;
       if (u) {
         const photo = parseJson<{ url: string }[]>(u.portfolio, [])[0]?.url || u.avatar_url || base.image;
         return {
-          title: `${u.name}${u.specialty ? `, ${u.specialty}` : ''} tattoo artist${u.city ? ` in ${u.city}` : ''} | ${s.siteName}`,
+          title: `${u.name}${u.specialty ? `, ${u.specialty}` : ''}${u.category ? ` (${u.category})` : ''}${u.city ? ` in ${u.city}` : ''} | ${s.siteName}`,
           description: (u.bio || `Book ${u.name} on ${s.siteName}.`).slice(0, 200),
           image: photo,
         };

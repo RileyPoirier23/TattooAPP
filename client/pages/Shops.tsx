@@ -1,10 +1,10 @@
-// Shop directory for artists looking for guest spots, plus optional unclaimed Google listings.
+// Shop directory for pros looking to rent a booth or chair, plus optional unclaimed Google listings.
 import React, { useMemo, useState } from 'react';
 import { Link } from '../router';
 import { useStore } from '../store';
 import { dollars } from '../lib/format';
 import { findTattooShops, type UnclaimedShop } from '../lib/maps';
-import { Badge, Button, Card, Cover, EmptyState, ErrorBox, PageHeader, Skeleton, SkeletonGrid, Toggle, inputClass, useApi } from '../components/ui';
+import { Badge, Button, Card, Cover, EmptyState, ErrorBox, PageBanner, Skeleton, SkeletonGrid, Toggle, inputClass, useApi } from '../components/ui';
 import { CheckBadgeIcon, LocationIcon, SearchIcon, StarIcon, StoreIcon } from '../components/Icons';
 import type { Shop } from '../../shared/types';
 
@@ -113,7 +113,9 @@ export const ShopsPage: React.FC = () => {
 
   return (
     <div>
-      <PageHeader title="Guest spots & booths" subtitle="Find a shop in your next city and rent a booth for a day, a week or longer." />
+      <PageBanner title="Booth rentals" crumbs={[{ label: 'Home', to: '/' }, { label: 'Booth rentals' }]} />
+      <div className="container mx-auto px-4 py-10 md:py-14">
+      <p className="text-brand-gray mb-6 max-w-2xl">Find a shop or salon in your next city and rent a booth or chair for a day, a week or longer.</p>
       <Card className="mb-8">
         <div className="grid gap-3 md:grid-cols-3">
           <div className="relative">
@@ -167,6 +169,7 @@ export const ShopsPage: React.FC = () => {
           </div>
         </section>
       )}
+      </div>
     </div>
   );
 };

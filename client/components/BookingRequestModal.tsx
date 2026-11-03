@@ -1,5 +1,6 @@
 // Three-step booking request: service & date → tattoo details → contact & send.
 import React, { useMemo, useState } from 'react';
+import { asksPlacement, asksSize } from '../../shared/categories';
 import { api, errorMessage } from '../api';
 import { prepareImages } from '../lib/images';
 import { useUnsavedWarning } from '../lib/unsaved';
@@ -11,7 +12,7 @@ import { Button, Input, Modal, Notice, Select, Textarea, cx } from './ui';
 import { CheckIcon, PhotoIcon, XIcon } from './Icons';
 import type { ArtistDetail, BookingRequest, PreferredTime } from '../../shared/types';
 
-export const BookingRequestModal: React.FC<{ artist: ArtistDetail; onClose: () => void }> = ({ artist, onClose }) => {
+export const BookingRequestModal: React.FC<{ artist: ArtistDetail; serviceId?: string; onClose: () => void }> = ({ artist, serviceId: startService, onClose }) => {
   const user = useStore(s => s.user);
   const settings = useStore(s => s.config!.settings);
   const emailReady = useStore(s => s.config!.emailReady);
@@ -20,7 +21,10 @@ export const BookingRequestModal: React.FC<{ artist: ArtistDetail; onClose: () =
   const [accepted, setAccepted] = useState(false);
   const intake = artist.intakeSettings;
   const [step, setStep] = useState(1);
-  const [serviceId, setServiceId] = useState(artist.services[0]?.id || '');
+  const [serviceId, setServiceId] = useState(startService ?? artist.services[0]?.id ?? '');
+  // Size and placement only apply to some categories (tattoos; placement also for piercings).
+  const showSize = asksSize(artist.category);
+  const showPlacement = asksPlacement(artist.category);
   const [date, setDate] = useState('');
   const [preferredTime, setPreferredTime] = useState<PreferredTime>('anytime');
   const [width, setWidth] = useState('');
@@ -55,9 +59,9 @@ export const BookingRequestModal: React.FC<{ artist: ArtistDetail; onClose: () =
   const previews = useMemo(() => files.map(f => URL.createObjectURL(f)), [files]);
 
   const step2Error = (() => {
-    if (intake.requireSize && (!Number(width) || !Number(height))) return 'Enter the approximate width and height.';
-    if (intake.requirePlacement && !placement) return 'Choose a placement.';
-    if (intake.requireDescription && message.trim().length < 10) return 'Describe your idea in at least a sentence.';
+    if (intake.requireSize && showSize && (!Number(width) || !Number(height))) return 'Enter the approximate width and height.';
+    if (intake.requirePlacement && showPlacement && !placement) return 'Choose a placement.';
+    if (intake.requireDescription && message.trim().length < 10) return 'Describe what you would like in at least a sentence.';
     if (intake.requireBudget && !Number(budget)) return 'Enter your budget.';
     if (intake.requireReferenceImages && files.length === 0) return 'Attach at least one reference image.';
     return '';
@@ -175,7 +179,7 @@ export const BookingRequestModal: React.FC<{ artist: ArtistDetail; onClose: () =
                   className={cx('w-full text-left p-3 rounded-xl border transition', !serviceId ? 'border-brand-primary bg-brand-primary/10' : 'border-gray-200 dark:border-gray-700 hover:border-gray-400')}
                 >
                   <span className="font-semibold">Not sure / custom</span>
-                  <p className="text-xs text-brand-gray">The artist will quote you after reviewing your idea.</p>
+                  <p className="text-xs text-brand-gray">You'll get a quote after your request is reviewed.</p>
                 </button>
               </div>
             ) : (
@@ -197,23 +201,27 @@ export const BookingRequestModal: React.FC<{ artist: ArtistDetail; onClose: () =
       {step === 2 && (
         <div className="grid gap-6 md:grid-cols-2">
           <div className="space-y-4">
-            <div className="grid grid-cols-2 gap-3">
-              <Input label={`Width (inches)${req(intake.requireSize)}`} type="number" min="0" step="0.5" value={width} onChange={e => setWidth(e.target.value)} />
-              <Input label={`Height (inches)${req(intake.requireSize)}`} type="number" min="0" step="0.5" value={height} onChange={e => setHeight(e.target.value)} />
-            </div>
-            <Select label={`Placement${req(intake.requirePlacement)}`} value={placement} onChange={e => setPlacement(e.target.value)}>
-              <option value="">Choose…</option>
-              {settings.bodyPlacements.map(p => <option key={p} value={p}>{p}</option>)}
-            </Select>
+            {showSize && (
+              <div className="grid grid-cols-2 gap-3">
+                <Input label={`Width (inches)${req(intake.requireSize)}`} type="number" min="0" step="0.5" value={width} onChange={e => setWidth(e.target.value)} />
+                <Input label={`Height (inches)${req(intake.requireSize)}`} type="number" min="0" step="0.5" value={height} onChange={e => setHeight(e.target.value)} />
+              </div>
+            )}
+            {showPlacement && (
+              <Select label={`Placement${req(intake.requirePlacement)}`} value={placement} onChange={e => setPlacement(e.target.value)}>
+                <option value="">Choose…</option>
+                {settings.bodyPlacements.map(p => <option key={p} value={p}>{p}</option>)}
+              </Select>
+            )}
             <Input label={`Budget${req(intake.requireBudget)}`} type="number" min="0" prefix={currencySymbol()} value={budget} onChange={e => setBudget(e.target.value)} />
           </div>
           <div className="space-y-4">
             <Textarea
-              label={`Describe your idea${req(intake.requireDescription)}`}
+              label={`${showSize ? 'Describe your idea' : 'What would you like?'}${req(intake.requireDescription)}`}
               rows={6}
               value={message}
               onChange={e => setMessage(e.target.value)}
-              placeholder="Style, colours, meaning, any details the artist should know…"
+              placeholder="What you'd like done, any details they should know…"
               maxLength={3000}
             />
             <div>
@@ -287,8 +295,8 @@ export const BookingRequestModal: React.FC<{ artist: ArtistDetail; onClose: () =
           </div>
           <div className="rounded-xl bg-gray-50 dark:bg-gray-800/50 p-4 text-sm space-y-2 h-fit">
             <h3 className="font-bold text-base mb-2">Summary</h3>
-            <Row k="Artist" v={artist.name} />
-            <Row k="Service" v={service?.name || 'Custom tattoo'} />
+            <Row k="With" v={artist.name} />
+            <Row k="Service" v={service?.name || (showSize ? 'Custom tattoo' : 'Appointment')} />
             <Row k="Date" v={`${formatDate(date)} · ${PREFERRED_TIMES[preferredTime]}`} />
             {(width || height) && <Row k="Size" v={`${width || '?'}" × ${height || '?'}"`} />}
             {placement && <Row k="Placement" v={placement} />}

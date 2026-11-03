@@ -36,7 +36,7 @@ function calendarLink(r: BookingRequest) {
     next.setDate(next.getDate() + 1);
     dates = `${r.date.replace(/-/g, '')}/${stamp(next).slice(0, 8)}`;
   }
-  const details = encodeURIComponent(r.appointmentTime ? `Booked via ${window.location.host}` : `Time: ${PREFERRED_TIMES[r.preferredTime] || r.preferredTime} (confirm with your artist)`);
+  const details = encodeURIComponent(r.appointmentTime ? `Booked via ${window.location.host}` : `Time: ${PREFERRED_TIMES[r.preferredTime] || r.preferredTime} (confirm with your pro)`);
   return `https://calendar.google.com/calendar/render?action=TEMPLATE&text=${text}&dates=${dates}&details=${details}`;
 }
 
@@ -44,6 +44,14 @@ function calendarLink(r: BookingRequest) {
 export function formatTime(t: string) {
   const [h, m] = t.split(':').map(Number);
   return new Date(2000, 0, 1, h, m).toLocaleTimeString(undefined, { hour: 'numeric', minute: '2-digit' });
+}
+
+/** Guest booking pages: after the guest signs up or logs in, this booking is added to their account (see BookingStatusPage). */
+export function claimAfterSignUp(bookingId: string, mode: 'register' | 'login' = 'register') {
+  try {
+    sessionStorage.setItem('claimBooking', bookingId);
+  } catch {}
+  useStore.getState().openAuth(mode);
 }
 
 export const ReviewModal: React.FC<{ title: string; onSubmit: (rating: number, text: string) => Promise<void>; onClose: () => void }> = ({ title, onSubmit, onClose }) => {
@@ -115,7 +123,7 @@ const RequestDetails: React.FC<{ r: BookingRequest }> = ({ r }) => (
         ))}
       </div>
     )}
-    {r.artistNote && <p className="text-sm"><span className="text-brand-gray">Artist note:</span> {r.artistNote}</p>}
+    {r.artistNote && <p className="text-sm"><span className="text-brand-gray">Note from your pro:</span> {r.artistNote}</p>}
   </div>
 );
 
@@ -188,7 +196,7 @@ export const ClientRequestCard: React.FC<{ request: BookingRequest; token?: stri
         )}
         {user && features.messaging && (
           <Button variant="outline" size="sm" onClick={() => openConversation(r.artistId).catch(err => toast(errorMessage(err), 'error'))}>
-            <ChatIcon className="w-4 h-4" /> Message artist
+            <ChatIcon className="w-4 h-4" /> Message
           </Button>
         )}
         {!user && features.messaging && (
@@ -196,12 +204,12 @@ export const ClientRequestCard: React.FC<{ request: BookingRequest; token?: stri
             <ChatIcon className="w-4 h-4" /> Create an account to message {r.artistName}
           </Button>
         )}
-        {r.status === 'completed' && !r.review && features.reviews && (!r.isGuest || (r.paymentStatus === 'paid' && r.depositCents > 0)) && (
+        {r.status === 'completed' && !r.review && features.reviews && !r.isGuest && (
           <Button size="sm" onClick={() => setReviewing(true)}>Leave a review</Button>
         )}
-        {r.status === 'completed' && !r.review && features.reviews && r.isGuest && !(r.paymentStatus === 'paid' && r.depositCents > 0) && !user && (
-          <Button variant="outline" size="sm" onClick={() => useStore.getState().openAuth('register')}>
-            Create an account to leave a review
+        {r.status === 'completed' && !r.review && features.reviews && r.isGuest && !user && (
+          <Button size="sm" onClick={() => claimAfterSignUp(r.id)}>
+            Create a free account to leave a review
           </Button>
         )}
         {r.review && <span className="text-sm text-brand-gray self-center">You rated this {r.review.rating}★</span>}
@@ -521,7 +529,7 @@ export const BoothBookingCard: React.FC<{ booking: BoothBooking; as: 'artist' | 
               }
             }}
           >
-            <ChatIcon className="w-4 h-4" /> Message {as === 'owner' ? 'artist' : 'shop'}
+            <ChatIcon className="w-4 h-4" /> Message {as === 'owner' ? 'renter' : 'shop'}
           </Button>
         )}
         {as === 'artist' && <Button variant="ghost" size="sm" onClick={() => navigate(`/shops/${b.shopId}`)}>View shop</Button>}

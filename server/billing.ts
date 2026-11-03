@@ -112,11 +112,11 @@ export async function payDeposit(requestId: string, sourceId: string, clientKey:
     const r = db.prepare('select * from booking_requests where id = ?').get(requestId) as any;
     if (!r) throw notFound('Booking not found.');
     if (r.payment_status === 'paid') throw conflict('This deposit has already been paid.');
-    if (r.status !== 'approved') throw conflict('The artist needs to approve this booking before the deposit can be paid.');
+    if (r.status !== 'approved') throw conflict('This booking needs to be approved before the deposit can be paid.');
     if (r.deposit_cents <= 0) throw conflict('No deposit is needed for this booking.');
-    if (r.date < todayStr(-1)) throw conflict('This appointment date has passed. Please contact the artist.');
+    if (r.date < todayStr(-1)) throw conflict('This appointment date has passed. Please contact your pro.');
     const artist = getUser(r.artist_id);
-    if (!artist || artist.status !== 'active') throw conflict("This artist isn't taking bookings right now, so the deposit can't be paid.");
+    if (!artist || artist.status !== 'active') throw conflict("This pro isn't taking bookings right now, so the deposit can't be paid.");
     const client = r.client_id ? getUser(r.client_id) : null;
     const payerEmail = client?.email || r.guest_email;
 
@@ -256,7 +256,7 @@ export async function payBoothBooking(bookingId: string, artist: UserRow, source
       link: '/shop',
       email: { subject: 'Booth rental confirmed', actionLabel: 'Open shop dashboard' },
     });
-    notify(artist.id, `Your guest spot at ${b.shop_name} is confirmed.`, {
+    notify(artist.id, `Your booth rental at ${b.shop_name} is confirmed.`, {
       link: '/bookings',
       email: {
         subject: `Guest spot confirmed at ${b.shop_name}`,

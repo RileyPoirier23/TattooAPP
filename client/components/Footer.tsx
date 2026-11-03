@@ -14,8 +14,8 @@ export const Footer: React.FC = () => {
     s.facebookUrl && { href: s.facebookUrl, label: 'Facebook', Icon: FacebookIcon },
   ].filter(Boolean) as { href: string; label: string; Icon: React.FC<{ className?: string }> }[];
   const links = [
-    s.features.clientBooking && { to: '/artists', label: 'Find an artist' },
-    s.features.boothRental && { to: '/shops', label: 'Guest spots' },
+    s.features.clientBooking && { to: '/artists', label: 'Find a pro' },
+    s.features.boothRental && { to: '/shops', label: 'Booth rentals' },
     ...pages.map(p => ({ to: `/p/${p.slug}`, label: p.title })),
     { to: '/contact', label: 'Contact us' },
   ].filter(Boolean) as { to: string; label: string }[];

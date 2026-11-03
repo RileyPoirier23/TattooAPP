@@ -131,7 +131,7 @@ const EditUserModal: React.FC<{ user: AdminUser; isSelf: boolean; onClose: () =>
         <div className="grid gap-4 sm:grid-cols-2">
           <Input label="Name" value={f.name} maxLength={100} onChange={e => update('name', e.target.value)} error={nameError} />
           <Input label="Email" type="email" value={f.email} maxLength={200} onChange={e => update('email', e.target.value)} error={emailError} />
-          <Select label="Role" value={f.role} disabled={isSelf} onChange={e => update('role', e.target.value as Role)} hint="Artist + client accounts can do both.">
+          <Select label="Role" value={f.role} disabled={isSelf} onChange={e => update('role', e.target.value as Role)} hint="Pro + client accounts can do both.">
             {Object.entries(ROLE_LABELS).map(([id, label]) => (
               <option key={id} value={id}>
                 {label}
@@ -264,7 +264,7 @@ export const UsersSection: React.FC = () => {
 
   return (
     <>
-      <PageHeader title="Users" subtitle="Everyone with an account: clients, artists, shop owners and admins." />
+      <PageHeader title="Users" subtitle="Everyone with an account: clients, pros, shop owners and admins." />
       <Toolbar>
         <SearchInput value={q} onChange={setQ} placeholder="Search by name, email or city" loading={dq !== q.trim()} className="flex-1" />
         <Select value={role} onChange={e => setRole(e.target.value)} aria-label="Filter by role" className="sm:w-52">

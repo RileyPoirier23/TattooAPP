@@ -938,3 +938,44 @@ test('sites left on old defaults get the new look; customized ones keep theirs',
 
   saveSettings({ primaryColor: before.primaryColor, secondaryColor: before.secondaryColor, defaultTheme: before.defaultTheme, heroTitle: before.heroTitle, heroHighlight: before.heroHighlight });
 });
+
+test('categories: barbers skip tattoo questions; search by day; reviews need an account', async () => {
+  const { getDb } = await import('../server/db');
+  // Pros pick a category from the admin's list when they sign up or edit their profile.
+  const bad = await new Client().post('/api/auth/register', { email: 'nope@example.com', password: 'password123', name: 'Nope', role: 'artist', city: 'Moncton', category: 'Rocket science', acceptTerms: true });
+  assert.equal(bad.status, 400);
+  const barber = await register('artist', 'barber@example.com', { category: 'Barber' });
+  assert.equal(barber.me.category, 'Barber');
+  assert.equal(barber.me.intakeSettings.requireSize, false, 'no tattoo size question for barbers');
+  assert.equal((await barber.c.patch('/api/me', { category: 'Nails' })).body.user.category, 'Nails');
+  assert.equal((await barber.c.patch('/api/me', { category: 'Rocket science' })).status, 400);
+  await barber.c.patch('/api/me', { category: 'Barber', hours: { '2': [{ start: '09:00', end: '17:00' }] } });
+  getDb().prepare('update users set portfolio = ? where id = ?').run(JSON.stringify([{ url: '/uploads/x.png' }]), barber.me.id);
+
+  // Search by day: only pros working that weekday and not on a day off.
+  const tuesday = futureDate(3, 2);
+  const wednesday = futureDate(3, 3);
+  const onTuesday = (await new Client().get(`/api/artists?date=${tuesday}`)).body.map((a: any) => a.id);
+  const onWednesday = (await new Client().get(`/api/artists?date=${wednesday}`)).body.map((a: any) => a.id);
+  assert.ok(onTuesday.includes(barber.me.id));
+  assert.ok(!onWednesday.includes(barber.me.id));
+  await barber.c.put(`/api/me/days-off/${tuesday}`);
+  assert.ok(!(await new Client().get(`/api/artists?date=${tuesday}`)).body.some((a: any) => a.id === barber.me.id));
+
+  // A guest books a haircut: no size or placement needed even with the default intake settings on.
+  const guest = new Client();
+  const created = await guest.req('POST', '/api/booking-requests', bookingForm({ artistId: barber.me.id, date: futureDate(10, 2), message: 'Skin fade with a beard trim', guestName: 'Gus Guest', guestEmail: 'gus@example.com' }));
+  assert.equal(created.status, 201, JSON.stringify(created.body));
+  const { id, accessToken } = created.body.request;
+  assert.equal(created.body.request.serviceName, 'Appointment');
+  await barber.c.post(`/api/booking-requests/${id}/action`, { action: 'approve', depositAmount: 0 });
+  getDb().prepare('update booking_requests set date = ? where id = ?').run(futureDate(0), id);
+  assert.equal((await barber.c.post(`/api/booking-requests/${id}/action`, { action: 'complete' })).status, 200);
+
+  // Guests can't review with just the link; they create an account, add the booking to it, then review.
+  assert.equal((await guest.post(`/api/booking-requests/${id}/review`, { rating: 5, token: accessToken })).status, 409);
+  const gus = await register('client', 'gus@example.com');
+  assert.equal((await gus.c.post(`/api/booking-requests/${id}/claim`, { token: accessToken })).status, 200);
+  assert.equal((await gus.c.post(`/api/booking-requests/${id}/review`, { rating: 5, text: 'Sharp fade' })).status, 200);
+  assert.equal((await new Client().get(`/api/artists/${barber.me.id}`)).body.reviewCount, 1);
+});

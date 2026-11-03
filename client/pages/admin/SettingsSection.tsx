@@ -13,22 +13,22 @@ import { useSettingsDraft } from './useSettingsDraft';
 
 const KEYS = [
   'features', 'depositFeePercent', 'boothFeePercent', 'proMonthlyPrice', 'defaultDeposit', 'currency', 'boothHoldHours',
-  'bodyPlacements', 'specialties', 'squareApplicationId', 'squareLocationId', 'squareEnvironment', 'googleMapsApiKey',
+  'categories', 'bodyPlacements', 'specialties', 'squareApplicationId', 'squareLocationId', 'squareEnvironment', 'googleMapsApiKey',
 ] as const;
 
 const FEATURES: { key: keyof SiteFeatures; label: string; description: string }[] = [
-  { key: 'clientBooking', label: 'Client bookings', description: 'Clients can send booking requests to artists and pay a deposit online once the artist approves.' },
+  { key: 'clientBooking', label: 'Client bookings', description: 'Clients can send booking requests to pros and pay a deposit online once the pro approves.' },
   { key: 'guestBooking', label: 'Book without an account', description: 'People can request a booking as a guest. They get a private link (shown on screen, and emailed once email is set up) to check the request and pay.' },
-  { key: 'boothRental', label: 'Booth rentals (guest spots)', description: 'Shops can list booths and travelling artists can rent them by the day.' },
+  { key: 'boothRental', label: 'Booth rentals', description: 'Shops can list booths and chairs, and travelling pros can rent them by the day.' },
   { key: 'messaging', label: 'Messaging', description: 'Members can send each other private messages.' },
   {
     key: 'proPlan',
     label: 'Pro plan',
     description:
-      'Artists can subscribe monthly: their clients don’t pay the booking fee, they get a Pro badge and they’re listed first in search. Turning it off stops new sign-ups; current subscribers keep their plan until they cancel.',
+      'Pros can subscribe monthly: their clients don’t pay the booking fee, they get a Pro badge and they’re listed first in search. Turning it off stops new sign-ups; current subscribers keep their plan until they cancel.',
   },
-  { key: 'reviews', label: 'Reviews', description: 'Clients can rate artists after an appointment, and artists can review shops they rented from.' },
-  { key: 'unclaimedShops', label: 'Unclaimed shop listings', description: 'Show nearby tattoo shops from Google Maps that haven’t joined yet, so artists can find them. Needs a Google Maps key.' },
+  { key: 'reviews', label: 'Reviews', description: 'Clients can rate pros after an appointment, and pros can review shops they rented from.' },
+  { key: 'unclaimedShops', label: 'Unclaimed shop listings', description: 'Show nearby shops and salons from Google Maps that haven’t joined yet, so pros can find them. Needs a Google Maps key.' },
 ];
 
 // ---------- Small inputs ----------
@@ -392,7 +392,7 @@ export const SettingsSection: React.FC = () => {
                     max={50}
                     value={draft.depositFeePercent}
                     onChange={v => set('depositFeePercent', v)}
-                    hint="Added on top of the deposit and paid by the client. This is your income from bookings. Not charged when the artist has Pro."
+                    hint="Added on top of the deposit and paid by the client. This is your income from bookings. Not charged when the pro has Pro."
                   />
                   <NumberField
                     label="Booth rental commission"
@@ -410,7 +410,7 @@ export const SettingsSection: React.FC = () => {
                     max={10000}
                     value={draft.proMonthlyPrice}
                     onChange={v => set('proMonthlyPrice', v)}
-                    hint="What artists pay each month for Pro. If you change it, current subscribers are emailed when you save and pay the new price from their next renewal."
+                    hint="What pros pay each month for Pro. If you change it, current subscribers are emailed when you save and pay the new price from their next renewal."
                   />
                   <NumberField
                     label="Default deposit"
@@ -419,7 +419,7 @@ export const SettingsSection: React.FC = () => {
                     max={100000}
                     value={draft.defaultDeposit}
                     onChange={v => set('defaultDeposit', v)}
-                    hint="Used when a client books without choosing one of the artist's services."
+                    hint="Used when a client books without choosing one of the pro's services."
                   />
                   <Input
                     label="Currency"
@@ -437,7 +437,7 @@ export const SettingsSection: React.FC = () => {
                     max={720}
                     value={draft.boothHoldHours}
                     onChange={v => set('boothHoldHours', v)}
-                    hint="If the artist doesn't pay in time, the booth is released for others."
+                    hint="If the renter doesn't pay in time, the booth is released for others."
                   />
                 </div>
               </SettingsCard>
@@ -445,16 +445,24 @@ export const SettingsSection: React.FC = () => {
               {/* Lists */}
               <SettingsCard title="Choices on forms" description="The options people pick from when booking and building profiles." icon={<CogIcon className="w-5 h-5" />}>
                 <ListEditor
+                  label="Categories"
+                  hint="The kinds of business pros list under (Tattoo, Barber, Nails…). Clients browse and search by them."
+                  values={draft.categories}
+                  onChange={v => set('categories', v)}
+                  max={30}
+                  placeholder="e.g. Massage (press Enter to add)"
+                />
+                <ListEditor
                   label="Body placements"
-                  hint="Clients pick one when requesting a tattoo. Removing an option doesn't change existing bookings."
+                  hint="Clients pick one when requesting a tattoo or piercing. Removing an option doesn't change existing bookings."
                   values={draft.bodyPlacements}
                   onChange={v => set('bodyPlacements', v)}
                   max={60}
                   placeholder="e.g. Ankle (press Enter to add)"
                 />
                 <ListEditor
-                  label="Tattoo styles"
-                  hint="Artists pick their specialty from this list, and clients can search by it."
+                  label="Specialties"
+                  hint="Pros pick their main specialty from this list (styles, techniques), and clients can search by it."
                   values={draft.specialties}
                   onChange={v => set('specialties', v)}
                   max={100}

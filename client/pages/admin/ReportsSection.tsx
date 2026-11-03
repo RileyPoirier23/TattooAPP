@@ -83,7 +83,7 @@ const DecisionModal: React.FC<{ report: AdminReport; decision: Decision; onClose
           maxLength={2000}
           value={note}
           onChange={e => setNote(e.target.value)}
-          placeholder="e.g. Spoke to the artist, suspended the account for 2 weeks."
+          placeholder="e.g. Spoke to the pro, suspended the account for 2 weeks."
           hint="Only admins can see this."
         />
       </div>

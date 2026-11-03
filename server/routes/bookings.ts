@@ -3,6 +3,7 @@ import { Router, type Request } from 'express';
 import rateLimit from 'express-rate-limit';
 import crypto from 'node:crypto';
 import { z } from 'zod';
+import { asksPlacement, asksSize } from '../../shared/categories';
 import { getUser, isArtistRole, randomToken, requireArtist, requireUser, type UserRow } from '../auth';
 import { getDb, newId, nowIso, parseJson } from '../db';
 import {
@@ -101,16 +102,16 @@ bookingsRouter.post('/booking-requests', createLimiter, uploadLimiter, upload.ar
   const artist = db
     .prepare("select * from users where id = ? and role in ('artist','dual') and status = 'active'")
     .get(body.artistId) as UserRow | undefined;
-  if (!artist) throw notFound('Artist not found.');
+  if (!artist) throw notFound('Pro not found.');
   if (user?.id === artist.id || (!user && body.guestEmail === artist.email)) throw badRequest("You can't book yourself.");
-  if (user && !['client', 'dual', 'artist'].includes(user.role)) throw forbidden('Please use a client account to book tattoos.');
+  if (user && !['client', 'dual', 'artist'].includes(user.role)) throw forbidden('Please use a client account to book.');
 
   if (body.website) throw badRequest('Your request could not be sent.');
   if (!user) {
     if (!settings.features.guestBooking) throw new HttpError(401, 'Please log in or create an account to book.');
     if (!body.guestName) throw badRequest('Please enter your name.');
     if (/https?:|www\.|[<>]/i.test(body.guestName)) throw badRequest('Please enter just your name.');
-    if (!body.guestEmail) throw badRequest('Please enter your email so the artist can reach you.');
+    if (!body.guestEmail) throw badRequest('Please enter your email so they can reach you.');
     const recent = db
       .prepare('select count(*) c from booking_requests where guest_email = ? and created_at >= ?')
       .get(body.guestEmail, new Date(Date.now() - 86_400_000).toISOString()) as { c: number };
@@ -133,9 +134,10 @@ bookingsRouter.post('/booking-requests', createLimiter, uploadLimiter, upload.ar
 
   const intake = intakeOf(artist);
   const files = (req.files as Express.Multer.File[]) || [];
-  if (intake.requireSize && (!body.tattooWidth || !body.tattooHeight)) throw badRequest('Please enter the approximate size of your tattoo.');
-  if (intake.requirePlacement && !body.bodyPlacement) throw badRequest('Please choose where on your body the tattoo will go.');
-  if (intake.requireDescription && body.message.length < 10) throw badRequest('Please describe your tattoo idea (at least a sentence).');
+  // Size and placement only apply to some categories (tattoos, piercings), whatever the intake settings say.
+  if (intake.requireSize && asksSize(artist.category) && (!body.tattooWidth || !body.tattooHeight)) throw badRequest('Please enter the approximate size of your tattoo.');
+  if (intake.requirePlacement && asksPlacement(artist.category) && !body.bodyPlacement) throw badRequest('Please choose where on your body it will go.');
+  if (intake.requireDescription && body.message.length < 10) throw badRequest('Please describe what you would like (at least a sentence).');
   if (intake.requireBudget && !body.budget) throw badRequest('Please enter your budget.');
   if (intake.requireReferenceImages && files.length === 0) throw badRequest('Please attach at least one reference image.');
 
@@ -155,7 +157,7 @@ bookingsRouter.post('/booking-requests', createLimiter, uploadLimiter, upload.ar
      values (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
   ).run(
     id, artist.id, user?.id ?? null, user ? null : body.guestName, user ? null : body.guestEmail, user ? null : body.guestPhone || null,
-    token, service?.id ?? null, service?.name ?? 'Custom tattoo', service?.price ?? null, body.date, body.preferredTime,
+    token, service?.id ?? null, service?.name ?? (asksSize(artist.category) ? 'Custom tattoo' : 'Appointment'), service?.price ?? null, body.date, body.preferredTime,
     body.message, body.tattooWidth ?? null, body.tattooHeight ?? null, body.bodyPlacement, body.budget ?? null,
     JSON.stringify(images), depositCents, depositFeeCents(depositCents, artist), now, now, now,
   );
@@ -301,7 +303,7 @@ bookingsRouter.post('/booking-requests/:id/action', (req, res) => {
     case 'cancel':
       if (!['pending', 'approved'].includes(row.status)) throw conflict('This booking can no longer be cancelled.');
       if (role === 'client' && row.status === 'approved' && row.date < todayStr(-1)) {
-        throw conflict('This appointment date has passed. Contact the artist if something went wrong.');
+        throw conflict('This appointment date has passed. Contact your pro if something went wrong.');
       }
       set("status = 'cancelled', cancelled_by = ?", role);
       if (role === 'client') {
@@ -326,13 +328,18 @@ bookingsRouter.post('/booking-requests/:id/action', (req, res) => {
       if (row.date > todayStr(1)) throw conflict("You can mark this after the appointment date.");
       set('status = ?', body.action === 'complete' ? 'completed' : 'no-show');
       if (body.action === 'complete' && getSettings().features.reviews) {
-        tellClient(`Thanks for getting tattooed by ${artist.name}! How did it go? Leave a review to help others.`, `How was your session with ${artist.name}?`);
+        tellClient(
+          row.client_id
+            ? `Thanks for visiting ${artist.name}! How did it go? Leave a review to help others.`
+            : `Thanks for visiting ${artist.name}! How did it go? Create a free account with this email address to leave a review. Your booking moves into it.`,
+          `How was your appointment with ${artist.name}?`,
+        );
       }
       break;
     case 'reschedule': {
       if (!body.date) throw badRequest('Choose a new date.');
       if (!['pending', 'approved'].includes(row.status)) throw conflict('This booking can no longer be rescheduled.');
-      if (!isArtist) throw forbidden('Please contact the artist to change your date.');
+      if (!isArtist) throw forbidden('Please contact your pro to change your date.');
       if (body.date < todayStr(-1)) throw badRequest('Please choose a date in the future.');
       const time = body.time === undefined ? row.appointment_time : body.time || null;
       set('date = ?, preferred_time = ?, appointment_time = ?', body.date, body.preferredTime || row.preferred_time, time);
@@ -372,9 +379,9 @@ bookingsRouter.post('/booking-requests/:id/review', (req, res) => {
   if (role !== 'client') throw forbidden('Only the client can review this booking.');
   if (row.status !== 'completed') throw conflict('You can leave a review once your session is completed.');
   if (row.review_rating) throw conflict("You've already reviewed this booking.");
-  if (!row.client_id && !(row.payment_status === 'paid' && row.deposit_cents > 0)) {
-    throw conflict('Reviews from guest bookings are only possible after a paid deposit. Create an account to review your artist.');
-  }
+  // Reviews come from accounts only (one real person per review). Guests create a free account and
+  // add the booking to it from their booking link, then review.
+  if (!row.client_id) throw conflict('Create a free account to leave a review. Your booking moves into it.');
   getDb()
     .prepare('update booking_requests set review_rating = ?, review_text = ?, review_at = ?, updated_at = ? where id = ?')
     .run(body.rating, body.text, nowIso(), nowIso(), row.id);
@@ -409,14 +416,14 @@ bookingsRouter.post('/booking-requests/:id/aftercare', async (req, res) => {
     kind === 'aftercare'
       ? artist.aftercare_message ||
         'Aftercare instructions:\n1. Leave the wrap on for a few hours, then wash gently with fragrance-free soap.\n2. Pat dry and apply a thin layer of unscented moisturizer 2–3 times a day.\n3. Don\'t pick, scratch or soak it (no swimming or baths) for 2–3 weeks.\n4. Keep it out of the sun while it heals.'
-      : `Hi! I'd love to see how your tattoo healed. Could you send me a photo when you get a chance? Thank you!`;
+      : `Hi! I'd love to see how it's looking now. Could you send me a photo when you get a chance? Thank you!`;
   if (row.client_id) {
     sendSystemMessage(artist.id, row.client_id, text);
   } else if (row.guest_email) {
     sendEmail({
       to: row.guest_email,
-      subject: kind === 'aftercare' ? `Aftercare from ${artist.name}` : `${artist.name} would love to see your healed tattoo`,
-      lines: [`Hi ${row.guest_name},`, ...text.split('\n'), ...(kind === 'healed-photo' ? ['Create a free account with this email address and use your booking link to message your artist and send photos.'] : [])],
+      subject: kind === 'aftercare' ? `Aftercare from ${artist.name}` : `${artist.name} would love to see how it turned out`,
+      lines: [`Hi ${row.guest_name},`, ...text.split('\n'), ...(kind === 'healed-photo' ? ['Create a free account with this email address and use your booking link to send photos and messages.'] : [])],
       action: { label: 'Open your booking', url: guestLink(row) },
     });
   } else {
@@ -493,7 +500,7 @@ bookingsRouter.post('/booth-bookings/:id/cancel', (req, res) => {
   if (isOwner) {
     notify(b.artist_id, `${b.shop_name} cancelled your ${wasPaid ? '' : 'unpaid '}reservation for ${b.booth_name} (${formatRange(b.start_date, b.end_date)}).${wasPaid ? ' Your payment will be refunded.' : ''}`, {
       link: '/bookings',
-      email: wasPaid ? { subject: `${b.shop_name} cancelled your guest spot`, actionLabel: 'View bookings' } : undefined,
+      email: wasPaid ? { subject: `${b.shop_name} cancelled your booth rental`, actionLabel: 'View bookings' } : undefined,
     });
   } else {
     notify(shop.owner_id, `${b.artist_name} cancelled their reservation for ${b.booth_name}.`, { link: '/shop' });
@@ -512,7 +519,7 @@ bookingsRouter.post('/booth-bookings/:id/review', (req, res) => {
   const b = db.prepare('select * from booth_bookings where id = ? and artist_id = ?').get(req.params.id, artist.id) as any;
   if (!b) throw notFound('Booking not found.');
   if (b.status !== 'paid') throw conflict('You can review shops you have rented from.');
-  if (b.start_date > todayStr()) throw conflict('You can review the shop once your guest spot has started.');
+  if (b.start_date > todayStr()) throw conflict('You can review the shop once your rental has started.');
   try {
     db.prepare('insert into shop_reviews (id, shop_id, booth_booking_id, author_id, rating, text, created_at) values (?, ?, ?, ?, ?, ?, ?)')
       .run(newId(), b.shop_id, b.id, artist.id, body.rating, body.text, nowIso());

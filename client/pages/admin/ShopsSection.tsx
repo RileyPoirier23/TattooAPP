@@ -106,7 +106,7 @@ export const ShopsSection: React.FC = () => {
 
   return (
     <>
-      <PageHeader title="Shops" subtitle="Tattoo shops on your site. Verified shops get a badge that helps artists trust them." />
+      <PageHeader title="Shops" subtitle="Shops on your site. Verified shops get a badge that helps pros trust them." />
       <AsyncView state={state}>
         {shops => {
           const needle = q.trim().toLowerCase();

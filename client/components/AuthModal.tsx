@@ -3,15 +3,15 @@ import React, { useState } from 'react';
 import { api, errorMessage } from '../api';
 import { navigate } from '../router';
 import { useStore } from '../store';
-import { Button, Input, Modal, Notice, cx } from './ui';
+import { Button, Input, Modal, Notice, Select, cx } from './ui';
 import { Link } from '../router';
 import type { Me, Role } from '../../shared/types';
 
 const ROLES: { id: Exclude<Role, 'admin'>; title: string; text: string }[] = [
-  { id: 'client', title: 'Client', text: 'I want to get tattooed' },
-  { id: 'artist', title: 'Artist', text: 'I tattoo and take bookings' },
-  { id: 'dual', title: 'Artist & client', text: 'Both of the above' },
-  { id: 'shop-owner', title: 'Shop owner', text: 'I rent booths to guest artists' },
+  { id: 'client', title: 'Client', text: 'I want to book appointments' },
+  { id: 'artist', title: 'Pro', text: 'I take bookings (tattoo, barber, nails…)' },
+  { id: 'dual', title: 'Pro & client', text: 'Both of the above' },
+  { id: 'shop-owner', title: 'Shop owner', text: 'I rent chairs to visiting pros' },
 ];
 
 export const AuthModal: React.FC = () => {
@@ -24,6 +24,8 @@ export const AuthModal: React.FC = () => {
   const [password, setPassword] = useState('');
   const [name, setName] = useState('');
   const [city, setCity] = useState('');
+  const [category, setCategory] = useState('');
+  const categories = useStore(s => s.config?.settings.categories ?? []);
   const [role, setRole] = useState<Exclude<Role, 'admin'>>('client');
   const [error, setError] = useState('');
   const [busy, setBusy] = useState(false);
@@ -44,7 +46,7 @@ export const AuthModal: React.FC = () => {
       }
       const { user } = view === 'login'
         ? await api.post<{ user: Me }>('/auth/login', { email, password })
-        : await api.post<{ user: Me }>('/auth/register', { email, password, name, role, city: city || undefined, acceptTerms });
+        : await api.post<{ user: Me }>('/auth/register', { email, password, name, role, city: city || undefined, category: needsCity && category ? category : undefined, acceptTerms });
       setUser(user);
       close();
       toast(view === 'login' ? `Welcome back, ${user.name.split(' ')[0]}!` : `Welcome, ${user.name.split(' ')[0]}! Your account is ready.`);
@@ -88,6 +90,12 @@ export const AuthModal: React.FC = () => {
               </div>
             </div>
             <Input label={role === 'shop-owner' ? 'Your name' : 'Full name'} value={name} onChange={e => setName(e.target.value)} required autoComplete="name" />
+            {needsCity && (
+              <Select label="What do you do?" value={category} onChange={e => setCategory(e.target.value)} required>
+                <option value="">Choose your category…</option>
+                {categories.map(c => <option key={c} value={c}>{c}</option>)}
+              </Select>
+            )}
             {needsCity && <Input label="City you work in" placeholder="e.g. Moncton, NB" value={city} onChange={e => setCity(e.target.value)} required />}
           </>
         )}

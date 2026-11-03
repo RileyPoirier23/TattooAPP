@@ -101,6 +101,8 @@ const ProfileTab: React.FC<{ me: Me }> = ({ me }) => {
   const profileOf = (u: Me) => ({
     name: u.name,
     city: u.city,
+    category: u.category,
+    address: u.address,
     specialty: u.specialty,
     bio: u.bio,
     instagram: u.socials.instagram || '',
@@ -161,6 +163,7 @@ const ProfileTab: React.FC<{ me: Me }> = ({ me }) => {
   };
 
   const specialtyOptions = settings.specialties.includes(form.specialty) || !form.specialty ? settings.specialties : [form.specialty, ...settings.specialties];
+  const categoryOptions = settings.categories.includes(form.category) || !form.category ? settings.categories : [form.category, ...settings.categories];
 
   return (
     <div className="space-y-6">
@@ -197,12 +200,16 @@ const ProfileTab: React.FC<{ me: Me }> = ({ me }) => {
         <div className="grid gap-4 sm:grid-cols-2">
           <Input label="Name" value={form.name} onChange={set('name')} />
           <Input label="City" value={form.city} onChange={set('city')} placeholder="e.g. Moncton, NB" />
-          <Select label="Main style" value={form.specialty} onChange={set('specialty')}>
+          <Select label="Category" value={form.category} onChange={set('category')} hint="What clients book you for. You'll be listed under it.">
+            <option value="">Choose…</option>
+            {categoryOptions.map(c => <option key={c} value={c}>{c}</option>)}
+          </Select>
+          <Select label="Main specialty" value={form.specialty} onChange={set('specialty')}>
             <option value="">Choose…</option>
             {specialtyOptions.map(s => <option key={s} value={s}>{s}</option>)}
           </Select>
-          <div />
-          <Textarea className="sm:col-span-2" label="Bio" rows={5} value={form.bio} onChange={set('bio')} maxLength={2000} placeholder="Tell clients about your experience, style and what you love to tattoo." />
+          <Input className="sm:col-span-2" label="Studio address (optional)" value={form.address} onChange={set('address')} placeholder="e.g. 250 Main St, Moncton, NB" hint="Shown on your profile with a map link, so clients know where to go." />
+          <Textarea className="sm:col-span-2" label="Bio" rows={5} value={form.bio} onChange={set('bio')} maxLength={2000} placeholder="Tell clients about your experience, your style and the work you love doing." />
           <Input label="Instagram URL" value={form.instagram} onChange={set('instagram')} placeholder="https://instagram.com/…" />
           <Input label="TikTok URL" value={form.tiktok} onChange={set('tiktok')} placeholder="https://tiktok.com/@…" />
           <Input label="Facebook URL" value={form.facebook} onChange={set('facebook')} placeholder="https://facebook.com/…" />
@@ -215,6 +222,8 @@ const ProfileTab: React.FC<{ me: Me }> = ({ me }) => {
               const saved = await save({
                 name: form.name,
                 city: form.city,
+                category: form.category,
+                address: form.address,
                 specialty: form.specialty,
                 bio: form.bio,
                 socials: { instagram: form.instagram, tiktok: form.tiktok, facebook: form.facebook, website: form.website },
@@ -252,7 +261,7 @@ const ProfileTab: React.FC<{ me: Me }> = ({ me }) => {
         </div>
         {me.portfolio.length === 0 ? (
           <EmptyState icon={<PhotoIcon />} title="No photos yet">
-            Upload your best work. Clients book artists whose portfolios they love. Your profile appears in the artist search once it has at least one photo.
+            Upload your best work. Clients book pros whose work they love. Your profile appears in search once it has at least one photo.
           </EmptyState>
         ) : (
           <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-3">
@@ -334,12 +343,12 @@ const ServicesTab: React.FC<{ me: Me }> = ({ me }) => {
             ? " Your clients don't pay the booking fee because you're on Pro."
             : ` Clients also pay a ${settings.depositFeePercent}% booking fee on top of the deposit${settings.features.proPlan ? ' (go Pro to remove it for them)' : ''}.`)}
       </p>
-      {items.length === 0 && <EmptyState title="No services yet">Add at least one service (e.g. "Small tattoo", "Half-day session").</EmptyState>}
+      {items.length === 0 && <EmptyState title="No services yet">Add at least one service (e.g. "Small tattoo", "Skin fade", "Gel manicure").</EmptyState>}
       <div className="space-y-4">
         {items.map((s, i) => (
           <div key={s.id || `new-${i}`} className="rounded-xl border border-gray-200 dark:border-gray-800 p-4">
             <div className="grid gap-3 sm:grid-cols-6">
-              <Input className="sm:col-span-3" label="Name" value={s.name} onChange={e => update(i, { name: e.target.value })} placeholder="e.g. Small tattoo" />
+              <Input className="sm:col-span-3" label="Name" value={s.name} onChange={e => update(i, { name: e.target.value })} placeholder="e.g. Skin fade" />
               <Input label="Hours" type="number" min="0.25" step="0.25" value={s.duration} onChange={e => update(i, { duration: e.target.value })} />
               <Input label="From price" type="number" min="0" prefix={currencySymbol()} value={s.price} onChange={e => update(i, { price: e.target.value })} />
               <Input label="Deposit" type="number" min="0" prefix={currencySymbol()} value={s.deposit} onChange={e => update(i, { deposit: e.target.value })} />
@@ -472,9 +481,9 @@ const SettingsTab: React.FC<{ me: Me }> = ({ me }) => {
         <h2 className="text-xl font-bold mb-1">Booking request form</h2>
         <p className="text-sm text-brand-gray mb-5">Choose what clients must fill in when they request a booking with you.</p>
         <div className="space-y-5">
-          {opt('requireSize', 'Tattoo size', 'Approximate width and height in inches.')}
-          {opt('requirePlacement', 'Placement', 'Where on the body the tattoo will go.')}
-          {opt('requireDescription', 'Description of the idea', 'At least a sentence describing the tattoo.')}
+          {opt('requireSize', 'Tattoo size', 'Approximate width and height in inches (tattoo bookings only).')}
+          {opt('requirePlacement', 'Placement', 'Where on the body it will go (tattoo and piercing bookings only).')}
+          {opt('requireDescription', 'Description of the idea', 'At least a sentence describing what they would like.')}
           {opt('requireBudget', 'Budget', 'How much the client expects to spend.')}
           {opt('requireReferenceImages', 'Reference photos', 'At least one image.')}
         </div>
@@ -520,12 +529,12 @@ export const ArtistDashboardPage: React.FC = () => {
 
   return (
     <div className="max-w-6xl mx-auto">
-      <PageHeader title="Artist dashboard" subtitle={`Welcome back, ${me.name.split(' ')[0]}.`} actions={<Link to={`/artists/${me.id}`}><Button variant="outline">View my profile</Button></Link>} />
+      <PageHeader title="Pro dashboard" subtitle={`Welcome back, ${me.name.split(' ')[0]}.`} actions={<Link to={`/artists/${me.id}`}><Button variant="outline">View my profile</Button></Link>} />
       {incomplete && tab === 'requests' && (
         <Notice tone="info" className="mb-6">
           <strong>Finish setting up your profile</strong> so clients can book you:{' '}
           {[!me.bio && 'add a bio', !me.portfolio.length && 'upload portfolio photos', !me.services.length && 'add your services'].filter(Boolean).join(', ')}.
-          {!me.portfolio.length && " You won't appear in the artist search until you've added at least one photo."}{' '}
+          {!me.portfolio.length && " You won't appear in search until you've added at least one photo."}{' '}
           <Link to={`/dashboard?tab=${!me.services.length && me.bio && me.portfolio.length ? 'services' : 'profile'}`} className="font-semibold underline">Do it now →</Link>
         </Notice>
       )}

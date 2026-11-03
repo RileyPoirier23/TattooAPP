@@ -58,7 +58,7 @@ const RequestDetails: React.FC<{ r: BookingRequest; onClose: () => void; onResch
           </a>
         )}
       </Detail>
-      <Detail label="Artist">
+      <Detail label="Pro">
         <a href={`/artists/${r.artistId}`} target="_blank" rel="noopener noreferrer" className="hover:text-brand-primary">
           {r.artistName}
         </a>
@@ -78,7 +78,7 @@ const RequestDetails: React.FC<{ r: BookingRequest; onClose: () => void; onResch
       {r.bodyPlacement && <Detail label="Placement">{r.bodyPlacement}</Detail>}
       {r.budget != null && <Detail label="Budget">{dollars(r.budget)}</Detail>}
       <Detail label="Status">
-        <StatusBadge status={r.status} /> {r.archived && <Badge>Archived by artist</Badge>}
+        <StatusBadge status={r.status} /> {r.archived && <Badge>Archived by pro</Badge>}
       </Detail>
       <Detail label="Deposit">
         {money(r.depositCents)}
@@ -107,7 +107,7 @@ const RequestDetails: React.FC<{ r: BookingRequest; onClose: () => void; onResch
     )}
     {r.artistNote && (
       <div className="mt-5">
-        <p className="text-xs font-semibold uppercase tracking-wide text-brand-gray mb-1">Artist&apos;s note</p>
+        <p className="text-xs font-semibold uppercase tracking-wide text-brand-gray mb-1">Pro&apos;s note</p>
         <p className="text-sm whitespace-pre-wrap text-gray-700 dark:text-gray-300">{r.artistNote}</p>
       </div>
     )}
@@ -139,13 +139,13 @@ const RequestsTab: React.FC = () => {
         await api.post(`/admin/booking-requests/${r.id}/status`, { status: next });
         await state.reload();
       },
-      `Status changed to ${BOOKING_STATUSES.find(s => s.id === next)?.label ?? next}. The client and artist were notified.`,
+      `Status changed to ${BOOKING_STATUSES.find(s => s.id === next)?.label ?? next}. The client and pro were notified.`,
     );
 
   return (
     <>
       <div className="space-y-3 mb-4">
-        <SearchInput value={q} onChange={setQ} placeholder="Search client, artist or email" loading={dq !== q.trim()} className="sm:max-w-md" />
+        <SearchInput value={q} onChange={setQ} placeholder="Search client, pro or email" loading={dq !== q.trim()} className="sm:max-w-md" />
         <FilterPills
           value={status}
           onChange={setStatus}
@@ -158,14 +158,14 @@ const RequestsTab: React.FC = () => {
             return (
               <Card>
                 <EmptyState icon={<CalendarIcon className="w-12 h-12" />} title={dq ? 'No matches' : 'No booking requests'}>
-                  {dq ? 'Try a different search.' : status ? 'Nothing with this status right now.' : 'Requests from clients to artists will appear here.'}
+                  {dq ? 'Try a different search.' : status ? 'Nothing with this status right now.' : 'Requests from clients to pros will appear here.'}
                 </EmptyState>
               </Card>
             );
           }
           return (
             <Card padded={false} className="overflow-hidden">
-              <DataTable columns={['Client', 'Artist', 'Appointment', 'Service', 'Deposit', 'Status', '']}>
+              <DataTable columns={['Client', 'Pro', 'Appointment', 'Service', 'Deposit', 'Status', '']}>
                 {list.map(r => (
                   <tr key={r.id} className="hover:bg-gray-50 dark:hover:bg-gray-800/30">
                     <Td className="min-w-[11rem]">
@@ -277,7 +277,7 @@ const BoothsTab: React.FC = () => {
   return (
     <>
       <div className="space-y-3 mb-4">
-        <SearchInput value={q} onChange={setQ} placeholder="Search artist, shop or city" loading={dq !== q.trim()} className="sm:max-w-md" />
+        <SearchInput value={q} onChange={setQ} placeholder="Search pro, shop or city" loading={dq !== q.trim()} className="sm:max-w-md" />
         <FilterPills value={filter} onChange={setFilter} options={BOOTH_FILTERS} />
       </div>
       <AsyncView state={state}>
@@ -286,14 +286,14 @@ const BoothsTab: React.FC = () => {
             return (
               <Card>
                 <EmptyState icon={<StoreIcon className="w-12 h-12" />} title={dq ? 'No matches' : 'No booth rentals'}>
-                  {dq ? 'Try a different search.' : filter !== 'all' ? 'Nothing with this status.' : 'When artists book guest spots at shops, they appear here.'}
+                  {dq ? 'Try a different search.' : filter !== 'all' ? 'Nothing with this status.' : 'When pros rent booths at shops, they appear here.'}
                 </EmptyState>
               </Card>
             );
           }
           return (
             <Card padded={false} className="overflow-hidden">
-              <DataTable columns={['Artist', 'Shop & booth', 'Dates', 'Total', 'Status', '']}>
+              <DataTable columns={['Pro', 'Shop & booth', 'Dates', 'Total', 'Status', '']}>
                 {visible.map(b => (
                   <tr key={b.id} className="hover:bg-gray-50 dark:hover:bg-gray-800/30">
                     <Td className="min-w-[9rem]">
@@ -356,7 +356,7 @@ export const BookingsSection: React.FC = () => {
   const [tab, setTab] = useState<'requests' | 'booths'>('requests');
   return (
     <>
-      <PageHeader title="Bookings" subtitle="Tattoo appointment requests from clients, and booth rentals by artists." />
+      <PageHeader title="Bookings" subtitle="Appointment requests from clients, and booth rentals by pros." />
       <Tabs
         className="mb-5"
         tabs={[

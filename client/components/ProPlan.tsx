@@ -32,7 +32,7 @@ export const ProPlanCard: React.FC<{ me: Me }> = ({ me }) => {
   const perks = [
     ...(settings.depositFeePercent > 0 ? [`No ${settings.depositFeePercent}% booking fee for your clients on deposits`] : []),
     'Pro badge on your profile',
-    'Listed first in artist search',
+    'Listed first in search',
     'Cancel any time',
   ];
   // The owner can stop offering Pro; existing subscribers keep managing their plan here.

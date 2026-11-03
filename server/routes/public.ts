@@ -1,6 +1,6 @@
 // Public, read-only endpoints: site config, artists, shops, content pages.
 import { Router } from 'express';
-import { getDb } from '../db';
+import { getDb, parseJson } from '../db';
 import { getSettings } from '../settings';
 import { config } from '../config';
 import { fillPageTokens } from '../defaultPages';
@@ -42,7 +42,7 @@ publicRouter.get('/pages/:slug', (req, res) => {
   res.json(page);
 });
 
-publicRouter.get('/artists', (_req, res) => {
+publicRouter.get('/artists', (req, res) => {
   const rows = getDb()
     .prepare(
       // Artists appear in search once they've added at least one portfolio photo (their profile link works before that).
@@ -53,7 +53,22 @@ publicRouter.get('/artists', (_req, res) => {
     )
     .all({ now: new Date().toISOString() }) as UserRow[];
   const spots = guestSpotsByArtist();
-  res.json(rows.map(u => toPublicArtist(u, spots)));
+  // ?date=YYYY-MM-DD keeps only pros working that day: open on that weekday (or no hours set, like the
+  // booking calendar) and not on a day off.
+  const date = typeof req.query.date === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(req.query.date) ? req.query.date : null;
+  let list = rows;
+  if (date) {
+    const weekday = String(new Date(`${date}T12:00:00`).getDay());
+    const off = new Set(
+      (getDb().prepare('select artist_id from days_off where date = ?').all(date) as { artist_id: string }[]).map(r => r.artist_id),
+    );
+    list = rows.filter(u => {
+      const hours = parseJson<Record<string, unknown[]>>(u.hours, {});
+      const hasHours = Object.values(hours).some(slots => Array.isArray(slots) && slots.length > 0);
+      return !off.has(u.id) && (!hasHours || !!hours[weekday]?.length);
+    });
+  }
+  res.json(list.map(u => toPublicArtist(u, spots)));
 });
 
 publicRouter.get('/artists/:id', (req, res) => {
@@ -61,7 +76,7 @@ publicRouter.get('/artists/:id', (req, res) => {
   const u = db
     .prepare("select * from users where id = ? and role in ('artist','dual') and status = 'active'")
     .get(req.params.id) as UserRow | undefined;
-  if (!u) throw notFound('Artist not found.');
+  if (!u) throw notFound('Pro not found.');
   const reviews = (
     db
       .prepare(

@@ -56,10 +56,10 @@ type RouteDef = { path: string; render: (p: Record<string, string>) => React.Rea
 
 const ROUTES: RouteDef[] = [
   { path: '/', render: () => <HomePage />, wide: true },
-  { path: '/artists', render: () => <ArtistsPage /> },
-  { path: '/artists/:id', render: p => <ArtistProfilePage id={p.id} /> },
-  { path: '/shops', render: () => <ShopsPage /> },
-  { path: '/shops/:id', render: p => <ShopProfilePage id={p.id} /> },
+  { path: '/artists', render: () => <ArtistsPage />, wide: true },
+  { path: '/artists/:id', render: p => <ArtistProfilePage id={p.id} />, wide: true },
+  { path: '/shops', render: () => <ShopsPage />, wide: true },
+  { path: '/shops/:id', render: p => <ShopProfilePage id={p.id} />, wide: true },
   { path: '/booking/:id', render: p => <BookingStatusPage id={p.id} /> },
   { path: '/bookings', render: () => <MyBookingsPage />, auth: true },
   { path: '/dashboard', render: () => <ArtistDashboardPage />, auth: ['artist', 'dual'] },
@@ -109,7 +109,7 @@ const LoginRequired: React.FC<{ roles?: Role[] }> = ({ roles }) => {
             <p>This page is for {roles?.filter(r => r !== 'dual').map(r => ROLE_LABELS[r]?.toLowerCase() ?? r).join(' or ')} accounts.</p>
             {user.role === 'client' && roles?.includes('artist') && (
               <Link to="/settings#artist" className="inline-block mt-4">
-                <Button>Become an artist</Button>
+                <Button>Become a pro</Button>
               </Link>
             )}
           </>

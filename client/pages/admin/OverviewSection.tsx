@@ -167,8 +167,8 @@ const ChecklistItem: React.FC<{ done: boolean; title: string; to: string; option
 
 const ROLE_PLURALS: Record<string, string> = {
   client: 'Clients',
-  artist: 'Artists',
-  dual: 'Artist + client',
+  artist: 'Pros',
+  dual: 'Pro + client',
   'shop-owner': 'Shop owners',
   admin: 'Admins',
 };
@@ -189,7 +189,7 @@ export const OverviewSection: React.FC = () => {
           const attention = [
             { n: s.pendingVerifications, label: 'verification request', plural: 'verification requests', to: '/admin/verifications', icon: CheckBadgeIcon },
             { n: s.pendingReports, label: 'report to review', plural: 'reports to review', to: '/admin/reports', icon: FlagIcon },
-            { n: s.owedCents > 0 ? 1 : 0, label: `${money(s.owedCents, s.currency)} owed to artists & shops`, plural: '', to: '/admin/payouts', icon: CashIcon },
+            { n: s.owedCents > 0 ? 1 : 0, label: `${money(s.owedCents, s.currency)} owed to pros & shops`, plural: '', to: '/admin/payouts', icon: CashIcon },
           ].filter(a => a.n > 0);
           const branded = !!settings && (settings.siteName !== 'InkSpace' || !!settings.logoUrl);
           const maxRole = Math.max(...Object.values(s.usersByRole), 1);
@@ -221,7 +221,7 @@ export const OverviewSection: React.FC = () => {
                   icon={CalendarIcon}
                   hint={<>Collected · {money(s.fees30Cents, s.currency)} in fees</>}
                 />
-                <StatCard label="Owed to artists & shops" value={money(s.owedCents, s.currency)} icon={CashIcon} hint="Send these payouts from the Payouts page" to="/admin/payouts" />
+                <StatCard label="Owed to pros & shops" value={money(s.owedCents, s.currency)} icon={CashIcon} hint="Send these payouts from the Payouts page" to="/admin/payouts" />
               </div>
 
               <RevenueChart monthly={s.monthly} currency={s.currency} />
@@ -312,7 +312,7 @@ export const OverviewSection: React.FC = () => {
                 <ul className="space-y-1">
                   <ChecklistItem done={s.paymentsReady} title="Connect Square payments" to="/admin/settings">
                     {s.paymentsReady
-                      ? 'Square is connected. Clients can pay deposits and artists can pay for booths.'
+                      ? 'Square is connected. Clients can pay deposits and pros can pay for booths.'
                       : 'Add your Square keys so clients can pay deposits online. Until then, nobody can pay through the site.'}
                   </ChecklistItem>
                   {s.paymentsReady && (
@@ -343,8 +343,8 @@ export const OverviewSection: React.FC = () => {
                   </ChecklistItem>
                   <ChecklistItem done={!!settings?.features.proPlan} optional title="Turn on the Pro plan" to="/admin/settings">
                     {settings?.features.proPlan
-                      ? 'Artists can subscribe to Pro.'
-                      : 'When you’re ready, let artists pay monthly to remove the booking fee for their clients and be listed first. It’s off until you switch it on.'}
+                      ? 'Pros can subscribe to Pro.'
+                      : 'When you’re ready, let pros pay monthly to remove the booking fee for their clients and be listed first. It’s off until you switch it on.'}
                   </ChecklistItem>
                 </ul>
               </Card>

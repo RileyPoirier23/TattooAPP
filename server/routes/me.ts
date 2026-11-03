@@ -28,6 +28,8 @@ const zUrl = z
 const profileSchema = z.object({
   name: z.string().trim().min(1).max(100).optional(),
   city: z.string().trim().max(100).optional(),
+  category: z.string().trim().max(40).optional(),
+  address: z.string().trim().max(300).optional(),
   specialty: z.string().trim().max(100).optional(),
   bio: z.string().trim().max(2000).optional(),
   socials: z
@@ -69,10 +71,11 @@ const profileSchema = z.object({
 meRouter.patch('/me', (req, res) => {
   const user = requireUser(req);
   const body = parse(profileSchema, req.body);
-  const artistOnly = ['specialty', 'bio', 'socials', 'services', 'hours', 'intakeSettings', 'aftercareMessage'] as const;
-  if (!isArtistRole(user.role) && artistOnly.some(k => body[k] !== undefined)) throw forbidden('Only artists can edit those fields.');
+  const artistOnly = ['category', 'address', 'specialty', 'bio', 'socials', 'services', 'hours', 'intakeSettings', 'aftercareMessage'] as const;
+  if (!isArtistRole(user.role) && artistOnly.some(k => body[k] !== undefined)) throw forbidden('Only pros can edit those fields.');
   if (body.payoutMethod && !(isArtistRole(user.role) || user.role === 'shop-owner')) throw forbidden();
 
+  if (body.category && !getSettings().categories.includes(body.category)) throw badRequest('Pick a category from the list.');
   if (body.hours) {
     for (const slots of Object.values(body.hours)) {
       if (slots.some(s => s.start >= s.end)) throw badRequest('Each time slot must end after it starts.');
@@ -86,6 +89,8 @@ meRouter.patch('/me', (req, res) => {
   const columns: Record<string, unknown> = {
     name: body.name,
     city: body.city,
+    category: body.category,
+    address: body.address,
     specialty: body.specialty,
     bio: body.bio,
     socials: body.socials && JSON.stringify(body.socials),
@@ -171,7 +176,7 @@ meRouter.post('/me/verification', (req, res) => {
     type = 'shop';
     shopId = shop.id;
   } else {
-    throw forbidden('Only artists and shops can be verified.');
+    throw forbidden('Only pros and shops can be verified.');
   }
   const pending = db.prepare("select 1 from verification_requests where user_id = ? and status = 'pending'").get(user.id);
   if (pending) throw conflict('You already have a verification request waiting for review.');
@@ -232,12 +237,12 @@ meRouter.delete('/me/card', async (req, res) => {
 /** A client turns on artist features (their account becomes "Artist & Client"; their bookings stay). */
 meRouter.post('/me/become-artist', (req, res) => {
   const user = requireUser(req);
-  if (user.role !== 'client') throw conflict(isArtistRole(user.role) ? 'Your account already has artist features.' : 'Only client accounts can switch on artist features.');
+  if (user.role !== 'client') throw conflict(isArtistRole(user.role) ? 'Your account already has pro features.' : 'Only client accounts can switch on pro features.');
   const { city } = parse(z.object({ city: z.string().trim().max(100).optional() }), req.body ?? {});
   const newCity = city || user.city;
   if (!newCity) throw badRequest('Please enter the city you work in.');
   getDb().prepare("update users set role = 'dual', city = ?, updated_at = ? where id = ?").run(newCity, nowIso(), user.id);
-  notifyAdmins(`${user.name} switched on artist features.`, '/admin/users');
+  notifyAdmins(`${user.name} switched on pro features.`, '/admin/users');
   res.json({ user: toMe(getUser(user.id)!) });
 });
 

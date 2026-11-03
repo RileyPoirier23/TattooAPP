@@ -1,5 +1,6 @@
 // Password hashing, sessions (httpOnly cookie) and auth middleware.
 import crypto from 'node:crypto';
+import { asksPlacement, asksSize } from '../shared/categories';
 import { promisify } from 'node:util';
 import type { NextFunction, Request, Response } from 'express';
 import { getDb, newId, nowIso } from './db';
@@ -20,6 +21,8 @@ export interface UserRow {
   name: string;
   city: string;
   specialty: string;
+  category: string;
+  address: string;
   bio: string;
   avatar_url: string | null;
   portfolio: string;
@@ -172,21 +175,23 @@ export async function createUser(input: {
   role: Role;
   name: string;
   city?: string;
+  category?: string;
 }): Promise<UserRow> {
   const db = getDb();
   const id = newId();
   const now = nowIso();
+  const category = input.role === 'artist' || input.role === 'dual' ? input.category || '' : '';
   const intake = JSON.stringify({
-    requireSize: true,
-    requirePlacement: true,
+    requireSize: asksSize(category),
+    requirePlacement: asksPlacement(category),
     requireDescription: true,
     requireBudget: false,
     requireReferenceImages: false,
   });
   db.prepare(
-    `insert into users (id, email, password_hash, role, name, city, intake_settings, created_at, updated_at)
-     values (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-  ).run(id, input.email.trim().toLowerCase(), await hashPassword(input.password), input.role, input.name.trim(), input.city?.trim() || '', intake, now, now);
+    `insert into users (id, email, password_hash, role, name, city, category, intake_settings, created_at, updated_at)
+     values (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+  ).run(id, input.email.trim().toLowerCase(), await hashPassword(input.password), input.role, input.name.trim(), input.city?.trim() || '', category, intake, now, now);
   return db.prepare('select * from users where id = ?').get(id) as UserRow;
 }
 

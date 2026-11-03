@@ -2,6 +2,7 @@
 import React, { useCallback, useEffect, useId, useRef, useState } from 'react';
 import { api, errorMessage } from '../api';
 import { StarIcon, XIcon } from './Icons';
+import { Link } from '../router';
 
 const cx = (...c: (string | false | null | undefined)[]) => c.filter(Boolean).join(' ');
 export { cx };
@@ -128,6 +129,28 @@ export const Toggle: React.FC<{
 
 export const Card: React.FC<{ className?: string; children: React.ReactNode; padded?: boolean }> = ({ className, children, padded = true }) => (
   <div className={cx('bg-white dark:bg-gray-900/60 border border-gray-200 dark:border-gray-800 rounded-2xl', padded && 'p-5 sm:p-6', className)}>{children}</div>
+);
+
+/** The dark title band at the top of public inner pages (Pros, Booth rentals, profiles), with breadcrumbs. */
+export const PageBanner: React.FC<{ title: React.ReactNode; crumbs: { label: string; to?: string }[]; children?: React.ReactNode }> = ({ title, crumbs, children }) => (
+  <section className="relative isolate overflow-hidden bg-gray-950 text-white">
+    {/* Two soft angled panels, like the template's banner. */}
+    <div aria-hidden="true" className="absolute inset-0 -z-10 bg-[linear-gradient(115deg,transparent_55%,rgba(255,255,255,0.04)_55%,rgba(255,255,255,0.04)_75%,transparent_75%),linear-gradient(115deg,transparent_68%,rgba(255,255,255,0.03)_68%)]" />
+    <div className="container mx-auto px-4 py-12 md:py-16">
+      <h1 className="text-3xl md:text-5xl font-display">{title}</h1>
+      <nav aria-label="Breadcrumb" className="mt-3">
+        <ol className="flex flex-wrap items-center gap-2 text-sm text-gray-300">
+          {crumbs.map((c, i) => (
+            <li key={i} className="flex items-center gap-2 min-w-0">
+              {i > 0 && <span aria-hidden="true">/</span>}
+              {c.to ? <Link to={c.to} className="hover:text-white">{c.label}</Link> : <span aria-current="page" className="truncate text-white">{c.label}</span>}
+            </li>
+          ))}
+        </ol>
+      </nav>
+      {children}
+    </div>
+  </section>
 );
 
 export const PageHeader: React.FC<{ title: React.ReactNode; subtitle?: React.ReactNode; actions?: React.ReactNode }> = ({ title, subtitle, actions }) => (
