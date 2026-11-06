@@ -40,6 +40,9 @@ export const config = {
   squareLocationId: env.SQUARE_LOCATION_ID || '',
   squareEnvironment: env.SQUARE_ENVIRONMENT as 'sandbox' | 'production' | undefined,
   squareApiBase: env.SQUARE_API_BASE || '', // tests point this at a mock server
+  googleApiBase: env.GOOGLE_API_BASE || '', // tests point these at a mock server
+  googleOauthBase: env.GOOGLE_OAUTH_BASE || '',
+  googleAuthBase: env.GOOGLE_AUTH_BASE || '',
   smtpUrl: env.SMTP_URL || '',
   smtpFrom: env.SMTP_FROM || '',
   resendApiKey: env.RESEND_API_KEY || '',

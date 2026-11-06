@@ -73,6 +73,8 @@ export const DEFAULT_SECRETS: SecretSettings = {
   smtpPass: '',
   smtpFrom: '',
   resendApiKey: '',
+  googleClientId: '',
+  googleClientSecret: '',
 };
 
 // Defaults from earlier versions. A site still using them (never customized) moves to the current defaults;

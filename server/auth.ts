@@ -23,6 +23,9 @@ export interface UserRow {
   specialty: string;
   category: string;
   address: string;
+  calendar_token: string | null;
+  google_refresh_token: string | null;
+  google_calendar_id: string | null;
   bio: string;
   avatar_url: string | null;
   portfolio: string;

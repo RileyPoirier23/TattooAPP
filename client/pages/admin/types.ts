@@ -37,6 +37,8 @@ export interface MaskedSecrets {
   smtpFromEnv: boolean;
   resendApiKeySet: boolean;
   resendFromEnv: boolean;
+  googleClientId: string;
+  googleClientSecretSet: boolean;
 }
 
 export interface SettingsResponse {

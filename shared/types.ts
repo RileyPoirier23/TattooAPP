@@ -40,6 +40,21 @@ export interface IntakeSettings {
   requireDescription: boolean;
   requireBudget: boolean;
   requireReferenceImages: boolean;
+  /** Clients pick an exact start time from the pro's free slots (otherwise just a time of day). */
+  timeSlots: boolean;
+  /** How far apart offered start times are, in minutes. */
+  slotMinutes: 15 | 30 | 60;
+}
+
+/** Free start times for one day, from GET /api/artists/:id/availability. */
+export interface Availability {
+  date: string;
+  /** Minutes the chosen service takes (a default when no service was chosen). */
+  durationMinutes: number;
+  /** Start times, "HH:MM", that fit inside the pro's hours without overlapping another appointment. */
+  slots: string[];
+  /** Why there are no slots, if the day itself is unavailable. */
+  reason: string | null;
 }
 
 export interface PayoutMethod {
@@ -160,6 +175,9 @@ export interface Me {
   subscription: Subscription;
   shopId: string | null;
   daysOff: string[];
+  /** Secret token for this member's private calendar feed (null until they ask for one). */
+  calendarToken: string | null;
+  googleCalendarConnected: boolean;
 }
 
 export type BookingStatus = 'pending' | 'approved' | 'declined' | 'cancelled' | 'completed' | 'no-show';
@@ -182,6 +200,8 @@ export interface BookingRequest {
   preferredTime: PreferredTime;
   /** Exact start time set by the artist when approving, "13:00". */
   appointmentTime: string | null;
+  /** The start time the client asked for when booking, if they picked a slot. */
+  requestedTime: string | null;
   message: string;
   tattooWidth: number | null;
   tattooHeight: number | null;
@@ -349,6 +369,9 @@ export interface SecretSettings {
   smtpFrom: string;
   /** Resend (resend.com) API key — sends email over HTTPS, which works on hosts that block SMTP. */
   resendApiKey: string;
+  /** Google OAuth client (Google Cloud → Credentials), so pros can connect their Google Calendar. */
+  googleClientId: string;
+  googleClientSecret: string;
 }
 
 export interface PageSummary {
@@ -370,6 +393,8 @@ export interface PublicConfig {
   pages: PageSummary[];
   paymentsReady: boolean;
   emailReady: boolean;
+  /** The owner has set up a Google OAuth client, so pros can connect their Google Calendar. */
+  googleCalendarReady: boolean;
 }
 
 export interface GuestBookingView {

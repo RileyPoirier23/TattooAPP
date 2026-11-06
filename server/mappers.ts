@@ -13,6 +13,8 @@ const DEFAULT_INTAKE: IntakeSettings = {
   requireDescription: true,
   requireBudget: false,
   requireReferenceImages: false,
+  timeSlots: true,
+  slotMinutes: 30,
 };
 
 export function intakeOf(u: UserRow): IntakeSettings {
@@ -114,6 +116,8 @@ export function toMe(u: UserRow): Me {
     },
     shopId: shop?.id ?? null,
     daysOff: daysOffFor(u.id),
+    calendarToken: u.calendar_token ?? null,
+    googleCalendarConnected: !!u.google_refresh_token,
   };
 }
 
@@ -185,6 +189,7 @@ export function toBookingRequest(r: any, opts: { includeToken?: boolean; include
     date: r.date,
     preferredTime: r.preferred_time,
     appointmentTime: r.appointment_time ?? null,
+    requestedTime: r.requested_time ?? null,
     message: r.message,
     tattooWidth: r.tattoo_width,
     tattooHeight: r.tattoo_height,

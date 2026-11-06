@@ -321,6 +321,15 @@ const MIGRATIONS: string[] = [
   alter table users add column address text not null default '';
   update users set category = 'Tattoo' where role in ('artist', 'dual');
   `,
+  // v8 — calendars: the start time a client asked for, a secret per-user calendar feed token, and a
+  // connected Google Calendar (refresh token + the id of the calendar bookings are written to)
+  `
+  alter table booking_requests add column requested_time text;
+  alter table booking_requests add column google_event_id text;
+  alter table users add column calendar_token text;
+  alter table users add column google_refresh_token text;
+  alter table users add column google_calendar_id text;
+  `,
 ];
 
 let db: DB | null = null;

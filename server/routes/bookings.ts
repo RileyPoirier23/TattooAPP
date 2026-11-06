@@ -4,6 +4,9 @@ import rateLimit from 'express-rate-limit';
 import crypto from 'node:crypto';
 import { z } from 'zod';
 import { asksPlacement, asksSize } from '../../shared/categories';
+import { availabilityFor } from '../availability';
+import { googleBusy, syncBookingEvent } from '../google';
+import { bookingEvent, renderIcs } from '../ics';
 import { getUser, isArtistRole, randomToken, requireArtist, requireUser, type UserRow } from '../auth';
 import { getDb, newId, nowIso, parseJson } from '../db';
 import {
@@ -71,6 +74,7 @@ const requestSchema = z.object({
   serviceId: z.string().max(60).optional().nullable(),
   date: zDate,
   preferredTime: z.enum(['anytime', 'morning', 'afternoon', 'evening']).default('anytime'),
+  requestedTime: z.string().regex(/^([01]\d|2[0-3]):[0-5]\d$/, 'must be a time like 13:00').optional().nullable(),
   message: z.string().trim().max(3000).default(''),
   tattooWidth: z.coerce.number().min(0).max(200).optional().nullable(),
   tattooHeight: z.coerce.number().min(0).max(200).optional().nullable(),
@@ -86,7 +90,7 @@ const requestSchema = z.object({
 const GUEST_REQUESTS_PER_DAY = 3;
 const PENDING_PER_ARTIST = 3;
 
-bookingsRouter.post('/booking-requests', createLimiter, uploadLimiter, upload.array('images', 5), (req, res) => {
+bookingsRouter.post('/booking-requests', createLimiter, uploadLimiter, upload.array('images', 5), async (req, res) => {
   const settings = getSettings();
   if (!settings.features.clientBooking) throw forbidden('Online booking is currently turned off.');
   let raw: unknown;
@@ -143,6 +147,13 @@ bookingsRouter.post('/booking-requests', createLimiter, uploadLimiter, upload.ar
 
   const services = parseJson<ArtistService[]>(artist.services, []);
   const service = body.serviceId ? services.find(s => s.id === body.serviceId) : undefined;
+  // A requested start time must still be one of the pro's free slots (someone else may have taken it meanwhile).
+  let requestedTime: string | null = null;
+  if (body.requestedTime) {
+    const avail = availabilityFor(artist, body.date, service?.id ?? null, await googleBusy(artist, body.date));
+    if (!avail.slots.includes(body.requestedTime)) throw conflict('That time was just taken or is outside working hours. Please pick another slot.');
+    requestedTime = body.requestedTime;
+  }
   if (body.serviceId && !service) throw badRequest('That service is no longer offered. Please pick another.');
   const depositCents = toCents(service ? service.deposit : settings.defaultDeposit);
 
@@ -152,12 +163,12 @@ bookingsRouter.post('/booking-requests', createLimiter, uploadLimiter, upload.ar
   const token = randomToken(24);
   db.prepare(
     `insert into booking_requests (id, artist_id, client_id, guest_name, guest_email, guest_phone, access_token, service_id,
-       service_name, service_price, date, preferred_time, message, tattoo_width, tattoo_height, body_placement, budget,
+       service_name, service_price, date, preferred_time, requested_time, message, tattoo_width, tattoo_height, body_placement, budget,
        reference_images, deposit_cents, fee_cents, terms_accepted_at, created_at, updated_at)
-     values (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+     values (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
   ).run(
     id, artist.id, user?.id ?? null, user ? null : body.guestName, user ? null : body.guestEmail, user ? null : body.guestPhone || null,
-    token, service?.id ?? null, service?.name ?? (asksSize(artist.category) ? 'Custom tattoo' : 'Appointment'), service?.price ?? null, body.date, body.preferredTime,
+    token, service?.id ?? null, service?.name ?? (asksSize(artist.category) ? 'Custom tattoo' : 'Appointment'), service?.price ?? null, body.date, body.preferredTime, requestedTime,
     body.message, body.tattooWidth ?? null, body.tattooHeight ?? null, body.bodyPlacement, body.budget ?? null,
     JSON.stringify(images), depositCents, depositFeeCents(depositCents, artist), now, now, now,
   );
@@ -231,6 +242,15 @@ bookingsRouter.get('/booking-requests/:id', (req, res) => {
   res.json(view);
 });
 
+/** One booking as a calendar file, for "Add to calendar" (guests use their private link's token). */
+bookingsRouter.get('/booking-requests/:id/calendar.ics', (req, res) => {
+  const { row, role } = loadRequestAccess(req, req.params.id, req.query.token);
+  const artist = getUser(row.artist_id)!;
+  res.type('text/calendar; charset=utf-8');
+  res.set('Content-Disposition', `attachment; filename="appointment-${row.date}.ics"`);
+  res.send(renderIcs(getSettings().siteName, [bookingEvent(row, artist, role === 'artist' ? 'pro' : 'client')]));
+});
+
 /** A logged-in client adds a booking they made as a guest to their account (the private link proves it's theirs). */
 bookingsRouter.post('/booking-requests/:id/claim', (req, res) => {
   const user = requireUser(req);
@@ -284,7 +304,7 @@ bookingsRouter.post('/booking-requests/:id/action', (req, res) => {
       if (row.status !== 'pending') throw conflict('Only pending requests can be approved.');
       if (row.date < todayStr(-1)) throw conflict('This request is for a date that has passed. Reschedule it first, or decline it.');
       const depositCents = body.depositAmount !== undefined ? toCents(body.depositAmount) : row.deposit_cents;
-      const time = body.time || null;
+      const time = body.time || row.requested_time || null;
       set("status = 'approved', deposit_cents = ?, fee_cents = ?, artist_note = ?, appointment_time = ?", depositCents, depositFeeCents(depositCents, artist), body.note ?? row.artist_note, time);
       const feeCents = depositFeeCents(depositCents, artist);
       const currency = getSettings().currency;
@@ -365,6 +385,7 @@ bookingsRouter.post('/booking-requests/:id/action', (req, res) => {
   }
   emit(row.client_id, 'bookings');
   emit(row.artist_id, 'bookings');
+  void syncBookingEvent(row.id);
   const updated = db.prepare(`${BOOKING_REQUEST_SELECT} where br.id = ?`).get(row.id) as any;
   res.json(toBookingRequest(updated, { includeToken: role === 'client', includeContact: role !== 'client' }));
 });

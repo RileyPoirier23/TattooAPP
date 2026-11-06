@@ -4,7 +4,7 @@ import { api } from '../../api';
 import { useStore } from '../../store';
 import { Badge, Button, Field, Input, Notice, PageHeader, Select, Toggle, cx, inputClass } from '../../components/ui';
 import {
-  CheckIcon, CogIcon, CreditCardIcon, EyeIcon, LocationIcon, PaperAirplaneIcon, PlusIcon, PriceIcon, XIcon,
+  CalendarIcon, CheckIcon, CogIcon, CreditCardIcon, EyeIcon, LocationIcon, PaperAirplaneIcon, PlusIcon, PriceIcon, XIcon,
 } from '../../components/Icons';
 import type { SecretSettings, SiteFeatures } from '../../../shared/types';
 import type { MaskedSecrets } from './types';
@@ -226,6 +226,9 @@ interface SecretDraft {
   smtpFrom: string;
   resendApiKey: string;
   clearResendKey: boolean;
+  googleClientId: string;
+  googleClientSecret: string;
+  clearGoogleSecret: boolean;
 }
 
 const fromMasked = (m: MaskedSecrets): SecretDraft => ({
@@ -240,6 +243,9 @@ const fromMasked = (m: MaskedSecrets): SecretDraft => ({
   smtpFrom: m.smtpFrom,
   resendApiKey: '',
   clearResendKey: false,
+  googleClientId: m.googleClientId,
+  googleClientSecret: '',
+  clearGoogleSecret: false,
 });
 
 /** Only the secret fields the admin actually changed. */
@@ -256,6 +262,9 @@ function secretsPatch(d: SecretDraft, m: MaskedSecrets): Partial<SecretSettings>
   if (d.smtpFrom.trim() !== m.smtpFrom) p.smtpFrom = d.smtpFrom.trim();
   if (d.resendApiKey.trim()) p.resendApiKey = d.resendApiKey.trim();
   else if (d.clearResendKey) p.resendApiKey = '';
+  if (d.googleClientId.trim() !== m.googleClientId) p.googleClientId = d.googleClientId.trim();
+  if (d.googleClientSecret.trim()) p.googleClientSecret = d.googleClientSecret.trim();
+  else if (d.clearGoogleSecret) p.googleClientSecret = '';
   return p;
 }
 
@@ -711,6 +720,43 @@ export const SettingsSection: React.FC = () => {
                     </>
                   }
                 />
+              </SettingsCard>
+
+              {/* Google Calendar */}
+              <SettingsCard
+                title="Google Calendar (optional)"
+                description="Lets pros connect their Google Calendar: approved appointments are added to it, and its busy times are kept out of the slots clients can book."
+                icon={<CalendarIcon className="w-5 h-5" />}
+                aside={<StatusPill ready={!!secrets.googleClientId && secrets.googleClientSecretSet} readyLabel="On" notLabel="Off" />}
+              >
+                <div className="grid gap-4 sm:grid-cols-2">
+                  <Input
+                    label="OAuth client ID"
+                    value={sd.googleClientId}
+                    maxLength={300}
+                    spellCheck={false}
+                    placeholder="1234567890-abc.apps.googleusercontent.com"
+                    onChange={e => updateSecret('googleClientId', e.target.value)}
+                    className="[&_input]:font-mono [&_input]:text-sm"
+                  />
+                  <SecretField
+                    label="OAuth client secret"
+                    isSet={!!secrets.googleClientSecretSet}
+                    value={sd.googleClientSecret}
+                    onChange={v => updateSecret('googleClientSecret', v)}
+                    cleared={sd.clearGoogleSecret}
+                    onClear={v => updateSecret('clearGoogleSecret', v)}
+                  />
+                </div>
+                <Notice className="mt-4">
+                  <p className="font-semibold mb-1">Setting it up (same Google Cloud project as Maps is fine)</p>
+                  <ol className="list-decimal pl-5 space-y-1">
+                    <li>Enable the <strong>Google Calendar API</strong> under APIs &amp; Services → Library.</li>
+                    <li>Under APIs &amp; Services → OAuth consent screen, set the app name and add the scopes <span className="font-mono">calendar.events</span> and <span className="font-mono">calendar.freebusy</span>. Publish the app (otherwise only test users can connect).</li>
+                    <li>Under Credentials, create an <strong>OAuth client ID</strong> of type Web application with this redirect URI: <span className="font-mono break-all">{window.location.origin}/api/me/google/callback</span></li>
+                    <li>Paste the client ID and secret here and save.</li>
+                  </ol>
+                </Notice>
               </SettingsCard>
 
               <SaveBar dirty={dirty} saving={busy('save')} canSave={!problem && !anyBusy} problem={problem} onSave={onSave} onDiscard={onDiscard} />

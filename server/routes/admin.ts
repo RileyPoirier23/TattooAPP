@@ -16,6 +16,7 @@ import { checkConnection, locationCurrency, paymentsReady } from '../square';
 import { notify } from '../notify';
 import { createPasswordResetLink } from './auth';
 import { emit } from '../events';
+import { syncBookingEvent } from '../google';
 import { config } from '../config';
 import { backupDatabase, backupPath, listBackups } from '../jobs';
 import { DEFAULT_PAGES } from '../defaultPages';
@@ -111,6 +112,8 @@ function maskedSecrets() {
     smtpFromEnv: !!config.smtpUrl,
     resendApiKeySet: !!s.resendApiKey,
     resendFromEnv: !!config.resendApiKey,
+    googleClientId: s.googleClientId,
+    googleClientSecretSet: !!s.googleClientSecret,
   };
 }
 
@@ -181,6 +184,8 @@ const secretsSchema = z
     smtpPass: z.string().max(500),
     smtpFrom: z.string().trim().max(200),
     resendApiKey: z.string().trim().max(300),
+    googleClientId: z.string().trim().max(300),
+    googleClientSecret: z.string().trim().max(300),
   })
   .partial();
 
@@ -456,6 +461,7 @@ adminRouter.post('/booking-requests/:id/status', (req, res) => {
   }
   emit(r.artist_id, 'bookings');
   emit(r.client_id, 'bookings');
+  void syncBookingEvent(r.id);
   res.json({ ok: true });
 });
 

@@ -1,5 +1,5 @@
 // Three-step booking request: service & date → tattoo details → contact & send.
-import React, { useMemo, useState } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import { asksPlacement, asksSize } from '../../shared/categories';
 import { api, errorMessage } from '../api';
 import { prepareImages } from '../lib/images';
@@ -10,7 +10,8 @@ import { currencySymbol, dollars, formatDate, parseDate, PREFERRED_TIMES } from 
 import { Calendar } from './Calendar';
 import { Button, Input, Modal, Notice, Select, Textarea, cx } from './ui';
 import { CheckIcon, PhotoIcon, XIcon } from './Icons';
-import type { ArtistDetail, BookingRequest, PreferredTime } from '../../shared/types';
+import type { ArtistDetail, Availability, BookingRequest, PreferredTime } from '../../shared/types';
+import { formatTime } from './BookingCards';
 
 export const BookingRequestModal: React.FC<{ artist: ArtistDetail; serviceId?: string; onClose: () => void }> = ({ artist, serviceId: startService, onClose }) => {
   const user = useStore(s => s.user);
@@ -27,6 +28,9 @@ export const BookingRequestModal: React.FC<{ artist: ArtistDetail; serviceId?: s
   const showPlacement = asksPlacement(artist.category);
   const [date, setDate] = useState('');
   const [preferredTime, setPreferredTime] = useState<PreferredTime>('anytime');
+  const [requestedTime, setRequestedTime] = useState('');
+  const [avail, setAvail] = useState<Availability | null>(null);
+  const [loadingSlots, setLoadingSlots] = useState(false);
   const [width, setWidth] = useState('');
   const [height, setHeight] = useState('');
   const [placement, setPlacement] = useState('');
@@ -58,6 +62,27 @@ export const BookingRequestModal: React.FC<{ artist: ArtistDetail; serviceId?: s
   };
   const previews = useMemo(() => files.map(f => URL.createObjectURL(f)), [files]);
 
+  // Free start times for the chosen day and service (pros can turn exact times off; then only a time of day is asked).
+  useEffect(() => {
+    if (!date || !intake.timeSlots) {
+      setAvail(null);
+      return;
+    }
+    let cancelled = false;
+    setLoadingSlots(true);
+    api.get<Availability>(`/artists/${artist.id}/availability?date=${date}${serviceId ? `&serviceId=${encodeURIComponent(serviceId)}` : ''}`)
+      .then(a => {
+        if (cancelled) return;
+        setAvail(a);
+        setRequestedTime(t => (a.slots.includes(t) ? t : ''));
+      })
+      .catch(() => !cancelled && setAvail(null))
+      .finally(() => !cancelled && setLoadingSlots(false));
+    return () => {
+      cancelled = true;
+    };
+  }, [date, serviceId, artist.id, intake.timeSlots]);
+
   const step2Error = (() => {
     if (intake.requireSize && showSize && (!Number(width) || !Number(height))) return 'Enter the approximate width and height.';
     if (intake.requirePlacement && showPlacement && !placement) return 'Choose a placement.';
@@ -79,6 +104,7 @@ export const BookingRequestModal: React.FC<{ artist: ArtistDetail; serviceId?: s
           serviceId: serviceId || null,
           date,
           preferredTime,
+          requestedTime: requestedTime || null,
           message,
           tattooWidth: width ? Number(width) : null,
           tattooHeight: height ? Number(height) : null,
@@ -192,8 +218,39 @@ export const BookingRequestModal: React.FC<{ artist: ArtistDetail; serviceId?: s
           <div>
             <h3 className="font-bold text-lg mb-3">Pick a date</h3>
             <Calendar selected={date ? [date] : []} onSelect={setDate} isDisabled={isDisabled} />
-            {date && <p className="mt-3 text-sm">Selected: <strong>{formatDate(date)}</strong></p>}
+            {date && <p className="mt-3 text-sm">Selected: <strong>{formatDate(date)}</strong>{requestedTime && <> at <strong>{formatTime(requestedTime)}</strong></>}</p>}
             {hasHours && <p className="text-xs text-brand-gray mt-2">Greyed-out days are when {artist.name} isn't working.</p>}
+            {date && intake.timeSlots && hasHours && (
+              <div className="mt-4">
+                <p className="text-sm font-medium mb-2">Start time{loadingSlots && <span className="text-brand-gray font-normal"> · checking…</span>}</p>
+                {avail && avail.slots.length > 0 ? (
+                  <div className="flex flex-wrap gap-2" role="group" aria-label="Start time">
+                    <button
+                      type="button"
+                      aria-pressed={!requestedTime}
+                      onClick={() => setRequestedTime('')}
+                      className={cx('px-3 py-1.5 rounded-full text-sm border transition-colors', !requestedTime ? 'bg-brand-solid text-on-primary border-transparent' : 'border-gray-300 dark:border-gray-700 hover:border-brand-primary')}
+                    >
+                      No preference
+                    </button>
+                    {avail.slots.map(t => (
+                      <button
+                        key={t}
+                        type="button"
+                        aria-pressed={requestedTime === t}
+                        onClick={() => setRequestedTime(t)}
+                        className={cx('px-3 py-1.5 rounded-full text-sm border transition-colors tabular-nums', requestedTime === t ? 'bg-brand-solid text-on-primary border-transparent' : 'border-gray-300 dark:border-gray-700 hover:border-brand-primary')}
+                      >
+                        {formatTime(t)}
+                      </button>
+                    ))}
+                  </div>
+                ) : avail && !loadingSlots ? (
+                  <p className="text-sm text-amber-700 dark:text-amber-400">{avail.reason || `No free times left that day for ${service?.name || 'this service'}. Try another date.`}</p>
+                ) : null}
+                {avail && avail.slots.length > 0 && <p className="text-xs text-brand-gray mt-2">Times are free in {artist.name}'s calendar right now; they confirm when they approve.</p>}
+              </div>
+            )}
           </div>
         </div>
       )}
@@ -297,7 +354,7 @@ export const BookingRequestModal: React.FC<{ artist: ArtistDetail; serviceId?: s
             <h3 className="font-bold text-base mb-2">Summary</h3>
             <Row k="With" v={artist.name} />
             <Row k="Service" v={service?.name || (showSize ? 'Custom tattoo' : 'Appointment')} />
-            <Row k="Date" v={`${formatDate(date)} · ${PREFERRED_TIMES[preferredTime]}`} />
+            <Row k="Date" v={`${formatDate(date)} · ${requestedTime ? formatTime(requestedTime) : PREFERRED_TIMES[preferredTime]}`} />
             {(width || height) && <Row k="Size" v={`${width || '?'}" × ${height || '?'}"`} />}
             {placement && <Row k="Placement" v={placement} />}
             {files.length > 0 && <Row k="References" v={`${files.length} photo${files.length > 1 ? 's' : ''}`} />}

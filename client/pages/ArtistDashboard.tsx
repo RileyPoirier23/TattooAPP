@@ -377,6 +377,57 @@ const DAY_NAMES = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Frid
 const sameHours = (h: WeeklyHours) =>
   JSON.stringify(Object.keys(h).sort().filter(k => h[k]?.length).map(k => [k, h[k]]));
 
+/** Connect or disconnect the pro's Google Calendar (the owner must have set up a Google OAuth client). */
+const GoogleCalendarCard: React.FC<{ me: Me }> = ({ me }) => {
+  const setUser = useStore(s => s.setUser);
+  const toast = useStore(s => s.toast);
+  const ready = useStore(s => s.config!.googleCalendarReady);
+  const { query } = useLocation();
+  const [busy, setBusy] = useState(false);
+  // Back from Google's consent screen.
+  useEffect(() => {
+    const result = query.get('google');
+    if (!result) return;
+    if (result === 'connected') toast('Google Calendar connected. Approved appointments will show up there.');
+    else if (result === 'cancelled') toast('Google Calendar was not connected.', 'error');
+    else toast("Couldn't connect Google Calendar. Please try again.", 'error');
+    navigate('/dashboard?tab=hours', { replace: true });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+  if (!ready) return null;
+  const disconnect = async () => {
+    if (!window.confirm('Disconnect Google Calendar? Appointments already added stay in it; new ones will not be added.')) return;
+    setBusy(true);
+    try {
+      const { user } = await api.del<{ user: Me }>('/me/google');
+      setUser(user);
+      toast('Google Calendar disconnected.');
+    } catch (err) {
+      toast(errorMessage(err), 'error');
+    } finally {
+      setBusy(false);
+    }
+  };
+  return (
+    <Card className="xl:col-span-5">
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+        <div>
+          <h2 className="text-xl font-bold mb-1 flex items-center gap-2">Google Calendar {me.googleCalendarConnected && <Badge tone="green">Connected</Badge>}</h2>
+          <p className="text-sm text-brand-gray">
+            Approved appointments are added to your Google Calendar and kept up to date when they move or are cancelled. Anything busy in that calendar is left out of
+            the start times clients can pick.
+          </p>
+        </div>
+        {me.googleCalendarConnected ? (
+          <Button variant="outline" onClick={disconnect} loading={busy}>Disconnect</Button>
+        ) : (
+          <a href="/api/me/google/connect" className="flex-shrink-0"><Button>Connect Google Calendar</Button></a>
+        )}
+      </div>
+    </Card>
+  );
+};
+
 const HoursTab: React.FC<{ me: Me }> = ({ me }) => {
   const setUser = useStore(s => s.setUser);
   const toast = useStore(s => s.toast);
@@ -408,7 +459,7 @@ const HoursTab: React.FC<{ me: Me }> = ({ me }) => {
           <h2 className="text-xl font-bold">Weekly hours</h2>
           <Button variant="ghost" size="sm" onClick={copyMonday}>Copy Monday to weekdays</Button>
         </div>
-        <p className="text-sm text-brand-gray mb-4">Clients can only request dates on days you work. If you leave every day empty, clients can request any date.</p>
+        <p className="text-sm text-brand-gray mb-4">Clients can only request dates on days you work, and pick start times inside these hours. If you leave every day empty, clients can request any date.</p>
         <div className="divide-y divide-gray-200 dark:divide-gray-800">
           {DAY_NAMES.map((name, d) => {
             const slots = hours[String(d)] || [];
@@ -461,6 +512,7 @@ const HoursTab: React.FC<{ me: Me }> = ({ me }) => {
           </div>
         )}
       </Card>
+      <GoogleCalendarCard me={me} />
     </div>
   );
 };
@@ -472,11 +524,30 @@ const SettingsTab: React.FC<{ me: Me }> = ({ me }) => {
   const [intake, setIntake] = useState(me.intakeSettings);
   const [aftercare, setAftercare] = useState(me.aftercareMessage);
   useUnsavedWarning(JSON.stringify(intake) !== JSON.stringify(me.intakeSettings) || aftercare !== me.aftercareMessage);
-  const opt = (k: keyof typeof intake, label: string, description: string) => (
+  type BoolKey = 'requireSize' | 'requirePlacement' | 'requireDescription' | 'requireBudget' | 'requireReferenceImages' | 'timeSlots';
+  const opt = (k: BoolKey, label: string, description: string) => (
     <Toggle checked={intake[k]} onChange={v => setIntake(i => ({ ...i, [k]: v }))} label={label} description={description} />
   );
   return (
     <div className="space-y-6">
+      <Card>
+        <h2 className="text-xl font-bold mb-1">Appointment times</h2>
+        <p className="text-sm text-brand-gray mb-5">
+          With exact start times on, clients pick a free slot inside your weekly hours (slots already booked, your days off and busy times in a connected Google Calendar are left out).
+          With it off, they only pick a time of day and you set the time when you approve.
+        </p>
+        <div className="space-y-5">
+          {opt('timeSlots', 'Let clients pick an exact start time', 'Needs your weekly hours to be set. Each service blocks its own duration.')}
+          <Select label="Offer start times every" value={intake.slotMinutes} onChange={e => setIntake(i => ({ ...i, slotMinutes: Number(e.target.value) as 15 | 30 | 60 }))} disabled={!intake.timeSlots} className="max-w-xs">
+            <option value={15}>15 minutes</option>
+            <option value={30}>30 minutes</option>
+            <option value={60}>1 hour</option>
+          </Select>
+        </div>
+        <div className="flex justify-end mt-6">
+          <Button onClick={() => save({ intakeSettings: intake }, 'Appointment times saved!')} loading={busy}>Save</Button>
+        </div>
+      </Card>
       <Card>
         <h2 className="text-xl font-bold mb-1">Booking request form</h2>
         <p className="text-sm text-brand-gray mb-5">Choose what clients must fill in when they request a booking with you.</p>

@@ -3,6 +3,9 @@
 ## [1.3.0] — 2026-11-03 — Beauty marketplace
 
 ### New
+- Exact start times: clients pick a free slot inside the pro's hours when booking (each service blocks its own duration; booked slots, days off and Google Calendar busy times are left out). Pros choose the slot spacing (15, 30 or 60 minutes) or switch it off to keep time-of-day requests. The requested time is the default when the pro approves.
+- Calendar feeds: a private link in Settings that puts appointments, client bookings and booth rentals in Google Calendar, Apple Calendar or Outlook, and an Add to calendar button (Google, or an .ics file for Apple and Outlook) on every approved booking.
+- Google Calendar sync for pros: once the owner enters a Google OAuth client in Admin → Settings, pros connect their calendar; approved appointments are added, moved and removed as bookings change, and busy times block slots.
 - Open to every kind of beauty pro, not just tattoo artists: each pro picks a category (Tattoo, Piercing, Barber, Hair, Nails, Lashes & Brows, Makeup, Skin & Spa; the owner edits the list in Admin → Settings → Choices on forms). Everyone who already took bookings is set to Tattoo.
 - Pros page like the template's services page: filters for category (with live counts), keyword, specialty, city or "near me", **available on a date** (pros who work that day), starting price range, rating and verified, plus sorting by rating, reviews, price or name.
 - Pro profiles like the template's service details page: photo gallery with arrows and thumbnails, starting price and rating, about, services with a Book button each, opening hours, reviews with a summary, and a side card with booking, messaging, social links and location. Pros can add a studio address (shown with a map link).

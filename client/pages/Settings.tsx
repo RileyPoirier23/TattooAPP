@@ -7,7 +7,7 @@ import { ROLE_LABELS } from '../lib/format';
 import { PayoutMethodForm } from '../components/Earnings';
 import { ProPlanCard } from '../components/ProPlan';
 import { Badge, Button, Card, Input, Modal, PageHeader } from '../components/ui';
-import { DownloadIcon } from '../components/Icons';
+import { CalendarIcon, DownloadIcon } from '../components/Icons';
 import { useUnsavedWarning } from '../lib/unsaved';
 import type { Me } from '../../shared/types';
 
@@ -46,6 +46,62 @@ const BecomeArtistCard: React.FC<{ me: Me }> = ({ me }) => {
         </div>
       </Card>
     </div>
+  );
+};
+
+/** A private link that puts the member's bookings in Google Calendar, Apple Calendar or Outlook. */
+const CalendarFeedCard: React.FC<{ me: Me }> = ({ me }) => {
+  const setUser = useStore(s => s.setUser);
+  const toast = useStore(s => s.toast);
+  const [busy, setBusy] = useState(false);
+  const url = me.calendarToken ? `${window.location.origin}/api/calendar/${me.calendarToken}.ics` : '';
+  const change = async (method: 'post' | 'del', done: string) => {
+    setBusy(true);
+    try {
+      const { user } = method === 'post' ? await api.post<{ user: Me }>('/me/calendar-token') : await api.del<{ user: Me }>('/me/calendar-token');
+      setUser(user);
+      toast(done);
+    } catch (err) {
+      toast(errorMessage(err), 'error');
+    } finally {
+      setBusy(false);
+    }
+  };
+  const copy = async () => {
+    try {
+      await navigator.clipboard.writeText(url);
+      toast('Link copied.');
+    } catch {
+      toast('Select the link and copy it.', 'error');
+    }
+  };
+  return (
+    <Card>
+      <h2 className="text-lg font-bold mb-1 flex items-center gap-2"><CalendarIcon className="w-5 h-5 text-brand-primary" /> Your calendar feed</h2>
+      <p className="text-sm text-brand-gray mb-4">
+        Subscribe to this private link in your calendar app and your appointments{isArtist(me) ? ', client bookings' : ''}{me.role === 'shop-owner' || isArtist(me) ? ' and booth rentals' : ''} show up there and stay up to date.
+      </p>
+      {url ? (
+        <div className="space-y-3">
+          <div className="flex gap-2">
+            <Input value={url} readOnly onFocus={e => e.target.select()} className="flex-1 [&_input]:font-mono [&_input]:text-xs" aria-label="Calendar feed link" />
+            <Button variant="outline" onClick={copy}>Copy</Button>
+          </div>
+          <ul className="text-xs text-brand-gray space-y-1">
+            <li><strong>Google Calendar:</strong> Other calendars → + → From URL, paste the link.</li>
+            <li><strong>Apple Calendar:</strong> File → New Calendar Subscription, paste the link.</li>
+            <li><strong>Outlook:</strong> Add calendar → Subscribe from web, paste the link.</li>
+          </ul>
+          <p className="text-xs text-brand-gray">Anyone with the link can see your bookings. If it gets shared by mistake, reset it.</p>
+          <div className="flex gap-2">
+            <Button variant="outline" size="sm" loading={busy} onClick={() => change('post', 'New link created. Update it in your calendar app.')}>Reset link</Button>
+            <Button variant="ghost" size="sm" loading={busy} onClick={() => change('del', 'Calendar feed turned off.')}>Turn off</Button>
+          </div>
+        </div>
+      ) : (
+        <Button variant="outline" loading={busy} onClick={() => change('post', 'Calendar link created.')}>Create calendar link</Button>
+      )}
+    </Card>
   );
 };
 
@@ -140,6 +196,8 @@ export const SettingsPage: React.FC = () => {
           </div>
         </form>
       </Card>
+
+      <CalendarFeedCard me={me} />
 
       {me.role === 'client' && <BecomeArtistCard me={me} />}
 

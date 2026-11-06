@@ -53,6 +53,13 @@ The Pro plan is **switched off** until you turn it on in **Settings → Features
 - **Turning Pro off later** stops new sign-ups. Current subscribers keep their plan (and can still cancel it) until they cancel.
 - You can also give someone Pro for free from **Users** (pick an end date or leave it open-ended).
 
+## Calendars and appointment times
+
+- **Exact start times.** Pros who set their weekly hours can let clients pick a start time from their free slots (Dashboard → Booking settings → Appointment times). Each service blocks its own duration, and booked slots, days off and busy times from a connected Google Calendar are left out. Pros who prefer to set the time themselves switch it off; clients then pick a time of day and the pro sets the time when approving.
+- **Calendar feeds.** Every member can create a private link in **Settings → Your calendar feed** and subscribe to it in Google Calendar, Apple Calendar or Outlook. Appointments, client bookings and booth rentals then show up there and stay up to date. Every approved booking also has an **Add to calendar** button.
+- **Google Calendar for pros.** In **Admin → Settings → Google Calendar**, enter a Google OAuth client ID and secret (the card explains the steps in Google Cloud; the same project as Google Maps is fine). Pros can then click **Connect Google Calendar** in Dashboard → Hours & days off. Approved appointments are written to their calendar and kept up to date; anything busy in it is kept out of the slots clients can pick.
+- **Set your time zone on the host.** Appointment times are in the server's time zone, so add a `TZ` variable to your Railway service (for example `America/Halifax`). Without it the server runs on UTC and Google Calendar events land at the wrong hour.
+
 ## Categories (tattoo, barber, nails and more)
 
 Every pro chooses a category when they sign up, and clients browse and search by it. Change the list in **Admin → Settings → Choices on forms → Categories**: add one (for example "Massage") and pros can pick it straight away. Removing a category doesn't change pros who already use it; ask them to pick another in their dashboard. Tattoo and piercing bookings ask for size and placement; other categories skip those questions.

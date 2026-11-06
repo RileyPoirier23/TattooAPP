@@ -12,6 +12,9 @@ import { deletionBlockers, earningsFor, subscribePro, updateCard } from '../bill
 import { disableCard } from '../square';
 import { notifyAdmins } from '../notify';
 import { deleteAccount } from '../accounts';
+import { consentUrl, disconnect, finishConnect, googleReady } from '../google';
+import { config } from '../config';
+import { randomToken } from '../auth';
 import type { PortfolioImage } from '../../shared/types';
 
 export const meRouter = Router();
@@ -60,6 +63,8 @@ const profileSchema = z.object({
       requireDescription: z.boolean(),
       requireBudget: z.boolean(),
       requireReferenceImages: z.boolean(),
+      timeSlots: z.boolean().default(true),
+      slotMinutes: z.union([z.literal(15), z.literal(30), z.literal(60)]).default(30),
     })
     .optional(),
   aftercareMessage: z.string().trim().max(4000).optional(),
@@ -158,6 +163,49 @@ meRouter.delete('/me/days-off/:date', (req, res) => {
   const user = requireArtist(req);
   getDb().prepare('delete from days_off where artist_id = ? and date = ?').run(user.id, req.params.date);
   res.json({ user: toMe(user) });
+});
+
+// ---------- Calendars ----------
+
+/** Creates (or replaces) the member's private calendar feed link. Replacing it stops the old link working. */
+meRouter.post('/me/calendar-token', (req, res) => {
+  const user = requireUser(req);
+  const token = randomToken(24);
+  getDb().prepare('update users set calendar_token = ?, updated_at = ? where id = ?').run(token, nowIso(), user.id);
+  res.json({ user: toMe(getUser(user.id)!) });
+});
+
+meRouter.delete('/me/calendar-token', (req, res) => {
+  const user = requireUser(req);
+  getDb().prepare('update users set calendar_token = null, updated_at = ? where id = ?').run(nowIso(), user.id);
+  res.json({ user: toMe(getUser(user.id)!) });
+});
+
+/** Sends the pro to Google's consent screen. */
+meRouter.get('/me/google/connect', (req, res) => {
+  const user = requireArtist(req);
+  if (!googleReady()) throw conflict('Google Calendar is not set up on this site yet. Ask the site owner.');
+  res.redirect(consentUrl(user.id));
+});
+
+/** Google sends the pro back here after they agree (or refuse). */
+meRouter.get('/me/google/callback', async (req, res) => {
+  const { state, code, error } = req.query as Record<string, string | undefined>;
+  const back = (status: string) => res.redirect(`${config.appUrl}/dashboard?tab=hours&google=${status}`);
+  if (error || !state || !code) return back('cancelled');
+  try {
+    await finishConnect(state, code);
+    back('connected');
+  } catch (err) {
+    console.warn('[google] connect failed', (err as Error).message);
+    back('error');
+  }
+});
+
+meRouter.delete('/me/google', async (req, res) => {
+  const user = requireArtist(req);
+  await disconnect(user);
+  res.json({ user: toMe(getUser(user.id)!) });
 });
 
 meRouter.post('/me/verification', (req, res) => {

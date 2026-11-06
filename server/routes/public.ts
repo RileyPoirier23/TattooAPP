@@ -1,13 +1,16 @@
 // Public, read-only endpoints: site config, artists, shops, content pages.
 import { Router } from 'express';
+import { availabilityFor } from '../availability';
+import { googleBusy, googleReady } from '../google';
+import { feedFor, renderIcs } from '../ics';
 import { getDb, parseJson } from '../db';
 import { getSettings } from '../settings';
 import { config } from '../config';
 import { fillPageTokens } from '../defaultPages';
 import { paymentsReady } from '../square';
 import { emailReady } from '../email';
-import { notFound, todayStr } from '../http';
-import { daysOffFor, guestSpotsByArtist, toPublicArtist, toShop } from '../mappers';
+import { badRequest, notFound, todayStr } from '../http';
+import { daysOffFor, guestSpotsByArtist, intakeOf, toPublicArtist, toShop } from '../mappers';
 import type { UserRow } from '../auth';
 import type { ArtistDetail, Page, PublicConfig, Review, ShopDetail } from '../../shared/types';
 
@@ -22,6 +25,7 @@ publicRouter.get('/config', (_req, res) => {
     pages: pages.map(p => ({ slug: p.slug, title: p.title, showInFooter: !!p.show_in_footer })),
     paymentsReady: paymentsReady(),
     emailReady: emailReady(),
+    googleCalendarReady: googleReady(),
   };
   res.json(body);
 });
@@ -69,6 +73,29 @@ publicRouter.get('/artists', (req, res) => {
     });
   }
   res.json(list.map(u => toPublicArtist(u, spots)));
+});
+
+// A member's private calendar feed; the long random token in the link is the only credential.
+publicRouter.get('/calendar/:token.ics', (req, res) => {
+  const token = String(req.params.token || '');
+  const user = token.length >= 20 ? (getDb().prepare('select * from users where calendar_token = ? and status = ?').get(token, 'active') as UserRow | undefined) : undefined;
+  if (!user) throw notFound('Calendar not found.');
+  res.type('text/calendar; charset=utf-8');
+  res.set('Content-Disposition', 'inline; filename="bookings.ics"');
+  res.send(renderIcs(`${getSettings().siteName}: ${user.name}`, feedFor(user)));
+});
+
+// Free start times for one day, for the booking form's slot picker.
+publicRouter.get('/artists/:id/availability', async (req, res) => {
+  const u = getDb()
+    .prepare("select * from users where id = ? and role in ('artist','dual') and status = 'active'")
+    .get(req.params.id) as UserRow | undefined;
+  if (!u) throw notFound('Pro not found.');
+  const date = typeof req.query.date === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(req.query.date) ? req.query.date : null;
+  if (!date) throw badRequest('Choose a date.');
+  const serviceId = typeof req.query.serviceId === 'string' ? req.query.serviceId.slice(0, 60) : null;
+  if (!intakeOf(u).timeSlots) return res.json({ date, durationMinutes: 0, slots: [], reason: null });
+  res.json(availabilityFor(u, date, serviceId, await googleBusy(u, date)));
 });
 
 publicRouter.get('/artists/:id', (req, res) => {

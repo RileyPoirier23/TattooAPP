@@ -39,12 +39,47 @@ const square = http.createServer((req, res) => {
   });
 });
 
+// ---------- Fake Google (OAuth + Calendar) ----------
+const googleCalls: { method: string; path: string; body: any }[] = [];
+let googleBusyRanges: { start: string; end: string }[] = [];
+const google = http.createServer((req, res) => {
+  let raw = '';
+  req.on('data', c => (raw += c));
+  req.on('end', () => {
+    let body: any = {};
+    try {
+      body = raw ? (req.headers['content-type']?.includes('json') ? JSON.parse(raw) : Object.fromEntries(new URLSearchParams(raw))) : {};
+    } catch {}
+    googleCalls.push({ method: req.method!, path: req.url!, body });
+    const send = (status: number, json: unknown) => {
+      res.writeHead(status, { 'Content-Type': 'application/json' });
+      res.end(JSON.stringify(json));
+    };
+    if (req.url?.startsWith('/o/oauth2/')) return send(200, { consent: true });
+    if (req.url === '/token') {
+      if (body.grant_type === 'authorization_code') return body.code === 'good-code' ? send(200, { access_token: 'at-1', refresh_token: 'rt-1', expires_in: 3600 }) : send(400, { error: 'invalid_grant' });
+      return body.refresh_token === 'rt-1' ? send(200, { access_token: 'at-2', expires_in: 3600 }) : send(400, { error: 'invalid_grant' });
+    }
+    if (req.url?.startsWith('/revoke')) return send(200, {});
+    if (req.headers.authorization !== 'Bearer at-2') return send(401, { error: { message: 'bad token' } });
+    if (req.url === '/calendar/v3/freeBusy') return send(200, { calendars: { primary: { busy: googleBusyRanges } } });
+    if (req.url === '/calendar/v3/calendars/primary/events' && req.method === 'POST') return send(200, { id: `evt_${googleCalls.length}` });
+    if (req.url?.startsWith('/calendar/v3/calendars/primary/events/')) return req.method === 'DELETE' ? send(204, {}) : send(200, { id: req.url.split('/').pop() });
+    send(404, { error: { message: 'not found' } });
+  });
+});
+
 let base = '';
 let server: http.Server;
 let tmp: string;
 
 before(async () => {
   await new Promise<void>(r => square.listen(0, r));
+  await new Promise<void>(r => google.listen(0, r));
+  const g = `http://127.0.0.1:${(google.address() as AddressInfo).port}`;
+  process.env.GOOGLE_API_BASE = g;
+  process.env.GOOGLE_OAUTH_BASE = g;
+  process.env.GOOGLE_AUTH_BASE = g;
   tmp = fs.mkdtempSync(path.join(os.tmpdir(), 'inkspace-test-'));
   process.env.DATA_DIR = tmp;
   process.env.SQUARE_API_BASE = `http://127.0.0.1:${(square.address() as AddressInfo).port}`;
@@ -67,6 +102,7 @@ before(async () => {
 after(() => {
   server?.close();
   square.close();
+  google.close();
   fs.rmSync(tmp, { recursive: true, force: true });
 });
 
@@ -978,4 +1014,102 @@ test('categories: barbers skip tattoo questions; search by day; reviews need an 
   assert.equal((await gus.c.post(`/api/booking-requests/${id}/claim`, { token: accessToken })).status, 200);
   assert.equal((await gus.c.post(`/api/booking-requests/${id}/review`, { rating: 5, text: 'Sharp fade' })).status, 200);
   assert.equal((await new Client().get(`/api/artists/${barber.me.id}`)).body.reviewCount, 1);
+});
+
+test('calendars: exact start times, calendar feeds and Google Calendar sync', async () => {
+  const { getDb } = await import('../server/db');
+  const pro = await register('artist', 'slots@example.com', { category: 'Barber' });
+  getDb().prepare('update users set portfolio = ? where id = ?').run(JSON.stringify([{ url: '/uploads/x.png' }]), pro.me.id);
+  // Works Tuesdays 09:00-12:00 with one 1-hour service and 30-minute slot steps.
+  await pro.c.patch('/api/me', { hours: { '2': [{ start: '09:00', end: '12:00' }] }, services: [{ name: 'Cut', duration: 1, price: 30, deposit: 0 }] });
+  const serviceId = (await pro.c.get('/api/auth/me')).body.user.services[0].id;
+  const tuesday = futureDate(8, 2);
+
+  const avail = await new Client().get(`/api/artists/${pro.me.id}/availability?date=${tuesday}&serviceId=${serviceId}`);
+  assert.equal(avail.status, 200);
+  assert.deepEqual(avail.body.slots, ['09:00', '09:30', '10:00', '10:30', '11:00'], 'one-hour cuts can start every half hour until noon');
+  assert.equal((await new Client().get(`/api/artists/${pro.me.id}/availability?date=${futureDate(8, 3)}`)).body.slots.length, 0, 'closed on Wednesdays');
+  assert.equal((await new Client().get(`/api/artists/${pro.me.id}/availability?date=nope`)).status, 400);
+
+  // A guest books 10:00; that slot (and the overlapping half-hours) disappears, and a second request for it is refused.
+  const guest = new Client();
+  const made = await guest.req('POST', '/api/booking-requests', bookingForm({ artistId: pro.me.id, serviceId, date: tuesday, requestedTime: '10:00', message: 'Short back and sides', guestName: 'Tim', guestEmail: 'tim@example.com' }));
+  assert.equal(made.status, 201, JSON.stringify(made.body));
+  assert.equal(made.body.request.requestedTime, '10:00');
+  const after = (await new Client().get(`/api/artists/${pro.me.id}/availability?date=${tuesday}&serviceId=${serviceId}`)).body.slots;
+  assert.deepEqual(after, ['09:00', '11:00']);
+  const clash = await new Client().req('POST', '/api/booking-requests', bookingForm({ artistId: pro.me.id, serviceId, date: tuesday, requestedTime: '10:30', message: 'Me too please', guestName: 'Tom', guestEmail: 'tom@example.com' }));
+  assert.equal(clash.status, 409);
+  assert.equal((await new Client().req('POST', '/api/booking-requests', bookingForm({ artistId: pro.me.id, serviceId, date: tuesday, requestedTime: '13:00', message: 'After hours?', guestName: 'Tia', guestEmail: 'tia@example.com' }))).status, 409, 'outside working hours');
+
+  // Approving without a time keeps the requested one.
+  const id = made.body.request.id;
+  const approved = await pro.c.post(`/api/booking-requests/${id}/action`, { action: 'approve', depositAmount: 0 });
+  assert.equal(approved.body.appointmentTime, '10:00');
+
+  // Calendar files: one booking (guest link) and the pro's private feed.
+  const ics = await fetch(`${base}/api/booking-requests/${id}/calendar.ics?token=${made.body.request.accessToken}`);
+  assert.equal(ics.headers.get('content-type')?.split(';')[0], 'text/calendar');
+  const icsText = await ics.text();
+  assert.match(icsText, /BEGIN:VEVENT/);
+  assert.match(icsText, new RegExp(`DTSTART:${tuesday.replace(/-/g, '')}T100000`));
+  assert.match(icsText, /SUMMARY:Cut with slots/);
+  assert.equal((await fetch(`${base}/api/booking-requests/${id}/calendar.ics`)).status, 404, 'no token, no file');
+  assert.equal((await pro.c.get('/api/auth/me')).body.user.calendarToken, null);
+  const withToken = await pro.c.post('/api/me/calendar-token');
+  const token = withToken.body.user.calendarToken;
+  assert.ok(token && token.length >= 20);
+  const feed = await (await fetch(`${base}/api/calendar/${token}.ics`)).text();
+  assert.match(feed, /X-WR-CALNAME:/);
+  assert.match(feed, /Cut with Tim/);
+  assert.equal((await fetch(`${base}/api/calendar/${'x'.repeat(32)}.ics`)).status, 404);
+  await pro.c.post('/api/me/calendar-token'); // reset: the old link stops working
+  assert.equal((await fetch(`${base}/api/calendar/${token}.ics`)).status, 404);
+
+  // Google Calendar: not set up until the admin enters an OAuth client.
+  assert.equal((await pro.c.get('/api/me/google/connect')).status, 409);
+  assert.equal((await new Client().get('/api/config')).body.googleCalendarReady, false);
+  await admin.put('/api/admin/settings', { secrets: { googleClientId: 'cid.apps.googleusercontent.com', googleClientSecret: 'GOCSPX-test' } });
+  assert.equal((await new Client().get('/api/config')).body.googleCalendarReady, true);
+  const justClient = await register('client', 'nocal@example.com');
+  assert.equal((await justClient.c.get('/api/me/google/connect')).status, 403, 'only pros connect calendars');
+  // The pro is sent to Google's consent screen (our fake one); the state in that link ties the callback to them.
+  const consent = await fetch(`${base}/api/me/google/connect`, { headers: { cookie: pro.c.cookie }, redirect: 'manual' });
+  assert.equal(consent.status, 302);
+  const consentUrl = new URL(consent.headers.get('location')!);
+  assert.equal(consentUrl.searchParams.get('access_type'), 'offline');
+  const state = consentUrl.searchParams.get('state')!;
+  const bad = await fetch(`${base}/api/me/google/callback?state=wrong&code=good-code`, { redirect: 'manual' });
+  assert.match(bad.headers.get('location')!, /google=error/);
+  const cb = await fetch(`${base}/api/me/google/callback?state=${state}&code=good-code`, { redirect: 'manual' });
+  assert.match(cb.headers.get('location')!, /google=connected/);
+  assert.equal((await pro.c.get('/api/auth/me')).body.user.googleCalendarConnected, true);
+
+  // Busy time in Google blocks the matching slot.
+  googleBusyRanges = [{ start: new Date(`${tuesday}T09:00:00`).toISOString(), end: new Date(`${tuesday}T10:00:00`).toISOString() }];
+  const blocked = (await new Client().get(`/api/artists/${pro.me.id}/availability?date=${tuesday}&serviceId=${serviceId}`)).body.slots;
+  assert.deepEqual(blocked, ['11:00']);
+  googleBusyRanges = [];
+
+  // Approving another booking writes an event; cancelling removes it.
+  const second = await guest.req('POST', '/api/booking-requests', bookingForm({ artistId: pro.me.id, serviceId, date: tuesday, requestedTime: '11:00', message: 'Beard trim as well', guestName: 'Tim', guestEmail: 'tim@example.com' }));
+  assert.equal(second.status, 201, JSON.stringify(second.body));
+  googleCalls.length = 0;
+  await pro.c.post(`/api/booking-requests/${second.body.request.id}/action`, { action: 'approve', depositAmount: 0 });
+  await new Promise(r => setTimeout(r, 150)); // the sync runs after the reply
+  const created = googleCalls.find(c => c.method === 'POST' && c.path === '/calendar/v3/calendars/primary/events');
+  assert.ok(created, 'event created in Google Calendar');
+  assert.equal(created!.body.summary, 'Cut with Tim');
+  assert.match(created!.body.start.dateTime, new RegExp(`^${tuesday}T11:00:00`));
+  assert.ok(created!.body.start.timeZone);
+  const eventId = (getDb().prepare('select google_event_id from booking_requests where id = ?').get(second.body.request.id) as any).google_event_id;
+  assert.ok(eventId);
+  await pro.c.post(`/api/booking-requests/${second.body.request.id}/action`, { action: 'cancel' });
+  await new Promise(r => setTimeout(r, 150));
+  assert.ok(googleCalls.some(c => c.method === 'DELETE' && c.path.endsWith(`/events/${eventId}`)), 'event removed when cancelled');
+
+  // Disconnecting forgets the token.
+  assert.equal((await pro.c.req('DELETE', '/api/me/google')).status, 200);
+  assert.equal((await pro.c.get('/api/auth/me')).body.user.googleCalendarConnected, false);
+  await admin.put('/api/admin/settings', { secrets: { googleClientId: '', googleClientSecret: '' } });
 });

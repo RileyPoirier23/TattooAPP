@@ -40,6 +40,23 @@ function calendarLink(r: BookingRequest) {
   return `https://calendar.google.com/calendar/render?action=TEMPLATE&text=${text}&dates=${dates}&details=${details}`;
 }
 
+/** "Add to calendar": Google Calendar opens a link; Apple Calendar and Outlook take a downloaded .ics file. */
+export const AddToCalendar: React.FC<{ r: BookingRequest; token?: string }> = ({ r, token }) => {
+  const [open, setOpen] = useState(false);
+  const ics = `/api/booking-requests/${r.id}/calendar.ics${token ? `?token=${encodeURIComponent(token)}` : ''}`;
+  return (
+    <div className="relative">
+      <Button variant="outline" size="sm" onClick={() => setOpen(o => !o)} aria-expanded={open}><CalendarIcon className="w-4 h-4" /> Add to calendar</Button>
+      {open && (
+        <div className="absolute left-0 top-full mt-1 z-20 w-56 rounded-xl border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-900 shadow-lg shadow-black/10 py-1 animate-pop-in origin-top-left" onMouseLeave={() => setOpen(false)}>
+          <a href={calendarLink(r)} target="_blank" rel="noopener noreferrer" className="block px-4 py-2 text-sm hover:bg-gray-100 dark:hover:bg-gray-800">Google Calendar</a>
+          <a href={ics} className="block px-4 py-2 text-sm hover:bg-gray-100 dark:hover:bg-gray-800">Apple Calendar / Outlook (.ics)</a>
+        </div>
+      )}
+    </div>
+  );
+};
+
 /** "1:00 PM" from "13:00". */
 export function formatTime(t: string) {
   const [h, m] = t.split(':').map(Number);
@@ -107,7 +124,9 @@ const RequestDetails: React.FC<{ r: BookingRequest }> = ({ r }) => (
     <dl className="grid grid-cols-2 sm:grid-cols-4 gap-3">
       <Detail
         k={r.appointmentTime ? 'Appointment' : 'Date'}
-        v={`${formatDate(r.date, { weekday: 'short', month: 'short', day: 'numeric' })} · ${r.appointmentTime ? formatTime(r.appointmentTime) : `${PREFERRED_TIMES[r.preferredTime] || r.preferredTime} (requested)`}`}
+        v={`${formatDate(r.date, { weekday: 'short', month: 'short', day: 'numeric' })} · ${
+          r.appointmentTime ? formatTime(r.appointmentTime) : `${r.requestedTime ? formatTime(r.requestedTime) : PREFERRED_TIMES[r.preferredTime] || r.preferredTime} (requested)`
+        }`}
       />
       {(r.tattooWidth || r.tattooHeight) && <Detail k="Size" v={`${r.tattooWidth ?? '?'}" × ${r.tattooHeight ?? '?'}"`} />}
       {r.bodyPlacement && <Detail k="Placement" v={r.bodyPlacement} />}
@@ -189,11 +208,7 @@ export const ClientRequestCard: React.FC<{ request: BookingRequest; token?: stri
         </div>
       )}
       <div className="mt-4 pt-4 border-t border-gray-200 dark:border-gray-800 flex flex-wrap gap-2">
-        {r.status === 'approved' && (
-          <a href={calendarLink(r)} target="_blank" rel="noopener noreferrer">
-            <Button variant="outline" size="sm"><CalendarIcon className="w-4 h-4" /> Add to calendar</Button>
-          </a>
-        )}
+        {r.status === 'approved' && <AddToCalendar r={r} token={token} />}
         {user && features.messaging && (
           <Button variant="outline" size="sm" onClick={() => openConversation(r.artistId).catch(err => toast(errorMessage(err), 'error'))}>
             <ChatIcon className="w-4 h-4" /> Message
@@ -243,7 +258,7 @@ const SUGGESTED_START: Record<string, string> = { morning: '10:00', afternoon: '
 const ApproveModal: React.FC<{ r: BookingRequest; onClose: () => void; onDone: () => void }> = ({ r, onClose, onDone }) => {
   const toast = useStore(s => s.toast);
   const [deposit, setDeposit] = useState(String(r.depositCents / 100));
-  const [startTime, setStartTime] = useState(r.appointmentTime || SUGGESTED_START[r.preferredTime] || '');
+  const [startTime, setStartTime] = useState(r.appointmentTime || r.requestedTime || SUGGESTED_START[r.preferredTime] || '');
   const [note, setNote] = useState('');
   const [busy, setBusy] = useState(false);
   const emailReady = useStore(s => s.config!.emailReady);
@@ -287,7 +302,7 @@ const ApproveModal: React.FC<{ r: BookingRequest; onClose: () => void; onDone: (
         <p className="text-sm">
           {formatDate(r.date)} · {PREFERRED_TIMES[r.preferredTime]} · {r.serviceName}
         </p>
-        <Input label="Start time" type="time" value={startTime} onChange={e => setStartTime(e.target.value)} required hint={`The client asked for: ${PREFERRED_TIMES[r.preferredTime]}.`} />
+        <Input label="Start time" type="time" value={startTime} onChange={e => setStartTime(e.target.value)} required hint={r.requestedTime ? `The client picked ${formatTime(r.requestedTime)} from your free slots.` : `The client asked for: ${PREFERRED_TIMES[r.preferredTime]}.`} />
         <Input
           label="Deposit to collect"
           type="number"
@@ -307,7 +322,7 @@ const ApproveModal: React.FC<{ r: BookingRequest; onClose: () => void; onDone: (
 export const RescheduleModal: React.FC<{ r: BookingRequest; onClose: () => void; onDone: () => void }> = ({ r, onClose, onDone }) => {
   const toast = useStore(s => s.toast);
   const [date, setDate] = useState('');
-  const [time, setTime] = useState(r.appointmentTime || SUGGESTED_START[r.preferredTime] || '');
+  const [time, setTime] = useState(r.appointmentTime || r.requestedTime || SUGGESTED_START[r.preferredTime] || '');
   const [note, setNote] = useState('');
   const [busy, setBusy] = useState(false);
   return (
@@ -428,6 +443,7 @@ export const ArtistRequestCard: React.FC<{ request: BookingRequest; onChanged: (
         {(r.status === 'pending' || r.status === 'approved') && (
           <Button variant="outline" size="sm" onClick={() => setModal('reschedule')}>Reschedule</Button>
         )}
+        {r.status === 'approved' && <AddToCalendar r={r} />}
         {r.status === 'approved' && isPast && (
           <>
             <Button size="sm" loading={busy === 'complete'} onClick={() => act('complete')}>Mark completed</Button>
