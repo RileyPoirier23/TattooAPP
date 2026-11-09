@@ -22,13 +22,26 @@ export function googleReady(): boolean {
 export const redirectUri = () => `${config.appUrl}/api/me/google/callback`;
 
 // ---------- OAuth ----------
-// Pending consent flows: a random state → the pro who started it (10 minutes).
-const pending = new Map<string, { userId: string; expires: number }>();
+// Pending consent flows: a random state → the pro who started it (10 minutes). Kept in the database rather
+// than in memory, so a redeploy or restart while the pro is on Google's consent screen doesn't lose it.
+const STATE_PREFIX = 'google_state:';
+const PENDING_MS = 10 * 60_000;
+
+function takePending(state: string): { userId: string; expires: number } | null {
+  const db = getDb();
+  const row = db.prepare('select value from settings where key = ?').get(STATE_PREFIX + state) as { value: string } | undefined;
+  db.prepare('delete from settings where key = ?').run(STATE_PREFIX + state);
+  return row ? parseJson(row.value, null) : null;
+}
 
 export function consentUrl(userId: string): string {
   const state = crypto.randomBytes(24).toString('base64url');
-  for (const [k, v] of pending) if (v.expires < Date.now()) pending.delete(k);
-  pending.set(state, { userId, expires: Date.now() + 10 * 60_000 });
+  const db = getDb();
+  // Sweep expired states (a cheap pass over a handful of rows).
+  for (const r of db.prepare('select key, value from settings where key like ?').all(`${STATE_PREFIX}%`) as { key: string; value: string }[]) {
+    if ((parseJson<{ expires: number }>(r.value, { expires: 0 }).expires || 0) < Date.now()) db.prepare('delete from settings where key = ?').run(r.key);
+  }
+  db.prepare('insert into settings (key, value) values (?, ?)').run(STATE_PREFIX + state, JSON.stringify({ userId, expires: Date.now() + PENDING_MS }));
   const q = new URLSearchParams({
     client_id: getSecrets().googleClientId,
     redirect_uri: redirectUri(),
@@ -56,8 +69,7 @@ async function tokenRequest(params: Record<string, string>): Promise<any> {
 
 /** Finishes the consent flow: swaps the code for tokens and connects the calendar to the pro who started it. */
 export async function finishConnect(state: string, code: string): Promise<string> {
-  const p = pending.get(state);
-  pending.delete(state);
+  const p = takePending(state);
   if (!p || p.expires < Date.now()) throw new Error('This connection link has expired. Please try again.');
   const tokens = await tokenRequest({ code, redirect_uri: redirectUri(), grant_type: 'authorization_code' });
   if (!tokens.refresh_token) throw new Error('Google did not give lasting access. Remove the site from your Google account permissions and try again.');
@@ -210,5 +222,3 @@ function toLocalIso(d: Date): string {
 /** For tests and the admin status: whether a user has a connected calendar. */
 export const isConnected = (u: UserRow) => !!u.google_refresh_token;
 
-// Keep parseJson imported for callers that pass raw rows (avoids an unused-import lint when tree-shaken).
-void parseJson;
