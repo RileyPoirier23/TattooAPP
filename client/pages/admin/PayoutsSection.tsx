@@ -4,9 +4,9 @@ import { api } from '../../api';
 import { useStore } from '../../store';
 import { Badge, Button, Card, EmptyState, Input, Notice, PageHeader, StatusBadge, cx, useApi } from '../../components/ui';
 import { CashIcon, ClockIcon, DownloadIcon, PlusIcon, TrashIcon } from '../../components/Icons';
-import { ROLE_LABELS, formatDate, formatDateTime, money } from '../../lib/format';
+import { formatDate, formatDateTime, money } from '../../lib/format';
 import type { Earnings, PayoutMethod } from '../../../shared/types';
-import { PAYMENT_KIND_LABELS, PAYOUT_TYPE_LABELS, type PayoutRow } from './types';
+import { PAYMENT_KIND_LABELS, PAYOUT_TYPE_LABELS, type PayoutRow, kindLabel } from './types';
 import { AsyncView, Dialog, FilterPills, LinkButton, Muted, copyText, useRunner } from './shared';
 
 type Payee = PayoutRow['payee'];
@@ -138,7 +138,7 @@ const HistoryModal: React.FC<{ payee: Payee; onClose: () => void; onRecord: () =
       }
     >
       <p className="text-sm text-brand-gray -mt-2 mb-4">
-        {payee.email} · {ROLE_LABELS[payee.role] ?? payee.role}
+        {payee.email} · {kindLabel(payee)}
       </p>
       <AsyncView state={state}>
         {e => (
@@ -310,7 +310,7 @@ export const PayoutsSection: React.FC = () => {
                       <button type="button" onClick={() => setViewing(r.payee)} className="text-left min-w-0 group">
                         <span className="flex flex-wrap items-center gap-2">
                           <span className="font-semibold text-brand-dark dark:text-white group-hover:text-brand-primary">{r.payee.name}</span>
-                          <Badge>{ROLE_LABELS[r.payee.role] ?? r.payee.role}</Badge>
+                          <Badge>{kindLabel(r.payee)}</Badge>
                         </span>
                         <Muted className="truncate">{r.payee.email}</Muted>
                         <Muted>

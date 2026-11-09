@@ -1,4 +1,4 @@
-// Periodic housekeeping: Pro renewals, expiring unpaid booth holds, reminders, daily backups, old sessions.
+// Periodic housekeeping: Featured plan renewals, expiring unpaid booth holds, reminders, daily backups, old sessions.
 import fs from 'node:fs';
 import path from 'node:path';
 import { getDb, nowIso } from './db';

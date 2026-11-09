@@ -4,7 +4,7 @@ import { api, errorMessage } from '../api';
 import { prepareImage } from '../lib/images';
 import { Link, navigate } from '../router';
 import { useStore } from '../store';
-import { formatDateTime, ROLE_LABELS, timeAgo } from '../lib/format';
+import { formatDateTime, timeAgo } from '../lib/format';
 import { ReportModal } from '../components/ReportModal';
 import { Avatar, Button, Card, EmptyState, ErrorBox, PageLoader, Spinner, cx, useApi } from '../components/ui';
 import { ArrowLeftIcon, ChatIcon, PaperAirplaneIcon, PaperClipIcon, XIcon } from '../components/Icons';
@@ -49,7 +49,7 @@ const Thread: React.FC<{ convo: Conversation; onSent: () => void }> = ({ convo, 
     }
   };
 
-  const profileLink = convo.otherUser.role === 'artist' || convo.otherUser.role === 'dual' ? `/artists/${convo.otherUser.id}` : null;
+  const profileLink = convo.otherUser.offersServices ? `/artists/${convo.otherUser.id}` : null;
 
   return (
     <div className="flex flex-col h-full min-h-0">
@@ -58,7 +58,7 @@ const Thread: React.FC<{ convo: Conversation; onSent: () => void }> = ({ convo, 
         <Avatar name={convo.otherUser.name} url={convo.otherUser.avatarUrl} size="sm" />
         <div className="min-w-0 flex-1">
           <p className="font-bold truncate">{profileLink ? <Link to={profileLink} className="hover:text-brand-primary">{convo.otherUser.name}</Link> : convo.otherUser.name}</p>
-          <p className="text-xs text-brand-gray">{ROLE_LABELS[convo.otherUser.role]}</p>
+          <p className="text-xs text-brand-gray">{[convo.otherUser.offersServices && 'Pro', convo.otherUser.rentsSpace && 'Shop owner'].filter(Boolean).join(' & ') || 'Client'}</p>
         </div>
         <button onClick={() => setReporting(true)} className="text-xs text-brand-gray hover:text-red-500">Report</button>
       </header>

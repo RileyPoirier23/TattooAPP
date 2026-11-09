@@ -23,6 +23,10 @@ async function main() {
   const server = app.listen(config.port, () => {
     console.log(`InkSpace running at ${config.appUrl} (port ${config.port}, data in ${config.dataDir})`);
   });
+  // Hosts put a proxy in front of the app that reuses connections for about 60 seconds. Keeping ours open a
+  // little longer than theirs avoids the proxy sending a request down a connection we just closed (a 502).
+  server.keepAliveTimeout = 65_000;
+  server.headersTimeout = 66_000;
 
   // Hosts send SIGTERM before replacing the app (e.g. on every deploy): finish what's in progress, then exit.
   let stopping = false;

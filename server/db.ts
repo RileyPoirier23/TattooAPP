@@ -319,7 +319,7 @@ const MIGRATIONS: string[] = [
   `
   alter table users add column category text not null default '';
   alter table users add column address text not null default '';
-  update users set category = 'Tattoo' where role in ('artist', 'dual');
+  update users set category = 'Tattoo' where role in ('artist','dual');
   `,
   // v8 — calendars: the start time a client asked for, a secret per-user calendar feed token, and a
   // connected Google Calendar (refresh token + the id of the calendar bookings are written to)
@@ -329,6 +329,17 @@ const MIGRATIONS: string[] = [
   alter table users add column calendar_token text;
   alter table users add column google_refresh_token text;
   alter table users add column google_calendar_id text;
+  `,
+  // v9 — one account type with switches (offers services / rents space) and several categories per pro
+  `
+  alter table users add column offers_services integer not null default 0;
+  alter table users add column rents_space integer not null default 0;
+  alter table users add column categories text not null default '[]';
+  update users set offers_services = 1 where role in ('artist','dual');
+  update users set rents_space = 1 where role = 'shop-owner';
+  update users set categories = json_array(category) where category != '';
+  create index users_offers on users(offers_services, status);
+  create index users_rents on users(rents_space);
   `,
 ];
 
@@ -345,6 +356,11 @@ export function openDb(file: string): DB {
   conn.pragma('journal_mode = WAL');
   conn.pragma('foreign_keys = ON');
   conn.pragma('busy_timeout = 5000');
+  // WAL already protects against corruption; NORMAL skips an fsync per transaction (a large write speedup).
+  conn.pragma('synchronous = NORMAL');
+  conn.pragma('temp_store = MEMORY');
+  conn.pragma('cache_size = -32000'); // 32 MB of pages in memory
+  conn.pragma('mmap_size = 268435456'); // read through the page cache without copying (256 MB window)
   migrate(conn);
   return conn;
 }

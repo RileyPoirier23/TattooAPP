@@ -58,7 +58,7 @@ export const AdminPage: React.FC<{ section: string }> = ({ section }) => {
   const user = useStore(s => s.user);
   const siteName = useStore(s => s.config?.settings.siteName) || 'your site';
   const openAuth = useStore(s => s.openAuth);
-  const isAdmin = user?.role === 'admin';
+  const isAdmin = !!user?.isAdmin;
   // Refreshed whenever the admin switches sections so the badge counts stay current.
   const stats = useApi<AdminStats>(isAdmin ? '/admin/stats' : null, [section]);
   useAdminCountsListener(() => void stats.reload());

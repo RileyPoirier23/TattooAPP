@@ -2,12 +2,12 @@
 import React, { useEffect, useState } from 'react';
 import { api, errorMessage } from '../api';
 import { Link, navigate } from '../router';
-import { isArtist, useStore } from '../store';
-import { ROLE_LABELS } from '../lib/format';
+import { accountKind, isArtist, useStore } from '../store';
 import { PayoutMethodForm } from '../components/Earnings';
 import { ProPlanCard } from '../components/ProPlan';
 import { Badge, Button, Card, Input, Modal, PageHeader } from '../components/ui';
 import { CalendarIcon, DownloadIcon } from '../components/Icons';
+import { CategoryPicker } from '../components/CategoryPicker';
 import { useUnsavedWarning } from '../lib/unsaved';
 import type { Me } from '../../shared/types';
 
@@ -16,11 +16,13 @@ const BecomeArtistCard: React.FC<{ me: Me }> = ({ me }) => {
   const setUser = useStore(s => s.setUser);
   const toast = useStore(s => s.toast);
   const [city, setCity] = useState(me.city);
+  const [picked, setPicked] = useState<string[]>([]);
+  const categories = useStore(s => s.config?.settings.categories ?? []);
   const [busy, setBusy] = useState(false);
   const start = async () => {
     setBusy(true);
     try {
-      const { user } = await api.post<{ user: Me }>('/me/become-artist', { city });
+      const { user } = await api.post<{ user: Me }>('/me/become-artist', { city, categories: picked });
       setUser(user);
       toast('Pro features are on. Set up your profile so clients can find you.');
       navigate('/dashboard?tab=profile');
@@ -40,10 +42,47 @@ const BecomeArtistCard: React.FC<{ me: Me }> = ({ me }) => {
         <p className="text-sm text-brand-gray mb-4">
           Switch on pro features to get a public profile, take bookings and deposits, and rent booths at shops. Your own bookings stay in your account.
         </p>
-        <div className="flex flex-col sm:flex-row sm:items-end gap-3">
-          <Input className="flex-1" label="City you work in" value={city} onChange={e => setCity(e.target.value)} placeholder="e.g. Moncton, NB" />
-          <Button onClick={start} loading={busy} disabled={!city.trim()}>Become a pro</Button>
+        <div className="space-y-4">
+          <CategoryPicker options={categories} value={picked} onChange={setPicked} />
+          <div className="flex flex-col sm:flex-row sm:items-end gap-3">
+            <Input className="flex-1" label="City you work in" value={city} onChange={e => setCity(e.target.value)} placeholder="e.g. Moncton, NB" />
+            <Button onClick={start} loading={busy} disabled={!city.trim() || picked.length === 0}>Become a pro</Button>
+          </div>
         </div>
+      </Card>
+    </div>
+  );
+};
+
+/** Lets any member switch on shop features and list a shop with booths or rooms for rent. */
+const ListShopCard: React.FC = () => {
+  const setUser = useStore(s => s.setUser);
+  const toast = useStore(s => s.toast);
+  const [busy, setBusy] = useState(false);
+  const start = async () => {
+    setBusy(true);
+    try {
+      const { user } = await api.post<{ user: Me }>('/me/become-host');
+      setUser(user);
+      toast('Shop features are on. Add your shop and its booths.');
+      navigate('/shop');
+    } catch (err) {
+      toast(errorMessage(err), 'error');
+    } finally {
+      setBusy(false);
+    }
+  };
+  useEffect(() => {
+    if (window.location.hash === '#shop') document.getElementById('shop')?.scrollIntoView({ behavior: 'smooth', block: 'center' });
+  }, []);
+  return (
+    <div id="shop">
+      <Card>
+        <h2 className="text-lg font-bold mb-1">Do you have chairs or rooms to rent out?</h2>
+        <p className="text-sm text-brand-gray mb-4">
+          List your shop, set daily rates for each booth, and visiting pros book and pay online. You keep everything else on this account.
+        </p>
+        <Button onClick={start} loading={busy}>List a shop</Button>
       </Card>
     </div>
   );
@@ -79,7 +118,7 @@ const CalendarFeedCard: React.FC<{ me: Me }> = ({ me }) => {
     <Card>
       <h2 className="text-lg font-bold mb-1 flex items-center gap-2"><CalendarIcon className="w-5 h-5 text-brand-primary" /> Your calendar feed</h2>
       <p className="text-sm text-brand-gray mb-4">
-        Subscribe to this private link in your calendar app and your appointments{isArtist(me) ? ', client bookings' : ''}{me.role === 'shop-owner' || isArtist(me) ? ' and booth rentals' : ''} show up there and stay up to date.
+        Subscribe to this private link in your calendar app and your appointments{isArtist(me) ? ', client bookings' : ''}{me.rentsSpace || isArtist(me) ? ' and booth rentals' : ''} show up there and stay up to date.
       </p>
       {url ? (
         <div className="space-y-3">
@@ -171,7 +210,7 @@ export const SettingsPage: React.FC = () => {
 
   return (
     <div className="max-w-3xl mx-auto space-y-6">
-      <PageHeader title="Account settings" subtitle={<span className="flex items-center gap-2">{me.email} <Badge tone="brand">{ROLE_LABELS[me.role]}</Badge></span>} />
+      <PageHeader title="Account settings" subtitle={<span className="flex items-center gap-2">{me.email} <Badge tone="brand">{accountKind(me)}</Badge></span>} />
       <Card>
         <h2 className="text-lg font-bold mb-4">Your details</h2>
         <form onSubmit={saveProfile} className="grid gap-4 sm:grid-cols-2">
@@ -179,7 +218,7 @@ export const SettingsPage: React.FC = () => {
           <Input label="City" value={city} onChange={e => setCity(e.target.value)} placeholder="Optional" />
           <Input className="sm:col-span-2" label="Email" value={me.email} disabled hint="Contact the site admin to change your email." />
           <div className="sm:col-span-2 flex justify-between items-center gap-3">
-            {isArtist(me) ? <Link to="/dashboard?tab=profile" className="text-sm text-brand-primary hover:underline">Edit your public artist profile →</Link> : <span />}
+            {isArtist(me) ? <Link to="/dashboard?tab=profile" className="text-sm text-brand-primary hover:underline">Edit your public pro profile →</Link> : <span />}
             <Button type="submit" loading={saving}>Save</Button>
           </div>
         </form>
@@ -199,9 +238,10 @@ export const SettingsPage: React.FC = () => {
 
       <CalendarFeedCard me={me} />
 
-      {me.role === 'client' && <BecomeArtistCard me={me} />}
+      {!me.isAdmin && !me.offersServices && <BecomeArtistCard me={me} />}
+      {!me.isAdmin && !me.rentsSpace && features.boothRental && <ListShopCard />}
 
-      {(isArtist(me) || me.role === 'shop-owner') && <PayoutMethodForm me={me} />}
+      {(isArtist(me) || me.rentsSpace) && <PayoutMethodForm me={me} />}
       {isArtist(me) && (features.proPlan || me.subscription.isPro || me.subscription.autoRenew) && <ProPlanCard me={me} />}
 
       <Card>
@@ -218,7 +258,7 @@ export const SettingsPage: React.FC = () => {
         </a>
       </Card>
 
-      {me.role !== 'admin' && (
+      {!me.isAdmin && (
         <Card className="border-red-500/30">
           <h2 className="text-lg font-bold mb-1">Delete account</h2>
           <p className="text-sm text-brand-gray mb-4">

@@ -1,7 +1,6 @@
 // App shell and route table.
 import React, { Suspense, lazy, useEffect } from 'react';
 import { Link, matchPath, useLocation } from './router';
-import { ROLE_LABELS } from './lib/format';
 import { useStore } from './store';
 import { applyBranding, applyTheme } from './lib/theme';
 import { Header } from './components/Header';
@@ -18,7 +17,7 @@ import { BookingStatusPage } from './pages/BookingStatus';
 import { ContentPage } from './pages/ContentPage';
 import { ContactPage } from './pages/Contact';
 import { ResetPasswordPage } from './pages/ResetPassword';
-import type { Role } from '../shared/types';
+import type { Me } from '../shared/types';
 
 // Pages only members use are downloaded when first opened, so visitors browsing artists load less.
 const AdminPage = lazy(() => import('./pages/admin/AdminPage').then(m => ({ default: m.AdminPage })));
@@ -52,7 +51,9 @@ class ErrorBoundary extends React.Component<{ children: React.ReactNode; resetKe
   }
 }
 
-type RouteDef = { path: string; render: (p: Record<string, string>) => React.ReactNode; auth?: Role[] | true; wide?: boolean };
+type Access = 'pro' | 'host' | 'admin';
+type RouteDef = { path: string; render: (p: Record<string, string>) => React.ReactNode; auth?: Access | true; wide?: boolean };
+const hasAccess = (u: Me, a: Access) => (a === 'admin' ? u.isAdmin : a === 'pro' ? u.offersServices : u.rentsSpace);
 
 const ROUTES: RouteDef[] = [
   { path: '/', render: () => <HomePage />, wide: true },
@@ -62,16 +63,16 @@ const ROUTES: RouteDef[] = [
   { path: '/shops/:id', render: p => <ShopProfilePage id={p.id} />, wide: true },
   { path: '/booking/:id', render: p => <BookingStatusPage id={p.id} /> },
   { path: '/bookings', render: () => <MyBookingsPage />, auth: true },
-  { path: '/dashboard', render: () => <ArtistDashboardPage />, auth: ['artist', 'dual'] },
-  { path: '/shop', render: () => <ShopDashboardPage />, auth: ['shop-owner'] },
+  { path: '/dashboard', render: () => <ArtistDashboardPage />, auth: 'pro' },
+  { path: '/shop', render: () => <ShopDashboardPage />, auth: 'host' },
   { path: '/messages', render: () => <MessagesPage />, auth: true },
   { path: '/messages/:id', render: p => <MessagesPage conversationId={p.id} />, auth: true },
   { path: '/settings', render: () => <SettingsPage />, auth: true },
   { path: '/p/:slug', render: p => <ContentPage slug={p.slug} /> },
   { path: '/contact', render: () => <ContactPage /> },
   { path: '/reset-password', render: () => <ResetPasswordPage /> },
-  { path: '/admin', render: () => <AdminPage section="overview" />, auth: ['admin'] },
-  { path: '/admin/:section', render: p => <AdminPage section={p.section} />, auth: ['admin'] },
+  { path: '/admin', render: () => <AdminPage section="overview" />, auth: 'admin' },
+  { path: '/admin/:section', render: p => <AdminPage section={p.section} />, auth: 'admin' },
 ];
 
 const Toasts: React.FC = () => {
@@ -98,7 +99,9 @@ const Toasts: React.FC = () => {
   );
 };
 
-const LoginRequired: React.FC<{ roles?: Role[] }> = ({ roles }) => {
+const ACCESS_TEXT: Record<Access, string> = { pro: 'pros who take bookings', host: 'members who list a shop', admin: 'site admins' };
+
+const LoginRequired: React.FC<{ access?: Access }> = ({ access }) => {
   const user = useStore(s => s.user);
   const openAuth = useStore(s => s.openAuth);
   return (
@@ -106,10 +109,15 @@ const LoginRequired: React.FC<{ roles?: Role[] }> = ({ roles }) => {
       <EmptyState icon={<LockIcon />} title={user ? "You don't have access to this page" : 'Please log in'}>
         {user ? (
           <>
-            <p>This page is for {roles?.filter(r => r !== 'dual').map(r => ROLE_LABELS[r]?.toLowerCase() ?? r).join(' or ')} accounts.</p>
-            {user.role === 'client' && roles?.includes('artist') && (
+            <p>This page is for {access ? ACCESS_TEXT[access] : 'members'}.</p>
+            {!user.isAdmin && access === 'pro' && (
               <Link to="/settings#artist" className="inline-block mt-4">
                 <Button>Become a pro</Button>
+              </Link>
+            )}
+            {!user.isAdmin && access === 'host' && (
+              <Link to="/settings#shop" className="inline-block mt-4">
+                <Button>List a shop</Button>
               </Link>
             )}
           </>
@@ -172,8 +180,8 @@ export const App: React.FC = () => {
         <EmptyState title="Page not found">The page you're looking for doesn't exist or has moved.</EmptyState>
       </Card>
     );
-  } else if (route.auth && (!user || (Array.isArray(route.auth) && !route.auth.includes(user.role)))) {
-    content = <LoginRequired roles={Array.isArray(route.auth) ? route.auth : undefined} />;
+  } else if (route.auth && (!user || (route.auth !== true && !hasAccess(user, route.auth)))) {
+    content = <LoginRequired access={route.auth === true ? undefined : route.auth} />;
   } else {
     content = route.render(params);
   }

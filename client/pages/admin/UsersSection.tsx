@@ -5,18 +5,13 @@ import { useLocation } from '../../router';
 import { useStore } from '../../store';
 import { Avatar, Badge, Button, Card, EmptyState, Input, PageHeader, Select, StatusBadge, Toggle } from '../../components/ui';
 import { CheckBadgeIcon, EditIcon, LinkIcon, LockIcon, TrashIcon, UsersIcon } from '../../components/Icons';
-import { ROLE_LABELS, formatDate, toDateStr } from '../../lib/format';
-import type { Role } from '../../../shared/types';
-import { PAYOUT_TYPE_LABELS, type AdminUser } from './types';
+import { formatDate, toDateStr } from '../../lib/format';
+import { PAYOUT_TYPE_LABELS, kindLabel, type AdminUser } from './types';
 import { AsyncView, ConfirmModal, DataTable, Dialog, Muted, Pager, SearchInput, Td, Toolbar, copyText, useDebounced, usePaged, useRunner, type Paged } from './shared';
 
-const ROLE_TONES: Record<Role, 'gray' | 'brand' | 'purple' | 'blue' | 'red'> = {
-  client: 'gray',
-  artist: 'brand',
-  dual: 'purple',
-  'shop-owner': 'blue',
-  admin: 'red',
-};
+const KIND_LABELS: Record<string, string> = { client: 'Clients only', pro: 'Pros', 'shop-owner': 'Shop owners', admin: 'Admins' };
+const kindTone = (u: AdminUser): 'gray' | 'brand' | 'purple' | 'blue' | 'red' =>
+  u.isAdmin ? 'red' : u.offersServices && u.rentsSpace ? 'purple' : u.offersServices ? 'brand' : u.rentsSpace ? 'blue' : 'gray';
 
 const isProActive = (u: AdminUser) => u.subscriptionTier === 'pro' && (!u.proUntil || new Date(u.proUntil) > new Date());
 
@@ -25,7 +20,7 @@ const PlanCell: React.FC<{ u: AdminUser }> = ({ u }) => {
   const active = isProActive(u);
   return (
     <>
-      <Badge tone={active ? 'brand' : 'gray'}>{active ? 'Pro' : 'Pro (expired)'}</Badge>
+      <Badge tone={active ? 'brand' : 'gray'}>{active ? 'Featured' : 'Featured (expired)'}</Badge>
       <Muted className="mt-1">{u.proUntil ? `${active ? 'until' : 'ended'} ${formatDate(u.proUntil, { month: 'short', day: 'numeric', year: 'numeric' })}` : 'no end date'}</Muted>
     </>
   );
@@ -34,7 +29,9 @@ const PlanCell: React.FC<{ u: AdminUser }> = ({ u }) => {
 interface Form {
   name: string;
   email: string;
-  role: Role;
+  isAdmin: boolean;
+  offersServices: boolean;
+  rentsSpace: boolean;
   status: 'active' | 'suspended';
   isVerified: boolean;
   subscriptionTier: 'free' | 'pro';
@@ -49,7 +46,9 @@ const EditUserModal: React.FC<{ user: AdminUser; isSelf: boolean; onClose: () =>
     () => ({
       name: user.name,
       email: user.email,
-      role: user.role,
+      isAdmin: user.isAdmin,
+      offersServices: user.offersServices,
+      rentsSpace: user.rentsSpace,
       status: user.status,
       isVerified: user.isVerified,
       subscriptionTier: user.subscriptionTier,
@@ -67,7 +66,9 @@ const EditUserModal: React.FC<{ user: AdminUser; isSelf: boolean; onClose: () =>
   const body: Record<string, unknown> = {};
   if (f.name.trim() !== initial.name) body.name = f.name.trim();
   if (f.email.trim().toLowerCase() !== initial.email) body.email = f.email.trim().toLowerCase();
-  if (f.role !== initial.role) body.role = f.role;
+  if (f.isAdmin !== initial.isAdmin) body.isAdmin = f.isAdmin;
+  if (f.offersServices !== initial.offersServices) body.offersServices = f.offersServices;
+  if (f.rentsSpace !== initial.rentsSpace) body.rentsSpace = f.rentsSpace;
   if (f.status !== initial.status) body.status = f.status;
   if (f.isVerified !== initial.isVerified) body.isVerified = f.isVerified;
   if (f.subscriptionTier !== initial.subscriptionTier) body.subscriptionTier = f.subscriptionTier;
@@ -125,19 +126,17 @@ const EditUserModal: React.FC<{ user: AdminUser; isSelf: boolean; onClose: () =>
       <div className="space-y-5">
         {isSelf && (
           <p className="text-sm rounded-lg bg-brand-primary/10 text-brand-primary px-3 py-2">
-            This is your own account. You can&apos;t change your own role or suspend yourself.
+            This is your own account. You can&apos;t remove your own admin access or suspend yourself.
           </p>
         )}
+        <div className="rounded-xl border border-gray-200 dark:border-gray-800 divide-y divide-gray-200 dark:divide-gray-800">
+          <div className="p-3"><Toggle checked={f.offersServices} disabled={f.isAdmin} onChange={v => update('offersServices', v)} label="Takes bookings (pro)" description="Public profile, services, hours and client bookings." /></div>
+          <div className="p-3"><Toggle checked={f.rentsSpace} disabled={f.isAdmin} onChange={v => update('rentsSpace', v)} label="Lists a shop" description="Booths or rooms for rent to visiting pros." /></div>
+          <div className="p-3"><Toggle checked={f.isAdmin} disabled={isSelf} onChange={v => update('isAdmin', v)} label="Site admin" description="Full access to this admin panel. Admins don't book or sell." /></div>
+        </div>
         <div className="grid gap-4 sm:grid-cols-2">
           <Input label="Name" value={f.name} maxLength={100} onChange={e => update('name', e.target.value)} error={nameError} />
           <Input label="Email" type="email" value={f.email} maxLength={200} onChange={e => update('email', e.target.value)} error={emailError} />
-          <Select label="Role" value={f.role} disabled={isSelf} onChange={e => update('role', e.target.value as Role)} hint="Pro + client accounts can do both.">
-            {Object.entries(ROLE_LABELS).map(([id, label]) => (
-              <option key={id} value={id}>
-                {label}
-              </option>
-            ))}
-          </Select>
           <Select
             label="Account status"
             value={f.status}
@@ -161,7 +160,7 @@ const EditUserModal: React.FC<{ user: AdminUser; isSelf: boolean; onClose: () =>
           <div className="grid gap-4 sm:grid-cols-2">
             <Select label="Plan" value={f.subscriptionTier} onChange={e => update('subscriptionTier', e.target.value === 'pro' ? 'pro' : 'free')}>
               <option value="free">Free</option>
-              <option value="pro">Pro</option>
+              <option value="pro">Featured</option>
             </Select>
             {f.subscriptionTier === 'pro' && (
               <Input
@@ -176,7 +175,7 @@ const EditUserModal: React.FC<{ user: AdminUser; isSelf: boolean; onClose: () =>
           <p className="text-xs text-brand-gray">
             {user.proAutoRenew
               ? 'This person pays for Pro with their card and it renews automatically.'
-              : 'Giving someone Pro here is free for them. Nothing is charged.'}
+              : 'Making someone Featured here is free for them. Nothing is charged.'}
           </p>
         </div>
 
@@ -210,7 +209,7 @@ const EditUserModal: React.FC<{ user: AdminUser; isSelf: boolean; onClose: () =>
           </div>
         </div>
 
-        {(user.role === 'artist' || user.role === 'dual' || user.role === 'shop-owner') && (
+        {(user.offersServices || user.rentsSpace) && (
           <div className="text-sm">
             <p className="font-semibold text-brand-dark dark:text-white">Payout details</p>
             {payout.type || payout.details ? (
@@ -237,9 +236,9 @@ export const UsersSection: React.FC = () => {
   const { query } = useLocation();
   const me = useStore(s => s.user);
   const [q, setQ] = useState(() => query.get('q') ?? '');
-  const [role, setRole] = useState('');
+  const [kind, setKind] = useState('');
   const dq = useDebounced(q.trim(), 300);
-  const state = usePaged<Paged<AdminUser>>('/admin/users', { q: dq, role });
+  const state = usePaged<Paged<AdminUser>>('/admin/users', { q: dq, kind });
   const [editing, setEditing] = useState<AdminUser | null>(null);
   const [deleting, setDeleting] = useState<AdminUser | null>(null);
   const { run } = useRunner();
@@ -267,9 +266,9 @@ export const UsersSection: React.FC = () => {
       <PageHeader title="Users" subtitle="Everyone with an account: clients, pros, shop owners and admins." />
       <Toolbar>
         <SearchInput value={q} onChange={setQ} placeholder="Search by name, email or city" loading={dq !== q.trim()} className="flex-1" />
-        <Select value={role} onChange={e => setRole(e.target.value)} aria-label="Filter by role" className="sm:w-52">
-          <option value="">All roles</option>
-          {Object.entries(ROLE_LABELS).map(([id, label]) => (
+        <Select value={kind} onChange={e => setKind(e.target.value)} aria-label="Filter by account type" className="sm:w-52">
+          <option value="">All accounts</option>
+          {Object.entries(KIND_LABELS).map(([id, label]) => (
             <option key={id} value={id}>
               {label}
             </option>
@@ -280,8 +279,8 @@ export const UsersSection: React.FC = () => {
         {({ items: users, total, pageSize }) =>
           users.length === 0 ? (
             <Card>
-              <EmptyState icon={<UsersIcon className="w-12 h-12" />} title={dq || role ? 'No matches' : 'No users yet'}>
-                {dq || role ? 'Try a different search or role.' : 'People who sign up will appear here.'}
+              <EmptyState icon={<UsersIcon className="w-12 h-12" />} title={dq || kind ? 'No matches' : 'No users yet'}>
+                {dq || kind ? 'Try a different search or filter.' : 'People who sign up will appear here.'}
               </EmptyState>
             </Card>
           ) : (
@@ -304,7 +303,7 @@ export const UsersSection: React.FC = () => {
                       </button>
                     </Td>
                     <Td>
-                      <Badge tone={ROLE_TONES[u.role] ?? 'gray'}>{ROLE_LABELS[u.role] ?? u.role}</Badge>
+                      <Badge tone={kindTone(u)}>{kindLabel(u)}</Badge>
                     </Td>
                     <Td>
                       <StatusBadge status={u.status} />

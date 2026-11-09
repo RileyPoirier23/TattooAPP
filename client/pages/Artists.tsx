@@ -26,7 +26,7 @@ export const ArtistCard: React.FC<{ artist: PublicArtist }> = ({ artist }) => {
         />
         <div className="absolute top-2 left-2 right-2 flex justify-between gap-2">
           {artist.isVerified ? <Badge tone="none" className="bg-white/95 text-gray-900"><CheckBadgeIcon className="w-3.5 h-3.5 text-brand-secondary" />Verified</Badge> : <span />}
-          {artist.isPro && <Badge tone="none" className="bg-brand-solid text-on-primary">Pro</Badge>}
+          {artist.isPro && <Badge tone="none" className="bg-brand-solid text-on-primary">Featured</Badge>}
         </div>
         {artist.guestSpot && (
           <div className="absolute bottom-2 left-2 right-2" title={`Guest spot in ${artist.guestSpot.city}`}>
@@ -36,7 +36,7 @@ export const ArtistCard: React.FC<{ artist: PublicArtist }> = ({ artist }) => {
       </div>
       <div className="flex-1 flex flex-col px-2 pt-3 pb-1">
         <div className="flex items-center justify-between gap-3 text-sm text-brand-gray">
-          <span className="truncate">{[artist.category, artist.specialty].filter(Boolean).join(' · ') || 'Pro'}</span>
+          <span className="truncate">{[artist.categories.join(', '), artist.specialty].filter(Boolean).join(' · ') || 'Pro'}</span>
           {artist.reviewCount > 0 && (
             <span className="flex-shrink-0 flex items-center gap-1 text-gray-800 dark:text-gray-200">
               <StarIcon className="w-4 h-4 text-amber-400" />{artist.averageRating.toFixed(1)}
@@ -116,7 +116,7 @@ export const ArtistsPage: React.FC = () => {
     return (data || []).filter(a => {
       const price = fromPrice(a);
       return (
-        (!term || [a.name, a.bio, a.specialty, a.category].some(v => v.toLowerCase().includes(term))) &&
+        (!term || [a.name, a.bio, a.specialty, ...a.categories].some(v => v.toLowerCase().includes(term))) &&
         (!c || a.city.toLowerCase().includes(c) || a.address.toLowerCase().includes(c) || a.guestSpot?.city.toLowerCase().includes(c)) &&
         (!style || a.specialty.toLowerCase().includes(style.toLowerCase())) &&
         (lo === null || (price !== null && price >= lo)) &&
@@ -129,12 +129,12 @@ export const ArtistsPage: React.FC = () => {
 
   const counts = useMemo(() => {
     const m = new Map<string, number>();
-    for (const a of matching) m.set(a.category, (m.get(a.category) ?? 0) + 1);
+    for (const a of matching) for (const c of a.categories) m.set(c, (m.get(c) ?? 0) + 1);
     return m;
   }, [matching]);
 
   const results = useMemo(() => {
-    const list = category ? matching.filter(a => a.category === category) : [...matching];
+    const list = category ? matching.filter(a => a.categories.includes(category)) : [...matching];
     const price = (a: PublicArtist, empty: number) => fromPrice(a) ?? empty;
     if (sort === 'rating') list.sort((a, b) => b.averageRating - a.averageRating || b.reviewCount - a.reviewCount);
     if (sort === 'reviews') list.sort((a, b) => b.reviewCount - a.reviewCount);
@@ -294,7 +294,7 @@ export const ArtistsPage: React.FC = () => {
               {results.map(a => <ArtistCard key={a.id} artist={a} />)}
             </div>
           )}
-          {data && data.length > 0 && !['shop-owner', 'admin'].includes(useStore.getState().user?.role ?? '') && (
+          {data && data.length > 0 && !useStore.getState().user?.isAdmin && !useStore.getState().user?.offersServices && (
             <p className="text-center text-sm text-brand-gray mt-10">
               Do you take bookings?{' '}
               <button
@@ -302,7 +302,7 @@ export const ArtistsPage: React.FC = () => {
                 onClick={() => {
                   const u = useStore.getState().user;
                   if (!u) useStore.getState().openAuth('register');
-                  else navigate(u.role === 'client' ? '/settings#artist' : '/dashboard');
+                  else navigate(u.offersServices ? '/dashboard' : '/settings#artist');
                 }}
               >
                 List your profile

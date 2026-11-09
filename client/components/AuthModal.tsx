@@ -3,16 +3,10 @@ import React, { useState } from 'react';
 import { api, errorMessage } from '../api';
 import { navigate } from '../router';
 import { useStore } from '../store';
-import { Button, Input, Modal, Notice, Select, cx } from './ui';
+import { Button, Input, Modal, Notice, Toggle } from './ui';
+import { CategoryPicker } from './CategoryPicker';
 import { Link } from '../router';
-import type { Me, Role } from '../../shared/types';
-
-const ROLES: { id: Exclude<Role, 'admin'>; title: string; text: string }[] = [
-  { id: 'client', title: 'Client', text: 'I want to book appointments' },
-  { id: 'artist', title: 'Pro', text: 'I take bookings (tattoo, barber, nails…)' },
-  { id: 'dual', title: 'Pro & client', text: 'Both of the above' },
-  { id: 'shop-owner', title: 'Shop owner', text: 'I rent chairs to visiting pros' },
-];
+import type { Me } from '../../shared/types';
 
 export const AuthModal: React.FC = () => {
   const mode = useStore(s => s.authModal);
@@ -24,9 +18,12 @@ export const AuthModal: React.FC = () => {
   const [password, setPassword] = useState('');
   const [name, setName] = useState('');
   const [city, setCity] = useState('');
-  const [category, setCategory] = useState('');
+  const [picked, setPicked] = useState<string[]>([]);
   const categories = useStore(s => s.config?.settings.categories ?? []);
-  const [role, setRole] = useState<Exclude<Role, 'admin'>>('client');
+  const boothRental = useStore(s => !!s.config?.settings.features.boothRental);
+  // Everyone can book appointments; these two switches add a pro profile and/or a shop.
+  const [offersServices, setOffersServices] = useState(false);
+  const [rentsSpace, setRentsSpace] = useState(false);
   const [error, setError] = useState('');
   const [busy, setBusy] = useState(false);
   const [sent, setSent] = useState(false);
@@ -46,14 +43,16 @@ export const AuthModal: React.FC = () => {
       }
       const { user } = view === 'login'
         ? await api.post<{ user: Me }>('/auth/login', { email, password })
-        : await api.post<{ user: Me }>('/auth/register', { email, password, name, role, city: city || undefined, category: needsCity && category ? category : undefined, acceptTerms });
+        : await api.post<{ user: Me }>('/auth/register', {
+            email, password, name, offersServices, rentsSpace, city: city || undefined, categories: offersServices ? picked : undefined, acceptTerms,
+          });
       setUser(user);
       close();
       toast(view === 'login' ? `Welcome back, ${user.name.split(' ')[0]}!` : `Welcome, ${user.name.split(' ')[0]}! Your account is ready.`);
       if (view === 'register') {
-        if (user.role === 'shop-owner') navigate('/shop');
-        else if (user.role === 'artist' || user.role === 'dual') navigate('/dashboard?tab=profile');
-      } else if (user.role === 'admin') navigate('/admin');
+        if (user.offersServices) navigate('/dashboard?tab=profile');
+        else if (user.rentsSpace) navigate('/shop');
+      } else if (user.isAdmin) navigate('/admin');
     } catch (err) {
       setError(errorMessage(err));
     } finally {
@@ -62,41 +61,30 @@ export const AuthModal: React.FC = () => {
   };
 
   const title = view === 'login' ? 'Welcome back' : view === 'register' ? 'Create your account' : 'Reset your password';
-  const needsCity = role === 'artist' || role === 'dual';
 
   return (
     <Modal title={title} onClose={close} size="md">
       <form onSubmit={submit} className="space-y-4">
         {view === 'register' && (
           <>
-            <div>
-              <p className="text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">I am a…</p>
-              <div className="grid grid-cols-2 gap-2">
-                {ROLES.map(r => (
-                  <button
-                    type="button"
-                    key={r.id}
-                    onClick={() => setRole(r.id)}
-                    aria-pressed={role === r.id}
-                    className={cx(
-                      'text-left p-3 rounded-xl border transition',
-                      role === r.id ? 'border-brand-primary bg-brand-primary/10' : 'border-gray-200 dark:border-gray-700 hover:border-gray-400',
-                    )}
-                  >
-                    <span className="block font-semibold text-sm">{r.title}</span>
-                    <span className="block text-xs text-brand-gray">{r.text}</span>
-                  </button>
-                ))}
+            <Input label="Full name" value={name} onChange={e => setName(e.target.value)} required autoComplete="name" />
+            <div className="rounded-xl border border-gray-200 dark:border-gray-700 divide-y divide-gray-200 dark:divide-gray-700">
+              <div className="p-3">
+                <Toggle checked={offersServices} onChange={setOffersServices} label="I take bookings" description="Tattoo, barber, nails, lashes, hair, makeup… get a public profile clients can book." />
               </div>
+              {boothRental && (
+                <div className="p-3">
+                  <Toggle checked={rentsSpace} onChange={setRentsSpace} label="I rent out chairs or rooms" description="List your shop and let visiting pros book a booth." />
+                </div>
+              )}
             </div>
-            <Input label={role === 'shop-owner' ? 'Your name' : 'Full name'} value={name} onChange={e => setName(e.target.value)} required autoComplete="name" />
-            {needsCity && (
-              <Select label="What do you do?" value={category} onChange={e => setCategory(e.target.value)} required>
-                <option value="">Choose your category…</option>
-                {categories.map(c => <option key={c} value={c}>{c}</option>)}
-              </Select>
+            {offersServices && (
+              <>
+                <CategoryPicker options={categories} value={picked} onChange={setPicked} />
+                <Input label="City you work in" placeholder="e.g. Moncton, NB" value={city} onChange={e => setCity(e.target.value)} required />
+              </>
             )}
-            {needsCity && <Input label="City you work in" placeholder="e.g. Moncton, NB" value={city} onChange={e => setCity(e.target.value)} required />}
+            {!offersServices && !rentsSpace && <p className="text-xs text-brand-gray">Booking appointments is open to everyone. You can switch on pro or shop features later in Settings.</p>}
           </>
         )}
         {view === 'forgot' && !config?.emailReady && (

@@ -21,11 +21,11 @@ const iconButton = (onPhoto: boolean) =>
 
 function accountLinks(user: Me): { to: string; label: string }[] {
   const links: { to: string; label: string }[] = [];
-  if (user.role === 'admin') links.push({ to: '/admin', label: 'Admin panel' });
-  if (isArtist(user)) links.push({ to: '/dashboard', label: 'Artist dashboard' });
-  if (user.role === 'shop-owner') links.push({ to: '/shop', label: 'My shop' });
-  if (user.role !== 'admin') links.push({ to: '/bookings', label: 'My bookings' });
-  if (user.role !== 'admin') links.push({ to: '/messages', label: 'Messages' });
+  if (user.isAdmin) links.push({ to: '/admin', label: 'Admin panel' });
+  if (isArtist(user)) links.push({ to: '/dashboard', label: 'Pro dashboard' });
+  if (user.rentsSpace) links.push({ to: '/shop', label: 'My shop' });
+  if (!user.isAdmin) links.push({ to: '/bookings', label: 'My bookings' });
+  if (!user.isAdmin) links.push({ to: '/messages', label: 'Messages' });
   links.push({ to: '/settings', label: 'Account settings' });
   return links;
 }
@@ -209,7 +209,7 @@ export const Header: React.FC = () => {
           </button>
           {user ? (
             <>
-              {user.role !== 'admin' && s.features.messaging && (
+              {!user.isAdmin && s.features.messaging && (
                 <Link to="/messages" className={iconButton(onPhoto)} aria-label="Messages">
                   <ChatIcon className="w-6 h-6" />
                   {unreadMessages > 0 && <span className="absolute top-1.5 right-1.5 w-2.5 h-2.5 rounded-full bg-brand-primary" />}

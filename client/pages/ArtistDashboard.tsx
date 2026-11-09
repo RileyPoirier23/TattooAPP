@@ -2,6 +2,8 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import { api, errorMessage } from '../api';
 import { prepareImages } from '../lib/images';
+import { asksSize } from '../../shared/categories';
+import { CategoryPicker } from '../components/CategoryPicker';
 import { useUnsavedWarning } from '../lib/unsaved';
 import { Link, navigate, useLocation } from '../router';
 import { useStore } from '../store';
@@ -23,7 +25,7 @@ const TABS = [
   { id: 'hours', label: 'Hours & days off', Icon: CalendarIcon },
   { id: 'settings', label: 'Booking settings', Icon: CogIcon },
   { id: 'earnings', label: 'Earnings & payouts', Icon: CashIcon },
-  { id: 'plan', label: 'Pro plan', Icon: CreditCardIcon },
+  { id: 'plan', label: 'Featured plan', Icon: CreditCardIcon },
 ] as const;
 
 function useSave() {
@@ -102,6 +104,7 @@ const ProfileTab: React.FC<{ me: Me }> = ({ me }) => {
     name: u.name,
     city: u.city,
     category: u.category,
+    categories: u.categories,
     address: u.address,
     specialty: u.specialty,
     bio: u.bio,
@@ -163,7 +166,6 @@ const ProfileTab: React.FC<{ me: Me }> = ({ me }) => {
   };
 
   const specialtyOptions = settings.specialties.includes(form.specialty) || !form.specialty ? settings.specialties : [form.specialty, ...settings.specialties];
-  const categoryOptions = settings.categories.includes(form.category) || !form.category ? settings.categories : [form.category, ...settings.categories];
 
   return (
     <div className="space-y-6">
@@ -200,10 +202,17 @@ const ProfileTab: React.FC<{ me: Me }> = ({ me }) => {
         <div className="grid gap-4 sm:grid-cols-2">
           <Input label="Name" value={form.name} onChange={set('name')} />
           <Input label="City" value={form.city} onChange={set('city')} placeholder="e.g. Moncton, NB" />
-          <Select label="Category" value={form.category} onChange={set('category')} hint="What clients book you for. You'll be listed under it.">
-            <option value="">Choose…</option>
-            {categoryOptions.map(c => <option key={c} value={c}>{c}</option>)}
-          </Select>
+          <div className="sm:col-span-2">
+            <CategoryPicker
+              options={settings.categories}
+              value={form.categories}
+              primary={form.category}
+              onPrimary={c => setForm(f => ({ ...f, category: c }))}
+              onChange={next => setForm(f => ({ ...f, categories: next, category: next.includes(f.category) ? f.category : next[0] ?? '' }))}
+              label="Categories"
+              hint="Clients find you under each one. Tap a selected category again to make it your main one (shown first on your card)."
+            />
+          </div>
           <Select label="Main specialty" value={form.specialty} onChange={set('specialty')}>
             <option value="">Choose…</option>
             {specialtyOptions.map(s => <option key={s} value={s}>{s}</option>)}
@@ -223,6 +232,7 @@ const ProfileTab: React.FC<{ me: Me }> = ({ me }) => {
                 name: form.name,
                 city: form.city,
                 category: form.category,
+                categories: form.categories,
                 address: form.address,
                 specialty: form.specialty,
                 bio: form.bio,
@@ -308,7 +318,9 @@ const ServicesTab: React.FC<{ me: Me }> = ({ me }) => {
   const [items, setItems] = useState<ServiceDraft[]>(me.services.map(toDraft));
   useUnsavedWarning(JSON.stringify(items) !== JSON.stringify(me.services.map(toDraft)));
   const update = (i: number, patch: Partial<ServiceDraft>) => setItems(list => list.map((s, j) => (j === i ? { ...s, ...patch } : s)));
-  const add = () => setItems(list => [...list, { id: '', name: '', description: '', duration: '2', price: '150', deposit: String(settings.defaultDeposit), minSize: '', maxSize: '' }]);
+  const add = () => setItems(list => [...list, { id: '', name: '', description: '', category: me.categories.length > 1 ? me.category : undefined, duration: '2', price: '150', deposit: String(settings.defaultDeposit), minSize: '', maxSize: '' }]);
+  const multi = me.categories.length > 1;
+  const sizeApplies = (s: ServiceDraft) => asksSize(s.category || me.category);
 
   const submit = async () => {
     const saved = await save(
@@ -317,6 +329,7 @@ const ServicesTab: React.FC<{ me: Me }> = ({ me }) => {
           ...(s.id ? { id: s.id } : {}),
           name: s.name,
           description: s.description || undefined,
+          category: s.category || undefined,
           duration: Number(s.duration),
           price: Number(s.price),
           deposit: Number(s.deposit),
@@ -340,21 +353,26 @@ const ServicesTab: React.FC<{ me: Me }> = ({ me }) => {
         Clients pick a service when they request a booking. The deposit is what they pay online after you approve the request.
         {settings.depositFeePercent > 0 &&
           (me.subscription.isPro
-            ? " Your clients don't pay the booking fee because you're on Pro."
-            : ` Clients also pay a ${settings.depositFeePercent}% booking fee on top of the deposit${settings.features.proPlan ? ' (go Pro to remove it for them)' : ''}.`)}
+            ? " Your clients don't pay the booking fee because you're on the Featured plan."
+            : ` Clients also pay a ${settings.depositFeePercent}% booking fee on top of the deposit${settings.features.proPlan ? ' (get Featured to remove it for them)' : ''}.`)}
       </p>
       {items.length === 0 && <EmptyState title="No services yet">Add at least one service (e.g. "Small tattoo", "Skin fade", "Gel manicure").</EmptyState>}
       <div className="space-y-4">
         {items.map((s, i) => (
           <div key={s.id || `new-${i}`} className="rounded-xl border border-gray-200 dark:border-gray-800 p-4">
             <div className="grid gap-3 sm:grid-cols-6">
-              <Input className="sm:col-span-3" label="Name" value={s.name} onChange={e => update(i, { name: e.target.value })} placeholder="e.g. Skin fade" />
+              <Input className={multi ? 'sm:col-span-2' : 'sm:col-span-3'} label="Name" value={s.name} onChange={e => update(i, { name: e.target.value })} placeholder="e.g. Skin fade" />
+              {multi && (
+                <Select label="Category" value={s.category || me.category} onChange={e => update(i, { category: e.target.value })}>
+                  {me.categories.map(c => <option key={c} value={c}>{c}</option>)}
+                </Select>
+              )}
               <Input label="Hours" type="number" min="0.25" step="0.25" value={s.duration} onChange={e => update(i, { duration: e.target.value })} />
               <Input label="From price" type="number" min="0" prefix={currencySymbol()} value={s.price} onChange={e => update(i, { price: e.target.value })} />
               <Input label="Deposit" type="number" min="0" prefix={currencySymbol()} value={s.deposit} onChange={e => update(i, { deposit: e.target.value })} />
-              <Input className="sm:col-span-4" label="Description (optional)" value={s.description || ''} onChange={e => update(i, { description: e.target.value })} />
-              <Input label="Min size (sq in)" type="number" min="0" value={s.minSize} onChange={e => update(i, { minSize: e.target.value })} />
-              <Input label="Max size (sq in)" type="number" min="0" value={s.maxSize} onChange={e => update(i, { maxSize: e.target.value })} />
+              <Input className={sizeApplies(s) ? 'sm:col-span-4' : 'sm:col-span-6'} label="Description (optional)" value={s.description || ''} onChange={e => update(i, { description: e.target.value })} />
+              {sizeApplies(s) && <Input label="Min size (sq in)" type="number" min="0" value={s.minSize} onChange={e => update(i, { minSize: e.target.value })} />}
+              {sizeApplies(s) && <Input label="Max size (sq in)" type="number" min="0" value={s.maxSize} onChange={e => update(i, { maxSize: e.target.value })} />}
             </div>
             <div className="flex justify-end mt-3">
               <Button variant="ghost" size="sm" className="text-red-600 dark:text-red-400" onClick={() => setItems(list => list.filter((_, j) => j !== i))}><TrashIcon className="w-4 h-4" /> Remove</Button>

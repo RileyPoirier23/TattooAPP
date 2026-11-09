@@ -47,9 +47,10 @@ adminRouter.use((req, _res, next) => {
 adminRouter.get('/stats', (_req, res) => {
   const db = getDb();
   const one = (sql: string, ...p: unknown[]) => (db.prepare(sql).get(...p) as any) ?? {};
-  const usersByRole = Object.fromEntries(
-    (db.prepare('select role, count(*) c from users group by role').all() as any[]).map(r => [r.role, r.c]),
-  );
+  // Accounts by what they do; one account can count as both a pro and a shop owner.
+  const caps = one(`select count(*) total, sum(offers_services) pros, sum(rents_space) shops, sum(role = 'admin') admins,
+    sum(offers_services = 0 and rents_space = 0 and role != 'admin') clients from users`);
+  const usersByRole = { client: caps.clients ?? 0, pro: caps.pros ?? 0, 'shop-owner': caps.shops ?? 0, admin: caps.admins ?? 0 };
   const since30 = new Date(Date.now() - 30 * 86_400_000).toISOString();
   const env = currentEnvironment();
   const revenue = one("select coalesce(sum(amount_cents),0) gross, coalesce(sum(fee_cents),0) fees from payments where status = 'completed' and environment = ?", env);
@@ -69,7 +70,7 @@ adminRouter.get('/stats', (_req, res) => {
     .all(new Date(Date.now() - 365 * 86_400_000).toISOString(), env);
   res.json({
     usersByRole,
-    totalUsers: Object.values(usersByRole).reduce((a: number, b) => a + (b as number), 0),
+    totalUsers: caps.total ?? 0,
     newUsers30: one('select count(*) c from users where created_at >= ?', since30).c,
     shops: one('select count(*) c from shops').c,
     bookingRequests: Object.fromEntries((db.prepare('select status, count(*) c from booking_requests group by status').all() as any[]).map(r => [r.status, r.c])),
@@ -290,7 +291,9 @@ const toAdminUser = (u: any) => ({
   id: u.id,
   email: u.email,
   name: u.name,
-  role: u.role,
+  isAdmin: u.role === 'admin',
+  offersServices: !!u.offers_services,
+  rentsSpace: !!u.rents_space,
   city: u.city,
   status: u.status,
   isVerified: !!u.is_verified,
@@ -305,11 +308,17 @@ const toAdminUser = (u: any) => ({
 
 adminRouter.get('/users', (req, res) => {
   const { q, page, pageSize, offset } = listParams(req.query);
-  const role = filterParam(req.query.role);
-  const where = `where (name like @q escape '\\' or email like @q escape '\\' or city like @q escape '\\') and (@role is null or role = @role)`;
+  const kind = filterParam(req.query.kind);
+  const KIND_SQL: Record<string, string> = {
+    client: "offers_services = 0 and rents_space = 0 and role != 'admin'",
+    pro: 'offers_services = 1',
+    'shop-owner': 'rents_space = 1',
+    admin: "role = 'admin'",
+  };
+  const where = `where (name like @q escape '\\' or email like @q escape '\\' or city like @q escape '\\') and (${(kind && KIND_SQL[kind]) || '1 = 1'})`;
   const db = getDb();
-  const total = (db.prepare(`select count(*) c from users ${where}`).get({ q, role }) as { c: number }).c;
-  const rows = db.prepare(`select * from users ${where} order by created_at desc limit @limit offset @offset`).all({ q, role, limit: pageSize, offset });
+  const total = (db.prepare(`select count(*) c from users ${where}`).get({ q }) as { c: number }).c;
+  const rows = db.prepare(`select * from users ${where} order by created_at desc limit @limit offset @offset`).all({ q, limit: pageSize, offset });
   res.json({ items: rows.map(toAdminUser), total, page, pageSize });
 });
 
@@ -319,7 +328,9 @@ adminRouter.patch('/users/:id', async (req, res) => {
     z.object({
       name: z.string().trim().min(1).max(100),
       email: z.string().trim().toLowerCase().email(),
-      role: z.enum(['client', 'artist', 'dual', 'shop-owner', 'admin']),
+      isAdmin: z.boolean(),
+      offersServices: z.boolean(),
+      rentsSpace: z.boolean(),
       status: z.enum(['active', 'suspended']),
       isVerified: z.boolean(),
       subscriptionTier: z.enum(['free', 'pro']),
@@ -331,7 +342,7 @@ adminRouter.patch('/users/:id', async (req, res) => {
   const db = getDb();
   const u = getUser(req.params.id);
   if (!u) throw notFound('User not found.');
-  if (u.id === admin.id && (b.role && b.role !== 'admin' || b.status === 'suspended')) {
+  if (u.id === admin.id && (b.isAdmin === false || b.status === 'suspended')) {
     throw badRequest("You can't remove your own admin access or suspend yourself.");
   }
   if (b.email && b.email !== u.email && db.prepare('select 1 from users where email = ? and id != ?').get(b.email, u.id)) {
@@ -340,7 +351,9 @@ adminRouter.patch('/users/:id', async (req, res) => {
   const columns: Record<string, unknown> = {
     name: b.name,
     email: b.email,
-    role: b.role,
+    role: b.isAdmin === undefined ? undefined : b.isAdmin ? 'admin' : 'client',
+    offers_services: b.isAdmin ? 0 : b.offersServices === undefined ? undefined : b.offersServices ? 1 : 0,
+    rents_space: b.isAdmin ? 0 : b.rentsSpace === undefined ? undefined : b.rentsSpace ? 1 : 0,
     status: b.status,
     is_verified: b.isVerified === undefined ? undefined : b.isVerified ? 1 : 0,
     subscription_tier: b.subscriptionTier,
@@ -353,8 +366,8 @@ adminRouter.patch('/users/:id', async (req, res) => {
     db.prepare(`update users set ${entries.map(([k]) => `${k} = ?`).join(', ')}, updated_at = ? where id = ?`)
       .run(...entries.map(([, v]) => v), nowIso(), u.id);
   }
-  // Suspended accounts, or accounts that are no longer artists, must not keep being billed for Pro.
-  if (b.status === 'suspended' || (b.role && b.role !== 'artist' && b.role !== 'dual')) {
+  // Suspended accounts, or accounts that no longer take bookings, must not keep being billed for the plan.
+  if (b.status === 'suspended' || b.offersServices === false || b.isAdmin) {
     db.prepare('update users set pro_auto_renew = 0 where id = ?').run(u.id);
   }
   // Granting Pro to someone whose old paid plan already lapsed: without a new end date, make it open-ended.
@@ -577,7 +590,7 @@ adminRouter.post('/payments/:id/refund', async (req, res) => {
 adminRouter.get('/payouts', (_req, res) => {
   const rows = getDb()
     .prepare(
-      `select u.id, u.name, u.email, u.role, u.payout_method,
+      `select u.id, u.name, u.email, u.offers_services, u.rents_space, u.payout_method,
         (select coalesce(sum(payee_amount_cents),0) from payments p where p.payee_id = u.id and p.status = 'completed' and p.environment = @env and not ${ON_HOLD_SQL}) earned,
         (select coalesce(sum(payee_amount_cents),0) from payments p where p.payee_id = u.id and p.status = 'completed' and p.environment = @env and ${ON_HOLD_SQL}) held,
         (select coalesce(sum(amount_cents),0) from payouts o where o.payee_id = u.id and o.environment = @env) paid
@@ -589,7 +602,7 @@ adminRouter.get('/payouts', (_req, res) => {
     .all({ env: currentEnvironment() }) as any[];
   res.json(
     rows.map(r => ({
-      payee: { id: r.id, name: r.name, email: r.email, role: r.role, payoutMethod: parseJson(r.payout_method, {}) },
+      payee: { id: r.id, name: r.name, email: r.email, offersServices: !!r.offers_services, rentsSpace: !!r.rents_space, payoutMethod: parseJson(r.payout_method, {}) },
       earnedCents: r.earned,
       paidOutCents: r.paid,
       balanceCents: r.earned - r.paid,
@@ -635,7 +648,7 @@ adminRouter.post('/payouts', (req, res) => {
     .prepare('insert into payouts (id, payee_id, amount_cents, currency, method, note, created_by, environment, created_at) values (?, ?, ?, ?, ?, ?, ?, ?, ?)')
     .run(newId(), payee.id, amountCents, getSettings().currency, b.method, b.note, req.user!.id, currentEnvironment(), nowIso());
   notify(payee.id, `A payout of ${(amountCents / 100).toFixed(2)} ${getSettings().currency} has been sent to you${b.method ? ` via ${b.method}` : ''}.`, {
-    link: payee.role === 'shop-owner' ? '/shop' : '/dashboard',
+    link: payee.rents_space && !payee.offers_services ? '/shop' : '/dashboard',
   });
   res.status(201).json({ ok: true });
 });

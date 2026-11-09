@@ -1,7 +1,7 @@
 // The logged-in user's own profile, portfolio, availability, plan, earnings and notifications.
 import { Router } from 'express';
 import { z } from 'zod';
-import { destroySession, isArtistRole, requireArtist, requireUser, getUser, verifyPassword } from '../auth';
+import { defaultIntake, destroySession, offersServices, rentsSpace, requireArtist, requireUser, getUser, verifyPassword } from '../auth';
 import { getDb, newId, nowIso, parseJson } from '../db';
 import { badRequest, conflict, forbidden, parse, todayStr, zDate } from '../http';
 import { BOOKING_REQUEST_SELECT, BOOTH_BOOKING_SELECT, toBookingRequest, toBoothBooking, toMe } from '../mappers';
@@ -32,6 +32,7 @@ const profileSchema = z.object({
   name: z.string().trim().min(1).max(100).optional(),
   city: z.string().trim().max(100).optional(),
   category: z.string().trim().max(40).optional(),
+  categories: z.array(z.string().trim().min(1).max(40)).max(8).optional(),
   address: z.string().trim().max(300).optional(),
   specialty: z.string().trim().max(100).optional(),
   bio: z.string().trim().max(2000).optional(),
@@ -47,6 +48,7 @@ const profileSchema = z.object({
         duration: z.coerce.number().min(0.25).max(24),
         price: z.coerce.number().min(0).max(100000),
         deposit: z.coerce.number().min(0).max(100000),
+        category: z.string().trim().max(40).optional(),
         minSize: z.coerce.number().min(0).max(10000).optional().nullable(),
         maxSize: z.coerce.number().min(0).max(10000).optional().nullable(),
       }),
@@ -76,11 +78,28 @@ const profileSchema = z.object({
 meRouter.patch('/me', (req, res) => {
   const user = requireUser(req);
   const body = parse(profileSchema, req.body);
-  const artistOnly = ['category', 'address', 'specialty', 'bio', 'socials', 'services', 'hours', 'intakeSettings', 'aftercareMessage'] as const;
-  if (!isArtistRole(user.role) && artistOnly.some(k => body[k] !== undefined)) throw forbidden('Only pros can edit those fields.');
-  if (body.payoutMethod && !(isArtistRole(user.role) || user.role === 'shop-owner')) throw forbidden();
+  const artistOnly = ['category', 'categories', 'address', 'specialty', 'bio', 'socials', 'services', 'hours', 'intakeSettings', 'aftercareMessage'] as const;
+  if (!offersServices(user) && artistOnly.some(k => body[k] !== undefined)) throw forbidden('Only pros can edit those fields.');
+  if (body.payoutMethod && !(offersServices(user) || rentsSpace(user))) throw forbidden();
 
-  if (body.category && !getSettings().categories.includes(body.category)) throw badRequest('Pick a category from the list.');
+  const allowed = getSettings().categories;
+  const checkCategory = (c: string | undefined) => {
+    if (c && !allowed.includes(c)) throw badRequest('Pick a category from the list.');
+  };
+  checkCategory(body.category);
+  body.categories?.forEach(checkCategory);
+  body.services?.forEach(s => checkCategory(s.category));
+  // The list of categories and the main one stay consistent: the main one is always in the list, and the
+  // list's first entry is the main one when none is given.
+  let categories = body.categories && [...new Set(body.categories)];
+  let category = body.category;
+  if (categories) {
+    if (category === undefined) category = categories.includes(user.category) ? user.category : categories[0] ?? '';
+    else if (category && !categories.includes(category)) categories = [category, ...categories];
+  } else if (category) {
+    const current = parseJson<string[]>(user.categories, []);
+    if (!current.includes(category)) categories = [category, ...current];
+  }
   if (body.hours) {
     for (const slots of Object.values(body.hours)) {
       if (slots.some(s => s.start >= s.end)) throw badRequest('Each time slot must end after it starts.');
@@ -88,13 +107,14 @@ meRouter.patch('/me', (req, res) => {
   }
   const services = body.services?.map(s => {
     if (s.minSize != null && s.maxSize != null && s.minSize > s.maxSize) throw badRequest(`"${s.name}": minimum size is larger than maximum size.`);
-    return { ...s, id: s.id || newId(), minSize: s.minSize ?? undefined, maxSize: s.maxSize ?? undefined };
+    return { ...s, id: s.id || newId(), category: s.category || undefined, minSize: s.minSize ?? undefined, maxSize: s.maxSize ?? undefined };
   });
 
   const columns: Record<string, unknown> = {
     name: body.name,
     city: body.city,
-    category: body.category,
+    category,
+    categories: categories && JSON.stringify(categories),
     address: body.address,
     specialty: body.specialty,
     bio: body.bio,
@@ -214,10 +234,10 @@ meRouter.post('/me/verification', (req, res) => {
   const db = getDb();
   let type: 'artist' | 'shop';
   let shopId: string | null = null;
-  if (isArtistRole(user.role)) {
+  if (offersServices(user)) {
     if (user.is_verified) throw conflict('Your profile is already verified.');
     type = 'artist';
-  } else if (user.role === 'shop-owner') {
+  } else if (rentsSpace(user)) {
     const shop = db.prepare('select id, is_verified from shops where owner_id = ?').get(user.id) as any;
     if (!shop) throw badRequest('Create your shop first.');
     if (shop.is_verified) throw conflict('Your shop is already verified.');
@@ -236,11 +256,11 @@ meRouter.post('/me/verification', (req, res) => {
 
 meRouter.get('/me/earnings', (req, res) => {
   const user = requireUser(req);
-  if (!(isArtistRole(user.role) || user.role === 'shop-owner')) throw forbidden();
+  if (!(offersServices(user) || rentsSpace(user))) throw forbidden();
   res.json(earningsFor(user.id));
 });
 
-// --- Pro plan ---
+// --- Featured plan ---
 
 const zCard = z.object({ sourceId: z.string().min(1).max(500), idempotencyKey: z.string().min(8).max(100) });
 
@@ -285,12 +305,30 @@ meRouter.delete('/me/card', async (req, res) => {
 /** A client turns on artist features (their account becomes "Artist & Client"; their bookings stay). */
 meRouter.post('/me/become-artist', (req, res) => {
   const user = requireUser(req);
-  if (user.role !== 'client') throw conflict(isArtistRole(user.role) ? 'Your account already has pro features.' : 'Only client accounts can switch on pro features.');
-  const { city } = parse(z.object({ city: z.string().trim().max(100).optional() }), req.body ?? {});
-  const newCity = city || user.city;
+  if (user.role === 'admin') throw forbidden('Admin accounts are for running the site, not for taking bookings.');
+  if (offersServices(user)) throw conflict('Your account already has pro features.');
+  const body = parse(z.object({ city: z.string().trim().max(100).optional(), categories: z.array(z.string().trim().min(1).max(40)).max(8).optional() }), req.body ?? {});
+  const newCity = body.city || user.city;
   if (!newCity) throw badRequest('Please enter the city you work in.');
-  getDb().prepare("update users set role = 'dual', city = ?, updated_at = ? where id = ?").run(newCity, nowIso(), user.id);
+  const allowed = getSettings().categories;
+  const categories = [...new Set(body.categories ?? [])];
+  if (categories.some(c => !allowed.includes(c))) throw badRequest('Pick a category from the list.');
+  const fresh = defaultIntake(categories);
+  const intake = { ...parseJson<Record<string, unknown>>(user.intake_settings, {}), requireSize: fresh.requireSize, requirePlacement: fresh.requirePlacement };
+  getDb()
+    .prepare('update users set offers_services = 1, city = ?, category = ?, categories = ?, intake_settings = ?, updated_at = ? where id = ?')
+    .run(newCity, categories[0] ?? user.category, JSON.stringify(categories.length ? categories : parseJson(user.categories, [])), JSON.stringify(intake), nowIso(), user.id);
   notifyAdmins(`${user.name} switched on pro features.`, '/admin/users');
+  res.json({ user: toMe(getUser(user.id)!) });
+});
+
+// Lets a member list a shop with booths or rooms for rent (the shop itself is created from the shop dashboard).
+meRouter.post('/me/become-host', (req, res) => {
+  const user = requireUser(req);
+  if (user.role === 'admin') throw forbidden('Admin accounts are for running the site, not for listing a shop.');
+  if (rentsSpace(user)) throw conflict('Your account already has shop features.');
+  getDb().prepare('update users set rents_space = 1, updated_at = ? where id = ?').run(nowIso(), user.id);
+  notifyAdmins(`${user.name} switched on shop features.`, '/admin/users');
   res.json({ user: toMe(getUser(user.id)!) });
 });
 
@@ -317,7 +355,7 @@ meRouter.get('/me/export', (req, res) => {
       createdAt: user.created_at,
     },
     bookingsYouMade: all(`${BOOKING_REQUEST_SELECT} where br.client_id = ? order by br.created_at`, user.id).map(r => toBookingRequest(r)),
-    bookingsFromYourClients: isArtistRole(user.role)
+    bookingsFromYourClients: offersServices(user)
       ? all(`${BOOKING_REQUEST_SELECT} where br.artist_id = ? order by br.created_at`, user.id).map(r => toBookingRequest(r, { includeContact: true }))
       : [],
     boothRentals: all(`${BOOTH_BOOKING_SELECT} where bb.artist_id = ? order by bb.created_at`, user.id).map(toBoothBooking),

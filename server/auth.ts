@@ -18,10 +18,13 @@ export interface UserRow {
   email: string;
   password_hash: string;
   role: Role;
+  offers_services: number;
+  rents_space: number;
   name: string;
   city: string;
   specialty: string;
   category: string;
+  categories: string;
   address: string;
   calendar_token: string | null;
   google_refresh_token: string | null;
@@ -152,18 +155,34 @@ export function requireRole(req: Request, ...roles: Role[]): UserRow {
   return user;
 }
 
-export const isArtistRole = (role: Role) => role === 'artist' || role === 'dual';
-export const isClientRole = (role: Role) => role === 'client' || role === 'dual';
+type Caps = Pick<UserRow, 'role' | 'offers_services' | 'rents_space'>;
+/** Has a public pro profile and takes bookings. */
+export const offersServices = (u: Caps) => !!u.offers_services;
+/** Lists a shop with booths or rooms for rent. */
+export const rentsSpace = (u: Caps) => !!u.rents_space;
+export const isAdminUser = (u: Caps) => u.role === 'admin';
+/** Everyone but admins books appointments (pros included: a barber gets their nails done too). */
+export const canBook = (u: Caps) => u.role !== 'admin';
 
 export function requireArtist(req: Request): UserRow {
-  return requireRole(req, 'artist', 'dual');
+  const user = requireUser(req);
+  if (!offersServices(user)) throw forbidden('Switch on pro features in Settings to do that.');
+  return user;
 }
+
+export function requireHost(req: Request): UserRow {
+  const user = requireUser(req);
+  if (!rentsSpace(user)) throw forbidden('Switch on shop features in Settings to do that.');
+  return user;
+}
+
+export const SQL_PRO = 'offers_services = 1';
 
 export function requireAdmin(req: Request): UserRow {
   return requireRole(req, 'admin');
 }
 
-/** Days a Pro plan stays active after a failed renewal while the charge is retried. */
+/** Days a Featured plan stays active after a failed renewal while the charge is retried. */
 export const PRO_GRACE_DAYS = 3;
 
 export function isPro(u: Pick<UserRow, 'subscription_tier' | 'pro_until'>): boolean {
@@ -172,29 +191,40 @@ export function isPro(u: Pick<UserRow, 'subscription_tier' | 'pro_until'>): bool
   return new Date(u.pro_until).getTime() + PRO_GRACE_DAYS * 86_400_000 > Date.now();
 }
 
+/** Booking questions a pro starts with: size and placement only make sense for tattoos and piercings. */
+export function defaultIntake(categories: string[]) {
+  return {
+    requireSize: categories.length === 0 || categories.some(asksSize),
+    requirePlacement: categories.length === 0 || categories.some(asksPlacement),
+    requireDescription: true,
+    requireBudget: false,
+    requireReferenceImages: false,
+  };
+}
+
 export async function createUser(input: {
   email: string;
   password: string;
-  role: Role;
   name: string;
+  role?: 'admin';
+  offersServices?: boolean;
+  rentsSpace?: boolean;
   city?: string;
-  category?: string;
+  categories?: string[];
 }): Promise<UserRow> {
   const db = getDb();
   const id = newId();
   const now = nowIso();
-  const category = input.role === 'artist' || input.role === 'dual' ? input.category || '' : '';
-  const intake = JSON.stringify({
-    requireSize: asksSize(category),
-    requirePlacement: asksPlacement(category),
-    requireDescription: true,
-    requireBudget: false,
-    requireReferenceImages: false,
-  });
+  const offers = !!input.offersServices && input.role !== 'admin';
+  const categories = offers ? [...new Set((input.categories ?? []).filter(Boolean))] : [];
   db.prepare(
-    `insert into users (id, email, password_hash, role, name, city, category, intake_settings, created_at, updated_at)
-     values (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-  ).run(id, input.email.trim().toLowerCase(), await hashPassword(input.password), input.role, input.name.trim(), input.city?.trim() || '', category, intake, now, now);
+    `insert into users (id, email, password_hash, role, offers_services, rents_space, name, city, category, categories, intake_settings, created_at, updated_at)
+     values (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+  ).run(
+    id, input.email.trim().toLowerCase(), await hashPassword(input.password), input.role ?? 'client', offers ? 1 : 0,
+    input.rentsSpace && input.role !== 'admin' ? 1 : 0, input.name.trim(), input.city?.trim() || '', categories[0] ?? '',
+    JSON.stringify(categories), JSON.stringify(defaultIntake(categories)), now, now,
+  );
   return db.prepare('select * from users where id = ?').get(id) as UserRow;
 }
 

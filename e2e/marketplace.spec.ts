@@ -33,15 +33,22 @@ const stamp = Date.now();
 const artist = { name: 'Riley Ink', email: `artist-${stamp}@example.com`, password: 'password123' };
 const owner = { name: 'Sam Shop', email: `owner-${stamp}@example.com`, password: 'password123' };
 
-async function signUp(page: Page, role: RegExp, user: { name: string; email: string; password: string }, city?: string) {
+/** One account type: `kind` switches on pro features (with a city and a category) or shop features. */
+async function signUp(page: Page, kind: 'pro' | 'shop' | 'client', user: { name: string; email: string; password: string }, city?: string) {
   await page.goto('/');
   await page.getByRole('button', { name: 'Sign up' }).first().click();
   const dialog = page.getByRole('dialog');
-  await dialog.getByRole('button', { name: role }).click();
-  await dialog.getByLabel(/name/i).first().fill(user.name);
-  if (city) {
-    await dialog.getByLabel('What do you do?').selectOption('Tattoo');
-    await dialog.getByLabel('City you work in').fill(city);
+  await dialog.getByLabel('Full name').fill(user.name);
+  if (kind === 'pro') {
+    // The switch's real checkbox is visually hidden, so flip it from its label.
+    await dialog.getByText('I take bookings', { exact: true }).click();
+    await expect(dialog.getByRole('switch', { name: 'I take bookings' })).toBeChecked();
+    await dialog.getByRole('group', { name: 'What do you do?' }).getByRole('button', { name: 'Tattoo' }).click();
+    await dialog.getByLabel('City you work in').fill(city ?? 'Moncton, NB');
+  }
+  if (kind === 'shop') {
+    await dialog.getByText('I rent out chairs or rooms', { exact: true }).click();
+    await expect(dialog.getByRole('switch', { name: 'I rent out chairs or rooms' })).toBeChecked();
   }
   await dialog.getByLabel('Email').fill(user.email);
   await dialog.getByLabel('Password').fill(user.password);
@@ -65,7 +72,7 @@ async function logOut(page: Page) {
 }
 
 test('artist sets up profile, guest books and pays a deposit', async ({ page }) => {
-  await signUp(page, /^Pro I take bookings/, artist, 'Moncton, NB');
+  await signUp(page, 'pro', artist, 'Moncton, NB');
   await expect(page).toHaveURL(/\/dashboard\?tab=profile/);
 
   await page.getByLabel('Bio').fill('Fine line and botanical tattoos. 10 years of experience.');
@@ -128,7 +135,7 @@ test('artist sets up profile, guest books and pays a deposit', async ({ page }) 
 });
 
 test('shop owner lists a booth and an artist rents it', async ({ page }) => {
-  await signUp(page, /^Shop owner/, owner);
+  await signUp(page, 'shop', owner);
   await expect(page).toHaveURL(/\/shop/);
   await page.getByLabel('Shop name').fill('Ink & Dagger');
   await page.getByLabel('Street address').fill('12 Main St');
@@ -182,7 +189,7 @@ test('long names, links and place names fit on a small phone', async ({ page }) 
   const api = (method: string, url: string, data: object) =>
     page.request.fetch(url, { method, data, headers: { 'x-requested-with': 'inkspace' } });
   const reg = await api('POST', '/api/auth/register', {
-    name: 'Aleksandra Wiśniewska-Kowalczyk', email: `long-${stamp}@example.com`, password: 'password123', role: 'artist', city: longCity, acceptTerms: true,
+    name: 'Aleksandra Wiśniewska-Kowalczyk', email: `long-${stamp}@example.com`, password: 'password123', offersServices: true, city: longCity, acceptTerms: true,
   });
   expect(reg.ok()).toBe(true);
   const { user } = await reg.json();
@@ -232,7 +239,7 @@ test('admin customizes the site and refunds a payment', async ({ page }) => {
   await page.goto('/admin/payments');
   await page.getByRole('button', { name: 'Refund', exact: true }).first().click();
   await page.getByRole('dialog').getByRole('button', { name: /^Refund / }).click();
-  await expect(page.getByText(/Refunded .* The payer has been notified/)).toBeVisible();
+  await expect(page.getByText(/^Refunded (CA)?\$[\d.,]+\./)).toBeVisible();
 
   // Non-admins can't reach the admin panel.
   await logOut(page);

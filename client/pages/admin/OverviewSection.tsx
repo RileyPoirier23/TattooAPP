@@ -165,10 +165,10 @@ const ChecklistItem: React.FC<{ done: boolean; title: string; to: string; option
   </li>
 );
 
+// One account can be both a pro and a shop owner, so these can add up to more than the total.
 const ROLE_PLURALS: Record<string, string> = {
-  client: 'Clients',
-  artist: 'Pros',
-  dual: 'Pro + client',
+  client: 'Clients only',
+  pro: 'Pros',
   'shop-owner': 'Shop owners',
   admin: 'Admins',
 };

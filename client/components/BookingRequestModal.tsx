@@ -23,9 +23,11 @@ export const BookingRequestModal: React.FC<{ artist: ArtistDetail; serviceId?: s
   const intake = artist.intakeSettings;
   const [step, setStep] = useState(1);
   const [serviceId, setServiceId] = useState(startService ?? artist.services[0]?.id ?? '');
-  // Size and placement only apply to some categories (tattoos; placement also for piercings).
-  const showSize = asksSize(artist.category);
-  const showPlacement = asksPlacement(artist.category);
+  // Size and placement only apply to some categories (tattoos; placement also for piercings). The chosen
+  // service decides; one without a category of its own follows the pro's main category.
+  const serviceCategory = artist.services.find(s => s.id === serviceId)?.category || artist.category;
+  const showSize = asksSize(serviceCategory);
+  const showPlacement = asksPlacement(serviceCategory);
   const [date, setDate] = useState('');
   const [preferredTime, setPreferredTime] = useState<PreferredTime>('anytime');
   const [requestedTime, setRequestedTime] = useState('');
@@ -50,7 +52,7 @@ export const BookingRequestModal: React.FC<{ artist: ArtistDetail; serviceId?: s
   const isDisabled = (d: string) => daysOff.has(d) || (hasHours && !artist.hours[String(parseDate(d).getDay())]?.length);
   const service = artist.services.find(s => s.id === serviceId);
   const deposit = service ? service.deposit : settings.defaultDeposit;
-  // Same rule as the server: a percentage on top of the deposit, waived for Pro artists.
+  // Same rule as the server: a percentage on top of the deposit, waived for Featured pros.
   const fee = artist.isPro ? 0 : Math.round(deposit * settings.depositFeePercent) / 100;
   // Anything typed counts as unsaved work: leaving the page or closing the dialog asks first.
   const started = !done && (step > 1 || !!message.trim() || files.length > 0 || !!guestName || !!guestEmail);

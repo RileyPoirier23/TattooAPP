@@ -26,7 +26,7 @@ export const ResetPasswordPage: React.FC = () => {
       const { user } = await api.post<{ user: Me }>('/auth/reset', { token, password });
       setUser(user);
       toast('Password updated. You are now logged in.');
-      navigate(user.role === 'admin' ? '/admin' : '/');
+      navigate(user.isAdmin ? '/admin' : '/');
     } catch (err) {
       setError(errorMessage(err));
     } finally {

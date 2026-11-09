@@ -74,7 +74,7 @@ export const BookingStatusPage: React.FC<{ id: string }> = ({ id }) => {
       </div>
       {data.request.isGuest && token && !isArtist && (
         <Notice>
-          {user && (user.role === 'client' || user.role === 'dual' || user.role === 'artist') ? (
+          {user && !user.isAdmin ? (
             <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
               <span>Add this booking to your account to keep everything in one place and message {data.artist.name}.</span>
               <Button size="sm" loading={claiming} onClick={() => claim()}>

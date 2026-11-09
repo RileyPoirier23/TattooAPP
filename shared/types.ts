@@ -1,7 +1,21 @@
 // Types shared by the server (API responses) and the client.
 // All money values ending in "Cents" are integer cents; service prices and booth rates are dollars.
 
+/**
+ * Stored account kind. Members all start as 'client'; what they can do comes from two switches
+ * (offersServices, rentsSpace) that can both be on. 'artist', 'dual' and 'shop-owner' are older values kept
+ * on accounts created before the switches existed; only 'admin' still means something on its own.
+ */
 export type Role = 'client' | 'artist' | 'dual' | 'shop-owner' | 'admin';
+
+/** What an account can do, beyond booking appointments (which every member can). */
+export interface Capabilities {
+  isAdmin: boolean;
+  /** Has a public pro profile and takes bookings. */
+  offersServices: boolean;
+  /** Lists a shop with booths or rooms for rent. */
+  rentsSpace: boolean;
+}
 
 export interface PortfolioImage {
   url: string;
@@ -22,6 +36,8 @@ export interface ArtistService {
   duration: number; // hours
   price: number; // dollars (starting price)
   deposit: number; // dollars
+  /** Business category this service belongs to (one of the pro's categories); the pro's main category when blank. */
+  category?: string;
   minSize?: number; // square inches
   maxSize?: number; // square inches
 }
@@ -83,8 +99,10 @@ export interface PublicArtist {
   id: string;
   name: string;
   city: string;
-  /** Business category from the admin's list, e.g. "Tattoo", "Barber", "Nails". */
+  /** Main business category from the admin's list, e.g. "Tattoo", "Barber", "Nails" (the first of `categories`). */
   category: string;
+  /** Every category they work in (their list plus any their services use). */
+  categories: string[];
   /** Where they work (optional), shown with a map link on their profile. */
   address: string;
   specialty: string;
@@ -152,14 +170,14 @@ export interface Subscription {
   cardLabel: string | null;
 }
 
-export interface Me {
+export interface Me extends Capabilities {
   id: string;
   email: string;
-  role: Role;
   name: string;
   city: string;
   address: string;
   category: string;
+  categories: string[];
   specialty: string;
   bio: string;
   avatarUrl: string | null;
@@ -263,7 +281,9 @@ export interface ConversationUser {
   id: string;
   name: string;
   avatarUrl: string | null;
-  role: Role;
+  /** True when they have a public pro profile to link to. */
+  offersServices: boolean;
+  rentsSpace: boolean;
 }
 
 export interface Conversation {

@@ -1,4 +1,4 @@
-import { PAGES_1_2_0, PAGES_1_2_1 } from './previousPages';
+import { PAGES_1_2_0, PAGES_1_2_1, PAGES_1_3_0 } from './previousPages';
 
 // Starting content for the FAQ and policy pages. The owner edits them in Admin → Pages.
 // {{siteName}}, {{siteUrl}} and {{contact}} are filled in when a page is shown (see fillPageTokens).
@@ -87,7 +87,7 @@ A booking is a direct arrangement between the client and the pro. It is confirme
 Pros who rent a booth or chair pay the price shown when booking, and must follow the shop's rules and all local regulations while working there. Rental payments are collected by {{siteName}} and passed on to the shop, minus the platform fee shown to the shop.
 
 ## 6. Paid plans
-Pros may be offered an optional monthly plan ("Pro"). It is charged to the card you save and renews automatically each month until you cancel. You can cancel any time in Settings; you keep the plan until the end of the period you've paid for. If the price changes, we'll tell you in advance by email and the new price applies from your next renewal. Payments for past periods are not refunded, except where the law requires it.
+Pros may be offered an optional monthly plan ("Featured"). It is charged to the card you save and renews automatically each month until you cancel. You can cancel any time in Settings; you keep the plan until the end of the period you've paid for. If the price changes, we'll tell you in advance by email and the new price applies from your next renewal. Payments for past periods are not refunded, except where the law requires it.
 
 ## 7. Payments
 Payments are processed by Square, subject to Square's own terms. {{siteName}} never sees or stores your full card number. Fees are always shown before you pay.
@@ -194,7 +194,7 @@ Missing an appointment without notice may forfeit your deposit.`],
 export const OLD_PLACEHOLDERS: Record<string, string[]> = Object.fromEntries(
   DEFAULT_PAGES.map(p => [
     p.slug,
-    [...(FIRST_PLACEHOLDERS[p.slug] ?? []), ...[PAGES_1_2_0, PAGES_1_2_1].map(v => v[p.slug]).filter(b => b && b !== p.body)],
+    [...(FIRST_PLACEHOLDERS[p.slug] ?? []), ...[PAGES_1_2_0, PAGES_1_2_1, PAGES_1_3_0].map(v => v[p.slug]).filter(b => b && b !== p.body)],
   ]),
 );
 

@@ -9,6 +9,7 @@ import { loadUser, requireCsrfHeader } from './auth';
 import { errorHandler, escapeHtml } from './http';
 import { getSettings } from './settings';
 import { getDb, parseJson } from './db';
+import { invalidate, memo } from './cache';
 import { publicRouter } from './routes/public';
 import { authRouter } from './routes/auth';
 import { meRouter } from './routes/me';
@@ -48,8 +49,16 @@ export function createApp() {
   api.use(express.json({ limit: '1mb' }));
   api.use(loadUser);
   api.use(requireCsrfHeader);
-  api.use((_req, res, next) => {
+  api.use((req, res, next) => {
     res.set('Cache-Control', 'no-store');
+    // Any successful change (a saved profile, a new review, an admin edit…) drops the cached public
+    // responses, so pros and admins see their changes at once. Chat and notification traffic is left out:
+    // it is frequent and never shows on public pages.
+    if (req.method !== 'GET' && req.method !== 'HEAD' && !/^\/(messages|conversations|notifications|me\/events)/.test(req.path)) {
+      res.on('finish', () => {
+        if (res.statusCode < 400) invalidate('json:');
+      });
+    }
     next();
   });
   api.use(publicRouter);
@@ -85,7 +94,7 @@ export function createApp() {
   });
   app.get('/sitemap.xml', (_req, res) => {
     res.set('Cache-Control', 'public, max-age=3600');
-    res.type('application/xml').send(renderSitemap());
+    res.type('application/xml').send(memo('sitemap', 10 * 60_000, renderSitemap));
   });
 
   // --- Uploaded images ---
@@ -112,7 +121,8 @@ export function createApp() {
   // Every other path renders the single-page app (the client-side router takes over).
   app.get(/.*/, (req, res) => {
     res.set('Cache-Control', 'no-cache');
-    res.type('html').send(renderIndex(req.path));
+    // Each page's HTML (title, preview image) is rebuilt at most every few seconds, however many people open it.
+    res.type('html').send(memo(`index:${req.path}`, 3000, () => renderIndex(req.path)));
   });
 
   return app;
@@ -126,7 +136,7 @@ function renderSitemap(): string {
   if (s.features.clientBooking) {
     entries.push({ loc: '/artists' });
     const artists = db
-      .prepare("select id, updated_at from users where role in ('artist','dual') and status = 'active' and json_array_length(portfolio) > 0")
+      .prepare("select id, updated_at from users where offers_services = 1 and status = 'active' and json_array_length(portfolio) > 0")
       .all() as { id: string; updated_at: string }[];
     artists.forEach(a => entries.push({ loc: `/artists/${a.id}`, lastmod: a.updated_at }));
   }
@@ -155,7 +165,7 @@ function pageMeta(urlPath: string): { title: string; description: string; image:
     const artist = /^\/artists\/([^/]+)$/.exec(urlPath);
     if (artist) {
       const u = getDb()
-        .prepare("select name, category, specialty, city, bio, portfolio, avatar_url from users where id = ? and role in ('artist','dual') and status = 'active'")
+        .prepare("select name, category, specialty, city, bio, portfolio, avatar_url from users where id = ? and offers_services = 1 and status = 'active'")
         .get(artist[1]) as any;
       if (u) {
         const photo = parseJson<{ url: string }[]>(u.portfolio, [])[0]?.url || u.avatar_url || base.image;

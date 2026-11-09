@@ -146,9 +146,11 @@ function futureDate(days: number, weekday?: number) {
 
 const PNG = Buffer.from('89504e470d0a1a0a0000000d49484452000000010000000108060000001f15c4890000000d4944415478da63f8cfc0f01f0005000201a1f3d6a00000000049454e44ae426082', 'hex');
 
-async function register(role: string, email: string, extra: Record<string, unknown> = {}) {
+/** `kind` is the old role name: 'client', 'artist' (offers services), 'shop-owner' (rents space). */
+async function register(kind: string, email: string, extra: Record<string, unknown> = {}) {
   const c = new Client();
-  const r = await c.post('/api/auth/register', { email, password: 'password123', name: email.split('@')[0], role, city: 'Moncton', acceptTerms: true, ...extra });
+  const flags = { offersServices: kind === 'artist' || kind === 'dual', rentsSpace: kind === 'shop-owner' };
+  const r = await c.post('/api/auth/register', { email, password: 'password123', name: email.split('@')[0], ...flags, city: 'Moncton', acceptTerms: true, ...extra });
   assert.equal(r.status, 201, JSON.stringify(r.body));
   return { c, me: r.body.user };
 }
@@ -163,9 +165,13 @@ test('security basics', async () => {
   // Missing CSRF header is rejected.
   const noCsrf = await c.req('POST', '/api/auth/login', { email: 'a@b.co', password: 'x' }, { csrf: false });
   assert.equal(noCsrf.status, 403);
-  // Can't register as admin.
+  // Can't register as admin (the field is ignored, and the terms must be accepted anyway).
   const r = await c.post('/api/auth/register', { email: 'evil@example.com', password: 'password123', name: 'Evil', role: 'admin' });
   assert.equal(r.status, 400);
+  const sneaky = await new Client().post('/api/auth/register', { email: 'evil2@example.com', password: 'password123', name: 'Evil', role: 'admin', isAdmin: true, acceptTerms: true });
+  assert.equal(sneaky.status, 201);
+  assert.equal(sneaky.body.user.isAdmin, false);
+  assert.equal(sneaky.body.user.offersServices, false);
   // Admin API requires an admin.
   assert.equal((await c.get('/api/admin/stats')).status, 401);
   // Old hard-coded backdoor is gone.
@@ -184,7 +190,8 @@ test('artist sets up profile, services and hours', async () => {
     isVerified: true,
   });
   assert.equal(r.status, 200, JSON.stringify(r.body));
-  assert.equal(r.body.user.role, 'artist');
+  assert.equal(r.body.user.isAdmin, false);
+  assert.equal(r.body.user.offersServices, true);
   assert.equal(r.body.user.isVerified, false);
   serviceId = r.body.user.services[0].id;
   assert.ok(serviceId);
@@ -356,7 +363,7 @@ test('admin manages settings, refunds and payouts', async () => {
   admin = new Client();
   const login = await admin.post('/api/auth/login', { email: 'admin@example.com', password: 'admin-password' });
   assert.equal(login.status, 200);
-  assert.equal(login.body.user.role, 'admin');
+  assert.equal(login.body.user.isAdmin, true);
   assert.equal((await artist.get('/api/admin/stats')).status, 403);
 
   const stats = await admin.get('/api/admin/stats');
@@ -901,9 +908,20 @@ test('a payment whose reply was lost is never charged twice', async () => {
 test('clients can become artists; errors are in plain language', async () => {
   const c = await register('client', 'switcher@example.com', { city: '' });
   assert.equal((await c.c.post('/api/me/become-artist', {})).status, 400, 'a city is needed');
-  const switched = await c.c.post('/api/me/become-artist', { city: 'Halifax, NS' });
+  const switched = await c.c.post('/api/me/become-artist', { city: 'Halifax, NS', categories: ['Nails', 'Lashes & Brows'] });
   assert.equal(switched.status, 200, JSON.stringify(switched.body));
-  assert.equal(switched.body.user.role, 'dual');
+  assert.equal(switched.body.user.offersServices, true);
+  assert.deepEqual(switched.body.user.categories, ['Nails', 'Lashes & Brows']);
+  assert.equal(switched.body.user.category, 'Nails');
+  assert.equal(switched.body.user.intakeSettings.requireSize, false);
+  // Shop features are a second switch on the same account, not a different kind of account.
+  assert.equal(switched.body.user.rentsSpace, false);
+  const host = await c.c.post('/api/me/become-host', {});
+  assert.equal(host.status, 200);
+  assert.equal(host.body.user.rentsSpace, true);
+  assert.equal(host.body.user.offersServices, true, 'a pro can also list a shop');
+  assert.equal((await c.c.post('/api/me/become-host', {})).status, 409);
+  assert.equal((await c.c.post('/api/shops', { name: 'Switcher Studio', city: 'Halifax, NS', address: '1 Main St', description: '', amenities: [] })).status, 201);
   assert.equal((await c.c.post('/api/me/become-artist', { city: 'Halifax, NS' })).status, 409);
   assert.equal((await artist.post('/api/me/become-artist', {})).status, 409);
 
@@ -978,14 +996,24 @@ test('sites left on old defaults get the new look; customized ones keep theirs',
 test('categories: barbers skip tattoo questions; search by day; reviews need an account', async () => {
   const { getDb } = await import('../server/db');
   // Pros pick a category from the admin's list when they sign up or edit their profile.
-  const bad = await new Client().post('/api/auth/register', { email: 'nope@example.com', password: 'password123', name: 'Nope', role: 'artist', city: 'Moncton', category: 'Rocket science', acceptTerms: true });
+  const bad = await new Client().post('/api/auth/register', { email: 'nope@example.com', password: 'password123', name: 'Nope', offersServices: true, city: 'Moncton', categories: ['Rocket science'], acceptTerms: true });
   assert.equal(bad.status, 400);
-  const barber = await register('artist', 'barber@example.com', { category: 'Barber' });
+  const barber = await register('artist', 'barber@example.com', { categories: ['Barber'] });
   assert.equal(barber.me.category, 'Barber');
+  assert.deepEqual(barber.me.categories, ['Barber']);
   assert.equal(barber.me.intakeSettings.requireSize, false, 'no tattoo size question for barbers');
-  assert.equal((await barber.c.patch('/api/me', { category: 'Nails' })).body.user.category, 'Nails');
+  // Several categories per pro: the main one is the first unless chosen; services can each name a category.
+  const multi = await barber.c.patch('/api/me', { categories: ['Barber', 'Hair'] });
+  assert.deepEqual(multi.body.user.categories, ['Barber', 'Hair']);
+  assert.equal(multi.body.user.category, 'Barber');
+  assert.equal((await barber.c.patch('/api/me', { category: 'Hair' })).body.user.category, 'Hair');
+  assert.equal((await barber.c.patch('/api/me', { category: 'Nails' })).body.user.category, 'Nails', 'a new main category joins the list');
+  assert.deepEqual((await barber.c.get('/api/auth/me')).body.user.categories, ['Nails', 'Barber', 'Hair']);
   assert.equal((await barber.c.patch('/api/me', { category: 'Rocket science' })).status, 400);
-  await barber.c.patch('/api/me', { category: 'Barber', hours: { '2': [{ start: '09:00', end: '17:00' }] } });
+  assert.equal((await barber.c.patch('/api/me', { services: [{ name: 'X', duration: 1, price: 10, deposit: 5, category: 'Rocket science' }] })).status, 400);
+  const withTattoo = await barber.c.patch('/api/me', { categories: ['Barber'], category: 'Barber', services: [{ name: 'Fade', duration: 1, price: 30, deposit: 10 }, { name: 'Small tattoo', duration: 2, price: 200, deposit: 50, category: 'Tattoo' }] });
+  assert.deepEqual(withTattoo.body.user.categories, ['Barber', 'Tattoo'], 'a service category counts as one of the pro\'s categories');
+  await barber.c.patch('/api/me', { hours: { '2': [{ start: '09:00', end: '17:00' }] } });
   getDb().prepare('update users set portfolio = ? where id = ?').run(JSON.stringify([{ url: '/uploads/x.png' }]), barber.me.id);
 
   // Search by day: only pros working that weekday and not on a day off.
@@ -1018,7 +1046,7 @@ test('categories: barbers skip tattoo questions; search by day; reviews need an 
 
 test('calendars: exact start times, calendar feeds and Google Calendar sync', async () => {
   const { getDb } = await import('../server/db');
-  const pro = await register('artist', 'slots@example.com', { category: 'Barber' });
+  const pro = await register('artist', 'slots@example.com', { categories: ['Barber'] });
   getDb().prepare('update users set portfolio = ? where id = ?').run(JSON.stringify([{ url: '/uploads/x.png' }]), pro.me.id);
   // Works Tuesdays 09:00-12:00 with one 1-hour service and 30-minute slot steps.
   await pro.c.patch('/api/me', { hours: { '2': [{ start: '09:00', end: '12:00' }] }, services: [{ name: 'Cut', duration: 1, price: 30, deposit: 0 }] });
@@ -1112,4 +1140,27 @@ test('calendars: exact start times, calendar feeds and Google Calendar sync', as
   assert.equal((await pro.c.req('DELETE', '/api/me/google')).status, 200);
   assert.equal((await pro.c.get('/api/auth/me')).body.user.googleCalendarConnected, false);
   await admin.put('/api/admin/settings', { secrets: { googleClientId: '', googleClientSecret: '' } });
+});
+
+test('public responses are cached briefly, compressed and revalidated', async () => {
+  const c = new Client();
+  const first = await fetch(`${base}/api/artists`, { headers: { 'accept-encoding': 'gzip' } });
+  assert.equal(first.status, 200);
+  assert.equal(first.headers.get('content-encoding'), 'gzip');
+  const etag = first.headers.get('etag');
+  assert.ok(etag && etag.startsWith('W/"'), 'a weak ETag is sent');
+  assert.equal(first.headers.get('cache-control'), 'no-store', 'browsers still never keep API responses');
+  const list = (await first.json()) as any[];
+  assert.ok(Array.isArray(list));
+  const again = await fetch(`${base}/api/artists`, { headers: { 'if-none-match': etag! } });
+  assert.equal(again.status, 304);
+  // A different query is a different cache entry.
+  const dated = await c.get(`/api/artists?date=${futureDate(3, 2)}`);
+  assert.equal(dated.status, 200);
+  // A settings change clears every cached response at once (no stale site name for visitors).
+  const cfg = await c.get('/api/config');
+  const nameBefore = cfg.body.settings.siteName;
+  assert.equal((await admin.req('PUT', '/api/admin/settings', { settings: { siteName: 'Cache Test Studio' } })).status, 200);
+  assert.equal((await c.get('/api/config')).body.settings.siteName, 'Cache Test Studio');
+  await admin.req('PUT', '/api/admin/settings', { settings: { siteName: nameBefore } });
 });

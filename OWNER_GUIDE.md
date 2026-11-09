@@ -14,7 +14,7 @@ The **Overview** page in the admin panel has a setup checklist that ticks itself
 2. **Settings → Square payments** — connect Square (step-by-step instructions are in the README). Start in **Sandbox** to make test bookings with Square's test card, then switch to **Production** with your live keys when you're ready for real money. Test payments are kept separate and never mix with real ones in your totals.
 3. **Settings → Email** — paste a Resend API key (recommended) or SMTP details, set the **From address** and use **Send a test email**. Without email the site still works, but nobody gets booking updates, reminders or password-reset emails.
 4. **Pages** — the site comes with starter **Terms of Service**, **Privacy Policy**, **Booking & Cancellation Policy** and **FAQ** pages. They already contain your site name and contact details (the `{{siteName}}`, `{{siteUrl}}` and `{{contact}}` placeholders fill these in automatically). **Read them and adjust them to your business and location before launch — ideally with a lawyer.** They are a sensible starting point, not legal advice.
-5. **Settings → Features** and **Fees & pricing** — choose what's switched on (bookings, guest bookings, booth rentals, messaging, reviews, the Pro plan) and set your booking fee, booth commission, default deposit and how long unpaid booth reservations are held.
+5. **Settings → Features** and **Fees & pricing** — choose what's switched on (bookings, guest bookings, booth rentals, messaging, reviews, the Featured plan) and set your booking fee, booth commission, default deposit and how long unpaid booth reservations are held.
 6. Optional: a **Google Maps** key for shop maps, "near me" search and listings of shops that haven't joined yet.
 
 ### Going live (switching Square to real payments)
@@ -23,7 +23,7 @@ The **Overview** page in the admin panel has a setup checklist that ticks itself
 2. In **Settings → Square payments**, choose **Production**, paste all three, save, and click **Test connection**. It tells you if a key is from the wrong environment or account.
 3. Make one small real booking with your own card, check the receipt email, then refund it from **Payments**.
 
-Cards saved while testing (artists' Pro plan cards) only work in Sandbox, so they're removed when you switch. Anyone on a test Pro plan keeps it until the end of the month, then adds a real card to continue. Test payments stay hidden from your Production totals.
+Cards saved while testing (pros' Featured plan cards) only work in Sandbox, so they're removed when you switch. Anyone on a test Pro plan keeps it until the end of the month, then adds a real card to continue. Test payments stay hidden from your Production totals.
 
 ## 2. How the money works
 
@@ -33,7 +33,7 @@ Every payment goes into **your Square account**:
 |---|---|---|
 | Booking deposit | Client, after the artist approves | The deposit is owed to the artist. Your **booking fee** (a % on top) is yours. Artists on Pro: no booking fee for their clients. |
 | Booth rental | Artist renting a guest spot | Owed to the shop, minus your **booth commission**. |
-| Pro plan | Artist, monthly | All yours. |
+| Featured plan | Pro, monthly | All yours. |
 
 **Payouts:** the **Payouts** page shows exactly what each artist and shop is owed. Pay them your usual way (e-Transfer, PayPal, bank transfer…) and click **Record payout**; they see it on their own Earnings page. Their payout details are on the same page.
 
@@ -43,15 +43,24 @@ When a client cancels a paid booking, or a shop cancels a paid rental, you get a
 
 **Bookkeeping:** **Export CSV** on the Payments page (it follows your current filters) and **Export payout records** on the Payouts page download spreadsheets for your accountant. Prices are charged exactly as entered, so if you need to collect sales tax (GST/HST/VAT…), build it into your fees and prices or ask your accountant. Card disputes (chargebacks) are handled in your Square dashboard.
 
-## 3. The Pro plan
+## 3. The Featured plan
 
-The Pro plan is **switched off** until you turn it on in **Settings → Features**. When it's on, artists can pay a monthly price to remove the booking fee for their clients, get a Pro badge and be listed first in the artist search.
+The Featured plan (called "Pro" in older versions) is **switched off** until you turn it on in **Settings → Features**. When it's on, pros can pay a monthly price to remove the booking fee for their clients, get a Featured badge and be listed first in search.
 
-- **Price:** set it in **Settings → Fees & pricing → Pro plan price**. Subscribers always pay the price that's listed. When you change it, every subscriber is emailed straight away and the new price applies from their **next renewal**. Some places require advance notice before a price rise, so it's good practice to change it well before most renewals.
-- **Renewals:** charged automatically to the artist's saved card each month. If a card fails, the site retries daily for 3 days (they keep Pro meanwhile) before the plan ends. Suspended accounts are never charged.
-- **Cancelling:** artists cancel any time in Settings and keep Pro until the end of the month they paid for.
-- **Turning Pro off later** stops new sign-ups. Current subscribers keep their plan (and can still cancel it) until they cancel.
-- You can also give someone Pro for free from **Users** (pick an end date or leave it open-ended).
+- **Price:** set it in **Settings → Fees & pricing → Featured plan price**. Subscribers always pay the price that's listed. When you change it, every subscriber is emailed straight away and the new price applies from their **next renewal**. Some places require advance notice before a price rise, so it's good practice to change it well before most renewals.
+- **Renewals:** charged automatically to the pro's saved card each month. If a card fails, the site retries daily for 3 days (they stay Featured meanwhile) before the plan ends. Suspended accounts are never charged.
+- **Cancelling:** pros cancel any time in Settings and stay Featured until the end of the month they paid for.
+- **Turning the plan off later** stops new sign-ups. Current subscribers keep their plan (and can still cancel it) until they cancel.
+- You can also make someone Featured for free from **Users** (pick an end date or leave it open-ended).
+
+## Accounts: one sign-up, two switches
+
+Everyone signs up the same way and every member can book appointments. Two switches add more:
+
+- **I take bookings** gives the member a public pro profile, services, hours and the pro dashboard. They pick their categories (one or more) and city when they switch it on.
+- **I rent out chairs or rooms** gives them the shop dashboard to list a shop and its booths.
+
+Both can be on at once (a barber who also rents out two chairs). Members switch either on later from **Settings**, and you can change them for anyone from **Admin → Users** (where you also make someone a site admin). Admin accounts run the site and don't book or sell.
 
 ## Calendars and appointment times
 
@@ -62,7 +71,7 @@ The Pro plan is **switched off** until you turn it on in **Settings → Features
 
 ## Categories (tattoo, barber, nails and more)
 
-Every pro chooses a category when they sign up, and clients browse and search by it. Change the list in **Admin → Settings → Choices on forms → Categories**: add one (for example "Massage") and pros can pick it straight away. Removing a category doesn't change pros who already use it; ask them to pick another in their dashboard. Tattoo and piercing bookings ask for size and placement; other categories skip those questions.
+Pros choose one or more categories when they sign up (their first pick is the main one shown on their card), and every service they add can be filed under one of them. Clients browse and search by category, and a pro appears under each category they work in. Change the list in **Admin → Settings → Choices on forms → Categories**: add one (for example "Massage") and pros can pick it straight away. Removing a category doesn't change pros who already use it; ask them to pick another in their dashboard. Services filed under Tattoo or Piercing ask for size and placement; other categories skip those questions.
 
 ## 4. Day to day
 
@@ -84,6 +93,19 @@ Booking requests (to the artist), approvals and payment links (to the client), p
 - **Backups:** the site saves a copy of its database every night and keeps the last 7 (see **Backup**). Those copies live on the same server, so also click **Download backup** regularly — at least weekly and always before updates — and keep the file somewhere else. Uploaded photos are stored separately in the `uploads` folder; your host's volume backups cover both.
 - **Privacy:** members can download all their data and delete their account themselves in **Settings**. Hidden location data is removed from uploaded photos. Backup files contain personal information — keep them private.
 - **Security built in:** passwords are scrambled (hashed), card details never touch the server (Square handles them), accounts lock for 15 minutes after repeated wrong passwords, and forms are protected against spam and abuse.
+
+## Traffic and capacity
+
+The site runs as one Node process with its database (SQLite) on the same disk, which is the simplest setup to host and back up. Measured on a 4-core machine with the demo data, it serves about 4,000 requests a second for the pros list and 3,000 a second for the home page, with no request waiting more than about 20 ms. That is tens of thousands of visitors an hour on a single small instance.
+
+What makes that possible, and what to do as you grow:
+
+- **Public pages are cached for a few seconds** on the server (the home page, the pros list, each pro's page, the site config, content pages). A pro who saves their profile sees the change within about 3 seconds. Logged-in data (bookings, messages, dashboards) is never cached.
+- **Images are resized in the browser before upload** (longest side 2400 px), stored on the data volume and served with one-year cache headers, so repeat visits don't download them again.
+- **Database writes are safe and quick**: write-ahead logging with a 5-second busy timeout, and a 32 MB page cache in memory.
+- **Growing past one instance.** Give the Railway service more CPU and memory first; the app uses the CPU it is given. If you ever outgrow one machine, the parts to move are the uploads (to object storage with a CDN in front, e.g. Cloudflare R2) and the database (the same schema works on Postgres or Turso). Everything else is stateless apart from live notifications, which reconnect by themselves.
+- **Protection from abuse** is built in: sign-ups, logins and bookings are rate-limited per IP, wrong passwords lock an account for 15 minutes, uploads are capped per hour, and request bodies are capped at 1 MB.
+- **If you put Cloudflare in front** (recommended for a public launch: free, and it absorbs traffic spikes and attacks), set `TRUST_PROXY=1` so the site sees visitors' real addresses for its rate limits, and let it cache `/uploads/*`, `/assets/*` and `/fonts/*`.
 
 ## 7. Troubleshooting
 

@@ -101,7 +101,7 @@ export const ArtistProfilePage: React.FC<{ id: string }> = ({ id }) => {
   if (loading || !artist) return <PageLoader />;
 
   const isSelf = user?.id === artist.id;
-  const canBook = !isSelf && settings.features.clientBooking && user?.role !== 'shop-owner' && user?.role !== 'admin';
+  const canBook = !isSelf && settings.features.clientBooking && !user?.isAdmin;
   const workingDays = DAYS.map((d, i) => ({ day: d, slots: artist.hours[String(i)] || [] }));
   const hasHours = workingDays.some(d => d.slots.length);
   const price = artist.services.length ? Math.min(...artist.services.map(s => s.price)) : null;
@@ -153,7 +153,7 @@ export const ArtistProfilePage: React.FC<{ id: string }> = ({ id }) => {
 
           <div className="flex flex-col sm:flex-row sm:items-end justify-between gap-4 border-b border-gray-200 dark:border-gray-800 pb-6">
             <div className="min-w-0">
-              <p className="text-brand-gray">{[artist.category, artist.specialty].filter(Boolean).join(' · ') || 'Pro'}</p>
+              <p className="text-brand-gray">{[artist.categories.join(', '), artist.specialty].filter(Boolean).join(' · ') || 'Pro'}</p>
               <p className="text-2xl font-display mt-1">{artist.name}</p>
               {where && <p className="mt-1 text-sm text-brand-gray flex items-center gap-1"><LocationIcon className="w-4 h-4" />{where}</p>}
             </div>
@@ -248,8 +248,8 @@ export const ArtistProfilePage: React.FC<{ id: string }> = ({ id }) => {
                   {artist.name}
                   {artist.isVerified && <CheckBadgeIcon className="inline w-5 h-5 ml-1 align-[-0.2em] text-brand-secondary" title="Verified" />}
                 </p>
-                {artist.category && <p className="text-sm text-brand-gray">{artist.category}</p>}
-                {artist.isPro && <Badge tone="brand" className="mt-1">Pro member</Badge>}
+                {artist.categories.length > 0 && <p className="text-sm text-brand-gray">{artist.categories.join(', ')}</p>}
+                {artist.isPro && <Badge tone="brand" className="mt-1">Featured</Badge>}
               </div>
             </div>
             {artist.guestSpot && (

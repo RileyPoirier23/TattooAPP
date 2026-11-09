@@ -1,5 +1,5 @@
 // Response shapes of the admin API (see server/routes/admin.ts).
-import type { PayoutMethod, Role, SiteSettings } from '../../../shared/types';
+import type { PayoutMethod, SiteSettings } from '../../../shared/types';
 
 export interface AdminStats {
   usersByRole: Record<string, number>;
@@ -50,7 +50,9 @@ export interface AdminUser {
   id: string;
   email: string;
   name: string;
-  role: Role;
+  isAdmin: boolean;
+  offersServices: boolean;
+  rentsSpace: boolean;
   city: string;
   status: 'active' | 'suspended';
   isVerified: boolean;
@@ -101,7 +103,7 @@ export interface AdminPayment {
 }
 
 export interface PayoutRow {
-  payee: { id: string; name: string; email: string; role: Role; payoutMethod: PayoutMethod };
+  payee: { id: string; name: string; email: string; offersServices: boolean; rentsSpace: boolean; payoutMethod: PayoutMethod };
   earnedCents: number;
   paidOutCents: number;
   balanceCents: number;
@@ -149,8 +151,15 @@ export interface AdminReview {
 export const PAYMENT_KIND_LABELS: Record<PaymentKind, string> = {
   deposit: 'Booking deposit',
   booth: 'Booth rental',
-  subscription: 'Pro subscription',
+  subscription: 'Featured plan',
 };
+
+/** "Pro", "Shop owner", "Pro & shop owner", "Client" or "Admin" for any account-like object. */
+export function kindLabel(u: { isAdmin?: boolean; offersServices: boolean; rentsSpace: boolean }): string {
+  if (u.isAdmin) return 'Admin';
+  const parts = [u.offersServices && 'Pro', u.rentsSpace && 'Shop owner'].filter(Boolean);
+  return parts.length ? parts.join(' & ') : 'Client';
+}
 
 export const PAYOUT_TYPE_LABELS: Record<string, string> = {
   etransfer: 'e-Transfer',

@@ -1,9 +1,9 @@
-// Money movement: deposits, booth rentals, Pro subscriptions, refunds and the payout ledger.
+// Money movement: deposits, booth rentals, Featured plan subscriptions, refunds and the payout ledger.
 // All charges go to the site owner's Square account. The ledger tracks what each artist / shop is owed.
 import { getDb, newId, nowIso } from './db';
 import { getSettings } from './settings';
 import { conflict, formatMoney, formatRange, formatWhen, HttpError, notFound, todayStr, toCents } from './http';
-import { getUser, isArtistRole, isPro, PRO_GRACE_DAYS, type UserRow } from './auth';
+import { getUser, isPro, offersServices, PRO_GRACE_DAYS, type UserRow } from './auth';
 import {
   cardLabel, createCard, createCustomer, createPayment, disableCard, idempotencyKey, locationCurrency, paymentsReady,
   refundPayment, type SquarePayment,
@@ -269,7 +269,7 @@ export async function payBoothBooking(bookingId: string, artist: UserRow, source
   });
 }
 
-// ---------- Pro subscription ----------
+// ---------- Featured plan subscription ----------
 
 function addMonth(fromIso: string): string {
   const d = new Date(fromIso);
@@ -304,7 +304,7 @@ async function chargeSubscription(user: UserRow, customerId: string, cardId: str
     amountCents: amount,
     currency,
     idempotencyKey: key,
-    note: `${getSettings().siteName} Pro, monthly`,
+    note: `${getSettings().siteName} Featured plan, monthly`,
     referenceId: user.id,
     buyerEmail: user.email,
     ref: `pro:${user.id}`,
@@ -313,13 +313,13 @@ async function chargeSubscription(user: UserRow, customerId: string, cardId: str
   amount = payment.amount_money?.amount ?? amount;
   insertPayment({
     kind: 'subscription', refId: user.id, userId: user.id, payerEmail: user.email,
-    description: `Pro plan, 1 month`, amountCents: amount, feeCents: amount, payeeId: null, payeeAmountCents: 0,
+    description: `Featured plan, 1 month`, amountCents: amount, feeCents: amount, payeeId: null, payeeAmountCents: 0,
     currency, squarePaymentId: payment.id, receiptUrl: payment.receipt_url ?? null,
   });
   return { amount, currency };
 }
 
-/** Starts Pro (charging the first month), or — if already Pro — saves the card and turns auto-renew back on. */
+/** Starts the Featured plan (charging the first month), or, if already on it, saves the card and turns auto-renew back on. */
 export async function subscribePro(user: UserRow, sourceId: string, clientKey: string) {
   ensureReady();
   return withLock(`sub:${user.id}`, async () => {
@@ -332,15 +332,15 @@ export async function subscribePro(user: UserRow, sourceId: string, clientKey: s
     if (!getSettings().features.proPlan) throw new HttpError(403, 'The Pro plan is not available right now.');
     const { customerId, cardId } = await saveCardOnFile(user, sourceId, clientKey);
     const price = currentProPriceCents();
-    if (price <= 0) throw conflict('The Pro plan price is not set. Please contact the site owner.');
+    if (price <= 0) throw conflict('The Featured plan price is not set. Please contact the site owner.');
     const { amount, currency } = await chargeSubscription(user, customerId, cardId, idempotencyKey('sub', user.id, clientKey), price);
     const until = addMonth(nowIso());
     db.prepare(
       "update users set subscription_tier = 'pro', pro_until = ?, pro_auto_renew = 1, renewal_failed_at = null, updated_at = ? where id = ?",
     ).run(until, nowIso(), user.id);
-    notify(user.id, `Welcome to Pro! Your plan renews on ${until.slice(0, 10)}.`, {
+    notify(user.id, `You're Featured! Your plan renews on ${until.slice(0, 10)}.`, {
       link: '/settings',
-      email: { subject: `You're on ${getSettings().siteName} Pro`, lines: [`Thanks! We charged ${formatMoney(amount, currency)}. Your plan renews automatically each month. Cancel any time in Settings.`] },
+      email: { subject: `You're on the ${getSettings().siteName} Featured plan`, lines: [`Thanks! We charged ${formatMoney(amount, currency)}. Your plan renews automatically each month. Cancel any time in Settings.`] },
     });
     return { charged: true };
   });
@@ -366,12 +366,12 @@ export async function processRenewals() {
   for (const user of due) {
     const end = (message?: string) => {
       db.prepare("update users set subscription_tier = 'free', pro_auto_renew = 0, renewal_failed_at = null, updated_at = ? where id = ?").run(nowIso(), user.id);
-      if (message) notify(user.id, message, { link: '/settings', email: { subject: 'Your Pro plan has ended', actionLabel: 'Resubscribe' } });
+      if (message) notify(user.id, message, { link: '/settings', email: { subject: 'Your Featured plan has ended', actionLabel: 'Resubscribe' } });
       emit(user.id, 'me');
     };
-    const eligible = user.pro_auto_renew && user.square_card_id && user.square_customer_id && user.status === 'active' && isArtistRole(user.role);
+    const eligible = user.pro_auto_renew && user.square_card_id && user.square_customer_id && user.status === 'active' && offersServices(user);
     if (!eligible) {
-      end(user.pro_auto_renew ? 'Your Pro plan has ended.' : undefined);
+      end(user.pro_auto_renew ? 'Your Featured plan has ended.' : undefined);
       continue;
     }
     if (!paymentsReady()) continue; // payments switched off temporarily — try again later
@@ -387,20 +387,20 @@ export async function processRenewals() {
       const overdue = Date.now() - new Date(user.pro_until!).getTime();
       const until = addMonth(overdue > PRO_GRACE_DAYS * DAY ? nowIso() : user.pro_until!);
       db.prepare('update users set pro_until = ?, renewal_failed_at = null, updated_at = ? where id = ?').run(until, nowIso(), user.id);
-      notify(user.id, `Your Pro plan renewed for ${formatMoney(amount, currency)}. Next renewal: ${until.slice(0, 10)}.`, {
+      notify(user.id, `Your Featured plan renewed for ${formatMoney(amount, currency)}. Next renewal: ${until.slice(0, 10)}.`, {
         link: '/settings',
-        email: { subject: 'Your Pro plan renewed', actionLabel: 'Manage plan' },
+        email: { subject: 'Your Featured plan renewed', actionLabel: 'Manage plan' },
       });
     } catch (err) {
       console.warn(`[billing] renewal failed for ${user.id}:`, (err as Error).message);
       const overdueDays = (Date.now() - new Date(user.pro_until!).getTime()) / DAY;
       if (overdueDays >= PRO_GRACE_DAYS) {
-        end('We could not renew your Pro plan, so it has ended. Add a working card in Settings to resubscribe.');
+        end('We could not renew your Featured plan, so it has ended. Add a working card in Settings to resubscribe.');
       } else {
         if (!user.renewal_failed_at) {
-          notify(user.id, `We couldn't renew your Pro plan (${(err as Error).message}). We'll try again tomorrow. Update your card in Settings to keep Pro.`, {
+          notify(user.id, `We couldn't renew your Featured plan (${(err as Error).message}). We'll try again tomorrow. Update your card in Settings to stay Featured.`, {
             link: '/settings',
-            email: { subject: 'Problem renewing your Pro plan', actionLabel: 'Update card' },
+            email: { subject: 'Problem renewing your Featured plan', actionLabel: 'Update card' },
           });
         }
         db.prepare('update users set renewal_failed_at = ? where id = ?').run(nowIso(), user.id);
@@ -515,7 +515,7 @@ export function deletionBlockers(userId: string): string[] {
 
 /**
  * Tells every subscriber who will be renewed that the price is changing. Called when the admin changes the
- * Pro price; the new price applies from each subscriber's next renewal.
+ * Featured plan price; the new price applies from each subscriber's next renewal.
  */
 export function announceProPriceChange(oldPrice: number, newPrice: number) {
   const subscribers = getDb()
@@ -525,8 +525,8 @@ export function announceProPriceChange(oldPrice: number, newPrice: number) {
   const from = formatMoney(toCents(oldPrice), currency);
   const to = formatMoney(toCents(newPrice), currency);
   for (const s of subscribers) {
-    const message = `The ${getSettings().siteName} Pro price is changing from ${from} to ${to} a month. Your next renewal on ${s.pro_until.slice(0, 10)} will be charged ${to}. You can cancel any time in Settings.`;
-    notify(s.id, message, { link: '/settings', email: { subject: 'Pro plan price change', lines: [message], actionLabel: 'Manage plan' } });
+    const message = `The ${getSettings().siteName} Featured plan price is changing from ${from} to ${to} a month. Your next renewal on ${s.pro_until.slice(0, 10)} will be charged ${to}. You can cancel any time in Settings.`;
+    notify(s.id, message, { link: '/settings', email: { subject: 'Featured plan price change', lines: [message], actionLabel: 'Manage plan' } });
   }
   return subscribers.length;
 }

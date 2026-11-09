@@ -191,5 +191,14 @@ function connectEvents() {
 }
 
 // Convenience selectors
-export const isArtist = (u: Me | null) => u?.role === 'artist' || u?.role === 'dual';
-export const isClient = (u: Me | null) => u?.role === 'client' || u?.role === 'dual';
+export const isArtist = (u: Me | null) => !!u?.offersServices;
+export const isHost = (u: Me | null) => !!u?.rentsSpace;
+export const isAdmin = (u: Me | null) => !!u?.isAdmin;
+/** Everyone but admins can book appointments. */
+export const isClient = (u: Me | null) => !!u && !u.isAdmin;
+/** "Pro", "Shop owner", "Pro & shop owner", "Client" or "Admin". */
+export function accountKind(u: Me): string {
+  if (u.isAdmin) return 'Admin';
+  const parts = [u.offersServices && 'Pro', u.rentsSpace && 'Shop owner'].filter(Boolean);
+  return parts.length ? parts.join(' & ') : 'Client';
+}

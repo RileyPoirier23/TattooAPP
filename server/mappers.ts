@@ -1,6 +1,6 @@
 // Convert database rows into the API shapes defined in shared/types.ts.
 import { getDb, parseJson, nowIso } from './db';
-import { isPro, type UserRow } from './auth';
+import { isAdminUser, isPro, offersServices, rentsSpace, type UserRow } from './auth';
 import { todayStr } from './http';
 import { getSettings } from './settings';
 import type {
@@ -50,12 +50,19 @@ export function guestSpotsByArtist(): Map<string, GuestSpot> {
   return map;
 }
 
+/** Every category a pro works in: their own list, their main one, and any a service names. */
+export function categoriesOf(u: Pick<UserRow, 'category' | 'categories' | 'services'>): string[] {
+  const list = [u.category, ...parseJson<string[]>(u.categories, []), ...parseJson<{ category?: string }[]>(u.services, []).map(s => s.category ?? '')];
+  return [...new Set(list.filter(Boolean))];
+}
+
 export function toPublicArtist(u: UserRow, spots?: Map<string, GuestSpot>): PublicArtist {
   return {
     id: u.id,
     name: u.name,
     city: u.city,
     category: u.category ?? '',
+    categories: categoriesOf(u),
     address: u.address ?? '',
     specialty: u.specialty,
     bio: u.bio,
@@ -90,10 +97,13 @@ export function toMe(u: UserRow): Me {
   return {
     id: u.id,
     email: u.email,
-    role: u.role,
+    isAdmin: isAdminUser(u),
+    offersServices: offersServices(u),
+    rentsSpace: rentsSpace(u),
     name: u.name,
     city: u.city,
     category: u.category ?? '',
+    categories: categoriesOf(u),
     address: u.address ?? '',
     specialty: u.specialty,
     bio: u.bio,

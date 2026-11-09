@@ -150,7 +150,7 @@ export const ShopsPage: React.FC = () => {
       {loading && !data && <SkeletonGrid count={6} className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6"><ShopCardSkeleton /></SkeletonGrid>}
       {data && filtered.length === 0 && (
         <EmptyState icon={<StoreIcon />} title={data.length === 0 ? 'No shops listed yet' : 'No shops match your search'}>
-          {user?.role === 'shop-owner' ? <Link to="/shop" className="text-brand-primary">List your shop</Link> : !user && <button className="text-brand-primary" onClick={() => openAuth('register')}>Own a shop? List it for free</button>}
+          {user?.rentsSpace ? <Link to="/shop" className="text-brand-primary">List your shop</Link> : !user && <button className="text-brand-primary" onClick={() => openAuth('register')}>Own a shop? List it for free</button>}
         </EmptyState>
       )}
       {filtered.length > 0 && (

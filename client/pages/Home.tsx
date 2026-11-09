@@ -14,7 +14,7 @@ import type { PublicArtist, Shop } from '../../shared/types';
 /** The owner's categories with how many pros list under each, busiest first. */
 function categoryCounts(categories: string[], pros: PublicArtist[]) {
   return categories
-    .map((name, i) => ({ name, count: pros.filter(p => p.category === name).length, order: i }))
+    .map((name, i) => ({ name, count: pros.filter(p => p.categories.includes(name)).length, order: i }))
     .sort((a, b) => b.count - a.count || a.order - b.order);
 }
 
@@ -83,7 +83,7 @@ export const HomePage: React.FC = () => {
   };
 
   const [filter, setFilter] = useState('');
-  const byCategory = (filter ? list.filter(a => a.category === filter) : list).slice(0, 8);
+  const byCategory = (filter ? list.filter(a => a.categories.includes(filter)) : list).slice(0, 8);
   // One piece each from different categories where possible, for the banners.
   const showcase = [...new Map(list.filter(a => a.portfolio[0]).map(a => [a.category, a])).values(), ...list]
     .filter(a => a.portfolio[0])

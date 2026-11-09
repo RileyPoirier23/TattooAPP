@@ -15,18 +15,12 @@ export const MyBookingsPage: React.FC = () => {
   const { data, error, loading, reload } = useApi<MyBookings>('/bookings', [version]);
   const artist = isArtist(user);
   // Artists mostly use this page for guest spots — unless they have tattoo appointments of their own, or rentals are off.
-  const [tab, setTab] = useState<'tattoos' | 'booths'>(artist && user.role === 'artist' && features.boothRental ? 'booths' : 'tattoos');
+  const [tab, setTab] = useState<'tattoos' | 'booths'>('tattoos');
+  // Pros who only rent booths land on their rentals; everyone else on their appointments.
   React.useEffect(() => {
-    if (data && tab === 'booths' && data.asClient.length > 0 && data.boothBookings.length === 0) setTab('tattoos');
+    if (data && artist && features.boothRental && data.asClient.length === 0 && data.boothBookings.length > 0) setTab('booths');
   }, [data]); // eslint-disable-line react-hooks/exhaustive-deps
 
-  if (user.role === 'shop-owner') {
-    return (
-      <EmptyState title="Your shop's rentals live on your shop dashboard">
-        <Link to="/shop"><Button className="mt-3">Go to my shop</Button></Link>
-      </EmptyState>
-    );
-  }
   if (error) return <ErrorBox message={error} onRetry={reload} />;
   if (loading || !data) return <PageLoader />;
 

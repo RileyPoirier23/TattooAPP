@@ -69,12 +69,4 @@ export const PREFERRED_TIMES: Record<string, string> = {
   evening: 'Evening',
 };
 
-export const ROLE_LABELS: Record<string, string> = {
-  client: 'Client',
-  artist: 'Artist',
-  dual: 'Artist & Client',
-  'shop-owner': 'Shop Owner',
-  admin: 'Admin',
-};
-
 export const newKey = () => (crypto.randomUUID ? crypto.randomUUID() : `${Date.now()}-${Math.random().toString(36).slice(2)}`);

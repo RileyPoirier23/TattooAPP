@@ -18,7 +18,7 @@ const KIND_FILTERS = [
   { id: 'all', label: 'All' },
   { id: 'deposit', label: 'Deposits' },
   { id: 'booth', label: 'Booth rentals' },
-  { id: 'subscription', label: 'Pro plans' },
+  { id: 'subscription', label: 'Featured plans' },
 ];
 
 const RefundModal: React.FC<{ payment: AdminPayment; onClose: () => void; onRefunded: () => void }> = ({ payment: p, onClose, onRefunded }) => {
@@ -32,7 +32,13 @@ const RefundModal: React.FC<{ payment: AdminPayment; onClose: () => void; onRefu
         onRefunded();
         onClose();
       },
-      `Refunded ${money(p.amountCents, p.currency)}.${useStore.getState().config?.emailReady ? ' The payer has been emailed.' : p.payerName ? ' The payer has been notified on the site.' : ''}`,
+      `Refunded ${money(p.amountCents, p.currency)}.${
+        useStore.getState().config?.emailReady
+          ? ' The payer has been emailed.'
+          : p.payerName
+            ? ' The payer has been notified on the site.'
+            : ' Email is not set up, so let the payer know yourself.'
+      }`,
     );
   return (
     <Dialog
@@ -62,7 +68,7 @@ const RefundModal: React.FC<{ payment: AdminPayment; onClose: () => void; onRefu
         </p>
         {p.kind === 'deposit' && <p>If the appointment hasn&apos;t happened yet, it&apos;s cancelled and the pro is told. The booking is marked as refunded.</p>}
         {p.kind === 'booth' && <p>The booth rental will be cancelled and the dates freed up.</p>}
-        {p.kind === 'subscription' && <p>Refunding a Pro payment also ends that pro&apos;s Pro plan straight away.</p>}
+        {p.kind === 'subscription' && <p>Refunding a plan payment also ends that pro&apos;s Featured plan straight away.</p>}
         {p.payeeAmountCents > 0 && (
           <p className="text-amber-700 dark:text-amber-300">
             {p.payeeName || 'The payee'}&apos;s share ({money(p.payeeAmountCents, p.currency)}) is taken off what you owe them. If you already paid them, their balance goes
@@ -116,7 +122,7 @@ export const PaymentsSection: React.FC = () => {
         {({ items: visible, total, pageSize, totals: t }) => {
           const totals = [
             { label: 'Collected', value: money(t.grossCents), hint: `${t.completedCount} payment${t.completedCount === 1 ? '' : 's'}` },
-            { label: 'Your fees', value: money(t.feesCents), hint: 'Booking fees, booth commission & Pro plans', highlight: true },
+            { label: 'Your fees', value: money(t.feesCents), hint: 'Booking fees, booth commission & Featured plans', highlight: true },
             { label: 'Pros’ & shops’ share', value: money(t.payeeCents), hint: 'See Payouts for what is still owed' },
             { label: 'Refunded', value: money(t.refundedCents), hint: `${t.refundedCount} refund${t.refundedCount === 1 ? '' : 's'}` },
           ];
@@ -161,7 +167,7 @@ export const PaymentsSection: React.FC = () => {
                   <EmptyState icon={<CreditCardIcon className="w-12 h-12" />} title={filtered ? 'No matches' : 'No payments yet'}>
                     {filtered
                       ? 'Try a different search or filter.'
-                      : 'When clients pay deposits, pros rent booths or subscribe to Pro, the payments show up here.'}
+                      : 'When clients pay deposits, pros rent booths or get Featured, the payments show up here.'}
                   </EmptyState>
                 </Card>
               ) : (

@@ -1,6 +1,7 @@
 // Site settings (editable in the admin panel) and secrets (never sent to browsers).
 import { getDb, newId, nowIso, parseJson } from './db';
 import { config } from './config';
+import { invalidate } from './cache';
 import type { SecretSettings, SiteSettings } from '../shared/types';
 import { DEFAULT_PAGES, OLD_PLACEHOLDERS } from './defaultPages';
 
@@ -112,7 +113,13 @@ function upgradeOldDefaults(s: SiteSettings): SiteSettings {
   return s;
 }
 
+// Settings are read on almost every request; a one-second cache keeps that off the database, and a save
+// clears it straight away (another process, if one ever runs, sees the change within the second).
+const readCache = new Map<string, { value: object; expires: number }>();
+
 function readKey<T extends object>(key: string, defaults: T): T {
+  const hit = readCache.get(key);
+  if (hit && hit.expires > Date.now()) return structuredClone(hit.value) as T;
   const row = getDb().prepare('select value from settings where key = ?').get(key) as { value: string } | undefined;
   const stored = parseJson<Partial<T>>(row?.value, {});
   const merged = { ...defaults, ...stored } as T;
@@ -120,10 +127,13 @@ function readKey<T extends object>(key: string, defaults: T): T {
   if ('features' in defaults) {
     (merged as any).features = { ...(defaults as any).features, ...((stored as any).features || {}) };
   }
+  readCache.set(key, { value: structuredClone(merged), expires: Date.now() + 1000 });
   return merged;
 }
 
 function writeKey(key: string, value: object) {
+  readCache.delete(key);
+  invalidate();
   getDb()
     .prepare('insert into settings (key, value) values (?, ?) on conflict(key) do update set value = excluded.value')
     .run(key, JSON.stringify(value));

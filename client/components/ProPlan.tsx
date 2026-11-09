@@ -1,4 +1,4 @@
-// Pro plan: subscribe (card on file, renews monthly), cancel / resume, update card.
+// Featured plan: subscribe (card on file, renews monthly), cancel / resume, update card.
 import React, { useState } from 'react';
 import { api, errorMessage } from '../api';
 import { useStore } from '../store';
@@ -31,18 +31,18 @@ export const ProPlanCard: React.FC<{ me: Me }> = ({ me }) => {
 
   const perks = [
     ...(settings.depositFeePercent > 0 ? [`No ${settings.depositFeePercent}% booking fee for your clients on deposits`] : []),
-    'Pro badge on your profile',
+    'Featured badge on your profile',
     'Listed first in search',
     'Cancel any time',
   ];
-  // The owner can stop offering Pro; existing subscribers keep managing their plan here.
+  // The owner can stop offering the plan; existing subscribers keep managing their plan here.
   const offered = settings.features.proPlan;
 
   return (
     <Card>
       <div>
         <div className="flex items-center gap-3 mb-2">
-          <h2 className="text-2xl font-display">{settings.siteName} Pro</h2>
+          <h2 className="text-2xl font-display">{settings.siteName} Featured</h2>
           {sub.isPro && <Badge tone="green">Active</Badge>}
         </div>
         <p className="text-3xl font-semibold tabular-nums">{price}<span className="text-base font-normal text-brand-gray"> a month</span></p>
@@ -58,11 +58,11 @@ export const ProPlanCard: React.FC<{ me: Me }> = ({ me }) => {
                   ? sub.autoRenew
                     ? <>Renews on <strong>{formatDate(sub.proUntil)}</strong>{sub.cardLabel && <> using {sub.cardLabel}</>}.</>
                     : <>Your plan ends on <strong>{formatDate(sub.proUntil)}</strong> and won't renew.</>
-                  : 'Your Pro plan was granted by the site admin.'}
+                  : 'Your Featured plan was granted by the site admin.'}
               </p>
               <div className="flex flex-wrap gap-2">
                 {sub.proUntil && sub.autoRenew && (
-                  <Button variant="outline" loading={busy} onClick={() => window.confirm('Cancel auto-renewal? You keep Pro until the end of the current month.') && call('/me/subscription/cancel', 'Auto-renew turned off.')}>
+                  <Button variant="outline" loading={busy} onClick={() => window.confirm('Cancel auto-renewal? You stay Featured until the end of the current month.') && call('/me/subscription/cancel', 'Auto-renew turned off.')}>
                     Cancel plan
                   </Button>
                 )}
@@ -75,12 +75,12 @@ export const ProPlanCard: React.FC<{ me: Me }> = ({ me }) => {
               </div>
             </>
           ) : offered ? (
-            <Button size="lg" onClick={() => setCardModal('subscribe')}>Upgrade for {price} a month</Button>
+            <Button size="lg" onClick={() => setCardModal('subscribe')}>Get Featured for {price} a month</Button>
           ) : (
-            <p className="text-sm text-brand-gray">The Pro plan isn&apos;t available right now.</p>
+            <p className="text-sm text-brand-gray">The Featured plan isn&apos;t available right now.</p>
           )}
           {sub.isPro && !offered && sub.autoRenew && (
-            <p className="text-xs text-brand-gray">Pro is no longer offered to new members, but your plan keeps renewing until you cancel.</p>
+            <p className="text-xs text-brand-gray">The Featured plan is no longer offered to new members, but yours keeps renewing until you cancel.</p>
           )}
           {sub.isPro && sub.autoRenew && (
             <p className="text-xs text-brand-gray">If the price changes, we&apos;ll email you before your next renewal; the new price applies from that renewal.</p>
@@ -88,7 +88,7 @@ export const ProPlanCard: React.FC<{ me: Me }> = ({ me }) => {
         </div>
       </div>
       {cardModal && (
-        <Modal title={cardModal === 'subscribe' ? `Upgrade to Pro (${price} a month)` : cardModal === 'resume' ? 'Resume your Pro plan' : 'Update your card'} onClose={() => setCardModal(null)} size="md">
+        <Modal title={cardModal === 'subscribe' ? `Get Featured (${price} a month)` : cardModal === 'resume' ? 'Resume your Featured plan' : 'Update your card'} onClose={() => setCardModal(null)} size="md">
           <SquareCardForm
             buttonLabel={cardModal === 'subscribe' ? `Pay ${price} & upgrade` : cardModal === 'resume' ? 'Save card & resume' : 'Save card'}
             note={cardModal === 'subscribe' ? `You'll be charged ${price} today and every month until you cancel. Card payments are processed by Square.` : undefined}
@@ -96,7 +96,7 @@ export const ProPlanCard: React.FC<{ me: Me }> = ({ me }) => {
               // Updating the card never changes whether the plan renews; resuming does.
               const { user } = await api.post<{ user: Me }>(cardModal === 'update' ? '/me/card' : '/me/subscription', { sourceId, idempotencyKey });
               setUser(user);
-              toast(cardModal === 'subscribe' ? "You're on Pro." : cardModal === 'resume' ? 'Your plan will renew again.' : 'Card updated.');
+              toast(cardModal === 'subscribe' ? "You're Featured." : cardModal === 'resume' ? 'Your plan will renew again.' : 'Card updated.');
               setCardModal(null);
             }}
           />

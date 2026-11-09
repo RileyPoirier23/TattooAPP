@@ -7,7 +7,7 @@ import { asksPlacement, asksSize } from '../../shared/categories';
 import { availabilityFor } from '../availability';
 import { googleBusy, syncBookingEvent } from '../google';
 import { bookingEvent, renderIcs } from '../ics';
-import { getUser, isArtistRole, randomToken, requireArtist, requireUser, type UserRow } from '../auth';
+import { canBook, getUser, offersServices, randomToken, rentsSpace, requireArtist, requireUser, type UserRow } from '../auth';
 import { getDb, newId, nowIso, parseJson } from '../db';
 import {
   badRequest, conflict, daysBetweenInclusive, forbidden, formatMoney, formatRange, formatWhen, HttpError, notFound, parse, parseDate, todayStr,
@@ -104,11 +104,11 @@ bookingsRouter.post('/booking-requests', createLimiter, uploadLimiter, upload.ar
   const db = getDb();
 
   const artist = db
-    .prepare("select * from users where id = ? and role in ('artist','dual') and status = 'active'")
+    .prepare("select * from users where id = ? and offers_services = 1 and status = 'active'")
     .get(body.artistId) as UserRow | undefined;
   if (!artist) throw notFound('Pro not found.');
   if (user?.id === artist.id || (!user && body.guestEmail === artist.email)) throw badRequest("You can't book yourself.");
-  if (user && !['client', 'dual', 'artist'].includes(user.role)) throw forbidden('Please use a client account to book.');
+  if (user && !canBook(user)) throw forbidden('Admin accounts cannot book appointments.');
 
   if (body.website) throw badRequest('Your request could not be sent.');
   if (!user) {
@@ -138,15 +138,18 @@ bookingsRouter.post('/booking-requests', createLimiter, uploadLimiter, upload.ar
 
   const intake = intakeOf(artist);
   const files = (req.files as Express.Multer.File[]) || [];
+  const services = parseJson<ArtistService[]>(artist.services, []);
+  const service = body.serviceId ? services.find(s => s.id === body.serviceId) : undefined;
+  if (body.serviceId && !service) throw badRequest('That service is no longer offered. Please pick another.');
   // Size and placement only apply to some categories (tattoos, piercings), whatever the intake settings say.
-  if (intake.requireSize && asksSize(artist.category) && (!body.tattooWidth || !body.tattooHeight)) throw badRequest('Please enter the approximate size of your tattoo.');
-  if (intake.requirePlacement && asksPlacement(artist.category) && !body.bodyPlacement) throw badRequest('Please choose where on your body it will go.');
+  // The chosen service decides; a service with no category of its own follows the pro's main one.
+  const category = service?.category || artist.category;
+  if (intake.requireSize && asksSize(category) && (!body.tattooWidth || !body.tattooHeight)) throw badRequest('Please enter the approximate size of your tattoo.');
+  if (intake.requirePlacement && asksPlacement(category) && !body.bodyPlacement) throw badRequest('Please choose where on your body it will go.');
   if (intake.requireDescription && body.message.length < 10) throw badRequest('Please describe what you would like (at least a sentence).');
   if (intake.requireBudget && !body.budget) throw badRequest('Please enter your budget.');
   if (intake.requireReferenceImages && files.length === 0) throw badRequest('Please attach at least one reference image.');
 
-  const services = parseJson<ArtistService[]>(artist.services, []);
-  const service = body.serviceId ? services.find(s => s.id === body.serviceId) : undefined;
   // A requested start time must still be one of the pro's free slots (someone else may have taken it meanwhile).
   let requestedTime: string | null = null;
   if (body.requestedTime) {
@@ -154,7 +157,6 @@ bookingsRouter.post('/booking-requests', createLimiter, uploadLimiter, upload.ar
     if (!avail.slots.includes(body.requestedTime)) throw conflict('That time was just taken or is outside working hours. Please pick another slot.');
     requestedTime = body.requestedTime;
   }
-  if (body.serviceId && !service) throw badRequest('That service is no longer offered. Please pick another.');
   const depositCents = toCents(service ? service.deposit : settings.defaultDeposit);
 
   const images = files.map(saveImage);
@@ -168,7 +170,7 @@ bookingsRouter.post('/booking-requests', createLimiter, uploadLimiter, upload.ar
      values (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
   ).run(
     id, artist.id, user?.id ?? null, user ? null : body.guestName, user ? null : body.guestEmail, user ? null : body.guestPhone || null,
-    token, service?.id ?? null, service?.name ?? (asksSize(artist.category) ? 'Custom tattoo' : 'Appointment'), service?.price ?? null, body.date, body.preferredTime, requestedTime,
+    token, service?.id ?? null, service?.name ?? (asksSize(category) ? 'Custom tattoo' : 'Appointment'), service?.price ?? null, body.date, body.preferredTime, requestedTime,
     body.message, body.tattooWidth ?? null, body.tattooHeight ?? null, body.bodyPlacement, body.budget ?? null,
     JSON.stringify(images), depositCents, depositFeeCents(depositCents, artist), now, now, now,
   );
@@ -203,15 +205,15 @@ bookingsRouter.get('/bookings', (req, res) => {
   const db = getDb();
   const asClient = (db.prepare(`${BOOKING_REQUEST_SELECT} where br.client_id = ? order by br.date desc`).all(user.id) as any[])
     .map(r => toBookingRequest(r, { includeToken: true }));
-  const asArtist = isArtistRole(user.role)
+  const asArtist = offersServices(user)
     ? (db.prepare(`${BOOKING_REQUEST_SELECT} where br.artist_id = ? order by br.date`).all(user.id) as any[])
         .map(r => toBookingRequest(r, { includeContact: true }))
     : [];
-  const boothBookings = isArtistRole(user.role)
+  const boothBookings = offersServices(user)
     ? (db.prepare(`${BOOTH_BOOKING_SELECT} where bb.artist_id = ? order by bb.start_date desc`).all(user.id) as any[]).map(toBoothBooking)
     : [];
   const shopBookings =
-    user.role === 'shop-owner'
+    rentsSpace(user)
       ? (db.prepare(`${BOOTH_BOOKING_SELECT} where s.owner_id = ? order by bb.start_date`).all(user.id) as any[]).map(toBoothBooking)
       : [];
   const body: MyBookings = { asClient, asArtist, boothBookings, shopBookings };
@@ -254,7 +256,7 @@ bookingsRouter.get('/booking-requests/:id/calendar.ics', (req, res) => {
 /** A logged-in client adds a booking they made as a guest to their account (the private link proves it's theirs). */
 bookingsRouter.post('/booking-requests/:id/claim', (req, res) => {
   const user = requireUser(req);
-  if (!['client', 'dual', 'artist'].includes(user.role)) throw forbidden('Use a client account to keep bookings.');
+  if (!canBook(user)) throw forbidden('Admin accounts cannot keep bookings.');
   const { token } = parse(z.object({ token: z.string().min(1) }), req.body);
   const row = getDb().prepare('select * from booking_requests where id = ?').get(req.params.id) as any;
   if (!row || !tokenMatches(token, row.access_token)) throw notFound('Booking not found.');

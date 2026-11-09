@@ -10,48 +10,61 @@ import { fillPageTokens } from '../defaultPages';
 import { paymentsReady } from '../square';
 import { emailReady } from '../email';
 import { badRequest, notFound, todayStr } from '../http';
+import { sendCachedJson } from '../cache';
 import { daysOffFor, guestSpotsByArtist, intakeOf, toPublicArtist, toShop } from '../mappers';
 import type { UserRow } from '../auth';
 import type { ArtistDetail, Page, PublicConfig, Review, ShopDetail } from '../../shared/types';
 
 export const publicRouter = Router();
 
-publicRouter.get('/config', (_req, res) => {
-  const pages = getDb()
-    .prepare('select slug, title, show_in_footer from pages where published = 1 order by sort_order, title')
-    .all() as any[];
-  const body: PublicConfig = {
-    settings: getSettings(),
-    pages: pages.map(p => ({ slug: p.slug, title: p.title, showInFooter: !!p.show_in_footer })),
-    paymentsReady: paymentsReady(),
-    emailReady: emailReady(),
-    googleCalendarReady: googleReady(),
-  };
-  res.json(body);
+// The same for every visitor, so each of these is built once every few seconds however busy the site is.
+const CACHE_MS = 3000;
+
+publicRouter.get('/config', (req, res) => {
+  sendCachedJson(req, res, 'config', CACHE_MS, () => {
+    const pages = getDb()
+      .prepare('select slug, title, show_in_footer from pages where published = 1 order by sort_order, title')
+      .all() as any[];
+    const body: PublicConfig = {
+      settings: getSettings(),
+      pages: pages.map(p => ({ slug: p.slug, title: p.title, showInFooter: !!p.show_in_footer })),
+      paymentsReady: paymentsReady(),
+      emailReady: emailReady(),
+      googleCalendarReady: googleReady(),
+    };
+    return body;
+  });
 });
 
 publicRouter.get('/pages/:slug', (req, res) => {
   const p = getDb().prepare('select * from pages where slug = ? and published = 1').get(req.params.slug) as any;
   if (!p) throw notFound('Page not found.');
-  const page: Page = {
-    id: p.id,
-    slug: p.slug,
-    title: p.title,
-    body: fillPageTokens(p.body, getSettings(), config.appUrl),
-    published: !!p.published,
-    showInFooter: !!p.show_in_footer,
-    sortOrder: p.sort_order,
-    updatedAt: p.updated_at,
-  };
-  res.json(page);
+  sendCachedJson(req, res, `page:${p.slug}:${p.updated_at}`, 60_000, () => {
+    const page: Page = {
+      id: p.id,
+      slug: p.slug,
+      title: p.title,
+      body: fillPageTokens(p.body, getSettings(), config.appUrl),
+      published: !!p.published,
+      showInFooter: !!p.show_in_footer,
+      sortOrder: p.sort_order,
+      updatedAt: p.updated_at,
+    };
+    return page;
+  });
 });
 
 publicRouter.get('/artists', (req, res) => {
+  const date = typeof req.query.date === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(req.query.date) ? req.query.date : null;
+  sendCachedJson(req, res, `artists:${date ?? ''}`, CACHE_MS, () => listArtists(date));
+});
+
+function listArtists(date: string | null) {
   const rows = getDb()
     .prepare(
       // Artists appear in search once they've added at least one portfolio photo (their profile link works before that).
-      // Pro artists are listed first, then verified ones.
-      `select * from users where role in ('artist','dual') and status = 'active' and json_array_length(portfolio) > 0
+      // Featured pros are listed first, then verified ones.
+      `select * from users where offers_services = 1 and status = 'active' and json_array_length(portfolio) > 0
        order by (subscription_tier = 'pro' and (pro_until is null or pro_until > @now)) desc,
          is_verified desc, average_rating desc, review_count desc, created_at desc`,
     )
@@ -59,7 +72,6 @@ publicRouter.get('/artists', (req, res) => {
   const spots = guestSpotsByArtist();
   // ?date=YYYY-MM-DD keeps only pros working that day: open on that weekday (or no hours set, like the
   // booking calendar) and not on a day off.
-  const date = typeof req.query.date === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(req.query.date) ? req.query.date : null;
   let list = rows;
   if (date) {
     const weekday = String(new Date(`${date}T12:00:00`).getDay());
@@ -72,8 +84,8 @@ publicRouter.get('/artists', (req, res) => {
       return !off.has(u.id) && (!hasHours || !!hours[weekday]?.length);
     });
   }
-  res.json(list.map(u => toPublicArtist(u, spots)));
-});
+  return list.map(u => toPublicArtist(u, spots));
+}
 
 // A member's private calendar feed; the long random token in the link is the only credential.
 publicRouter.get('/calendar/:token.ics', (req, res) => {
@@ -88,7 +100,7 @@ publicRouter.get('/calendar/:token.ics', (req, res) => {
 // Free start times for one day, for the booking form's slot picker.
 publicRouter.get('/artists/:id/availability', async (req, res) => {
   const u = getDb()
-    .prepare("select * from users where id = ? and role in ('artist','dual') and status = 'active'")
+    .prepare("select * from users where id = ? and offers_services = 1 and status = 'active'")
     .get(req.params.id) as UserRow | undefined;
   if (!u) throw notFound('Pro not found.');
   const date = typeof req.query.date === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(req.query.date) ? req.query.date : null;
@@ -101,9 +113,14 @@ publicRouter.get('/artists/:id/availability', async (req, res) => {
 publicRouter.get('/artists/:id', (req, res) => {
   const db = getDb();
   const u = db
-    .prepare("select * from users where id = ? and role in ('artist','dual') and status = 'active'")
+    .prepare("select * from users where id = ? and offers_services = 1 and status = 'active'")
     .get(req.params.id) as UserRow | undefined;
   if (!u) throw notFound('Pro not found.');
+  sendCachedJson(req, res, `artist:${u.id}:${u.updated_at}`, CACHE_MS, () => artistDetail(u));
+});
+
+function artistDetail(u: UserRow): ArtistDetail {
+  const db = getDb();
   const reviews = (
     db
       .prepare(
@@ -122,18 +139,19 @@ publicRouter.get('/artists/:id', (req, res) => {
       createdAt: r.review_at,
     }),
   );
-  const detail: ArtistDetail = { ...toPublicArtist(u), reviews, daysOff: daysOffFor(u.id) };
-  res.json(detail);
-});
+  return { ...toPublicArtist(u), reviews, daysOff: daysOffFor(u.id) };
+}
 
-publicRouter.get('/shops', (_req, res) => {
-  const rows = getDb()
-    .prepare(
-      `select s.* from shops s join users u on u.id = s.owner_id where u.status = 'active'
-       order by s.is_verified desc, s.average_rating desc, s.created_at desc`,
-    )
-    .all();
-  res.json(rows.map(r => toShop(r)));
+publicRouter.get('/shops', (req, res) => {
+  sendCachedJson(req, res, 'shops', CACHE_MS, () => {
+    const rows = getDb()
+      .prepare(
+        `select s.* from shops s join users u on u.id = s.owner_id where u.status = 'active'
+         order by s.is_verified desc, s.average_rating desc, s.created_at desc`,
+      )
+      .all();
+    return rows.map(r => toShop(r));
+  });
 });
 
 publicRouter.get('/shops/:id', (req, res) => {

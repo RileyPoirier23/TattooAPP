@@ -83,7 +83,7 @@ messagesRouter.get('/conversations', (req, res) => {
   const user = requireUser(req);
   const rows = getDb()
     .prepare(
-      `select c.id, u.id other_id, u.name other_name, u.avatar_url other_avatar, u.role other_role,
+      `select c.id, u.id other_id, u.name other_name, u.avatar_url other_avatar, u.offers_services other_offers, u.rents_space other_rents,
          (select content from messages m where m.conversation_id = c.id order by created_at desc limit 1) last_content,
          (select attachment_url from messages m where m.conversation_id = c.id order by created_at desc limit 1) last_attachment,
          (select sender_id from messages m where m.conversation_id = c.id order by created_at desc limit 1) last_sender,
@@ -96,7 +96,7 @@ messagesRouter.get('/conversations', (req, res) => {
     .all({ me: user.id }) as any[];
   const list: Conversation[] = rows.map(r => ({
     id: r.id,
-    otherUser: { id: r.other_id, name: r.other_name, avatarUrl: r.other_avatar, role: r.other_role },
+    otherUser: { id: r.other_id, name: r.other_name, avatarUrl: r.other_avatar, offersServices: !!r.other_offers, rentsSpace: !!r.other_rents },
     lastMessage: r.last_message_at
       ? { content: r.last_content || (r.last_attachment ? 'Photo' : ''), createdAt: r.last_message_at, senderId: r.last_sender }
       : null,

@@ -1,7 +1,7 @@
 // Shop owners: create/edit their shop and manage booths.
 import { Router, type Request } from 'express';
 import { z } from 'zod';
-import { requireRole, requireUser } from '../auth';
+import { requireHost, requireUser } from '../auth';
 import { getDb, newId, nowIso } from '../db';
 import { badRequest, conflict, forbidden, notFound, parse, todayStr, zDate } from '../http';
 import { toShop } from '../mappers';
@@ -45,7 +45,7 @@ function loadOwnBooth(req: Request, boothId: string) {
 const fullShop = (id: string) => toShop(getDb().prepare('select * from shops where id = ?').get(id), true);
 
 shopsRouter.post('/shops', (req, res) => {
-  const user = requireRole(req, 'shop-owner');
+  const user = requireHost(req);
   const body = parse(shopSchema, req.body);
   const db = getDb();
   if (db.prepare('select 1 from shops where owner_id = ?').get(user.id)) throw conflict('You already have a shop.');
@@ -60,7 +60,7 @@ shopsRouter.post('/shops', (req, res) => {
 });
 
 shopsRouter.get('/my-shop', (req, res) => {
-  const user = requireRole(req, 'shop-owner');
+  const user = requireHost(req);
   const shop = getDb().prepare('select id from shops where owner_id = ?').get(user.id) as { id: string } | undefined;
   res.json(shop ? fullShop(shop.id) : null);
 });

@@ -23,9 +23,9 @@ const FEATURES: { key: keyof SiteFeatures; label: string; description: string }[
   { key: 'messaging', label: 'Messaging', description: 'Members can send each other private messages.' },
   {
     key: 'proPlan',
-    label: 'Pro plan',
+    label: 'Featured plan',
     description:
-      'Pros can subscribe monthly: their clients don’t pay the booking fee, they get a Pro badge and they’re listed first in search. Turning it off stops new sign-ups; current subscribers keep their plan until they cancel.',
+      'Pros can subscribe monthly: their clients don’t pay the booking fee, they get a Featured badge and they’re listed first in search. Turning it off stops new sign-ups; current subscribers keep their plan until they cancel.',
   },
   { key: 'reviews', label: 'Reviews', description: 'Clients can rate pros after an appointment, and pros can review shops they rented from.' },
   { key: 'unclaimedShops', label: 'Unclaimed shop listings', description: 'Show nearby shops and salons from Google Maps that haven’t joined yet, so pros can find them. Needs a Google Maps key.' },
@@ -413,13 +413,13 @@ export const SettingsSection: React.FC = () => {
                     hint="Your cut of every booth rental. The rest is owed to the shop."
                   />
                   <NumberField
-                    label="Pro plan price (per month)"
+                    label="Featured plan price (per month)"
                     suffix={draft.currency}
                     min={1}
                     max={10000}
                     value={draft.proMonthlyPrice}
                     onChange={v => set('proMonthlyPrice', v)}
-                    hint="What pros pay each month for Pro. If you change it, current subscribers are emailed when you save and pay the new price from their next renewal."
+                    hint="What pros pay each month to be Featured. If you change it, current subscribers are emailed when you save and pay the new price from their next renewal."
                   />
                   <NumberField
                     label="Default deposit"
@@ -482,7 +482,7 @@ export const SettingsSection: React.FC = () => {
               {/* Square */}
               <SettingsCard
                 title="Square payments"
-                description="Deposits, booth rentals and Pro subscriptions are paid by card through your Square account."
+                description="Deposits, booth rentals and Featured plan subscriptions are paid by card through your Square account."
                 icon={<CreditCardIcon className="w-5 h-5" />}
                 aside={<StatusPill ready={squareReady} readyLabel="Connected" />}
               >

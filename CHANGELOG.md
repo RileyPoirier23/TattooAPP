@@ -3,6 +3,10 @@
 ## [1.3.0] — 2026-11-03 — Beauty marketplace
 
 ### New
+- **One account type.** The Client / Pro / Pro & client / Shop owner choice at sign-up is gone. Everyone can book; two switches ("I take bookings", "I rent out chairs or rooms") add a pro profile and/or a shop, and both can be on. Existing accounts were converted automatically. Members switch features on from Settings; admins change them (and make admins) from Users.
+- **Several categories per pro, and a category on each service.** Pros pick every category they work in; the first is the main one on their card. Each service can be filed under one of them, and the booking form asks tattoo questions (size, placement) only for tattoo or piercing services. Search and the home page list a pro under every category they offer.
+- **Built for traffic.** Public responses (home page, pros list, pro pages, site config, content pages) are built and compressed once every few seconds and served from memory; settings are cached; the database uses faster write settings; keep-alive timeouts suit hosts' proxies. The pros list went from about 700 to 4,300 requests a second on the same machine.
+- **The paid plan is now called "Featured"** everywhere (badge, dashboard, emails, admin), since "pro" is the word for the person who takes bookings.
 - Exact start times: clients pick a free slot inside the pro's hours when booking (each service blocks its own duration; booked slots, days off and Google Calendar busy times are left out). Pros choose the slot spacing (15, 30 or 60 minutes) or switch it off to keep time-of-day requests. The requested time is the default when the pro approves.
 - Calendar feeds: a private link in Settings that puts appointments, client bookings and booth rentals in Google Calendar, Apple Calendar or Outlook, and an Add to calendar button (Google, or an .ics file for Apple and Outlook) on every approved booking.
 - Google Calendar sync for pros: once the owner enters a Google OAuth client in Admin → Settings, pros connect their calendar; approved appointments are added, moved and removed as bookings change, and busy times block slots.

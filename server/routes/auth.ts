@@ -62,20 +62,24 @@ authRouter.post('/register', limiter, async (req, res) => {
       email: zEmail,
       password: zPassword,
       name: z.string().trim().min(1, 'Name is required').max(100),
-      role: z.enum(['client', 'artist', 'dual', 'shop-owner']),
+      // Everyone can book; these two switches add a pro profile and/or a shop.
+      offersServices: z.boolean().optional(),
+      rentsSpace: z.boolean().optional(),
       city: z.string().trim().max(100).optional(),
-      category: z.string().trim().max(40).optional(),
+      categories: z.array(z.string().trim().min(1).max(40)).max(8).optional(),
       acceptTerms: z.literal(true, { message: 'Please accept the Terms of Service and Privacy Policy.' }),
     }),
     req.body,
   );
-  if ((body.role === 'artist' || body.role === 'dual') && !body.city) throw badRequest('Please enter your city.');
-  if (body.category && !getSettings().categories.includes(body.category)) throw badRequest('Pick a category from the list.');
+  if (body.offersServices && !body.city) throw badRequest('Please enter your city.');
+  const allowed = getSettings().categories;
+  if (body.offersServices && body.categories?.some(c => !allowed.includes(c))) throw badRequest('Pick a category from the list.');
   if (findUserByEmail(body.email)) throw conflict('An account with that email already exists. Try logging in.');
   const user = await createUser(body);
   getDb().prepare('update users set terms_accepted_at = ? where id = ?').run(nowIso(), user.id);
   createSession(res, user.id);
-  if (body.role !== 'client') notifyAdmins(`New ${body.role.replace('-', ' ')} signed up: ${user.name}`, '/admin/users');
+  const kind = [body.offersServices && 'pro', body.rentsSpace && 'shop owner'].filter(Boolean).join(' and ');
+  if (kind) notifyAdmins(`New ${kind} signed up: ${user.name}`, '/admin/users');
   res.status(201).json({ user: toMe(user) });
 });
 
